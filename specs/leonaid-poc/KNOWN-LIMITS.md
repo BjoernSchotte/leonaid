@@ -56,8 +56,28 @@ Punkte sind keine stillschweigenden Produktzusagen.
   number and link contract is an open decision for Björn (ADR-0004/0009
   defer it). An active (not reversed) payment entry blocks the
   cancellation until it is reversed ("Zurückbuchen" in the invoice pane);
-  LeonAid books no refunds. The buyer is not e-mailed about the cancellation, and a
-  cancelled order cannot be reopened.
+  LeonAid books no refunds. A cancelled order cannot be reopened.
+- Buyer mails (`application/order_mails.py`): a public-form order sends one
+  plain-text order confirmation, and its cancellation one cancellation
+  notice, through the outbox (`order.confirmation.mail.v1`,
+  `order.cancellation.mail.v1`; one job and one SMTP ledger row per order
+  and kind). The job holds ids and links only; the worker reads the order
+  and the active legal configuration when it sends, so an erased buyer gets
+  nothing. Delivery is at least once: a crash between the SMTP server
+  accepting a mail and the ledger write sends it again on the retry. A
+  confirmation whose order is already cancelled is skipped. At most 10 order
+  mails go to one address per hour; a job over that limit is dead-lettered
+  (`order_mail_recipient_limit`, operations view, manual retry). Public order
+  fields refuse line breaks, tabs and invisible control or format characters
+  (bidi overrides, zero-width); the mail also strips them from older data.
+  The mail repeats the full delivery and billing address so the buyer can
+  check it. Not covered: orders entered by members or acquirers (no mail,
+  also no cancellation notice), an HTML version, a club sender address (the
+  configured `MAIL_FROM` sends), a resend button, and mails for later order
+  changes (delivery window moved, invoice issued). Fulfilment mails ignore
+  the marketing/acquisition suppression list. The campaign link is today's
+  public host page (`PublicCampaignLinks`); the permanent edition URL on a
+  campaign host (decision D8) comes with stage 2c.
 
 - Impressum (`/impressum`) und Datenschutzerklärung (`/datenschutz`) kommen
   aus der aktiven rechtlichen Konfiguration (Vier-Augen-Freigabe, Migration
@@ -126,16 +146,18 @@ Punkte sind keine stillschweigenden Produktzusagen.
   (`app.<domain>`) plus einen öffentlichen Host mit Weiterleitungsnamen
   (`specs/multi-domain/PLAN.md`, Stufe 1; `infra/pilot/Caddyfile.split`).
   Eigene Kampagnen-Domains (Stufe 2) und eine Installation ohne öffentlichen
-  Host sind nur spezifiziert. `/` auf dem Verwaltungshost leitet vorerst auf
-  `/admin/` (rollenbasierter Einstieg: Stufe 1b). Weiterleitungsnamen des
+  Host sind nur spezifiziert. `/` auf dem Verwaltungshost ist der
+  rollenbasierte Einstieg (`/login/start`: Anmeldung, dann `landingPath`). Weiterleitungsnamen des
   öffentlichen Hosts gibt es im Dev-Stack nicht. Beim Umstellen auf zwei
   Hosts melden sich alle Mitglieder einmal neu an
   (`pilot-revoke-sessions`). Auf dem öffentlichen Host zeigt die Kopfzeile
-  einen festen Link „Anmelden“ statt der persönlichen App-Links (#82): die
+  einen festen Link „Mitgliederbereich“ statt der persönlichen App-Links (#82): die
   Sitzung gehört zum Verwaltungshost, und die CSP (`connect-src 'self'`)
   erlaubt keine Abfrage dort. Die Live-Abnahme der Aktionsseiten im
   Split-Modus (CMS hinter `Caddyfile.split`) fehlt; der Stack-Beweis
-  `test-multi-host` läuft ohne CMS.
+  `test-multi-host` läuft ohne CMS. Die öffentliche Startseite listet aktive
+  Aktionen; eine `sitemap.xml` des öffentlichen Hosts gibt es noch nicht
+  (Stufe 2).
 - Die Hilfe-Doku trägt auf 19 Seiten je Sprache noch den Vermerk „Prüfung
   durch Björn Schotte offen“ (Frontmatter `reviewer:` in `apps/docs`).
 - OpenFeature ist integriert; der PoC bietet zwei administrative Flags.

@@ -47,6 +47,7 @@ import { replaceActionInUrl } from "../action-admin/action-location";
 import { actionErrorMessage } from "../action-admin/errors";
 import { useContextCommands } from "../command-palette/store";
 import { formatDateTime } from "../shared/dates";
+import { ADMIN_BASE } from "@leonaid/ui/base-paths";
 
 /*
  * The delivery day board (prototype pages/Delivery.tsx). Managers see every
@@ -736,7 +737,7 @@ export function DeliveryBoardPage({
                 <a
                   className={buttonClassName({ variant: "primary" })}
                   data-testid="delivery-next-invite"
-                  href={`/admin/members/invitations?action=${encodeURIComponent(actionId)}`}
+                  href={`${ADMIN_BASE}members/invitations?action=${encodeURIComponent(actionId)}`}
                 >
                   <Icon icon={MailPlus} size={16} />
                   <span>Ausfahrer einladen</span>

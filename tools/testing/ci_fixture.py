@@ -75,15 +75,23 @@ def key(root):
 
 
 PORT_KEYS = ("LEONAID_HTTP_PORT", "LEONAID_HTTPS_PORT")
+PROJECT_KEY = "LEONAID_COMPOSE_PROJECT"
+# Per checkout, not part of the synthetic secrets: the host ports publish only
+# the developer's own stack (test stacks run with fixed ports and no published
+# host ports) and every stack call passes its own --project-name.
+LOCAL_KEYS = (*PORT_KEYS, PROJECT_KEY)
+COMPOSE_PROJECT = re.compile(r"[a-z0-9][a-z0-9_-]*")
 
 
-def environment(root, http_port="8080", https_port="8443"):
+def environment(
+    root, http_port="8080", https_port="8443", compose_project="leonaid-ci"
+):
     # Public, deliberately synthetic credentials. Never copy .env.local into a cache.
-    # Host ports only publish a developer's own stack; test stacks always run
-    # with fixed ports and no published host ports, so they may differ.
     ports = dict(zip(PORT_KEYS, (http_port, https_port)))
     if not all(str(port).isdigit() for port in ports.values()):
         raise ValueError("Synthetic environment ports must be numeric")
+    if not COMPOSE_PROJECT.fullmatch(compose_project):
+        raise ValueError("Synthetic environment needs a valid Compose project")
     text = (root / ".env.example").read_text()
     result = []
     for line in text.splitlines():
@@ -98,6 +106,7 @@ def environment(root, http_port="8080", https_port="8443"):
             "__GENERATE_EMAIL__": "ci-fixture@leonaid.invalid",
             # Left unreplaced (and rejected below) for any other key.
             "__HOST_PORT__": str(ports.get(name, "__HOST_PORT__")),
+            "__COMPOSE_PROJECT__": compose_project,
         }
         for token, replacement in replacements.items():
             line = line.replace(token, replacement)
@@ -107,19 +116,34 @@ def environment(root, http_port="8080", https_port="8443"):
     return "\n".join(result) + "\n"
 
 
-def ports(text):
-    """Return the (HTTP, HTTPS) host ports of an env file text, or None."""
+def local_settings(text):
+    """(HTTP port, HTTPS port, Compose project) of an env file text, or None.
+
+    A file written before the project setting existed reports the CI default.
+    """
     values = dict(
-        line.split("=", 1) for line in text.splitlines() if line.startswith(PORT_KEYS)
+        line.split("=", 1) for line in text.splitlines() if line.startswith(LOCAL_KEYS)
     )
     found = tuple(values.get(key, "") for key in PORT_KEYS)
-    return found if all(value.isdigit() for value in found) else None
+    project = values.get(PROJECT_KEY, "leonaid-ci")
+    if not all(value.isdigit() for value in found) or not COMPOSE_PROJECT.fullmatch(
+        project
+    ):
+        return None
+    return (*found, project)
+
+
+def ports(text):
+    """Return the (HTTP, HTTPS) host ports of an env file text, or None."""
+    settings = local_settings(text)
+    return None if settings is None else settings[:2]
 
 
 def is_synthetic(root, text):
-    """True if `text` is exactly the synthetic environment, apart from host ports."""
-    found = ports(text)
-    return found is not None and text == environment(root, *found)
+    """True if `text` is exactly the synthetic environment, apart from the
+    per-checkout host ports and Compose project."""
+    settings = local_settings(text)
+    return settings is not None and text == environment(root, *settings)
 
 
 def is_synthetic_subset(root, text):
@@ -129,18 +153,18 @@ def is_synthetic_subset(root, text):
     bootstrap then rewrites the full synthetic environment. Any other value
     (a generated secret, a changed setting, an unknown key) is not synthetic.
     """
-    found = ports(text)
-    if found is None:
+    settings = local_settings(text)
+    if settings is None:
         return False
     expected = {
         line.split("=", 1)[0]: line
-        for line in environment(root, *found).splitlines()
+        for line in environment(root, *settings).splitlines()
         if "=" in line and not line.startswith("#")
     }
-    settings = [
+    lines = [
         line for line in text.splitlines() if "=" in line and not line.startswith("#")
     ]
-    return all(expected.get(line.split("=", 1)[0]) == line for line in settings)
+    return all(expected.get(line.split("=", 1)[0]) == line for line in lines)
 
 
 def validate(root, directory):
@@ -250,7 +274,9 @@ def activate(root, directory):
         print(f"LEONAID_CI_FIXTURE={directory.resolve()}", file=output)
 
 
-def write_environment(root, target, http_port, https_port):
+def write_environment(
+    root, target, http_port, https_port, compose_project="leonaid-ci"
+):
     """Write the synthetic environment for a local checkout (bootstrap).
 
     Refuses to replace an environment with other (generated) secrets: those
@@ -262,7 +288,7 @@ def write_environment(root, target, http_port, https_port):
             "checkout's development stack) to switch to the synthetic environment"
         )
     temporary = target.with_name(target.name + ".tmp")
-    temporary.write_text(environment(root, http_port, https_port))
+    temporary.write_text(environment(root, http_port, https_port, compose_project))
     temporary.chmod(0o600)
     temporary.replace(target)
 
@@ -276,6 +302,7 @@ if __name__ == "__main__":
     parser.add_argument("directory", nargs="?", type=Path)
     parser.add_argument("--http-port", default="8080")
     parser.add_argument("--https-port", default="8443")
+    parser.add_argument("--compose-project", default="leonaid-ci")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
     if args.command == "key":
@@ -286,7 +313,13 @@ if __name__ == "__main__":
         )
     elif args.command == "environment":
         try:
-            write_environment(root, args.directory, args.http_port, args.https_port)
+            write_environment(
+                root,
+                args.directory,
+                args.http_port,
+                args.https_port,
+                args.compose_project,
+            )
         except ValueError as error:
             raise SystemExit(f"synthetic-environment: ERROR: {error}") from None
     else:

@@ -1,22 +1,27 @@
-// The build replaces both placeholders (see vite.config.ts). A new build ID
-// changes this file's bytes, so browsers install the update, the app shows
-// its update banner and activation deletes the previous build's cache.
+// The build replaces the placeholders (see vite.config.ts): the build ID, the
+// asset list and __LEONAID_PWA_BASE__, the PWA base path of
+// packages/ui/src/lib/base-paths.ts. A new build ID changes this file's
+// bytes, so browsers install the update, the app shows its update banner and
+// activation deletes the previous build's cache.
 const BUILD_ID = "__LEONAID_BUILD_ID__";
 const BUILD_ASSETS = /* __LEONAID_BUILD_ASSETS__ */ [];
 const CACHE_NAME = `leonaid-pwa-${BUILD_ID}`;
-const OFFLINE_URL = "/app/offline.html";
+const OFFLINE_URL = "__LEONAID_PWA_BASE__offline.html";
 // The offline page loads its stylesheet and script from files because the
 // Content-Security-Policy forbids inline code; they are cached with it.
-const OFFLINE_RESOURCES = ["/app/offline.css", "/app/offline.js"];
+const OFFLINE_RESOURCES = [
+  "__LEONAID_PWA_BASE__offline.css",
+  "__LEONAID_PWA_BASE__offline.js",
+];
 const APP_SHELL = [
-  "/app/",
+  "__LEONAID_PWA_BASE__",
   OFFLINE_URL,
   ...OFFLINE_RESOURCES,
-  "/app/theme-init.js",
-  "/app/icons/icon.svg",
-  "/app/icons/icon-192.svg",
-  "/app/icons/icon-512.svg",
-  "/app/manifest.webmanifest",
+  "__LEONAID_PWA_BASE__theme-init.js",
+  "__LEONAID_PWA_BASE__icons/icon.svg",
+  "__LEONAID_PWA_BASE__icons/icon-192.svg",
+  "__LEONAID_PWA_BASE__icons/icon-512.svg",
+  "__LEONAID_PWA_BASE__manifest.webmanifest",
   ...BUILD_ASSETS,
 ];
 
@@ -55,7 +60,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (
     url.origin !== self.location.origin ||
-    !url.pathname.startsWith("/app/")
+    !url.pathname.startsWith("__LEONAID_PWA_BASE__")
   ) {
     return;
   }
@@ -87,7 +92,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith("/app/assets/")) {
+  if (url.pathname.startsWith("__LEONAID_PWA_BASE__assets/")) {
     event.respondWith(
       caches.open(CACHE_NAME).then(async (cache) => {
         const cached = await cache.match(request);

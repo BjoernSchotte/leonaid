@@ -54,6 +54,7 @@ import {
   migrateLegacyStatusParam,
   type InvoiceRow,
 } from "./invoice-model";
+import { adminHref } from "@leonaid/ui/base-paths";
 
 interface InvoiceAdminPageProps {
   readonly client: LeonAidApiClient;
@@ -63,9 +64,9 @@ interface InvoiceAdminPageProps {
 export type InvoiceSection = "list" | "payments" | "documents";
 
 const sectionPaths: Readonly<Record<InvoiceSection, string>> = {
-  list: "/admin/invoices",
-  payments: "/admin/invoices/payments",
-  documents: "/admin/invoices/documents",
+  list: adminHref("invoices"),
+  payments: adminHref("invoices/payments"),
+  documents: adminHref("invoices/documents"),
 };
 
 /** The finance area of `/admin/invoices[/payments|/documents]`. */
@@ -581,7 +582,7 @@ function InvoiceList({
               <Icon icon={ReceiptEuro} size={16} />
               <span>
                 Rechnungen entstehen aus prüfbereiten Bestellungen.{" "}
-                <a href="/admin/orders">Zu den Bestellungen</a>
+                <a href={adminHref("orders")}>Zu den Bestellungen</a>
               </span>
             </div>
           ) : undefined

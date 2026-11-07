@@ -432,7 +432,7 @@ used entries (`LEONAID_FIXTURE_CACHE_KEEP`) and 4096 MB
 (`LEONAID_FIXTURE_CACHE_MAX_MB`); entries in use or used within the last hour
 are never pruned. `./leonaid fixture-cache` shows the cache;
 `./leonaid fixture-cache clear` removes every entry not in use.
-Host ports may differ from the CI environment; every other value must match.
+Host ports and `LEONAID_COMPOSE_PROJECT` are per checkout; every other value must match.
 When `.env.example` gains a setting, the test run asks for `./leonaid bootstrap`,
 which rewrites the synthetic file with the new setting.
 `LEONAID_FIXTURE_CACHE=off` forces a private setup. Bootstrap never replaces an

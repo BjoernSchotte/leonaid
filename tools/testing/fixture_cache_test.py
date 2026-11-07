@@ -238,6 +238,20 @@ class SyntheticEnvironmentTests(unittest.TestCase):
             write_environment(ROOT, target, "28090", "28091")
             self.assertEqual(target.read_text(), local)
 
+    def test_compose_project_is_per_checkout(self):
+        local = environment(ROOT, "28090", "28091", "leonaid-wt-42")
+        self.assertIn("LEONAID_COMPOSE_PROJECT=leonaid-wt-42\n", local)
+        self.assertTrue(is_synthetic(ROOT, local))
+        self.assertFalse(is_synthetic(ROOT, local.replace("leonaid-wt-42", "Bad")))
+        # A synthetic file from before the setting existed is rewritten.
+        older = local.replace("LEONAID_COMPOSE_PROJECT=leonaid-wt-42\n", "")
+        self.assertTrue(is_synthetic_subset(ROOT, older))
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / ".env.local"
+            target.write_text(older)
+            write_environment(ROOT, target, "28090", "28091", "leonaid-wt-42")
+            self.assertEqual(target.read_text(), local)
+
     def test_never_replaces_generated_secrets(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / ".env.local"

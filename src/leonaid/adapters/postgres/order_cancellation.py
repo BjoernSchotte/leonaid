@@ -26,6 +26,7 @@ import asyncpg
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.delivery_board import order_link, order_reference
 from leonaid.adapters.postgres.invoice_payment_state import ACTIVE_PAID_MINOR_SQL
+from leonaid.adapters.postgres.order_mails import insert_order_mail_event
 from leonaid.adapters.postgres.invoice_settlements import (
     AsyncpgInvoiceSettlementRepository,
 )
@@ -36,6 +37,12 @@ from leonaid.adapters.postgres.retry import (
 )
 from leonaid.application.delivery_board import DeliveryFollowUp
 from leonaid.application.delivery_completion import delivery_completion_version
+from leonaid.application.order_mails import (
+    OrderMailKind,
+    OrderMailLinks,
+    mail_due,
+    order_mail_event,
+)
 from leonaid.application.errors import (
     AuthenticationRequired,
     Conflict,
@@ -100,6 +107,7 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None = None,
     ) -> OrderCancellationResult:
         async with self._pool.acquire() as connection:
             for attempt in range(SERIALIZABLE_ATTEMPTS):
@@ -116,6 +124,7 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
                             request_hash=request_hash,
                             request_id=request_id,
                             occurred_at=occurred_at,
+                            mail_links=mail_links,
                         )
                 except CANCEL_RETRYABLE:
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
@@ -140,6 +149,7 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None,
     ) -> OrderCancellationResult:
         await connection.execute(
             "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
@@ -374,6 +384,19 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
             ),
             occurred_at,
         )
+        if mail_links is not None and mail_due(order):
+            # The buyer of a public order learns about the cancellation; one
+            # notice per order, since a cancelled order cannot be reopened.
+            await insert_order_mail_event(
+                connection,
+                order_mail_event(
+                    OrderMailKind.CANCELLATION,
+                    action_id=action_id,
+                    commitment_id=commitment_id,
+                    links=mail_links,
+                ),
+                occurred_at,
+            )
         if self._follow_up is not None and window_id is not None:
             # Closes an open "Nachliefern" task; does nothing without one.
             await self._follow_up(connection).sync(
