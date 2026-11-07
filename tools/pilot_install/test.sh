@@ -721,6 +721,30 @@ cms_state() {
     campaign-site /app/operator/cms-provision-operator.mjs status
 }
 cms_proof() {
+  cms_proof_run "$@" || {
+    # Diagnosis without secrets: provisioning state and the Core identity
+    # answer as the CMS sees it (status code and field names only).
+    echo "pilot-install-test: CMS diagnosis after a failed edge proof:" >&2
+    cms_state >&2 || true
+    CMS_PROOF_SESSION=$cms_session runtime_compose --profile emdash exec -T \
+      --env CMS_PROOF_SESSION campaign-site node -e '
+fetch("http://api:8000/api/v1/identity/me", {
+  headers: { Cookie: "__Host-leonaid_session=" + process.env.CMS_PROOF_SESSION },
+  redirect: "manual",
+}).then(async (r) => {
+  const body = await r.text();
+  let keys = [];
+  try { keys = Object.keys(JSON.parse(body)); } catch {}
+  console.error("core identity:", r.status, r.headers.get("content-type"), keys.join(","));
+}).catch((e) => console.error("core identity: fetch failed", e?.cause?.code ?? e?.name));
+const fs = require("node:fs");
+try { const s = JSON.parse(fs.readFileSync("/app/bootstrap-state/state.json", "utf8"));
+  console.error("bootstrap:", s.status, s.actor, s.expiresAt > Date.now() ? "valid" : "expired");
+} catch (e) { console.error("bootstrap: unreadable", e?.code); }' >&2 || true
+    exit 1
+  }
+}
+cms_proof_run() {
   CMS_PROOF_SESSION=$cms_session docker run --rm \
     --network "container:$project-proxy-1" \
     --env CMS_PROOF_SESSION \
