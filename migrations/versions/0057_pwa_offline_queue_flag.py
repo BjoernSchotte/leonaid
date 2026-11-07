@@ -19,11 +19,15 @@ revision: str = "0057_pwa_offline_queue_flag"
 down_revision: str | None = "0056_site_hosts"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+DATA_MIGRATION_REFERENCE = (
+    "The known-key check is replaced by a wider one; existing flag rows and "
+    "their states are untouched."
+)
+BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
 OLD_KEYS = "key IN ('admin.system_status_panel', 'admin.preview_notice')"
 NEW_KEYS = (
-    "key IN ('admin.system_status_panel', 'admin.preview_notice', "
-    "'pwa.offline_queue')"
+    "key IN ('admin.system_status_panel', 'admin.preview_notice', 'pwa.offline_queue')"
 )
 
 
