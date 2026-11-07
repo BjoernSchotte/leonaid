@@ -84,13 +84,23 @@ test("two system admins activate a legal basis", async ({ browser }) => {
     const parts = klaraPage.getByRole("navigation", {
       name: "Bereiche der rechtlichen Angaben",
     });
-    await parts.getByRole("link", { name: /Datenschutz/ }).click();
+    await parts.locator('a[href="/admin/legal/privacy"]').click();
     await expect(klaraPage).toHaveURL(/\/admin\/legal\/privacy$/);
     await expect(
       klaraPage.getByText(
         "Auskunft, Sperre und Anonymisierung einzelner Personen",
       ),
     ).toBeVisible();
+
+    // The Impressum part shows the seeded § 5 DDG details.
+    await parts.locator('a[href="/admin/legal/imprint"]').click();
+    await expect(klaraPage).toHaveURL(/\/admin\/legal\/imprint$/);
+    await expect(
+      klaraPage.getByRole("heading", { level: 2, name: "Impressum" }),
+    ).toBeVisible();
+    await expect(klaraPage.getByTestId("legal-draft")).toContainText(
+      "Vorstand: Paula Golden (Präsidentin)",
+    );
 
     await parts.getByRole("link", { name: /E-Rechnung/ }).click();
     await expect(klaraPage).toHaveURL(/\/admin\/legal\/e-invoice$/);
@@ -165,6 +175,49 @@ test("two system admins activate a legal basis", async ({ browser }) => {
     );
     await expect(imprintPage.locator("[data-footer-provider]")).toHaveText(
       "Golden Förderverein e. V. · Testweg 44 · 86150 Augsburg",
+    );
+    // § 5 DDG and § 18 Abs. 2 MStV details of the activated version.
+    await expect(
+      imprintPage.locator("[data-imprint-representatives]"),
+    ).toHaveText("Vorstand: Paula Golden (Präsidentin)");
+    await expect(imprintPage.locator("[data-imprint-phone]")).toHaveAttribute(
+      "href",
+      "tel:+493023125044",
+    );
+    await expect(imprintPage.locator("[data-imprint-register]")).toHaveText(
+      "Vereinsregister: Amtsgericht Augsburg, VR 0044",
+    );
+    await expect(imprintPage.locator("[data-imprint-vat-id]")).toHaveText(
+      "DE999999999",
+    );
+    await expect(
+      imprintPage.locator("[data-imprint-content-responsible]"),
+    ).toHaveText("Paula Golden, Testweg 44, 86150 Augsburg");
+
+    // The privacy page renders the activated texts.
+    await imprintPage.locator("[data-imprint-privacy-link]").click();
+    await expect(imprintPage).toHaveURL(/\/datenschutz$/);
+    await expect(
+      imprintPage.getByRole("heading", {
+        level: 1,
+        name: "Datenschutzerklärung",
+      }),
+    ).toBeVisible();
+    await expect(
+      imprintPage.getByRole("heading", { level: 2, name: "Ihre Rechte" }),
+    ).toBeVisible();
+    await expect(
+      imprintPage.locator("[data-privacy-policy] li").first(),
+    ).toHaveText("Auskunft");
+    await expect(
+      imprintPage.getByRole("heading", {
+        level: 3,
+        name: "Speicherung auf deinem Gerät",
+      }),
+    ).toBeVisible();
+    await expect(imprintPage.locator("[data-privacy-contact]")).toHaveAttribute(
+      "href",
+      "mailto:datenschutz@leonaid.invalid",
     );
     await imprintPage.close();
 

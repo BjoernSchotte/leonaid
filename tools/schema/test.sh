@@ -169,6 +169,99 @@ fi
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 printf '%s\n' "UPDATE commitment SET source = '$legacy_source' WHERE id = '80000000-0000-4000-8000-000000000001';" | capture_sql
 
+echo "poc021-test: 0054 keeps Impressum and privacy texts and guards its downgrade"
+legal_sql() {
+  compose exec -T core-postgres sh -ec \
+    'psql -v ON_ERROR_STOP=1 -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+}
+legal_sql <<'SQL'
+INSERT INTO legal_configuration_version (
+    id, version, legal_name, street_line_1, postal_code, city, country_code,
+    tax_identifier, issuer_email, bank_account_holder, iban, bic,
+    tax_treatment, tax_rate_basis_points, tax_note, number_prefix,
+    number_width, payment_terms_days, public_order_legal_basis,
+    public_order_notice_text, consent_text_version, privacy_contact_email,
+    invoice_retention_days, commitment_retention_days, contact_retention_days,
+    consent_evidence_retention_days, audit_retention_days, e_invoice_decision,
+    tax_evidence_id, privacy_evidence_id, e_invoice_evidence_id,
+    created_by_user_id, imprint_representatives, imprint_phone,
+    imprint_register_court, imprint_register_number
+)
+VALUES (
+    '97700000-0000-4000-8000-000000000052', 9052, 'Schema-Nachweis e. V.',
+    'Testweg 52', '86150', 'Augsburg', 'DE', '103/052/00000',
+    'schema@leonaid.invalid', 'Schema-Nachweis e. V.',
+    'DE89370400440532013000', NULL, 'tax_exempt', 0,
+    'Steuerbefreit laut Schema-Nachweis.', 'SN', 5, 14,
+    'Vertragserfüllung für den Schema-Nachweis.',
+    'Schema-Nachweis: Datenschutzhinweis für die öffentliche Bestellung.',
+    'schema-v1', 'datenschutz@leonaid.invalid', 3650, 3650, 730, 3650, 3650,
+    'pending', 'STEUER-SCHEMA-052', 'DATENSCHUTZ-SCHEMA-052', NULL,
+    '10000000-0000-4000-8000-000000000001',
+    'Vorstand: Schema Nachweis', '+49 30 23125 052',
+    'Amtsgericht Augsburg', 'VR 0052'
+);
+SQL
+# A register court without number violates the pairing constraint.
+if printf '%s\n' "UPDATE legal_configuration_version SET imprint_register_number = NULL WHERE id = '97700000-0000-4000-8000-000000000052';" \
+  | legal_sql >/dev/null 2>&1; then
+  echo "poc021-test: ERROR: register court without number was stored" >&2
+  exit 1
+fi
+if output=$(compose run --rm --no-deps --entrypoint alembic api \
+  downgrade 0053_activity_occurred_at_bound 2>&1); then
+  echo "poc021-test: ERROR: downgrade dropped a published Impressum" >&2
+  exit 1
+fi
+case "$output" in
+  *"downgrade refused"*) ;;
+  *)
+    printf '%s\n' "$output" >&2
+    echo "poc021-test: ERROR: 0054 downgrade failed for another reason" >&2
+    exit 1
+    ;;
+esac
+printf '%s\n' "DELETE FROM legal_configuration_version WHERE id = '97700000-0000-4000-8000-000000000052';" \
+  | legal_sql
+compose run --rm --no-deps --entrypoint alembic api downgrade 0053_activity_occurred_at_bound
+# Versions from before 0054: an "e. V." name gets the registered association
+# form, every other name stays without a form (chosen before activation).
+legal_sql <<'SQL'
+INSERT INTO legal_configuration_version (
+    id, version, legal_name, street_line_1, postal_code, city, country_code,
+    tax_identifier, issuer_email, bank_account_holder, iban, tax_treatment,
+    tax_rate_basis_points, tax_note, number_prefix, number_width,
+    payment_terms_days, public_order_legal_basis, public_order_notice_text,
+    consent_text_version, privacy_contact_email, invoice_retention_days,
+    commitment_retention_days, contact_retention_days,
+    consent_evidence_retention_days, audit_retention_days, e_invoice_decision,
+    tax_evidence_id, privacy_evidence_id, created_by_user_id
+)
+SELECT id::uuid, version, legal_name, 'Testweg 52', '86150', 'Augsburg', 'DE',
+    '103/052/00000', 'schema@leonaid.invalid', legal_name,
+    'DE89370400440532013000', 'tax_exempt', 0,
+    'Steuerbefreit laut Schema-Nachweis.', 'SN', 5, 14,
+    'Vertragserfüllung für den Schema-Nachweis.',
+    'Schema-Nachweis: Datenschutzhinweis für die öffentliche Bestellung.',
+    'schema-v1', 'datenschutz@leonaid.invalid', 3650, 3650, 730, 3650, 3650,
+    'pending', 'STEUER-SCHEMA-052', 'DATENSCHUTZ-SCHEMA-052',
+    '10000000-0000-4000-8000-000000000001'
+FROM (VALUES
+    ('97700000-0000-4000-8000-000000000053', 9053, 'Förderverein Schema e. V.'),
+    ('97700000-0000-4000-8000-000000000054', 9054, 'Lions AG Schema Augsburg')
+) AS form_case(id, version, legal_name);
+SQL
+compose run --rm --no-deps --entrypoint alembic api upgrade head
+forms=$(printf '%s\n' "SELECT string_agg(coalesce(legal_form, 'null'), ',' ORDER BY version) FROM legal_configuration_version WHERE version IN (9053, 9054);" \
+  | compose exec -T core-postgres sh -ec \
+    'psql -v ON_ERROR_STOP=1 -qAt -U "$POSTGRES_USER" -d "$POSTGRES_DB"')
+if [ "$forms" != "registered_association,null" ]; then
+  echo "poc021-test: ERROR: 0054 legal form backfill is wrong: $forms" >&2
+  exit 1
+fi
+printf '%s\n' "DELETE FROM legal_configuration_version WHERE version IN (9053, 9054);" \
+  | legal_sql
+
 echo "poc021-test: 0051 downgrade refuses recorded order cancellations"
 cancellation_sql() {
   compose exec -T core-postgres sh -ec \
@@ -201,13 +294,13 @@ printf '%s\n' "DELETE FROM commitment_cancellation;" | cancellation_sql
 compose run --rm --no-deps --entrypoint alembic api downgrade 0050_invoice_partial_payments
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 
-echo "poc021-test: 0054 stores only web or pwa as preferred start area"
+echo "poc021-test: 0055 stores only web or pwa as preferred start area"
 # The downgrade target is the revision below this migration, read from the
 # file, so a renumbering or a new parent cannot leave the gate behind.
 preference_parent=$(sed -n 's/^down_revision: str | None = "\(.*\)"$/\1/p' \
-  "$root/migrations/versions/0054_preferred_surface.py")
+  "$root/migrations/versions/0055_preferred_surface.py")
 [ -n "$preference_parent" ] || {
-  echo "poc021-test: ERROR: 0054 names no down_revision" >&2
+  echo "poc021-test: ERROR: 0055 names no down_revision" >&2
   exit 1
 }
 preference_sql() {
@@ -216,40 +309,40 @@ preference_sql() {
 }
 printf '%s\n' "UPDATE user_account SET preferred_surface = 'pwa' WHERE id = '10000000-0000-4000-8000-000000000001';" | preference_sql
 if printf '%s\n' "UPDATE user_account SET preferred_surface = 'crm' WHERE id = '10000000-0000-4000-8000-000000000001';" | preference_sql 2>/dev/null; then
-  echo "poc021-test: ERROR: 0054 accepted an unknown start area" >&2
+  echo "poc021-test: ERROR: 0055 accepted an unknown start area" >&2
   exit 1
 fi
 compose run --rm --no-deps --entrypoint alembic api downgrade "$preference_parent"
 [ -z "$(printf '%s\n' "SELECT 1 FROM information_schema.columns WHERE table_name = 'user_account' AND column_name = 'preferred_surface';" | preference_sql)" ] || {
-  echo "poc021-test: ERROR: 0054 downgrade kept preferred_surface" >&2
+  echo "poc021-test: ERROR: 0055 downgrade kept preferred_surface" >&2
   exit 1
 }
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 
-echo "poc021-test: 0055 downgrade refuses existing site hosts"
+echo "poc021-test: 0056 downgrade refuses existing site hosts"
 site_parent=$(sed -n 's/^down_revision: str | None = "\(.*\)"$/\1/p' \
-  "$root/migrations/versions/0055_site_hosts.py")
+  "$root/migrations/versions/0056_site_hosts.py")
 [ -n "$site_parent" ] || {
-  echo "poc021-test: ERROR: 0055 names no down_revision" >&2
+  echo "poc021-test: ERROR: 0056 names no down_revision" >&2
   exit 1
 }
 printf '%s\n' "INSERT INTO site_host (id, hostname, verification_token, created_by) VALUES ('95500000-0000-4000-8000-000000000001', 'downgrade-proof.example.org', repeat('t', 40), '10000000-0000-4000-8000-000000000001');" | preference_sql
 if output=$(compose run --rm --no-deps --entrypoint alembic api downgrade "$site_parent" 2>&1); then
-  echo "poc021-test: ERROR: 0055 downgrade dropped an existing site host" >&2
+  echo "poc021-test: ERROR: 0056 downgrade dropped an existing site host" >&2
   exit 1
 fi
 case "$output" in
-  *"0055 downgrade refused"*) ;;
+  *"0056 downgrade refused"*) ;;
   *)
     printf '%s\n' "$output" >&2
-    echo "poc021-test: ERROR: 0055 downgrade failed for another reason" >&2
+    echo "poc021-test: ERROR: 0056 downgrade failed for another reason" >&2
     exit 1
     ;;
 esac
 printf '%s\n' "DELETE FROM site_host WHERE id = '95500000-0000-4000-8000-000000000001';" | preference_sql
 compose run --rm --no-deps --entrypoint alembic api downgrade "$site_parent"
 [ -z "$(printf '%s\n' "SELECT 1 FROM information_schema.tables WHERE table_name IN ('site_host', 'site_binding');" | preference_sql)" ] || {
-  echo "poc021-test: ERROR: 0055 downgrade kept its tables" >&2
+  echo "poc021-test: ERROR: 0056 downgrade kept its tables" >&2
   exit 1
 }
 compose run --rm --no-deps --entrypoint alembic api upgrade head

@@ -14,6 +14,7 @@ import {
   orderQuantitySummary,
 } from "../lib/order-presentation";
 import { readOrderRedisplay } from "../lib/order-redisplay";
+import { PRIVACY_PATH } from "../lib/legal-notice";
 
 interface Props {
   action: NonNullable<PublicActionRouteResponse["action"]>;
@@ -753,6 +754,17 @@ const checkIcon = "M20 6 9 17l-5-5";
                   </dd>
                 </div>
               </dl>
+              <p class="public-privacy__more small">
+                {/* A new tab keeps what the visitor typed into the form. */}
+                <a
+                  href={PRIVACY_PATH}
+                  target="_blank"
+                  rel="noopener"
+                  data-order-privacy-link
+                >
+                  Vollständige Datenschutzerklärung (öffnet in neuem Tab)
+                </a>
+              </p>
               <div class="field">
                 <label class="public-check" for="privacyAcknowledged">
                   <input

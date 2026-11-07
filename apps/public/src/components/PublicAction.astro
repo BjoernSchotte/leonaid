@@ -10,6 +10,7 @@ import PublicOrder from "./PublicOrder.astro";
 import { moduleEnabled } from "../lib/modules";
 import { offeringPrice, offeringUnit } from "../lib/order-presentation";
 import type { PublicTheme } from "../themes";
+import { PRIVACY_PATH } from "../lib/legal-notice";
 
 interface OrderActionResult {
   data?: PublicOrderResultResponse;
@@ -324,6 +325,11 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
             </p>
           )
         }
+        <p class="privacy-section__more">
+          <a href={PRIVACY_PATH} data-privacy-full-link>
+            Vollständige Datenschutzerklärung
+          </a>
+        </p>
       </div>
     </div>
   </section>

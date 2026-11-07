@@ -8873,8 +8873,116 @@
             "title": "Iban",
             "type": "string"
           },
+          "imprintContentResponsibleAddress": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imprintcontentresponsibleaddress"
+          },
+          "imprintContentResponsibleName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imprintcontentresponsiblename"
+          },
+          "imprintPhone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imprintphone"
+          },
+          "imprintRegisterCourt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imprintregistercourt"
+          },
+          "imprintRegisterNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imprintregisternumber"
+          },
+          "imprintRepresentatives": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imprintrepresentatives"
+          },
+          "imprintVatId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imprintvatid"
+          },
           "issuer": {
             "$ref": "#/components/schemas/LegalIssuerResponse"
+          },
+          "legalForm": {
+            "anyOf": [
+              {
+                "enum": [
+                  "registered_association",
+                  "unregistered_association",
+                  "ggmbh",
+                  "gmbh",
+                  "cooperative",
+                  "foundation",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legalform"
+          },
+          "memberPrivacyNoticeText": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memberprivacynoticetext"
           },
           "numberPrefix": {
             "title": "Numberprefix",
@@ -8895,6 +9003,17 @@
           "privacyEvidenceId": {
             "title": "Privacyevidenceid",
             "type": "string"
+          },
+          "privacyPolicyText": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Privacypolicytext"
           },
           "publicOrderLegalBasis": {
             "title": "Publicorderlegalbasis",
@@ -12518,11 +12637,33 @@
       },
       "PublicLegalProviderResponse": {
         "additionalProperties": false,
-        "description": "The carrier named in the Impressum (the active legal configuration).",
+        "description": "The carrier named in the Impressum (the active legal configuration).\n\nThe optional fields are null when the active version has none: register\nand VAT ID only apply to some carriers, and versions before the\nImpressum fields existed have none of them.",
         "properties": {
           "city": {
             "title": "City",
             "type": "string"
+          },
+          "contentResponsibleAddress": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contentresponsibleaddress"
+          },
+          "contentResponsibleName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contentresponsiblename"
           },
           "countryCode": {
             "title": "Countrycode",
@@ -12536,13 +12677,79 @@
             "title": "Legalname",
             "type": "string"
           },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
           "postalCode": {
             "title": "Postalcode",
             "type": "string"
           },
+          "registerCourt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registercourt"
+          },
+          "registerLabel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registerlabel"
+          },
+          "registerNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registernumber"
+          },
+          "representatives": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Representatives"
+          },
           "streetLine1": {
             "title": "Streetline1",
             "type": "string"
+          },
+          "vatId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vatid"
           }
         },
         "required": [
@@ -13010,6 +13217,85 @@
           "replayed"
         ],
         "title": "PublicOrderResultResponse",
+        "type": "object"
+      },
+      "PublicPrivacyPolicyContentResponse": {
+        "additionalProperties": false,
+        "description": "The privacy page of the active legal configuration version.",
+        "properties": {
+          "controller": {
+            "$ref": "#/components/schemas/PublicLegalProviderResponse"
+          },
+          "memberNoticeText": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Membernoticetext"
+          },
+          "orderLegalBasis": {
+            "title": "Orderlegalbasis",
+            "type": "string"
+          },
+          "orderNoticeText": {
+            "title": "Ordernoticetext",
+            "type": "string"
+          },
+          "policyText": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policytext"
+          },
+          "privacyContactEmail": {
+            "title": "Privacycontactemail",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "controller",
+          "privacyContactEmail",
+          "policyText",
+          "memberNoticeText",
+          "orderNoticeText",
+          "orderLegalBasis"
+        ],
+        "title": "PublicPrivacyPolicyContentResponse",
+        "type": "object"
+      },
+      "PublicPrivacyPolicyResponse": {
+        "additionalProperties": false,
+        "description": "Privacy page of the installation; policy is null until activated.",
+        "properties": {
+          "policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicPrivacyPolicyContentResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "policy"
+        ],
+        "title": "PublicPrivacyPolicyResponse",
         "type": "object"
       },
       "QuestionAggregate": {
@@ -14057,8 +14343,124 @@
             "title": "Iban",
             "type": "string"
           },
+          "imprintContentResponsibleAddress": {
+            "anyOf": [
+              {
+                "maxLength": 400,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imprintcontentresponsibleaddress"
+          },
+          "imprintContentResponsibleName": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imprintcontentresponsiblename"
+          },
+          "imprintPhone": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imprintphone"
+          },
+          "imprintRegisterCourt": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imprintregistercourt"
+          },
+          "imprintRegisterNumber": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imprintregisternumber"
+          },
+          "imprintRepresentatives": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imprintrepresentatives"
+          },
+          "imprintVatId": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imprintvatid"
+          },
           "issuer": {
             "$ref": "#/components/schemas/LegalIssuerRequest"
+          },
+          "legalForm": {
+            "anyOf": [
+              {
+                "enum": [
+                  "registered_association",
+                  "unregistered_association",
+                  "ggmbh",
+                  "gmbh",
+                  "cooperative",
+                  "foundation",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legalform"
+          },
+          "memberPrivacyNoticeText": {
+            "anyOf": [
+              {
+                "maxLength": 30000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memberprivacynoticetext"
           },
           "numberPrefix": {
             "maxLength": 24,
@@ -14089,6 +14491,18 @@
             "minLength": 3,
             "title": "Privacyevidenceid",
             "type": "string"
+          },
+          "privacyPolicyText": {
+            "anyOf": [
+              {
+                "maxLength": 60000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Privacypolicytext"
           },
           "publicOrderLegalBasis": {
             "maxLength": 2000,
@@ -34688,7 +35102,7 @@
     },
     "/api/v1/public/legal-notice": {
       "get": {
-        "description": "Impressum provider of the installation (one per club, all hosts).\n\nOnly the carrier's name, postal address and contact e-mail leave the\nactive legal configuration; tax, bank and evidence data stay internal.",
+        "description": "Impressum provider of the installation (one per club, all hosts).\n\nOnly the Impressum facts (§ 5 DDG, § 18 Abs. 2 MStV) leave the active\nlegal configuration; the invoice tax identifier, bank and evidence data\nstay internal.",
         "operationId": "getPublicLegalNotice",
         "responses": {
           "200": {
@@ -34743,6 +35157,68 @@
           }
         },
         "summary": "Get Public Legal Notice",
+        "tags": [
+          "public-actions"
+        ]
+      }
+    },
+    "/api/v1/public/privacy-policy": {
+      "get": {
+        "description": "Privacy page of the installation (/datenschutz, one per club, all hosts).",
+        "operationId": "getPublicPrivacyPolicy",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicPrivacyPolicyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Get Public Privacy Policy",
         "tags": [
           "public-actions"
         ]

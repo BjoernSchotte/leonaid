@@ -12,7 +12,7 @@ leaf=tasks-test
 module_specs="tests/e2e/modules-tasks.spec.mjs tests/e2e/tasks-details.spec.mjs
   tests/e2e/tasks-views.spec.mjs tests/e2e/tasks-planning.spec.mjs
   tests/e2e/tasks-ordering.spec.mjs tests/e2e/tasks-structure.spec.mjs
-  tests/e2e/tasks-keyboard.spec.mjs"
+  tests/e2e/tasks-keyboard.spec.mjs tests/e2e/tasks-ordering-faults.spec.mjs"
 . "$root/tools/testing/module_browser.sh"
 
 echo "tasks-test: OK: web and PWA task journeys, planning, ordering, structure and details"

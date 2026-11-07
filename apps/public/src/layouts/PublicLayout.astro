@@ -16,6 +16,8 @@ import { Image } from "astro:assets";
 import PublicAppLinks from "../components/PublicAppLinks.astro";
 import PublicMark from "../components/PublicMark.astro";
 import {
+  IMPRINT_PATH,
+  PRIVACY_PATH,
   providerAddress,
   readLegalNotice,
   type LegalNoticeResult,
@@ -31,8 +33,6 @@ interface Props {
   theme?: PublicTheme;
   canOrder?: boolean;
   carrierName?: string;
-  /** In-page target of the privacy notice, when the page renders one. */
-  privacyHref?: string;
   /** A legal notice the page read already (/impressum); read here otherwise. */
   legalNotice?: LegalNoticeResult;
   campaignBrand?: {
@@ -51,7 +51,6 @@ const {
   theme = defaultTheme,
   canOrder = false,
   carrierName,
-  privacyHref,
   legalNotice: pageLegalNotice,
   campaignBrand,
 } = Astro.props;
@@ -199,17 +198,11 @@ const header = theme.header;
             carrierName && !theme.campaignFooter && <span>{carrierName}</span>
           )
         }
-        <span class="site-footer__links">
-          <a href="/impressum">Impressum</a>
-          {
-            privacyHref && (
-              <>
-                <span aria-hidden="true">·</span>
-                <a href={privacyHref}>Datenschutz</a>
-              </>
-            )
-          }
-        </span>
+        <nav class="site-footer__links" aria-label="Rechtliches">
+          <a href={IMPRINT_PATH}>Impressum</a>
+          <span aria-hidden="true">·</span>
+          <a href={PRIVACY_PATH}>Datenschutz</a>
+        </nav>
       </div>
     </footer>
   </body>
