@@ -483,6 +483,17 @@ workspaces (for example `apps/campaign-site` → `apps/public`) count as
 dependencies for check-fast, and a new workspace with its own check that
 `fast_plan.py` does not know selects every package.
 
+## Shared package caches
+
+`./leonaid` toolchain containers (`bootstrap`, `check`, `test-unit`, …) share
+one uv and one bun download cache per user: `~/.cache/leonaid/packages/{uv,bun}`
+(0700; `LEONAID_PACKAGE_CACHE` moves it). Installs stay `--frozen`; uv installs
+with `UV_LINK_MODE=clone` and bun copies with `copy_file_range`, so on a
+filesystem with reflinks (ZFS block cloning, btrfs) `.venv` and `node_modules`
+share blocks with the cache. On this host a fresh worktree's `bootstrap` takes
+about 7 s instead of 33 s, and its `node_modules` allocates 75 MB instead of
+640 MB. `bootstrap` removes the old checkout-local `.cache/uv` and `.cache/bun`.
+
 ## Persistent GitHub BuildKit cache
 
 The local composite action `.github/actions/build-cache` prepares a job-local
