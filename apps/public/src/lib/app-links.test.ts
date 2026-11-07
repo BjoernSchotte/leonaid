@@ -142,7 +142,10 @@ describe("admin host link (specs/multi-domain)", () => {
     });
     expect(
       adminHostLink("https://app.localhost:28443/", "localhost:28443"),
-    ).toEqual({ href: "https://app.localhost:28443/", label: "Mitgliederbereich" });
+    ).toEqual({
+      href: "https://app.localhost:28443/",
+      label: "Mitgliederbereich",
+    });
   });
 
   it("keeps the identity-based links on the admin host and with one host", () => {
