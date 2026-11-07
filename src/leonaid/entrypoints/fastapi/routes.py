@@ -220,6 +220,7 @@ from leonaid.domain.legal_configuration import (
     LegalConfigurationDraft,
     LegalConfigurationState,
     LegalConfigurationVersion,
+    LegalForm,
     RetentionSchedule,
 )
 from leonaid.domain.feature_flags import FeatureFlagKey, FeatureFlagSurface
@@ -399,6 +400,8 @@ from leonaid.entrypoints.fastapi.schemas import (
     PublicCampaignRouteResponse,
     PublicLegalNoticeResponse,
     PublicLegalProviderResponse,
+    PublicPrivacyPolicyContentResponse,
+    PublicPrivacyPolicyResponse,
     PublicCharityActionResponse,
     PublicOfferingResponse,
     PublicOrderFormResponse,
@@ -867,6 +870,20 @@ def legal_configuration_version_response(
             privacy_evidence_id=values.privacy_evidence_id,
             e_invoice_evidence_id=values.e_invoice_evidence_id,
             activation_blockers=list(values.activation_blockers(production=production)),
+            legal_form=(
+                values.legal_form.value if values.legal_form is not None else None
+            ),
+            imprint_representatives=values.imprint_representatives,
+            imprint_phone=values.imprint_phone,
+            imprint_register_court=values.imprint_register_court,
+            imprint_register_number=values.imprint_register_number,
+            imprint_vat_id=values.imprint_vat_id,
+            imprint_content_responsible_name=values.imprint_content_responsible_name,
+            imprint_content_responsible_address=(
+                values.imprint_content_responsible_address
+            ),
+            privacy_policy_text=values.privacy_policy_text,
+            member_privacy_notice_text=values.member_privacy_notice_text,
         ),
         created_by_user_id=item.created_by_user_id,
         created_by_display_name=item.created_by_display_name,
@@ -1971,6 +1988,29 @@ async def information(request: Request) -> PlatformInformationResponse:
     )
 
 
+def public_legal_provider(
+    configuration: LegalConfigurationDraft,
+) -> PublicLegalProviderResponse:
+    """The Impressum facts of a configuration; nothing tax-, bank- or audit-related."""
+    issuer = configuration.issuer
+    return PublicLegalProviderResponse(
+        legal_name=issuer.legal_name,
+        street_line_1=issuer.street_line_1,
+        postal_code=issuer.postal_code,
+        city=issuer.city,
+        country_code=issuer.country_code,
+        email=issuer.email,
+        phone=configuration.imprint_phone,
+        representatives=configuration.imprint_representatives,
+        register_court=configuration.imprint_register_court,
+        register_number=configuration.imprint_register_number,
+        register_label=configuration.register_label(),
+        vat_id=configuration.imprint_vat_id,
+        content_responsible_name=configuration.imprint_content_responsible_name,
+        content_responsible_address=(configuration.imprint_content_responsible_address),
+    )
+
+
 @router.get(
     "/api/v1/public/legal-notice",
     operation_id="getPublicLegalNotice",
@@ -1984,22 +2024,45 @@ async def get_public_legal_notice(
 ) -> PublicLegalNoticeResponse:
     """Impressum provider of the installation (one per club, all hosts).
 
-    Only the carrier's name, postal address and contact e-mail leave the
-    active legal configuration; tax, bank and evidence data stay internal.
+    Only the Impressum facts (§ 5 DDG, § 18 Abs. 2 MStV) leave the active
+    legal configuration; the invoice tax identifier, bank and evidence data
+    stay internal.
     """
     configuration = await legal_configuration_service(request).active_configuration()
     response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
     if configuration is None:
         return PublicLegalNoticeResponse(provider=None)
-    issuer = configuration.configuration.issuer
     return PublicLegalNoticeResponse(
-        provider=PublicLegalProviderResponse(
-            legal_name=issuer.legal_name,
-            street_line_1=issuer.street_line_1,
-            postal_code=issuer.postal_code,
-            city=issuer.city,
-            country_code=issuer.country_code,
-            email=issuer.email,
+        provider=public_legal_provider(configuration.configuration)
+    )
+
+
+@router.get(
+    "/api/v1/public/privacy-policy",
+    operation_id="getPublicPrivacyPolicy",
+    response_model=PublicPrivacyPolicyResponse,
+    responses=ERROR_RESPONSES,
+    tags=["public-actions"],
+)
+async def get_public_privacy_policy(
+    request: Request,
+    response: Response,
+) -> PublicPrivacyPolicyResponse:
+    """Privacy page of the installation (/datenschutz, one per club, all hosts)."""
+    configuration = await legal_configuration_service(request).active_configuration()
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
+    if configuration is None:
+        return PublicPrivacyPolicyResponse(policy=None)
+    values = configuration.configuration
+    return PublicPrivacyPolicyResponse(
+        policy=PublicPrivacyPolicyContentResponse(
+            version=configuration.version,
+            controller=public_legal_provider(values),
+            privacy_contact_email=values.privacy_contact_email,
+            policy_text=values.privacy_policy_text,
+            member_notice_text=values.member_privacy_notice_text,
+            order_notice_text=values.public_order_notice_text,
+            order_legal_basis=values.public_order_legal_basis,
         )
     )
 
@@ -2967,9 +3030,26 @@ async def save_legal_configuration_draft(
             tax_evidence_id=body.tax_evidence_id,
             privacy_evidence_id=body.privacy_evidence_id,
             e_invoice_evidence_id=body.e_invoice_evidence_id,
+            legal_form=(
+                LegalForm(body.legal_form) if body.legal_form is not None else None
+            ),
+            imprint_representatives=body.imprint_representatives,
+            imprint_phone=body.imprint_phone,
+            imprint_register_court=body.imprint_register_court,
+            imprint_register_number=body.imprint_register_number,
+            imprint_vat_id=body.imprint_vat_id,
+            imprint_content_responsible_name=body.imprint_content_responsible_name,
+            imprint_content_responsible_address=(
+                body.imprint_content_responsible_address
+            ),
+            privacy_policy_text=body.privacy_policy_text,
+            member_privacy_notice_text=body.member_privacy_notice_text,
         ),
         expected_revision=body.expected_revision,
         request_id=request_id(request),
+        omitted_fields=frozenset(
+            type(body).model_fields.keys() - body.model_fields_set
+        ),
     )
     response.headers["Cache-Control"] = "no-store"
     return legal_configuration_state_response(

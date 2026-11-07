@@ -1,0 +1,57 @@
+---
+import LegalPrivacy from "../components/LegalPrivacy.astro";
+import PublicState from "../components/PublicState.astro";
+import PublicLayout from "../layouts/PublicLayout.astro";
+import { PRIVACY_PATH, readPrivacyPolicy } from "../lib/legal-notice";
+import { requestOrigin } from "../lib/request-origin";
+import { resolvePublicTheme } from "../themes";
+
+// One privacy page per installation (one club, multi-domain decision D4),
+// rendered from the active legal configuration: the privacy policy, the
+// order notice of the action pages and the members' notice.
+const result = await readPrivacyPolicy();
+const policy = result.state === "ready" ? result.value : null;
+if (result.state === "unavailable") Astro.response.status = 503;
+Astro.response.headers.set(
+  "Cache-Control",
+  policy ? "public, max-age=60" : "no-store",
+);
+const origin = requestOrigin(Astro.request, Astro.url);
+const theme = resolvePublicTheme(null);
+---
+
+<PublicLayout
+  canonicalUrl={new URL(PRIVACY_PATH, origin).href}
+  description="Datenschutzerklärung: wie der Club Ihre Daten verarbeitet"
+  imageUrl={new URL(theme.shareImage.src, origin).href}
+  robots={policy ? "index,follow" : "noindex,follow"}
+  title="Datenschutzerklärung | LeonAid"
+  theme={theme}
+>
+  {
+    policy ? (
+      <section class="legal-page" aria-labelledby="privacy-page-heading">
+        <LegalPrivacy policy={policy} />
+      </section>
+    ) : (
+      <PublicState
+        actionHref={result.state === "unavailable" ? PRIVACY_PATH : "/"}
+        actionLabel={
+          result.state === "unavailable" ? "Erneut versuchen" : "Zur Startseite"
+        }
+        eyebrow="Datenschutz"
+        message={
+          result.state === "unavailable"
+            ? "Die Datenschutzerklärung ist gerade nicht erreichbar. Bitte laden Sie die Seite in Kürze erneut."
+            : "Der Club hinterlegt die Datenschutzerklärung gerade. Bitte schauen Sie später wieder vorbei."
+        }
+        state={result.state === "unavailable" ? "unavailable" : "inactive"}
+        title={
+          result.state === "unavailable"
+            ? "Bitte versuchen Sie es gleich noch einmal."
+            : "Die Datenschutzerklärung wird gerade eingerichtet."
+        }
+      />
+    )
+  }
+</PublicLayout>

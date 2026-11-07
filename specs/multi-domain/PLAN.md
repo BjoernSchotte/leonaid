@@ -1284,7 +1284,7 @@ one test domain owned by the club.
 - Core: `landingPath` and `preferredSurface` in `GET /api/v1/identity/me`;
   `PUT /api/v1/identity/me/preferred-surface` (409
   `preferred_surface_unavailable` without a role for that app); migration
-  `0054_preferred_surface` (nullable, `web`/`pwa`, plain downgrade). The rule
+  `0055_preferred_surface` (nullable, `web`/`pwa`, plain downgrade). The rule
   lives in `landing_path()` (`application/identity.py`).
 - Entry: `apps/public/src/pages/login/start.ts`; Caddy rewrites `/` on the
   admin host to it. No session → `/login`; else 302 to `landingPath`.

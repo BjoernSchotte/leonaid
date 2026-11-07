@@ -27,6 +27,32 @@ ANNA_ID = UUID("10000000-0000-4000-8000-000000000004")
 SESSION_NAMESPACE = UUID("35cd44c4-6106-4f7f-84c9-ced1d57cb044")
 
 
+PRIVACY_POLICY = (
+    "## Verantwortlicher\n\n"
+    "Verantwortlich ist der im Impressum genannte Golden-Förderverein. "
+    "Dieser synthetische Text prüft die Datenschutzseite.\n\n"
+    "## Ihre Rechte\n\n"
+    "- Auskunft\n"
+    "- Löschung\n\n"
+    "Beschwerden richten Sie an eine Datenschutz-Aufsichtsbehörde."
+)
+MEMBER_NOTICE = (
+    "## Speicherung auf deinem Gerät\n\n"
+    "Die Akquise-App speichert Kontaktdaten deiner eigenen Sponsoren "
+    "verschlüsselt auf deinem Gerät, höchstens 14 Tage."
+)
+IMPRINT = {
+    "legalForm": "registered_association",
+    "imprintRepresentatives": "Vorstand: Paula Golden (Präsidentin)",
+    "imprintPhone": "+49 30 23125 044",
+    "imprintRegisterCourt": "Amtsgericht Augsburg",
+    "imprintRegisterNumber": "VR 0044",
+    "imprintVatId": "de 999 999 999",
+    "imprintContentResponsibleName": "Paula Golden",
+    "imprintContentResponsibleAddress": "Testweg 44, 86150 Augsburg",
+}
+
+
 class ContractFailure(RuntimeError):
     pass
 
@@ -92,6 +118,9 @@ def draft_payload(*, revision: int) -> dict[str, object]:
         "taxEvidenceId": "STEUER-PILOT-044",
         "privacyEvidenceId": "DATENSCHUTZ-PILOT-044",
         "eInvoiceEvidenceId": None,
+        **IMPRINT,
+        "privacyPolicyText": PRIVACY_POLICY,
+        "memberPrivacyNoticeText": MEMBER_NOTICE,
     }
 
 
@@ -208,6 +237,32 @@ async def prepare(connection: asyncpg.Connection[Any], sessions_path: Path) -> N
             or state["draft"].get("version") != 1
         ):
             raise ContractFailure("First immutable version was not created")
+        stored = state["draft"]["values"]
+        expected_imprint = {**IMPRINT, "imprintVatId": "DE999999999"}
+        if any(stored.get(key) != value for key, value in expected_imprint.items()):
+            raise ContractFailure(f"Impressum fields were not stored: {stored}")
+        if (
+            stored.get("privacyPolicyText") != PRIVACY_POLICY
+            or stored.get("memberPrivacyNoticeText") != MEMBER_NOTICE
+        ):
+            raise ContractFailure("Privacy texts were not stored unchanged")
+
+        incomplete = await api.put(
+            "/api/v1/admin/legal/configuration/draft",
+            headers=session_headers(tokens["simone"]),
+            json={
+                **draft_payload(revision=2),
+                "imprintRegisterNumber": None,
+            },
+        )
+        if (
+            incomplete.status_code != 422
+            or error_code(incomplete) != "legal_imprint_register_incomplete"
+        ):
+            raise ContractFailure(
+                "A register court without number was accepted: "
+                f"{incomplete.status_code} {incomplete.text[:200]}"
+            )
 
         version_id = str(state["draft"]["id"])
         unapproved = await api.post(
@@ -369,9 +424,67 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
     ):
         raise ContractFailure("Active version has no independent UI approval")
 
+    imprint = await connection.fetchrow(
+        """
+        SELECT legal_form, imprint_representatives, imprint_phone,
+               imprint_register_court,
+               imprint_register_number, imprint_vat_id,
+               imprint_content_responsible_name,
+               imprint_content_responsible_address,
+               privacy_policy_text, member_privacy_notice_text
+        FROM legal_configuration_version
+        WHERE id = $1
+        """,
+        active_version_id,
+    )
+    if imprint is None or dict(imprint) != {
+        "legal_form": "registered_association",
+        "imprint_representatives": IMPRINT["imprintRepresentatives"],
+        "imprint_phone": IMPRINT["imprintPhone"],
+        "imprint_register_court": IMPRINT["imprintRegisterCourt"],
+        "imprint_register_number": IMPRINT["imprintRegisterNumber"],
+        "imprint_vat_id": "DE999999999",
+        "imprint_content_responsible_name": IMPRINT["imprintContentResponsibleName"],
+        "imprint_content_responsible_address": IMPRINT[
+            "imprintContentResponsibleAddress"
+        ],
+        "privacy_policy_text": PRIVACY_POLICY,
+        "member_privacy_notice_text": MEMBER_NOTICE,
+    }:
+        raise ContractFailure(
+            "The UI draft did not carry the Impressum and privacy texts over"
+        )
+
+    async with httpx.AsyncClient(
+        base_url=require_env("API_BASE_URL").rstrip("/"),
+        timeout=60,
+    ) as api:
+        notice = await api.get("/api/v1/public/legal-notice")
+        notice.raise_for_status()
+        provider = notice.json()["provider"]
+        if provider is None or provider.get("registerNumber") != "VR 0044":
+            raise ContractFailure(f"Public Impressum is incomplete: {provider}")
+        policy = await api.get("/api/v1/public/privacy-policy")
+        policy.raise_for_status()
+        content = policy.json()["policy"]
+        if (
+            content is None
+            or content.get("policyText") != PRIVACY_POLICY
+            or content.get("memberNoticeText") != MEMBER_NOTICE
+            or content.get("privacyContactEmail") != "datenschutz@leonaid.invalid"
+        ):
+            raise ContractFailure(f"Public privacy policy is incomplete: {content}")
+        public_text = notice.text + policy.text
+        if any(
+            secret in public_text
+            for secret in ("DE89370400440532013000", "103/123/45678", "STEUER-")
+        ):
+            raise ContractFailure("Public legal pages leak internal data")
+
     print(
         "legal-configuration-contract: OK: versioning, four-eyes rule, "
-        "activation block and PII-free audit proven"
+        "activation block, Impressum and privacy texts, public pages and "
+        "PII-free audit proven"
     )
 
 

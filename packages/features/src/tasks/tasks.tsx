@@ -1004,18 +1004,39 @@ function TasksWorkspace({
           ? [cache.invalidateQueries({ queryKey: ["task-list", listId] })]
           : []),
       ]);
-      requestAnimationFrame(() => {
-        const active = document.activeElement;
-        const handle = document.getElementById(`task-move-${attempt.row.id}`);
-        if (
-          handle &&
-          (active === document.body || active === null || active === handle)
-        ) {
-          handle.focus();
-        }
-      });
+    },
+    onSettled: () => {
+      focusAfterMove.current = focusOnSubmit.current;
+      focusOnSubmit.current = null;
     },
   });
+  /* The row whose grip held focus when its move was submitted (keyboard
+     ordering). The grip stays focusable while the move saves; the refresh
+     afterwards re-sorts the list and can move or re-mount the row (another
+     group), which drops focus to <body>. Once the save has settled, the
+     effect below runs after the commit that ends the pending state and puts
+     focus back on the moved row's grip, unless the user has moved focus
+     elsewhere in the meantime. `focusOnSubmit` holds the row until the
+     mutation settles, so renders before the pending state reaches the
+     component cannot consume it early. */
+  const focusOnSubmit = useRef<string | null>(null);
+  const focusAfterMove = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const id = focusAfterMove.current;
+    if (!id || reorder.isPending) return;
+    focusAfterMove.current = null;
+    const handle = document.getElementById(`task-move-${id}`);
+    const active = document.activeElement;
+    if (
+      handle &&
+      handle !== active &&
+      (active === null || active === document.body)
+    ) {
+      handle.focus();
+    }
+    // submittedAt: runs even when pending and settled reach this component
+    // in one notification.
+  }, [reorder.isPending, reorder.submittedAt, rows]);
   const submitMove = (
     row: TaskRow,
     placement: MovePlacement,
@@ -1030,6 +1051,9 @@ function TasksWorkspace({
     const revision = personal ? plansToday.orderRevision : open.orderRevision;
     if (revision == null || (personal && !row.plan)) return;
     setMoveMessage(`Aufgabe „${row.task.title}“ wird verschoben.`);
+    const grip = document.getElementById(`task-move-${row.id}`);
+    focusOnSubmit.current =
+      grip && document.activeElement === grip ? row.id : null;
     reorder.mutate({
       row,
       body: personal
@@ -1400,7 +1424,12 @@ function TasksWorkspace({
             ) && reorder.variables ? (
               <Button
                 disabled={reorder.isPending}
-                onClick={() => reorder.mutate(reorder.variables!)}
+                onClick={() => {
+                  // The callout closes while the retry saves; focus then
+                  // lands on the moved row's grip.
+                  focusOnSubmit.current = reorder.variables!.row.id;
+                  reorder.mutate(reorder.variables!);
+                }}
                 size="sm"
                 variant="secondary"
               >

@@ -765,3 +765,44 @@ html:has(.shell) {
     border-color: oklch(1 0 0 / 0.24);
   }
 }
+
+/* Product: Impressum and Datenschutz below the account (rail, "Mehr"
+   sheet and the PWA sheet). 44 px touch targets. */
+.legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--s-2);
+  font-size: var(--fs-xs);
+}
+.legal-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.rail-legal {
+  padding: 0 var(--s-4) var(--s-2);
+  color: var(--rail-text-2);
+}
+.rail-legal a:focus-visible {
+  outline-color: var(--lions-gold);
+}
+.sheet-legal {
+  justify-content: center;
+  margin-top: var(--s-2);
+  color: var(--text-2);
+}
+@media (max-width: 1024px) {
+  /* The collapsed rail stacks the two links. */
+  .rail-legal {
+    flex-direction: column;
+    padding-inline: var(--s-1);
+    font-size: var(--fs-2xs);
+  }
+  .rail-legal .legal-links-separator {
+    display: none;
+  }
+}

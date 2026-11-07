@@ -59,13 +59,33 @@ Punkte sind keine stillschweigenden Produktzusagen.
   LeonAid books no refunds. The buyer is not e-mailed about the cancellation, and a
   cancelled order cannot be reopened.
 
-- Impressum (`apps/public/src/pages/impressum.astro`) zeigt nur Name,
-  Anschrift und E-Mail des Anbieters. Vertretungsberechtigte, Registereintrag,
-  gegebenenfalls USt-ID und ein zweiter Kontaktweg nach § 5 DDG fehlen
-  (`src/leonaid/domain/legal_configuration.py` hat keine Felder dafür).
-- Es gibt keine eigene Datenschutzseite. Der Datenschutzhinweis steht nur auf
-  Aktionsseiten (`apps/public/src/pages/[...path].astro`); Login, Einladung,
-  Umfragen und Impressum verlinken nicht darauf.
+- Impressum (`/impressum`) und Datenschutzerklärung (`/datenschutz`) kommen
+  aus der aktiven rechtlichen Konfiguration (Vier-Augen-Freigabe, Migration
+  0054). Im Produktivbetrieb blockieren fehlende Vertretungsberechtigte,
+  fehlendes Telefon, eine nicht gewählte Rechtsform, ein fehlender
+  Registereintrag bei einer Rechtsform mit Register (e. V., GmbH, gGmbH, eG),
+  eine fehlende USt-ID, wenn die Steuerkennung eine ist, fehlende
+  Datenschutztexte und offene `[[ … ]]`-Platzhalter die Aktivierung. LeonAid
+  prüft nur das Vorhandensein, nicht die rechtliche Richtigkeit der Texte. Die
+  Rechtsformen sind eine feste Liste; weitere Formen fallen unter „Sonstige“
+  ohne Registerpflicht.
+- Nach dem Update auf 0054 ist eine schon aktive Version unvollständig;
+  `/admin/legal` warnt, bis eine neue Version aktiviert ist. Der
+  Readiness-Endpunkt (`/api/health/ready`) prüft die rechtlichen Angaben
+  nicht.
+- Die Vorlagen für Datenschutzerklärung und Mitgliederhinweis
+  (`packages/features/src/system-admin/legal-templates.ts`), einschließlich des
+  Abschnitts zur Gerätespeicherung der Akquise-App (PWA-Offline-Queue, D8),
+  sind noch nicht von Björn Schotte geprüft. Der Gerätespeicher-Abschnitt
+  beschreibt die geplante Offline-Erfassung; die Akquise-App speichert diese
+  Daten erst mit deren Stufe 3. Ein `[[ … ]]`-Hinweis im Abschnitt blockiert
+  die produktive Aktivierung, bis der Club ihn bewusst behält oder löscht.
+- Es gibt ein Impressum und eine Datenschutzerklärung je Installation, auf
+  allen Hosts unter denselben Pfaden (Multi-Domain D4). Eigene Inhalte je Host
+  sind nicht vorgesehen; die Darstellung je Host folgt mit Multi-Domain
+  Stufe 2 (§7.5) und nutzt dieselben Komponenten.
+- Die Datenschutzseite ist offline nicht erreichbar; die Akquise-App verlinkt
+  sie, speichert sie aber nicht.
 
 ## Identität und Administration
 
@@ -118,7 +138,7 @@ Punkte sind keine stillschweigenden Produktzusagen.
   `test-multi-host` läuft ohne CMS. Die öffentliche Startseite listet aktive
   Aktionen; eine `sitemap.xml` des öffentlichen Hosts gibt es noch nicht
   (Stufe 2).
-- Die Hilfe-Doku trägt auf 13 Seiten je Sprache noch den Vermerk „Prüfung
+- Die Hilfe-Doku trägt auf 19 Seiten je Sprache noch den Vermerk „Prüfung
   durch Björn Schotte offen“ (Frontmatter `reviewer:` in `apps/docs`).
 - OpenFeature ist integriert; der PoC bietet zwei administrative Flags.
   Ein externes Flag-Backend, Segmentierung und gestaffelte Prozent-Rollouts

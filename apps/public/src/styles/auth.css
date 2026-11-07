@@ -313,3 +313,24 @@
     transition: none;
   }
 }
+/* Impressum and Datenschutz below every sign-in, invitation and e-mail
+   change page. */
+.login-legal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  padding: 0 var(--s-4) max(var(--s-4), env(safe-area-inset-bottom));
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.login-legal a {
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
