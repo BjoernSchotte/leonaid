@@ -226,3 +226,56 @@
 .system-refresh-notice p {
   margin: var(--s-1) 0 var(--s-2);
 }
+
+/* ---------- Domains (specs/multi-domain §7.1) ---------- */
+.site-hosts {
+  display: grid;
+  gap: var(--s-5);
+  max-width: 960px;
+}
+.site-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5) var(--s-5);
+}
+.site-add .field {
+  flex: 1 1 280px;
+  margin: 0;
+}
+.site-add > .btn {
+  margin-top: calc(var(--fs-sm) * 1.5 + var(--s-1));
+}
+.site-dns {
+  display: grid;
+  gap: var(--s-1);
+  padding: var(--s-3);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  overflow-wrap: anywhere;
+}
+.site-editions {
+  padding: 0;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-sm);
+}
+.site-edition .flag-text a {
+  overflow-wrap: anywhere;
+}
+.site-history summary {
+  cursor: pointer;
+  color: var(--text-2);
+}
+.site-history .audit-list {
+  padding: var(--s-2) 0 0;
+}
+.site-host-actions {
+  padding-top: var(--s-1);
+}
+@media (max-width: 720px) {
+  .site-edition {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
