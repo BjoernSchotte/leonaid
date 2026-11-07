@@ -336,25 +336,42 @@ docker_retry() {
   done
 }
 
+# Package downloads are shared by every checkout of this user: uv and bun
+# caches are content-addressed and installs stay --frozen, so one cache serves
+# all worktrees. Installs clone files from it (copy-on-write on filesystems
+# with reflinks, e.g. ZFS block cloning or btrfs; a plain copy elsewhere).
+# LEONAID_PACKAGE_CACHE moves it.
+package_cache=${LEONAID_PACKAGE_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/leonaid/packages}
+
+package_cache_directory() {
+  mkdir -p "$package_cache/$1"
+  chmod 700 "$package_cache" "$package_cache/$1"
+  printf '%s/%s' "$package_cache" "$1"
+}
+
 run_python() {
+  uv_cache=$(package_cache_directory uv)
   docker_retry docker run --rm \
     --user "$host_user" \
     -e HOME=/tmp \
     -e PYTHONPATH=/workspace/src \
-    -e UV_CACHE_DIR=/workspace/.cache/uv \
-    -e UV_LINK_MODE=copy \
+    -e UV_CACHE_DIR=/cache/uv \
+    -e UV_LINK_MODE=clone \
     -v "$root:/workspace" \
+    -v "$uv_cache:/cache/uv" \
     -w /workspace \
     "$UV_IMAGE" \
     "$@"
 }
 
 run_bun() {
+  bun_cache=$(package_cache_directory bun)
   docker_retry docker run --rm \
     --user "$host_user" \
     -e HOME=/tmp \
-    -e BUN_INSTALL_CACHE_DIR=/workspace/.cache/bun \
+    -e BUN_INSTALL_CACHE_DIR=/cache/bun \
     -v "$root:/workspace" \
+    -v "$bun_cache:/cache/bun" \
     -w /workspace \
     "$BUN_IMAGE" \
     "$@"
@@ -792,7 +809,14 @@ bootstrap() {
   repair_ownership
   run_python uv sync --frozen --all-groups --no-install-project
   run_bun bun install --frozen-lockfile --ignore-scripts
-  echo "bootstrap: OK: used locked Docker toolchains only"
+  # Checkout-local caches from before the shared package cache.
+  for legacy_cache in "$root/.cache/uv" "$root/.cache/bun"; do
+    if [ -d "$legacy_cache" ]; then
+      rm -rf "$legacy_cache" ||
+        echo "bootstrap: WARNING: could not remove the old $legacy_cache" >&2
+    fi
+  done
+  echo "bootstrap: OK: used locked Docker toolchains only (packages cached in $package_cache)"
   "$root/leonaid" doctor
 }
 
