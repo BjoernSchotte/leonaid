@@ -7,6 +7,7 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 
 python3 "$root/tools/local_tests_test.py"
 python3 "$root/tools/testing/ci_fixture_test.py"
+python3 "$root/tools/testing/fixture_cache_test.py"
 python3 "$root/tools/testing/phase_test.py"
 
 docker run --rm \

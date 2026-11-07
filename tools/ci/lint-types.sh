@@ -29,10 +29,10 @@ run_bun() {
 }
 
 run_python uv run --frozen --no-sync ruff check \
-  tools/testing/phase_test.py tools/testing/ci_fixture.py tools/testing/ci_fixture_test.py tools/testing/seed_fixture.py tools/local_tests_test.py tools/testing/local_stack.py tools/testing/shared_stack.py tools/testing/shared_stack_test.py \
+  tools/testing/phase_test.py tools/testing/ci_fixture.py tools/testing/ci_fixture_test.py tools/testing/fixture_cache.py tools/testing/fixture_cache_test.py tools/testing/seed_fixture.py tools/local_tests_test.py tools/testing/local_stack.py tools/testing/shared_stack.py tools/testing/shared_stack_test.py \
   tools/testing/shared_stack_live.py tools/testing/owned_teardown_live.py tools/surveys/gate.py tools/surveys/gate_test.py tools/testing/module_browser_seed.py tools/testing/run_python_contracts.py
 run_python uv run --frozen --no-sync ruff format --check \
-  tools/testing/phase_test.py tools/testing/ci_fixture.py tools/testing/ci_fixture_test.py tools/testing/seed_fixture.py tools/local_tests_test.py tools/testing/local_stack.py tools/testing/shared_stack.py tools/testing/shared_stack_test.py \
+  tools/testing/phase_test.py tools/testing/ci_fixture.py tools/testing/ci_fixture_test.py tools/testing/fixture_cache.py tools/testing/fixture_cache_test.py tools/testing/seed_fixture.py tools/local_tests_test.py tools/testing/local_stack.py tools/testing/shared_stack.py tools/testing/shared_stack_test.py \
   tools/testing/shared_stack_live.py tools/testing/owned_teardown_live.py tools/surveys/gate.py tools/surveys/gate_test.py tools/testing/module_browser_seed.py tools/testing/run_python_contracts.py
 
 run_python uv run --frozen --no-sync ruff check \

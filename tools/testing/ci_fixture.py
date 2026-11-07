@@ -74,8 +74,16 @@ def key(root):
     return digest.hexdigest()
 
 
-def environment(root):
+PORT_KEYS = ("LEONAID_HTTP_PORT", "LEONAID_HTTPS_PORT")
+
+
+def environment(root, http_port="8080", https_port="8443"):
     # Public, deliberately synthetic credentials. Never copy .env.local into a cache.
+    # Host ports only publish a developer's own stack; test stacks always run
+    # with fixed ports and no published host ports, so they may differ.
+    ports = dict(zip(PORT_KEYS, (http_port, https_port)))
+    if not all(str(port).isdigit() for port in ports.values()):
+        raise ValueError("Synthetic environment ports must be numeric")
     text = (root / ".env.example").read_text()
     result = []
     for line in text.splitlines():
@@ -88,7 +96,8 @@ def environment(root):
             "__GENERATE_PASSWORD_32__": value[:32],
             "__GENERATE_IDENTIFIER_20__": value[:20].upper(),
             "__GENERATE_EMAIL__": "ci-fixture@leonaid.invalid",
-            "__HOST_PORT__": "8443" if name == "LEONAID_HTTPS_PORT" else "8080",
+            # Left unreplaced (and rejected below) for any other key.
+            "__HOST_PORT__": str(ports.get(name, "__HOST_PORT__")),
         }
         for token, replacement in replacements.items():
             line = line.replace(token, replacement)
@@ -96,6 +105,21 @@ def environment(root):
             raise ValueError("Unrecognized synthetic environment token")
         result.append(line)
     return "\n".join(result) + "\n"
+
+
+def ports(text):
+    """Return the (HTTP, HTTPS) host ports of an env file text, or None."""
+    values = dict(
+        line.split("=", 1) for line in text.splitlines() if line.startswith(PORT_KEYS)
+    )
+    found = tuple(values.get(key, "") for key in PORT_KEYS)
+    return found if all(value.isdigit() for value in found) else None
+
+
+def is_synthetic(root, text):
+    """True if `text` is exactly the synthetic environment, apart from host ports."""
+    found = ports(text)
+    return found is not None and text == environment(root, *found)
 
 
 def validate(root, directory):
@@ -131,8 +155,11 @@ def validate(root, directory):
     return metadata
 
 
-def build(root, directory):
-    from shared_stack import SharedStack
+def build(root, directory, output=None):
+    if __package__:
+        from .shared_stack import SharedStack
+    else:
+        from shared_stack import SharedStack
 
     if directory.exists():
         raise ValueError("Refusing to replace an existing fixture directory")
@@ -158,7 +185,7 @@ def build(root, directory):
             shutil.copy2(path, target)
         (source / ".env.local").write_text(environment(root))
         (source / ".env.local").chmod(0o600)
-        stack = SharedStack(source, "documents")
+        stack = SharedStack(source, "documents", output=output)
         stack.env.pop("LEONAID_CI_FIXTURE", None)
         stack.env["LEONAID_FIXTURE_BUILD"] = "1"
         try:
@@ -202,13 +229,42 @@ def activate(root, directory):
         print(f"LEONAID_CI_FIXTURE={directory.resolve()}", file=output)
 
 
+def write_environment(root, target, http_port, https_port):
+    """Write the synthetic environment for a local checkout (bootstrap).
+
+    Refuses to replace an environment with other (generated) secrets: those
+    belong to an existing development stack whose data would stop working.
+    """
+    if target.exists() and not is_synthetic(root, target.read_text()):
+        raise ValueError(
+            f"{target.name} holds generated secrets; delete it (and reset this "
+            "checkout's development stack) to switch to the synthetic environment"
+        )
+    temporary = target.with_name(target.name + ".tmp")
+    temporary.write_text(environment(root, http_port, https_port))
+    temporary.chmod(0o600)
+    temporary.replace(target)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["key", "build", "validate", "activate"])
+    parser.add_argument(
+        "command",
+        choices=["key", "build", "validate", "activate", "environment", "is-synthetic"],
+    )
     parser.add_argument("directory", nargs="?", type=Path)
+    parser.add_argument("--http-port", default="8080")
+    parser.add_argument("--https-port", default="8443")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
     if args.command == "key":
         print(key(root))
+    elif args.command == "is-synthetic":
+        raise SystemExit(0 if is_synthetic(root, args.directory.read_text()) else 1)
+    elif args.command == "environment":
+        try:
+            write_environment(root, args.directory, args.http_port, args.https_port)
+        except ValueError as error:
+            raise SystemExit(f"synthetic-environment: ERROR: {error}") from None
     else:
         globals()[args.command](root, args.directory)

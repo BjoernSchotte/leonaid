@@ -9,8 +9,12 @@ import shutil
 import subprocess
 
 if __package__:
+    from .ci_fixture import build, is_synthetic, key
+    from .fixture_cache import FixtureCache
     from .shared_stack import SharedStack
 else:
+    from ci_fixture import build, is_synthetic, key
+    from fixture_cache import FixtureCache
     from shared_stack import SharedStack
 
 
@@ -81,6 +85,8 @@ class LocalStack:
             ) from None
         self.data_hash, self.build_hash = fingerprints(self.root)
         self.stack = None
+        self.cache = None
+        self.cache_key = None
         self.state_path = self.directory / "owner.json"
         try:
             state = (
@@ -180,6 +186,7 @@ class LocalStack:
                     directory=self.directory / "data",
                 )
                 self.save()  # Record ownership before any Docker mutation, including interrupted setup.
+                self.use_fixture_cache()
             else:
                 print(
                     "local-test-stack: reusing this checkout's initialized test fixture",
@@ -187,8 +194,44 @@ class LocalStack:
                     file=self.output,
                 )
         except BaseException:
+            self.release_fixture_cache()
             self.lock.close()
             raise
+
+    def use_fixture_cache(self):
+        """Initialize from the host-wide synthetic fixture instead of a full setup.
+
+        Only a checkout with the synthetic environment can use it; the entry is
+        imported into this checkout's own volumes, so isolation is unchanged.
+        """
+        if self.stack.env.get("LEONAID_CI_FIXTURE") or (
+            self.stack.env.get("LEONAID_FIXTURE_CACHE") == "off"
+        ):
+            return
+        env_file = self.root / ".env.local"
+        if not env_file.is_file() or not is_synthetic(self.root, env_file.read_text()):
+            print(
+                "local-test-stack: .env.local has generated secrets; initializing a "
+                "private fixture (./leonaid bootstrap --synthetic-env shares one "
+                "across checkouts)",
+                flush=True,
+                file=self.output,
+            )
+            return
+        self.cache = FixtureCache(output=self.output)
+        self.cache_key = key(self.root)
+        entry = self.cache.acquire(
+            self.root,
+            self.cache_key,
+            lambda target: build(self.root, target, self.output),
+        )
+        self.stack.env["LEONAID_CI_FIXTURE"] = str(entry)
+        self.cache.prune()
+
+    def release_fixture_cache(self):
+        if self.cache is not None:
+            self.cache.release(self.cache_key)
+            self.cache = None
 
     def save(self):
         stack = self.stack
@@ -245,4 +288,5 @@ class LocalStack:
                 else:
                     self.discard()
         finally:
+            self.release_fixture_cache()
             self.lock.close()
