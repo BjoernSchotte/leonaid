@@ -309,7 +309,7 @@ def main() -> int:
         prefix = next(
             (p for p, _ in s.MODULE_OWNERS if s.matches_module(module, p)), None
         )
-        mapped_all = dict(s.MODULE_OWNERS).get(prefix) == s.ALL_E2E
+        mapped_all = prefix is not None and dict(s.MODULE_OWNERS)[prefix] == s.ALL_E2E
         neutral = any(s.matches_module(module, n) for n in s.E2E_NEUTRAL)
         if prefix and prefix not in s.CATCH_ALL_PREFIXES and mapped_all and not neutral:
             expect(

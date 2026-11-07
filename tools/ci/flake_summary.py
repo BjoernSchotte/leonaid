@@ -102,13 +102,18 @@ def nothing_ran(attempt: Sequence[Mapping[str, object]]) -> bool:
     others = [job for job in attempt if not str(job.get("name", "")).endswith("gate")]
     if others and all(str(job.get("conclusion") or "") == "skipped" for job in others):
         return True
-    return any(
-        str(step.get("name", "")) == DRAFT_STEP
-        and str(step.get("conclusion") or "") == "failure"
-        for job in attempt
-        for step in (job.get("steps") or [])  # type: ignore[union-attr]
-        if isinstance(step, Mapping)
-    )
+    for job in attempt:
+        steps = job.get("steps")
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if (
+                isinstance(step, Mapping)
+                and str(step.get("name", "")) == DRAFT_STEP
+                and str(step.get("conclusion") or "") == "failure"
+            ):
+                return True
+    return False
 
 
 def tally(runs: Sequence[RunAttempts]) -> tuple[dict[str, JobStats], int, int]:
