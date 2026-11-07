@@ -1,7 +1,7 @@
 """Start area a member chose: admin web app or acquisition PWA.
 
 Revision ID: 0054_preferred_surface
-Revises: 0051_commitment_cancellation
+Revises: 0053_activity_occurred_at_bound
 
 specs/multi-domain §6.7: `landingPath` honours this choice while the member
 has a role for that app. NULL keeps the default rule. A personal setting: the
@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0054_preferred_surface"
-down_revision: str | None = "0051_commitment_cancellation"
+down_revision: str | None = "0053_activity_occurred_at_bound"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
