@@ -282,6 +282,21 @@ The public host sends `Strict-Transport-Security` without
 other name of the club (webmail, intranet, devices) for a year. The admin host
 keeps `includeSubDomains`.
 
+### Without a general public host
+
+If the club has no site of its own under `club.org`, only domains for single
+campaigns, generate the secrets with:
+
+```sh
+./leonaid pilot-secrets --no-public-host --admin-domain app.club.org
+```
+
+This sets `LEONAID_PUBLIC_HOST_ENABLED=false`, leaves `LEONAID_PUBLIC_DOMAIN`
+empty and selects `Caddyfile.admin-only`. The admin host then also serves
+surveys, Impressum and Datenschutz; old alias, archive and campaign paths
+redirect there to the campaign's domain or answer 404. A campaign without an
+active domain is not publicly reachable.
+
 ### Switch to an admin host
 
 An installation that runs on one host today keeps that host as its public

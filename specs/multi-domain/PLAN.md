@@ -1329,3 +1329,32 @@ one test domain owned by the club.
   answer these paths on the admin host with 308 to the canonical URL or 404
   only (§6.6).
 
+
+### 16.7 Stage 2 (PRs `md/stage2a` … `md/stage2d`)
+
+| Slice | Where |
+| --- | --- |
+| a: data model, commands, Domains tab | migration `0055_site_hosts` (renumbered with the merge order), `domain/site_hosts.py`, `application/site_hosts.py`, `adapters/postgres/site_hosts.py`, `/api/v1/admin/site-hosts`, `packages/features/src/system-admin/site-hosts-admin.tsx` |
+| b: host check, ask, re-check | `adapters/site_host_checks.py`, `adapters/postgres/site_host_verification.py`, `/.well-known/leonaid-host-check/{token}`, `/internal/tls/ask`, `/api/health/site-host-dns`, Caddy role `site` (on-demand TLS), `tools/site_hosts/acme_probe.py` |
+| c: serving | `/api/v1/public/sites/{host}`, `campaignHostUrl`, `adapters/postgres/site_directory.py`, campaign site `site-host*.ts` + `/site-editions`, public app `lib/site-hosts.ts`, EmDash case `campaign-hosts` |
+| d: no public host, action URLs | `pilot-secrets --no-public-host`, deployment contract for `Caddyfile.admin-only`, N4 in `[...path].astro`, `/api/v1/actions/{id}/public-urls` |
+
+Rulings:
+
+- R31: when the primary binding's host is not active, an active mirror gives the canonical URL before the public host path.
+- R32: rule 3 of §7.7.3 for an ended action is `/archive/<slug>`.
+- R33: `idna` is a direct dependency (IDNA 2008; the stdlib codec maps `ß` to `ss`).
+- R34: an action without published CMS page may be bound; the dialog warns. A campaign host shows CMS pages only (R41).
+- R35: the re-check runs in the API process (it shares the `edge` network with egress; the worker has none), under a pg advisory try-lock.
+- R36: §7.4 hardened after review: every A/AAAA must be an edge address (`LEONAID_SITE_HOST_EDGE_ADDRESSES`, else the admin host's), public resolvers must agree (1.1.1.1, 9.9.9.9 by default in production), the answer is an HMAC over host, token and a fresh nonce, a certificate with < 20 days left fails, verified hosts back off 20 min → 1 h → 6 h → daily.
+- R37: the TLS self-check shakes hands with the edge proxy (SNI = host), not through public DNS.
+- R38: failures of a pending host do not count; only verified/active hosts are disabled by the 72 h rule.
+- R39: the edition list is the internal page `/site-editions`, reachable only through the host middleware.
+- R40: scheduled editions are not in the public site response; their segment answers 404 until public.
+- R42: D8 open: there is no customer order-confirmation mail yet. `edition_link` (permanent edition URL, never the root) is ready for it.
+- R43: `ask` and the check path read a 10 s in-process snapshot; site-host admission in the campaign site, the public app and Core public origins caches 30 s. A lapsed host may serve up to 30 s more; a new one may show 404 for up to 30 s.
+- R44: redirect hosts redirect as a whole in every app and are no public origins.
+- R45: public origins accept the request's own host on port 443 only in production (other ports in dev).
+- R46: no-public-host mode: `LEONAID_PUBLIC_HOST_ENABLED=false`, empty `LEONAID_PUBLIC_DOMAIN`, `LEONAID_SITE_BASE_URL` = admin origin; the admin host answers alias, archive and campaign paths only with a redirect to the campaign host or 404 (N4).
+
+Open: real-ACME acceptance with a real test domain (`acme_probe.py`); stack proof of the no-public-host mode with real services; the Domains tab stays marked "Vorschau" until `campaign-hosts` is green in CI.

@@ -288,6 +288,21 @@ Der öffentliche Host sendet `Strict-Transport-Security` ohne
 HTTPS für jeden anderen Namen des Clubs erzwingen (Webmail, Intranet,
 Geräte). Der Verwaltungshost behält `includeSubDomains`.
 
+### Ohne allgemeinen öffentlichen Host
+
+Hat der Club keine eigene Seite unter `club.org`, nur Domains für einzelne
+Aktionen, erzeuge die Secrets mit:
+
+```sh
+./leonaid pilot-secrets --no-public-host --admin-domain app.club.org
+```
+
+Das setzt `LEONAID_PUBLIC_HOST_ENABLED=false`, lässt `LEONAID_PUBLIC_DOMAIN`
+leer und wählt `Caddyfile.admin-only`. Der Verwaltungshost zeigt dann auch
+Umfragen, Impressum und Datenschutz; alte Alias-, Archiv- und
+Kampagnenpfade leiten dort auf die Domain der Aktion weiter oder antworten
+mit 404. Eine Aktion ohne aktive Domain ist nicht öffentlich erreichbar.
+
 ### Auf einen Verwaltungshost umstellen
 
 Eine Installation, die heute auf einem Host läuft, behält diesen Host als

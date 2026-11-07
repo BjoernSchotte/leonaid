@@ -40,7 +40,7 @@ allgemeine Produktionsfreigabe.
   Kampagnen-Domains lassen sich unter **System › Domains** eintragen, prüfen
   und mit Aktionen verbinden; sie zeigen nur Kampagnenseiten aus dem CMS.
   Die Abnahme mit einer echten Domain und echten Zertifikaten steht aus. Eine Installation
-  ohne öffentlichen Host ist nur spezifiziert. `/` auf dem Verwaltungshost ist der
+  ohne öffentlichen Host lässt sich einrichten (`pilot-secrets --no-public-host`); ihr Stack-Nachweis fehlt noch. `/` auf dem Verwaltungshost ist der
   rollenbasierte Einstieg (Anmeldung, dann Startbereich). Beim Umstellen auf zwei Hosts meldet sich
   jedes Mitglied einmal neu an (`pilot-revoke-sessions`). Auf dem
   öffentlichen Host zeigt die Kopfzeile statt der persönlichen App-Links einen

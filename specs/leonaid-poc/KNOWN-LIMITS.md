@@ -119,7 +119,9 @@ Punkte sind keine stillschweigenden Produktzusagen.
   Public-App und Core-Origins je 30 s. Die Domain-Verwaltung ist bis zum
   grünen Stack-Nachweis als Vorschau markiert. Die Abnahme mit echtem ACME und einer echten Domain ist
   offen (`tools/site_hosts/acme_probe.py`). Eine
-  Installation ohne öffentlichen Host ist nur spezifiziert. `/` auf dem Verwaltungshost ist der
+  Installation ohne öffentlichen Host (`pilot-secrets --no-public-host`,
+  `Caddyfile.admin-only`) ist im Deployment-Vertrag abgedeckt; ihr
+  Stack-Nachweis mit echten Diensten fehlt noch. `/` auf dem Verwaltungshost ist der
   rollenbasierte Einstieg (`/login/start`: Anmeldung, dann `landingPath`). Weiterleitungsnamen des
   öffentlichen Hosts gibt es im Dev-Stack nicht. Beim Umstellen auf zwei
   Hosts melden sich alle Mitglieder einmal neu an
