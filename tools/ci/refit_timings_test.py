@@ -3,7 +3,10 @@
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -33,6 +36,85 @@ LOG = """
 2026-11-07T10:00:00Z ci-emdash: OK: krapfentaxi-migration (300s)
 2026-11-07T10:00:00Z ci-emdash: OK: redirect-aliases (40s)
 """
+
+
+def fake_api(runs: list[dict], logs: dict[int, str]):
+    def fetch_json(path: str) -> object:
+        if "/workflows/ci.yml/runs" in path:
+            return {"workflow_runs": runs}
+        run = int(path.split("/actions/runs/")[1].split("/")[0])
+        return {
+            "jobs": [
+                {"id": run * 10 + 1, "name": "Integration 1/4"},
+                {"id": run * 10 + 2, "name": "Lint, types and unit"},
+            ]
+        }
+
+    def fetch_text(path: str) -> str:
+        job = int(path.split("/actions/jobs/")[1].split("/")[0])
+        if job % 10 != 1:
+            raise AssertionError("only stack legs' logs are read")
+        if job // 10 not in logs:
+            raise subprocess.CalledProcessError(1, ["gh", "api", path])
+        return logs[job // 10]
+
+    return fetch_json, fetch_text
+
+
+def test_collect_and_main(leaves: dict, cases: dict) -> None:
+    nightly = [
+        {"id": n, "display_title": "LeonAid CI nightly (every E2E leaf)"}
+        for n in (1, 2, 3)
+    ]
+    every3h = [{"id": 9, "display_title": "LeonAid CI main every 3 hours"}]
+    logs = {n: f"ci-integration: bin: core passed ({400 + n}s)" for n in (1, 2, 3, 9)}
+    fetch_json, fetch_text = fake_api(every3h + nightly, logs)
+    found = r.collect("o/r", 7, leaves, cases, fetch_json, fetch_text)
+    expect(found == {"core": [401, 402, 403]}, f"only nightly runs count: {found}")
+    # No nightly run, no timing at all, or an unreadable log: fail loudly.
+    for runs, run_logs, label in (
+        (every3h, logs, "no nightly run"),
+        (nightly, {n: "nothing here" for n in (1, 2, 3)}, "no timing"),
+    ):
+        fetch_json, fetch_text = fake_api(runs, run_logs)
+        try:
+            r.collect("o/r", 7, leaves, cases, fetch_json, fetch_text)
+            expect(False, f"{label} must fail")
+        except r.RefitError:
+            pass
+    # main(): --write rewrites a copy of the tree; failures return 1.
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        for relative in (
+            "tools/ci/select_suites.py",
+            "tools/ci/e2e.sh",
+            "tools/ci/emdash.sh",
+        ):
+            (root / relative).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(ROOT / relative, root / relative)
+        summary = root / "refit.md"
+        fetch_json, fetch_text = fake_api(nightly, logs)
+        code = r.main(
+            [str(root), "--write", "--summary", str(summary), "--repository", "o/r"],
+            fetch_json,
+            fetch_text,
+        )
+        written = (root / "tools/ci/select_suites.py").read_text(encoding="utf-8")
+        expect(code == 0, f"main --write exit {code}")
+        expect('\n    "core": 402,' in written, "main --write rewrote core")
+        expect("| INTEGRATION_SECONDS | core |" in summary.read_text(), "summary table")
+        before = written
+        fetch_json, fetch_text = fake_api(nightly, {1: logs[1]})
+        code = r.main(
+            [str(root), "--write", "--repository", "o/r"], fetch_json, fetch_text
+        )
+        expect(code == 1, "an unreadable log fails the job")
+        expect(
+            (root / "tools/ci/select_suites.py").read_text(encoding="utf-8") == before,
+            "a failed refit writes nothing",
+        )
+        code = r.main([str(root), "--repository", "o/r"], *fake_api(nightly, logs))
+        expect(code == 0, "without --write nothing is written")
 
 
 def main() -> int:
@@ -89,6 +171,22 @@ def main() -> int:
         expect(False, "an unknown shard must not be written silently")
     except ValueError:
         pass
+    # Guards: zero values never count, fewer than 3 observations change
+    # nothing, and the result is never below 1 s.
+    expect(
+        r.refit({"T": {"a": 100}}, {"a": [0.0, 0.0, 0.0]}) == {},
+        "zero timings are ignored",
+    )
+    expect(r.refit({"T": {"a": 100}}, {"a": [500]}) == {}, "one run changes nothing")
+    expect(
+        r.refit({"T": {"a": 100}}, {"a": [500, 0.0, 510]}) == {},
+        "two usable runs change nothing",
+    )
+    expect(
+        r.refit({"T": {"a": 100}}, {"a": [500, 490, 510]}) == {"T": {"a": 500}},
+        "three usable runs change the value",
+    )
+    test_collect_and_main(leaves, cases)
     if FAILURES:
         for failure in FAILURES:
             print(f"ci-refit-timings-test: ERROR: {failure}", file=sys.stderr)

@@ -32,6 +32,15 @@ from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 
 BAND = 0.15
+# A value changes only with this many observations, and never below 1 s.
+MIN_OBSERVATIONS = 3
+MIN_SECONDS = 1
+
+
+class RefitError(RuntimeError):
+    """No usable data: fail the job so the watchdog shows it."""
+
+
 E2E_SETUP_SHARE = 30
 NIGHTLY_TITLE = "nightly"
 INTEGRATION_LINE = re.compile(r"ci-integration: bin: ([a-z0-9-]+) passed \((\d+)s\)")
@@ -106,8 +115,11 @@ def refit(
     changes: dict[str, dict[str, int]] = {}
     for table, entries in current.items():
         for shard, old in entries.items():
-            new = robust_median(observations.get(shard, []))
-            if new is None or old <= 0:
+            values = [v for v in observations.get(shard, []) if v >= MIN_SECONDS]
+            if len(values) < MIN_OBSERVATIONS:
+                continue
+            new = robust_median(values)
+            if new is None or old <= 0 or new < MIN_SECONDS:
                 continue
             if abs(new - old) / old > BAND:
                 changes.setdefault(table, {})[shard] = int(round(new))
@@ -134,8 +146,10 @@ def gh_json(*args: str) -> object:
 
 
 def gh_text(*args: str) -> str:
+    # A failed log download (expired, 403, rate limit) fails the refit
+    # instead of silently dropping a shard.
     return subprocess.run(
-        ["gh", "api", *args], capture_output=True, text=True, check=False
+        ["gh", "api", *args], capture_output=True, text=True, check=True
     ).stdout
 
 
@@ -158,6 +172,11 @@ def collect(
         )
         if NIGHTLY_TITLE in str(run.get("display_title", ""))
     ][:runs]
+    if not nightly:
+        raise RefitError(
+            "no successful nightly run of ci.yml on main found "
+            f"(run title containing {NIGHTLY_TITLE!r})"
+        )
     observations: dict[str, list[float]] = defaultdict(list)
     for run in nightly:
         jobs = fetch_json(
@@ -171,6 +190,11 @@ def collect(
             log = fetch_text(f"repos/{repository}/actions/jobs/{job['id']}/logs")
             for shard, value in shard_seconds(log, leaves, cases).items():
                 observations[shard].append(value)
+    if not observations:
+        raise RefitError(
+            f"{len(nightly)} nightly runs, but no shard timing in their logs: "
+            "did a log line format change?"
+        )
     return dict(observations)
 
 
@@ -181,7 +205,11 @@ def current_tables(root: Path) -> dict[str, dict[str, int]]:
     return {table: dict(getattr(select_suites, table)) for table in TABLES}
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(
+    argv: list[str] | None = None,
+    fetch_json: Callable[..., object] = gh_json,
+    fetch_text: Callable[..., str] = gh_text,
+) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("root", type=Path)
     parser.add_argument("--runs", type=int, default=7)
@@ -200,7 +228,13 @@ def main(argv: list[str] | None = None) -> int:
         if shard in current["E2E_SECONDS"] and shard != "smoke"
     }
     cases = emdash_cases((root / "tools/ci/emdash.sh").read_text(encoding="utf-8"))
-    observations = collect(args.repository, args.runs, leaves, cases)
+    try:
+        observations = collect(
+            args.repository, args.runs, leaves, cases, fetch_json, fetch_text
+        )
+    except (RefitError, subprocess.CalledProcessError) as error:
+        print(f"refit-timings: ERROR: {error}", file=sys.stderr)
+        return 1
     changes = refit(current, observations)
     lines = ["| Table | Shard | Old s | New s | Runs |", "|---|---|---|---|---|"]
     for table, entries in changes.items():

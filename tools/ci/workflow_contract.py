@@ -274,6 +274,16 @@ def check(path: Path) -> list[str]:
             )
         if f"--selectable {job}=heavy" not in job_block(text, "gate"):
             problems.append(f"The gate must require {job} unless heavy is false.")
+    build = job_block(text, "build")
+    if (
+        "write: ${{ github.ref == 'refs/heads/main' && github.event_name != "
+        "'pull_request' && 'true' || 'false' }}"
+        not in build
+        or text.count("write: ") != build.count("write: ")
+    ):
+        problems.append(
+            "ci.yml: only the Build job of runs on main may write the shared cache."
+        )
     problems.extend(check_emdash(text))
     problems.extend(check_tiers(text, "ci.yml"))
     problems.extend(check_drafts(text, "ci.yml"))
@@ -594,9 +604,9 @@ def check_pin_drift(root: Path) -> list[str]:
     return problems
 
 
-def check_pr_bot(workflows: Path, PIN_DRIFT: str) -> list[str]:
+def check_pr_bot(workflows: Path, bot: str) -> list[str]:
     """One GITHUB_TOKEN pull-request bot: exact permissions, dispatches."""
-    text = (workflows / PIN_DRIFT).read_text(encoding="utf-8")
+    text = (workflows / bot).read_text(encoding="utf-8")
     problems: list[str] = []
     permissions = re.search(r"(?m)^permissions:\n((?:  .*\n|#.*\n)+)", text)
     granted = (
@@ -606,19 +616,19 @@ def check_pr_bot(workflows: Path, PIN_DRIFT: str) -> list[str]:
     )
     if granted != PIN_DRIFT_PERMISSIONS:
         problems.append(
-            f"{PIN_DRIFT}: permissions must be exactly "
+            f"{bot}: permissions must be exactly "
             + ", ".join(
                 f"{scope}: {level}" for scope, level in sorted(PIN_DRIFT_PERMISSIONS)
             )
         )
     if "GH_TOKEN: ${{ github.token }}" not in text or "secrets." in text:
-        problems.append(f"{PIN_DRIFT}: must use GITHUB_TOKEN and no other secret.")
+        problems.append(f"{bot}: must use GITHUB_TOKEN and no other secret.")
     dispatch = re.search(r"for workflow in ([^;\n]+); do\n\s+gh workflow run ", text)
     dispatched = set(dispatch.group(1).split()) if dispatch else set()
     required = set(GATED_WORKFLOWS) | set(UNGATED_REQUIRED)
     if dispatched != required:
         problems.append(
-            f"{PIN_DRIFT}: must dispatch exactly the required workflows "
+            f"{bot}: must dispatch exactly the required workflows "
             f"{', '.join(sorted(required))}; dispatches {', '.join(sorted(dispatched)) or 'none'}"
         )
     for name in sorted(required):

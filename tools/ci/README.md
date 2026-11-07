@@ -309,7 +309,27 @@ bound by CPU and I/O contention on the 4-vCPU runner, not by downloads
 | Third-party image tarball cache | images 1.7 GB (Playwright 1.0 GB), pull hidden behind bootstrap | skipped: no gain, 1.7 GB of the 10 GB cache budget |
 | GHCR CI images by content hash | saves ~20–30 s of the in-step compose build per leg | deferred: needs a public package, cleanup and #122 (`ghcr.io/bjoernschotte/leonaid-ci/<service>:<tools/testing/image_tags.py hash>` agreed) |
 | Split EmDash `krapfentaxi-orders` per browser | 3 legs ≈ 20 runner-min instead of 11, +2 jobs; wall −1 min (E2E legs are as long) | not done: every E2E leaf runs only nightly now |
-| Concurrent light shards per leg | `disk-peak.sh` now logs memory peaks | open: decide from measured peaks |
+| Concurrent light shards per leg | see the peaks below | not now: CPU-bound (4 vCPU, timing-sensitive browser proofs), gain ≤ ~1 min setup per merged leg |
+
+Peaks per leg on a GitHub-hosted runner (4 vCPU, 15.6 GB; `disk-peak.sh`,
+run 42414052641, complete selection):
+
+| Leg | Memory in use, peak | Disk growth, peak |
+|---|---|---|
+| Integration 1–4 | 3.5–3.8 GB | 2.5–4.7 GB |
+| E2E 1–4 | 3.7–4.1 GB | 2.3–2.4 GB |
+| EmDash 1–2 | 2.8–3.9 GB | 3.2 GB |
+
+Memory and disk would allow two or three stacks per leg; the 40 GB free-disk
+skip threshold is about eight times the largest growth. CPU is the limit and
+is not measured. If concurrency is revisited: Integration shards only, two at
+a time, first on the nightly run with a load-average sampler.
+
+Refit guards: a shard value changes only with at least 3 observations, never
+below 1 s; no nightly run, no timing line or an unreadable log fails the
+workflow, so the watchdog reports it. The shared cache is written only by
+runs on `main` (schedule or dispatch there); bot dispatches on
+`ci/refit-timings` or `pins/repin-images` only read it.
 
 ## Integration and survey shards
 
