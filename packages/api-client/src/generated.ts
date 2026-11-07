@@ -19,9 +19,11 @@ export type AcquisitionPartyListResponse = { readonly items: Array<AcquisitionPa
 export type AcquisitionPartyResponse = { readonly assignedAcquirerIds: Array<string>; readonly city: string | null; readonly displayName: string; readonly email: string | null; readonly partyKind: "company" | "person"; readonly postalCode: string | null; readonly twentyId: string; };
 export type ActionContext = { readonly actionId: string; readonly canCreateLists: boolean; readonly name: string; };
 export type ActionContexts = { readonly items: Array<ActionContext>; readonly nextOffset: number | null; };
+export type ActionEditionResponse = { readonly atRoot: boolean; readonly campaignPage: boolean; readonly editionUrl: string; readonly hostStatus: "pending" | "verified" | "active" | "disabled"; readonly hostname: string; readonly isPrimary: boolean; readonly segment: string; };
 export type ActionGoalRequest = { readonly actualValue?: string; readonly currency?: string | null; readonly goalValue?: string | null; readonly unit?: string | null; };
 export type ActionGoalResponse = { readonly actualValue: string; readonly currency: string | null; readonly goalValue: string | null; readonly unit: string | null; };
 export type ActionManagementResponse = { readonly action: CharityActionResponse; readonly administratorOptions: Array<AdministratorOptionResponse>; readonly allowedTransitions: Array<"draft" | "scheduled" | "active" | "completed" | "archived">; readonly publicAlias: string | null; };
+export type ActionPublicUrlsResponse = { readonly canonicalUrl: string | null; readonly editions: Array<ActionEditionResponse>; };
 export type ActionTemplateListResponse = { readonly items: Array<ActionTemplateSummaryResponse>; };
 export type ActionTemplateSnapshotResponse = { readonly copiedFromActionId: string | null; readonly displayName: string; readonly key: string; readonly version: number; };
 export type ActionTemplateSummaryResponse = { readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing" | "delivery">; readonly description: string; readonly displayName: string; readonly hasOrderForm: boolean; readonly key: string; readonly offeringCount: number; readonly presentationTheme: string | null; readonly version: number; };
@@ -1290,6 +1292,17 @@ export class LeonAidApiClient {
   ): Promise<ActionManagementResponse> {
     return this.request<ActionManagementResponse>(
       `/api/v1/actions/${encodeURIComponent(String(actionId))}/management`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async getActionPublicUrls(
+    actionId: string,
+    options: RequestOptions = {},
+  ): Promise<ActionPublicUrlsResponse> {
+    return this.request<ActionPublicUrlsResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/public-urls`,
       { method: "GET" },
       options,
     );

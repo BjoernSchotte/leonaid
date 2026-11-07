@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import Field
 
 from leonaid.application.identity import IdentityQueryService
+from leonaid.application.policies import require_action_manager
 from leonaid.application.site_hosts import (
     AddSiteHost,
     BindEdition,
@@ -574,6 +575,62 @@ async def tls_ask(request: Request, domain: str = Query(max_length=300)) -> Resp
     ):
         raise PermissionDenied("tls_ask_refused", "Kein Zertifikat.")
     return PlainTextResponse("ok", headers={"Cache-Control": "no-store"})
+
+
+# ---------- an action's public addresses, for its managers (§7.1) ----------
+
+action_router = APIRouter(
+    tags=["actions"], responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES
+)
+
+
+class ActionEditionResponse(TransportModel):
+    hostname: str
+    host_status: SiteHostStatusValue
+    segment: str
+    at_root: bool
+    is_primary: bool
+    edition_url: str
+    # False: the host shows nothing for this action (R41, campaign hosts
+    # render CMS pages only).
+    campaign_page: bool
+
+
+class ActionPublicUrlsResponse(TransportModel):
+    # None: the action is not publicly reachable (§6.6).
+    canonical_url: str | None
+    editions: list[ActionEditionResponse]
+
+
+@action_router.get(
+    "/api/v1/actions/{action_id}/public-urls",
+    operation_id="getActionPublicUrls",
+    response_model=ActionPublicUrlsResponse,
+)
+async def get_action_public_urls(
+    action_id: UUID, request: Request, response: Response
+) -> ActionPublicUrlsResponse:
+    """Read only; domains are managed by the system admin (D5)."""
+    actor = await _reader(request, response)
+    require_action_manager(actor, action_id)
+    urls = await cast(
+        AsyncpgSiteDirectory, request.app.state.site_directory
+    ).action_urls(action_id)
+    return ActionPublicUrlsResponse(
+        canonical_url=urls.canonical_url,
+        editions=[
+            ActionEditionResponse(
+                hostname=item.hostname,
+                host_status=cast(SiteHostStatusValue, item.host_status),
+                segment=item.segment,
+                at_root=item.at_root,
+                is_primary=item.is_primary,
+                edition_url=item.edition_url,
+                campaign_page=item.campaign_page,
+            )
+            for item in urls.editions
+        ],
+    )
 
 
 # ---------- public reads of campaign hosts (§7.3) ----------

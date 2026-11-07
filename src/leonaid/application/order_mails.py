@@ -134,9 +134,9 @@ class OrderMailLinks:
         return cls(campaign_url=campaign, privacy_url=privacy, imprint_url=imprint)
 
 
-# The action's public page for the mail, or None for no link. Today this is
-# the public host path (``PublicCampaignLinks``); with campaign hosts it is
-# the permanent edition URL of decision D8 (``SiteDirectory.edition_link``).
+# The action's public page for the mail, or None for no link: the permanent
+# edition URL of decision D8 on its campaign host, else the public host page
+# (``AsyncpgSiteDirectory.edition_link``).
 CampaignLink = Callable[[UUID], Awaitable[str | None]]
 
 

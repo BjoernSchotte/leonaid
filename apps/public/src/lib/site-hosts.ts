@@ -176,3 +176,26 @@ export function hasPublicHost(
     !env.LEONAID_ADMIN_DOMAIN?.trim()
   );
 }
+
+const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
+ * The Core route behind a path of the admin host without a public host
+ * (§6.6): an alias, an archive page or a campaign page path. Anything else,
+ * the home page included, is null (404).
+ */
+export function adminOnlyTarget(
+  segments: readonly string[],
+): { routeKind: "alias" | "archive"; routeValue: string } | null {
+  const [first, second] = segments;
+  if (segments.length === 1 && first && SLUG.test(first))
+    return { routeKind: "alias", routeValue: first };
+  if (
+    segments.length === 2 &&
+    (first === "archive" || first === "campaigns") &&
+    second &&
+    SLUG.test(second)
+  )
+    return { routeKind: "archive", routeValue: second };
+  return null;
+}

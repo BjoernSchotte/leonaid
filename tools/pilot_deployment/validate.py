@@ -36,6 +36,8 @@ CMS_SECRETS = ("PGPASSWORD", "S3_SECRET_ACCESS_KEY", "EMDASH_ENCRYPTION_KEY")
 CADDYFILES = {
     "single": "/infra/pilot/Caddyfile",
     "split": "/infra/pilot/Caddyfile.split",
+    # Admin host plus campaign hosts, no general public host (§6.6).
+    "admin-only": "/infra/pilot/Caddyfile.admin-only",
 }
 # Isolated test projects only: the hand-written test proxy, and the product's
 # single-host route table rendered with an internal CA by tools/proxy/
@@ -433,7 +435,7 @@ def validate_hosts(
     proxy = object_value(services["proxy"], "services.proxy")
     proxy_environment = object_value(proxy.get("environment"), "proxy.environment")
     caddyfile = mounted_caddyfile(proxy)
-    public_domain = string_value(proxy_environment, "LEONAID_PUBLIC_DOMAIN").casefold()
+    public_domain = str(proxy_environment.get("LEONAID_PUBLIC_DOMAIN") or "").casefold()
     admin_domain = str(proxy_environment.get("LEONAID_ADMIN_DOMAIN") or "").casefold()
     raw_aliases = str(proxy_environment.get("LEONAID_PUBLIC_DOMAIN_ALIASES") or "")
     aliases = split_hosts(raw_aliases)
@@ -441,6 +443,25 @@ def validate_hosts(
     site_base = str(api_environment.get("LEONAID_SITE_BASE_URL") or "")
     admin_base = string_value(api_environment, "LEONAID_PUBLIC_BASE_URL")
     allowed = split_hosts(api_environment.get("LEONAID_ALLOWED_ORIGINS"))
+    if caddyfile.endswith(CADDYFILES["admin-only"]):
+        validate_admin_only(
+            services,
+            api_environment,
+            public_domain=public_domain,
+            admin_domain=admin_domain,
+            aliases=aliases,
+            public_origins=public_origins,
+            site_base=site_base,
+            admin_base=admin_base,
+            allowed=allowed,
+        )
+        return
+    if str(api_environment.get("LEONAID_PUBLIC_HOST_ENABLED", "true")).casefold() != (
+        "true"
+    ):
+        raise DeploymentContractError(
+            "LEONAID_PUBLIC_HOST_ENABLED=false needs Caddyfile.admin-only"
+        )
     valid_hostname(public_domain, "LEONAID_PUBLIC_DOMAIN")
     if not admin_domain:
         if not (
@@ -502,6 +523,81 @@ def validate_hosts(
         != public_domain
     ):
         raise DeploymentContractError("public app hosts differ from the proxy hosts")
+
+
+# Until the EmDash case campaign-hosts-admin-only is green in CI, production
+# refuses the mode (review of #109); the contract test lifts it to prove the
+# remaining rules.
+ADMIN_ONLY_RELEASED = False
+
+
+def validate_admin_only(
+    services: dict[str, Any],
+    api_environment: dict[str, Any],
+    *,
+    public_domain: str,
+    admin_domain: str,
+    aliases: list[str],
+    public_origins: list[str],
+    site_base: str,
+    admin_base: str,
+    allowed: list[str],
+) -> None:
+    """Admin host plus campaign hosts, no general public host (§6.6)."""
+
+    if not ADMIN_ONLY_RELEASED:
+        raise DeploymentContractError(
+            "Caddyfile.admin-only (no public host) is not released yet: its "
+            "stack proof (test-emdash-spike --case campaign-hosts-admin-only) "
+            "must pass in CI first"
+        )
+    if public_domain or aliases or public_origins:
+        raise DeploymentContractError(
+            "without a public host LEONAID_PUBLIC_DOMAIN, its aliases and "
+            "LEONAID_PUBLIC_ORIGINS stay empty"
+        )
+    valid_hostname(admin_domain, "LEONAID_ADMIN_DOMAIN")
+    admin_origin = f"https://{admin_domain}"
+    if origin_of(admin_base) != admin_origin:
+        raise DeploymentContractError(
+            "LEONAID_PUBLIC_BASE_URL must be the admin host origin"
+        )
+    # Survey links and legal pages stay on the admin host (§6.6).
+    if site_base and origin_of(site_base) != admin_origin:
+        raise DeploymentContractError(
+            "without a public host LEONAID_SITE_BASE_URL is the admin host"
+        )
+    if allowed != [admin_origin]:
+        raise DeploymentContractError(
+            "LEONAID_ALLOWED_ORIGINS must be exactly the admin origin"
+        )
+    if str(api_environment.get("LEONAID_PUBLIC_HOST_ENABLED") or "").casefold() != (
+        "false"
+    ):
+        raise DeploymentContractError(
+            "Caddyfile.admin-only needs LEONAID_PUBLIC_HOST_ENABLED=false"
+        )
+    public = object_value(services["public"], "services.public")
+    public_environment = object_value(public.get("environment"), "public.environment")
+    if str(
+        public_environment.get("LEONAID_ADMIN_DOMAIN") or ""
+    ).casefold() != admin_domain or str(
+        public_environment.get("LEONAID_PUBLIC_DOMAIN") or ""
+    ):
+        raise DeploymentContractError("public app hosts differ from the proxy hosts")
+    cms = services.get(CMS_SERVICE)
+    if cms is not None:
+        cms_environment = object_value(
+            object_value(cms, CMS_SERVICE).get("environment"),
+            "campaign-site.environment",
+        )
+        if str(cms_environment.get("LEONAID_PUBLIC_HOST_ENABLED") or "").casefold() != (
+            "false"
+        ):
+            raise DeploymentContractError(
+                "without a public host the campaign site needs "
+                "LEONAID_PUBLIC_HOST_ENABLED=false"
+            )
 
 
 def validate_cms(services: dict[str, Any], api_environment: dict[str, Any]) -> None:

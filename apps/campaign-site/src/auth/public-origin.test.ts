@@ -115,3 +115,16 @@ describe("admin and site origins (specs/multi-domain §6.4)", () => {
     expect(publicCampaignUrl("../admin")).toBeNull();
   });
 });
+
+describe("no general public host (specs/multi-domain §6.6)", () => {
+  it("has no site origin and no Live View path on the admin host", () => {
+    configure("https://app.leonaid.invalid/");
+    process.env.LEONAID_PUBLIC_HOST_ENABLED = "false";
+    try {
+      expect(hasSecureSiteOrigin(request("app.leonaid.invalid"))).toBe(false);
+      expect(publicCampaignUrl("krapfentaxi-2026")).toBeNull();
+    } finally {
+      delete process.env.LEONAID_PUBLIC_HOST_ENABLED;
+    }
+  });
+});

@@ -897,6 +897,35 @@ def _dev(target: Target) -> list[str]:
         lines += SITE_COMMENT
         lines += _site("https://:8443", "site", Target("dev", "single", True), [])
         return lines
+    if target.mode == "admin-only":
+        # Admin host without a public host (§6.6), for the stack proof.
+        lines += [
+            "http://:8080 {",
+            "\timport body_read_timeouts",
+            "\timport common_headers",
+            "\thandle /.well-known/leonaid-host-check/* {",
+            "\t\treverse_proxy api:8000",
+            "\t}",
+            "\thandle /_health {",
+            '\t\trespond "ready" 200',
+            "\t}",
+            "\thandle {",
+            "\t\tredir https://{host}" + DEV_PORT + "{uri} 308",
+            "\t}",
+            "}",
+            "",
+        ]
+        # localhost:8443 serves the compose healthcheck.
+        lines += _site(
+            "https://{$LEONAID_ADMIN_DOMAIN:app.localhost}:8443, https://proxy:8443, "
+            "https://localhost:8443",
+            "admin_only",
+            target,
+            [],
+        )
+        lines += SITE_COMMENT
+        lines += _site("https://:8443", "site", target, [])
+        return lines
     lines += DEV_TWENTY.splitlines()
     lines.append("")
     lines += [
@@ -944,6 +973,10 @@ TARGETS = {
     ),
     "dev-single": ("infra/proxy/Caddyfile", Target("dev", "single")),
     "dev-split": ("infra/proxy/Caddyfile.split", Target("dev", "split", True)),
+    "dev-admin-only": (
+        "infra/proxy/Caddyfile.admin-only",
+        Target("dev", "admin-only", True),
+    ),
 }
 
 

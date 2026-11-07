@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PublicCampaignListItemResponse } from "@leonaid/api-client";
 import {
+  adminOnlyTarget,
   admitHost,
   campaignHostname,
   campaignHref,
@@ -151,6 +152,29 @@ describe("campaign hosts in the public app", () => {
     expect(publicRobots("https://example.org", true)).toContain(
       "Sitemap: https://example.org/sitemap.xml",
     );
+  });
+
+  it("maps admin-host paths without a public host to Core routes only", () => {
+    // N4: aliases, archive and campaign paths only redirect or 404.
+    expect(adminOnlyTarget(["krapfentaxi"])).toEqual({
+      routeKind: "alias",
+      routeValue: "krapfentaxi",
+    });
+    expect(adminOnlyTarget(["archive", "lions-open-2025"])).toEqual({
+      routeKind: "archive",
+      routeValue: "lions-open-2025",
+    });
+    expect(adminOnlyTarget(["campaigns", "lions-open-2025"])).toEqual({
+      routeKind: "archive",
+      routeValue: "lions-open-2025",
+    });
+    for (const segments of [
+      [],
+      ["campaigns", "x", "media", "y"],
+      ["Bad Alias"],
+      ["a", "b"],
+    ])
+      expect(adminOnlyTarget(segments)).toBeNull();
   });
 
   it("lists nothing on an admin host without a public host", () => {

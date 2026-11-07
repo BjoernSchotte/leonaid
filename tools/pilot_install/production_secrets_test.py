@@ -175,7 +175,43 @@ def hosts(root: Path) -> None:
         ):
             raise AssertionError("--single-host must keep one host")
 
+        bare = Path(directory) / "admin-only.env"
+        result = run(
+            root, bare, "--no-public-host", "--admin-domain", "App.Leonaid.org"
+        )
+        if result.returncode != 0:
+            raise AssertionError(result.stderr)
+        values = parse_env(bare.read_text(encoding="utf-8"), bare)
+        expected = {
+            "LEONAID_PUBLIC_HOST_ENABLED": "false",
+            "LEONAID_PUBLIC_DOMAIN": "",
+            "LEONAID_ADMIN_DOMAIN": "app.leonaid.org",
+            "LEONAID_PROXY_CADDYFILE": "Caddyfile.admin-only",
+            "LEONAID_PUBLIC_BASE_URL": "https://app.leonaid.org",
+            "LEONAID_SITE_BASE_URL": "https://app.leonaid.org",
+            "LEONAID_ALLOWED_ORIGINS": "https://app.leonaid.org",
+        }
+        for key, value in expected.items():
+            if values.get(key) != value:
+                raise AssertionError(f"{key}={values.get(key)!r}, want {value!r}")
+        if "LEONAID_PUBLIC_ORIGINS" in values:
+            raise AssertionError("no public host, but a public origin")
+
         for label, options in (
+            (
+                "no public host without admin domain",
+                ("--no-public-host",),
+            ),
+            (
+                "no public host with a public domain",
+                (
+                    "--no-public-host",
+                    "--admin-domain",
+                    "app.leonaid.org",
+                    "--public-domain",
+                    "leonaid.org",
+                ),
+            ),
             (
                 "admin equals public",
                 ("--public-domain", "leonaid.org", "--admin-domain", "leonaid.org"),

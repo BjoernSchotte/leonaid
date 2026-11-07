@@ -90,9 +90,9 @@ Punkte sind keine stillschweigenden Produktzusagen.
   also no cancellation notice), an HTML version, a club sender address (the
   configured `MAIL_FROM` sends), a resend button, and mails for later order
   changes (delivery window moved, invoice issued). Fulfilment mails ignore
-  the marketing/acquisition suppression list. The campaign link is today's
-  public host page (`PublicCampaignLinks`); the permanent edition URL on a
-  campaign host (decision D8) comes with stage 2c.
+  the marketing/acquisition suppression list. The campaign link is the
+  permanent edition URL on the campaign host (decision D8), else the public
+  host page (`edition_link`).
 
 - Impressum (`/impressum`) und Datenschutzerklärung (`/datenschutz`) kommen
   aus der aktiven rechtlichen Konfiguration (Vier-Augen-Freigabe, Migration
@@ -167,14 +167,15 @@ Punkte sind keine stillschweigenden Produktzusagen.
   Stunde; tägliche Nachprüfung) und liefern dort die Kampagnenseiten aus
   (Ausgaben unter `/<segment>/`, Archivseite nach dem Ende, `/archive/`,
   eigene `robots.txt`/`sitemap.xml`; alte Pfade und Aliase leiten weiter).
-  Eine Domain zeigt nur CMS-Kampagnenseiten. Offen (D8): Eine
-  Bestellbestätigung per Mail an Besteller gibt es nicht; der Link dafür ist
-  in Core vorbereitet (`edition_link`, die dauerhafte Ausgaben-URL, nie die
+  Eine Domain zeigt nur CMS-Kampagnenseiten. Bestellmails an
+  Besteller verlinken die dauerhafte Ausgaben-URL (D8, `edition_link`, nie die
   Wurzel). Status-Caches: `ask` 10 s, Host-Freigabe in Campaign-Site,
   Public-App und Core-Origins je 30 s. Die Domain-Verwaltung ist bis zum
   grünen Stack-Nachweis als Vorschau markiert. Die Abnahme mit echtem ACME und einer echten Domain ist
   offen (`tools/site_hosts/acme_probe.py`). Eine
-  Installation ohne öffentlichen Host ist nur spezifiziert. `/` auf dem Verwaltungshost ist der
+  Installation ohne öffentlichen Host (`pilot-secrets --no-public-host`,
+  `Caddyfile.admin-only`) ist im Deployment-Vertrag abgedeckt; ihr
+  Stack-Nachweis mit echten Diensten fehlt noch. `/` auf dem Verwaltungshost ist der
   rollenbasierte Einstieg (`/login/start`: Anmeldung, dann `landingPath`). Weiterleitungsnamen des
   öffentlichen Hosts gibt es im Dev-Stack nicht. Beim Umstellen auf zwei
   Hosts melden sich alle Mitglieder einmal neu an
