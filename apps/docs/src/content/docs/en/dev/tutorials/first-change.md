@@ -4,10 +4,10 @@ description: Prepare a fresh checkout, make a small change, and prove it with th
 docId: DOC-P031
 audience: [dev]
 diataxis: tutorial
-contentRevision: 1
-reviewedRevision: 1
+contentRevision: 2
+reviewedRevision: 2
 verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
-reviewer: Björn Schotte
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 You need Git, Docker with Compose v2, and at least 5 GiB of free space.
@@ -20,7 +20,11 @@ You need Git, Docker with Compose v2, and at least 5 GiB of free space.
    or operations, update the relevant docs at the same code revision.
 5. Run the narrowest relevant `./leonaid test-…` command first. For a docs-only
    change, run `./leonaid docs-check` and `docs-build`.
-6. Before handoff, run `./leonaid check` from a clean working tree.
+6. While you work, `./leonaid check-fast` gives feedback in about 30 seconds
+   (Python lint, types and unit tests; TypeScript packages changed against
+   `origin/main`). `./leonaid install-pre-push-hook` runs it before every
+   `git push`; `git push --no-verify` skips it once. Before handoff, run the
+   full `./leonaid check` from a clean working tree.
 7. Inspect the diff, generated files, secrets, and unexpected changes.
 
 `./leonaid test-handoff` repeats this setup in a fresh checkout and proves that

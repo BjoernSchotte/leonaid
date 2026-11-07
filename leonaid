@@ -63,7 +63,8 @@ Commands:
                     [--other-checkout] confirms a clone that is not it;
                     [--synthetic-env] writes the public synthetic .env.local
                     that shares the host test fixture cache (default for a
-                    fresh checkout under .claude/worktrees)
+                    fresh checkout under .claude/worktrees); [--pre-push-hook]
+                    installs a git pre-push hook running check-fast
   doctor            Diagnose Docker, locks, secrets and local dependencies
   local-instance    Show this checkout's Compose project: "leonaid" only for
                     the recorded main checkout, leonaid-wt-<checksum> otherwise
@@ -72,6 +73,12 @@ Commands:
                     Tag the next CalVer release (vYYYY.M.N, fixes vYYYY.M.N.P)
   dev               Build and start the ready PoC core stack (plus local
                     extensions from .local/dev, see infra/compose/README.md)
+  install-pre-push-hook
+                    Run check-fast before every git push (all worktrees of
+                    this clone; skip once with git push --no-verify)
+  check-fast        Fast pre-push subset (~30 s): Python lint, types and
+                    unit tests, typecheck/format of TypeScript packages
+                    changed against origin/main (LEONAID_CHECK_BASE)
   check             Run non-mutating quality and policy gates
   repin-images [--image SYSTEM]...
                     Move image pins whose tag an upstream rebuild moved to the
@@ -774,8 +781,34 @@ bootstrap_python() {
     python "$@"
 }
 
+# Opt-in pre-push hook running ./leonaid check-fast. Git keeps hooks in the
+# common repository directory, so it applies to every worktree of the clone.
+install_pre_push_hook() {
+  hook_directory=$(git -C "$root" rev-parse --path-format=absolute --git-path hooks)
+  common_directory=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir)
+  case "$hook_directory/" in
+    "$common_directory"/* | "$root"/*) ;;
+    *)
+      # core.hooksPath points to a directory shared by other repositories.
+      echo "install-pre-push-hook: ERROR: hooks live in $hook_directory (core.hooksPath), outside this repository; not installed" >&2
+      exit 1
+      ;;
+  esac
+  hook="$hook_directory/pre-push"
+  if [ -e "$hook" ] && ! grep -q '^# leonaid-pre-push-hook' "$hook"; then
+    echo "install-pre-push-hook: ERROR: $hook exists and is not LeonAid's; merge it by hand" >&2
+    exit 1
+  fi
+  mkdir -p "$hook_directory"
+  cp "$root/tools/dx/pre-push" "$hook.tmp"
+  chmod 755 "$hook.tmp"
+  mv "$hook.tmp" "$hook"
+  echo "install-pre-push-hook: OK: $hook runs ./leonaid check-fast for every worktree (skip once: git push --no-verify)"
+}
+
 bootstrap() {
   synthetic_env=false
+  pre_push_hook=false
   for argument in "$@"; do
     case "$argument" in
       --main-instance)
@@ -799,6 +832,7 @@ bootstrap() {
         ;;
       --other-checkout) other_checkout=true ;;
       --synthetic-env) synthetic_env=true ;;
+      --pre-push-hook) pre_push_hook=true ;;
       *)
         echo "bootstrap: ERROR: unknown option $argument (see ./leonaid help)" >&2
         exit 2
@@ -874,6 +908,9 @@ bootstrap() {
     fi
   done
   echo "bootstrap: OK: used locked Docker toolchains only (packages cached in $package_cache)"
+  if [ "$pre_push_hook" = true ]; then
+    install_pre_push_hook
+  fi
   "$root/leonaid" doctor
 }
 
@@ -998,182 +1035,220 @@ check_clean_tree() {
   fi
 }
 
-check_all() {
-  require_docker
-  check_clean_tree
-  before=$(git -C "$root" status --porcelain --untracked-files=all)
-  /bin/sh "$root/tools/emdash_spike/test.sh" "$root" --case krapfentaxi-source
-  # Linked worktrees use an absolute .git pointer outside the mounted checkout.
-  # Readiness must inspect the real repository, not a synthetic replacement.
-  check_git_common=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir)
+# Python sources linted by ruff (plus tests) and typed by mypy.
+python_source_paths="migrations src tools/action_admin tools/actions tools/commitments tools/delivery
+  tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/mail_relay
+  tools/backup tools/ci tools/compose/persistence_probe.py tools/core
+  tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/openapi tools/outbox
+  tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_install tools/pilot_release tools/release tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage tools/tasks tools/materials tools/knowledge tools/inbox
+  tools/pilot_readiness
+  tools/pwa tools/security tools/templates tools/testkit tools/twenty tools/typst
+  tools/upgrade tools/emdash_spike packages/testkit"
+# The exhaustive disclosure solver proof takes ~2 minutes of one CPU;
+# check-fast skips it, the full check spreads it over parallel shards.
+solver_tests=tests/unit/test_survey_disclosure_solver.py
+solver_shards=4
 
-  docker run --rm \
-    -v "$root:/workspace:ro" \
-    -w /workspace \
-    "$NODE_IMAGE" \
-    node tools/emdash_spike/dependencies.mjs
+# Parallel check groups. Each group runs in the background with its output in
+# a file; results are printed in start order with duration, and any failed
+# group fails the run. Groups must not write the same files.
+# At most LEONAID_CHECK_JOBS groups run at once (default: half the CPUs,
+# at least 2), so several agents' checks cannot saturate a shared host.
+check_jobs() {
+  jobs_limit=${LEONAID_CHECK_JOBS:-$(($(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4) / 2))}
+  case "$jobs_limit" in '' | *[!0-9]*) jobs_limit=2 ;; esac
+  [ "$jobs_limit" -ge 2 ] || jobs_limit=2
+  echo "$jobs_limit"
+}
 
-  /bin/sh "$root/tools/emdash_spike/test.sh" "$root" --case authorization-inventory
+check_groups_begin() {
+  check_groups=$(mktemp -d "${TMPDIR:-/tmp}/leonaid-check.XXXXXX")
+  : >"$check_groups/jobs"
+  check_jobs_limit=$(check_jobs)
+  # Interrupted: stop the groups and remove their logs.
+  trap 'check_groups_abort' INT TERM
+}
 
-  docker run --rm \
-    -v "$root:/workspace:ro" \
-    "$ALPINE_IMAGE" \
-    /bin/sh /workspace/tools/traceability/test.sh /workspace
-  docker run --rm \
+check_groups_abort() {
+  trap - INT TERM
+  while read -r group_pid group_label; do
+    kill "$group_pid" 2>/dev/null || true
+  done <"$check_groups/jobs"
+  rm -rf "$check_groups"
+  echo "check: interrupted; groups stopped" >&2
+  exit 130
+}
+
+# A group is done once it wrote its duration (a finished but not yet reaped
+# child would still answer kill -0).
+check_groups_running() {
+  running=0
+  while read -r group_pid group_label; do
+    [ -e "$check_groups/$group_label.time" ] || running=$((running + 1))
+  done <"$check_groups/jobs"
+  echo "$running"
+}
+
+check_group() {
+  group_label=$1
+  shift
+  while [ "$(check_groups_running)" -ge "$check_jobs_limit" ]; do
+    sleep 0.2
+  done
+  (
+    group_start=$(date +%s)
+    # `if` keeps errexit from ending the subshell before the duration is saved;
+    # group functions chain their steps with && so a failed step stops them.
+    if "$@"; then group_status=0; else group_status=$?; fi
+    echo "$(($(date +%s) - group_start))s" >"$check_groups/$group_label.time"
+    exit "$group_status"
+  ) >"$check_groups/$group_label.log" 2>&1 &
+  echo "$! $group_label" >>"$check_groups/jobs"
+}
+
+check_groups_end() {
+  check_failed=
+  while read -r group_pid group_label; do
+    if wait "$group_pid"; then
+      echo "== $group_label: OK ($(cat "$check_groups/$group_label.time"))"
+      cat "$check_groups/$group_label.log"
+    else
+      check_failed="$check_failed $group_label"
+      echo "== $group_label: FAILED ($(cat "$check_groups/$group_label.time" 2>/dev/null))" >&2
+      cat "$check_groups/$group_label.log" >&2
+    fi
+  done <"$check_groups/jobs"
+  rm -rf "$check_groups"
+  trap - INT TERM
+  if [ -n "$check_failed" ]; then
+    echo "$1: ERROR: failed groups:$check_failed" >&2
+    exit 1
+  fi
+}
+
+check_ruff() {
+  # Intentional word splitting of the path lists.
+  # shellcheck disable=SC2086
+  run_python uv run --frozen --no-sync ruff check tests $python_source_paths "$@" &&
+    run_python uv run --frozen --no-sync ruff format --check tests $python_source_paths "$@"
+}
+
+check_mypy() {
+  # shellcheck disable=SC2086
+  run_python uv run --frozen --no-sync mypy $python_source_paths
+}
+
+check_stdlib() {
+  docker run --rm --network none \
+    --user "$host_user" -e HOME=/tmp \
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \
-    python /workspace/tools/pilot_contract/test.py /workspace
+    /bin/sh /workspace/tools/dx/stdlib_checks.sh /workspace
+}
+
+check_browser_image() {
   docker run --rm \
     -e PYTHONPATH=/workspace \
     -v "$root:/workspace:ro" \
     -v "$check_git_common:$check_git_common:ro" \
     "$PLAYWRIGHT_IMAGE" \
-    python3 /workspace/tools/pilot_readiness/test.py /workspace
+    python3 /workspace/tools/pilot_readiness/test.py /workspace &&
+    docker run --rm \
+      -v "$root:/workspace:ro" \
+      -v "$check_git_common:$check_git_common:ro" \
+      "$PLAYWRIGHT_IMAGE" \
+      python3 /workspace/tools/pilot/boundary.py /workspace &&
+    docker run --rm --network none \
+      --user "$host_user" -e HOME=/tmp \
+      -v "$root:/workspace:ro" \
+      "$PLAYWRIGHT_IMAGE" \
+      python3 /workspace/tools/release/release_test.py
+}
+
+check_python_contracts() {
+  run_python uv run --frozen --no-sync pytest -p no:cacheprovider tests/unit \
+    --ignore "$solver_tests" &&
+    run_python env PYTHONPATH=/workspace:/workspace/src python tools/pilot_release/cms_contract_test.py &&
+    run_python env PYTHONPATH=/workspace:/workspace/src python tools/pilot_release/contract_test.py &&
+    run_python uv run --frozen --no-sync \
+      python tools/openapi/generate.py --root /workspace --check &&
+    run_python uv run --frozen --no-sync \
+      python tools/openapi/check_frontend.py --root /workspace &&
+    docker run --rm \
+      -e PYTHONPATH=/workspace:/workspace/src \
+      -e UV_CACHE_DIR=/tmp/uv-cache \
+      -e UV_LINK_MODE=copy \
+      -v "$root:/workspace:ro" \
+      -w /workspace \
+      "$UV_IMAGE" \
+      uv run --frozen --no-sync \
+      python tools/mail_domain/test.py /workspace
+}
+
+# One of $solver_shards deterministic shards (tools/dx/pytest_shard.py).
+check_solver() {
+  run_python env PYTHONPATH=/workspace:/workspace/src LEONAID_PYTEST_SHARD="$1/$solver_shards" \
+    uv run --frozen --no-sync pytest -q -p no:cacheprovider -p tools.dx.pytest_shard "$solver_tests"
+}
+
+check_frontend() {
+  run_bun bun run typecheck &&
+    run_bun bun node_modules/prettier/bin/prettier.cjs --check \
+      .github apps/campaign-site apps/public apps/pwa apps/web packages/api-client packages/features packages/ui \
+      tools/emdash_spike/*.mjs tools/emdash_spike/*.ts tools/pilot_cms/*.mjs \
+      tests/contract tests/e2e package.json playwright.config.mjs .prettierrc.json
+}
+
+check_node() {
+  /bin/sh "$root/tools/emdash_spike/test.sh" "$root" --case krapfentaxi-source &&
+    docker run --rm \
+      -v "$root:/workspace:ro" \
+      -w /workspace \
+      "$NODE_IMAGE" \
+      node tools/emdash_spike/dependencies.mjs &&
+    /bin/sh "$root/tools/emdash_spike/test.sh" "$root" --case authorization-inventory &&
+    docker run --rm --network none -v "$root:/workspace:ro" -w /workspace \
+      "$NODE_IMAGE" node tools/emdash_spike/export-types.mjs --check &&
+    docker run --rm --network none -v "$root:/workspace:ro" -w /workspace \
+      "$NODE_IMAGE" node tools/emdash_spike/campaign-types-proof.mjs &&
+    # CMS provisioning state classification and SCRAM verifier (pilot-cms-provision).
+    docker run --rm --network none -v "$root:/workspace:ro" -w /workspace \
+      "$NODE_IMAGE" node --test tools/pilot_cms/cms-provision-state.test.mjs
+}
+
+check_infra() {
   docker run --rm \
     -v "$root:/workspace:ro" \
-    "$PYTHON_IMAGE" \
-    python /workspace/tools/pilot_decisions/test.py /workspace
-  docker run --rm \
-    -e PYTHONPATH=/workspace:/workspace/src \
-    -e UV_CACHE_DIR=/tmp/uv-cache \
-    -e UV_LINK_MODE=copy \
-    -v "$root:/workspace:ro" \
-    -w /workspace \
-    "$UV_IMAGE" \
-    uv run --frozen --no-sync \
-    python tools/mail_domain/test.py /workspace
-  docker run --rm \
-    -v "$root:/workspace:ro" \
-    "$PYTHON_IMAGE" \
-    /bin/sh /workspace/tools/pins/test.sh /workspace
-  docker run --rm --network none -e PYTHONPATH=/workspace \
-    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
-    python /workspace/tools/security/vuln_policy_test.py
-  docker run --rm --network none \
-    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
-    python /workspace/tools/security/vuln_policy.py check /workspace
-  /bin/sh "$root/tools/proxy/validate-caddyfiles.sh" "$root"
-  /bin/sh "$root/tools/proxy/routing-test.sh" "$root"
-  docker run --rm \
-    -v "$root:/workspace:ro" \
-    "$PYTHON_IMAGE" \
-    /bin/sh /workspace/tools/golden/test.sh /workspace
-  docker run --rm \
-    -v "$root:/workspace:ro" \
-    "$PYTHON_IMAGE" \
-    python /workspace/tools/ci/no_test_doubles_test.py /workspace
-  docker run --rm \
-    -v "$root:/workspace:ro" \
-    "$PYTHON_IMAGE" \
-    python /workspace/tools/ci/workflow_contract_test.py /workspace
-  docker run --rm --network none \
-    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
-    python /workspace/tools/ci/select_suites_test.py /workspace
-  docker run --rm --network none \
-    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
-    python /workspace/tools/ci/gate_test.py
-  docker run --rm \
-    -v "$root:/workspace:ro" \
-    "$PYTHON_IMAGE" \
-    python /workspace/tools/ci/sanitize_artifacts_test.py /workspace
-  docker run --rm --network none \
-    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
-    python /workspace/tools/ci/conflict_markers_test.py
-  docker run --rm --network none \
-    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
-    python /workspace/tools/ci/conflict_markers.py /workspace
-  docker run --rm --network none \
-    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
-    python /workspace/tools/ci/axe_helper_test.py
-  docker run --rm --network none \
-    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
-    python /workspace/tools/ci/axe_helper.py /workspace
-  # Leitsystem only: no Hugeicons, Base UI or old token aliases.
-  docker run --rm --network none \
-    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
-    python /workspace/tools/ci/legacy_ui_test.py
-  docker run --rm --network none \
-    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
-    python /workspace/tools/ci/legacy_ui.py /workspace
-  docker run --rm --network none \
-    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
-    python /workspace/tools/ci/core_oneoff_user.py /workspace
-  docker run --rm --network none \
-    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
-    python /workspace/tools/ci/core_oneoff_user_test.py /workspace
-  docker run --rm --network none \
-    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
-    python /workspace/tools/backup/compose_overlays_test.py
-  docker run --rm --network none \
-    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
-    python /workspace/tools/backup/cms_bootstrap_state_test.py
-  docker run --rm --network none \
-    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
-    python /workspace/tools/pilot_install/systemd_test.py /workspace
-  docker run --rm --network none \
-    --user "$host_user" -e PYTHONPATH=/workspace \
-    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
-    python /workspace/tools/pilot_install/production_secrets_test.py /workspace
-  docker run --rm \
-    -v "$root:/workspace:ro" \
-    -v "$check_git_common:$check_git_common:ro" \
-    "$PLAYWRIGHT_IMAGE" \
-    python3 /workspace/tools/pilot/boundary.py /workspace
-  docker run --rm --network none \
-    --user "$host_user" -e HOME=/tmp \
-    -v "$root:/workspace:ro" \
-    "$PLAYWRIGHT_IMAGE" \
-    python3 /workspace/tools/release/release_test.py
-  run_python uv run --frozen --no-sync ruff check \
-    migrations src tests tools/action_admin tools/actions tools/commitments tools/delivery \
-    tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/mail_relay \
-    tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
-    tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/openapi tools/outbox \
-    tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_install tools/pilot_release tools/release tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage tools/tasks tools/materials tools/knowledge tools/inbox \
-    tools/pilot_readiness \
-    tools/pwa tools/security tools/templates tools/testkit tools/twenty tools/typst \
-    tools/upgrade tools/emdash_spike packages/testkit
-  run_python uv run --frozen --no-sync ruff format --check \
-    migrations src tests tools/action_admin tools/actions tools/commitments tools/delivery \
-    tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/matching tools/mail_relay \
-    tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
-    tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/openapi tools/outbox \
-    tools/golden_journey tools/handoff tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_install tools/pilot_release tools/release tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage tools/tasks tools/materials tools/knowledge tools/inbox \
-    tools/pilot_readiness \
-    tools/security tools/templates tools/testkit tools/twenty tools/typst \
-    tools/upgrade tools/emdash_spike packages/testkit
-  run_python uv run --frozen --no-sync mypy \
-    migrations src tools/action_admin tools/actions tools/activities tools/delivery \
-    tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/mail_relay \
-    tools/commitments \
-    tools/backup tools/ci tools/compose/persistence_probe.py tools/core tools/dx \
-    tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_install tools/pilot_release tools/release \
-    tools/pilot_readiness \
-    tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/policy tools/security tools/seed tools/sessions tools/storage tools/tasks tools/materials tools/knowledge tools/inbox tools/templates tools/testkit tools/twenty tools/typst \
-    tools/upgrade tools/emdash_spike packages/testkit
-  run_python uv run --frozen --no-sync pytest tests/unit
-  run_python env PYTHONPATH=/workspace:/workspace/src python tools/pilot_release/cms_contract_test.py
-  run_python env PYTHONPATH=/workspace:/workspace/src python tools/pilot_release/contract_test.py
-  run_python uv run --frozen --no-sync \
-    python tools/openapi/generate.py --root /workspace --check
-  run_python uv run --frozen --no-sync \
-    python tools/openapi/check_frontend.py --root /workspace
-  docker run --rm \
-    -v "$root:/workspace:ro" \
-    "$PYTHON_IMAGE" \
-    python /workspace/tools/handoff/check.py /workspace
-  run_bun bun run typecheck
-  docker run --rm --network none -v "$root:/workspace:ro" -w /workspace \
-    "$NODE_IMAGE" node tools/emdash_spike/export-types.mjs --check
-  docker run --rm --network none -v "$root:/workspace:ro" -w /workspace \
-    "$NODE_IMAGE" node tools/emdash_spike/campaign-types-proof.mjs
-  # CMS provisioning state classification and SCRAM verifier (pilot-cms-provision).
-  docker run --rm --network none -v "$root:/workspace:ro" -w /workspace \
-    "$NODE_IMAGE" node --test tools/pilot_cms/cms-provision-state.test.mjs
-  run_bun bun node_modules/prettier/bin/prettier.cjs --check \
-    .github apps/campaign-site apps/public apps/pwa apps/web packages/api-client packages/features packages/ui \
-    tools/emdash_spike/*.mjs tools/emdash_spike/*.ts tools/pilot_cms/*.mjs \
-    tests/contract tests/e2e package.json playwright.config.mjs .prettierrc.json
+    "$ALPINE_IMAGE" \
+    /bin/sh /workspace/tools/traceability/test.sh /workspace &&
+    /bin/sh "$root/tools/proxy/validate-caddyfiles.sh" "$root" &&
+    /bin/sh "$root/tools/proxy/routing-test.sh" "$root"
+}
+
+check_all() {
+  require_docker
+  check_clean_tree
+  before=$(git -C "$root" status --porcelain --untracked-files=all)
+  # Linked worktrees use an absolute .git pointer outside the mounted checkout.
+  # Readiness must inspect the real repository, not a synthetic replacement.
+  check_git_common=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir)
+
+  echo "check: running independent groups in parallel; results follow in order"
+  check_groups_begin
+  check_group stdlib check_stdlib
+  check_group browser-image check_browser_image
+  check_group ruff check_ruff
+  check_group mypy check_mypy
+  check_group python-contracts check_python_contracts
+  solver_shard=0
+  while [ "$solver_shard" -lt "$solver_shards" ]; do
+    check_group "solver-$solver_shard" check_solver "$solver_shard"
+    solver_shard=$((solver_shard + 1))
+  done
+  check_group frontend check_frontend
+  check_group node check_node
+  check_group infra check_infra
+  check_groups_end check
 
   after=$(git -C "$root" status --porcelain --untracked-files=all)
   if [ "$before" != "$after" ] || [ -n "$after" ]; then
@@ -1182,6 +1257,58 @@ check_all() {
     exit 1
   fi
   echo "check: OK: all gates green; working tree unchanged"
+}
+
+# Fast pre-push subset: Python lint/types/unit tests and the TypeScript
+# packages affected by this branch (against origin/main, or
+# LEONAID_CHECK_BASE). Not a replacement for ./leonaid check before a PR.
+check_fast() {
+  require_docker
+  check_base=${LEONAID_CHECK_BASE:-origin/main}
+  plan_directory="$root/.cache/check-fast"
+  mkdir -p "$plan_directory"
+  if check_merge_base=$(git -C "$root" merge-base HEAD "$check_base" 2>/dev/null); then
+    {
+      # --no-renames: a moved file also selects the package it left.
+      git -C "$root" diff --name-only --no-renames "$check_merge_base"
+      git -C "$root" ls-files --others --exclude-standard
+    } >"$plan_directory/changed"
+  else
+    echo "check-fast: $check_base not found; checking every package" >&2
+    echo ALL >"$plan_directory/changed"
+  fi
+  docker run --rm --network none \
+    --user "$host_user" \
+    -v "$root:/workspace" -w /workspace \
+    "$PYTHON_IMAGE" \
+    python tools/dx/fast_plan.py /workspace \
+    .cache/check-fast/changed .cache/check-fast/plan
+  fast_typecheck=$(sed -n 's/^typecheck //p' "$plan_directory/plan")
+  echo "check-fast: base $check_base; typecheck: ${fast_typecheck:-none}"
+
+  check_groups_begin
+  check_group ruff check_ruff
+  check_group mypy check_mypy
+  check_group unit run_python uv run --frozen --no-sync pytest -q \
+    -p no:cacheprovider tests/unit --ignore "$solver_tests"
+  check_group frontend check_fast_frontend
+  check_group repository docker run --rm --network none \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/ci/conflict_markers.py /workspace
+  check_groups_end check-fast
+  echo "check-fast: OK (run ./leonaid check before opening a PR)"
+}
+
+check_fast_frontend() {
+  if [ -n "$fast_typecheck" ]; then
+    # shellcheck disable=SC2086
+    run_bun bun tools/dx/run-parallel.mjs $fast_typecheck || return 1
+  fi
+  if grep -q '^prettier ' "$plan_directory/plan"; then
+    # shellcheck disable=SC2046
+    run_bun bun node_modules/prettier/bin/prettier.cjs --check --ignore-unknown \
+      $(sed -n 's/^prettier //p' "$plan_directory/plan")
+  fi
 }
 
 future_command() {
@@ -4139,6 +4266,8 @@ case "$command" in
     exec /bin/sh "$root/tools/release/release.sh" "$@"
     ;;
   check) check_all ;;
+  check-fast) check_fast ;;
+  install-pre-push-hook) install_pre_push_hook ;;
   repin-images)
     shift
     repin_images "$@"
