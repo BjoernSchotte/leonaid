@@ -17,12 +17,13 @@ Pull request context (environment of the gate step):
 * a draft fails the gate: no CI ran, and a red gate cannot be mistaken for
   a result after ``ready_for_review`` (a draft cannot be merged anyway);
 * an ``edited`` event that did not change the base (title or body edits)
-  runs no job; the gate mirrors the commit's latest real gate result and
-  waits for it while that run is still going, so an edit can neither hide
-  a failure nor cancel a run;
-* a stacked selection (``heavy`` false) fails once the pull request's
-  current base, read from the API, is main: the stacked result never
-  ran the shared suites and must not be merged into main.
+  runs no job; the gate mirrors the newest completed gate of a real run
+  for the commit and fails fast without one (the real gate, created when
+  its jobs finish, supersedes it), so an edit can neither hide a failure
+  nor cancel a run;
+* a stacked selection (``heavy`` false) never passes: it skipped the
+  shared suites, and its green would stay the newest gate for 20-60
+  minutes after a retarget to main.
 """
 
 from __future__ import annotations
@@ -32,7 +33,6 @@ import json
 import os
 import re
 import sys
-import time
 import urllib.parse
 import urllib.request
 from collections.abc import Callable, Mapping, Sequence
@@ -94,41 +94,50 @@ def github_fetch(path: str) -> object:
         return json.load(response)
 
 
-def mirrored_result(
-    fetch: Fetch,
-    repository: str,
-    sha: str,
-    name: str,
-    own_run: str,
-    sleep: Callable[[float], None] = time.sleep,
-    attempts: int = 200,
-) -> str:
-    """Conclusion of the newest other gate check run for this commit.
+def real_run(fetch: Fetch, repository: str, run_id: str) -> bool:
+    """A run whose selector ran: not a draft or title-edit run."""
+    data = fetch(f"repos/{repository}/actions/runs/{run_id}/jobs?per_page=100")
+    for job in data.get("jobs", []) if isinstance(data, dict) else []:
+        if (
+            isinstance(job, dict)
+            and "Select suites" in str(job.get("name", ""))
+            and str(job.get("conclusion") or "") not in ("", "skipped")
+        ):
+            return True
+    return False
 
-    "Newest" is the highest check-run id (creation order): a queued gate
-    of a newer run has no start time yet and must win over an older green
-    one. While the newest is queued or running, wait (up to 100 minutes,
-    longer than the slowest leg). "missing" when there is none.
+
+def mirrored_result(
+    fetch: Fetch, repository: str, sha: str, name: str, own_run: str
+) -> str:
+    """Conclusion of the newest completed gate of a real run for this commit.
+
+    GitHub creates a gate's check run only when its needs have finished, so
+    a real run still in progress has none yet; its gate will be newer than
+    this mirror and supersede it. Gates of other title-edit or draft runs
+    are skipped, so mirrors never copy each other. "missing" when no real
+    run has a completed gate yet.
     """
-    for _ in range(attempts):
-        data = fetch(
-            f"repos/{repository}/commits/{sha}/check-runs"
-            f"?check_name={urllib.parse.quote(name)}&per_page=100"
-        )
-        runs = [
-            run
+    data = fetch(
+        f"repos/{repository}/commits/{sha}/check-runs"
+        f"?check_name={urllib.parse.quote(name)}&per_page=100"
+    )
+    candidates = sorted(
+        (
+            (int(run.get("id") or 0), match.group(1), run)
             for run in (data.get("check_runs", []) if isinstance(data, dict) else [])
             if isinstance(run, dict)
+            and run.get("status") == "completed"
             and (match := RUN_ID.search(str(run.get("details_url", ""))))
             and match.group(1) != own_run
-        ]
-        if not runs:
-            return "missing"
-        latest = max(runs, key=lambda run: int(run.get("id") or 0))
-        if latest.get("status") == "completed":
-            return str(latest.get("conclusion") or "missing")
-        sleep(30)
-    return "still running"
+        ),
+        key=lambda item: item[0],
+        reverse=True,
+    )
+    for _, run_id, run in candidates:
+        if real_run(fetch, repository, run_id):
+            return str(run.get("conclusion") or "missing")
+    return "missing"
 
 
 def pull_request_context(
@@ -150,27 +159,29 @@ def pull_request_context(
             environ.get("GATE_NAME", ""),
             environ.get("GITHUB_RUN_ID", ""),
         )
-        message = f"title/body edit: this commit's gate result is {result}"
-        if result == "still running":
-            message += "; re-run this gate after the real run finishes"
+        message = f"title/body edit: this commit's real gate result is {result}"
+        if result != "success":
+            message += (
+                "; when the real run finishes, its gate supersedes this one "
+                "(or re-run the real run's gate job, or push)"
+            )
         return result == "success", message
     return None, ""
 
 
-def stacked_into_main(
-    environ: Mapping[str, str], outputs: Mapping[str, object], fetch: Fetch
-) -> bool:
-    """A stacked selection whose pull request now targets main."""
-    if environ.get("EVENT_NAME") != "pull_request":
-        return False
-    if str(outputs.get("heavy", "true")) != "false":
-        return False
-    data = fetch(
-        f"repos/{environ.get('GITHUB_REPOSITORY', '')}/pulls/{environ.get('PR_NUMBER', '')}"
+def stacked_result(environ: Mapping[str, str], outputs: Mapping[str, object]) -> bool:
+    """A stacked selection (heavy false): never a passing required gate.
+
+    It skipped Build, Security and the shared suites. GitHub creates the
+    gate of a later base-change run only when its jobs finish, so a green
+    stacked gate would stay the newest result for 20-60 minutes after a
+    retarget to main. The ruleset applies only to main, so a red gate does
+    not block merging into the stack's parent branch.
+    """
+    return (
+        environ.get("EVENT_NAME") == "pull_request"
+        and str(outputs.get("heavy", "true")) == "false"
     )
-    base = data.get("base", {}).get("ref") if isinstance(data, dict) else None
-    # Unknown base: fail closed.
-    return base != environ.get("STACK_BASE", "")
 
 
 def parse_selectable(values: Sequence[str]) -> dict[str, str]:
@@ -222,11 +233,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         with open(step_summary, "a", encoding="utf-8") as handle:
             handle.write(report)
     failed = [job for job, _, _, ok in rows if not ok]
-    if not failed and stacked_into_main(os.environ, outputs, github_fetch):
+    if not failed and stacked_result(os.environ, outputs):
         print(
-            f"ci-gate: ERROR: {args.name}: stacked result, but the pull request "
-            "no longer targets its stack base: push or re-run to verify it "
-            "against main",
+            f"ci-gate: ERROR: {args.name}: stacked run (base is not main): the "
+            "selected suites passed, but a stacked result never satisfies the "
+            "gate; retarget to main for the real gate",
             file=sys.stderr,
         )
         return 1
