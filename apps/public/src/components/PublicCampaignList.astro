@@ -7,6 +7,9 @@ interface Props {
 }
 
 const { campaigns } = Astro.props;
+// Stage 1 lists only pages of this public host, so the link stays relative
+// and works under every name of the host (LAN, test hosts). Stage 2 links
+// campaign hosts with the absolute canonicalUrl.
 const dateFormat = new Intl.DateTimeFormat("de-DE", {
   day: "numeric",
   month: "long",
@@ -46,7 +49,7 @@ const period = (startsOn: string, endsOn: string) =>
               <div class="campaign-card__body">
                 <p class="eyebrow">{campaign.carrierName}</p>
                 <h3>
-                  <a class="campaign-card__link" href={campaign.canonicalUrl}>
+                  <a class="campaign-card__link" href={campaign.canonicalPath}>
                     {campaign.name}
                   </a>
                 </h3>

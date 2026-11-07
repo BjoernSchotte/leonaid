@@ -1229,6 +1229,9 @@ one test domain owned by the club.
   `/<alias>` with its order form, else `/archive/<slug>`. §6.5 named only the
   canonical URL; the alias page's canonical (`/archive/<slug>`) shows no order
   form.
+- R25: the card links `canonicalPath` (relative): in stage 1 every listed
+  page lives on the public host, and a relative link works under each name of
+  that host. Stage 2 uses `canonicalUrl` for campaign hosts.
 - R13: the theme image is the theme's share image (`resolvePublicTheme`);
   Core returns only the theme key, no media id.
 

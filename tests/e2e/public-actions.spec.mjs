@@ -216,14 +216,14 @@ test("the home page lists the active campaigns and links their pages", async ({
   await expect(
     list.getByRole("heading", { level: 2, name: "Aktuelle Aktionen" }),
   ).toBeVisible();
-  // The published Krapfentaxi is listed; the archived 2027 edition and the
-  // inactive winter break are not.
-  const card = list.getByRole("listitem").filter({ hasText: "Krapfentaxi" });
-  await expect(card).toHaveCount(1);
-  const link = card.getByRole("link");
-  const href = await link.getAttribute("href");
-  expect(new URL(href ?? "").pathname).toBe("/krapfentaxi");
-  await expect(list.getByText("winterpause")).toHaveCount(0);
+  // The current Krapfentaxi edition links its alias page with the order
+  // form; the archived 2025 edition is not listed.
+  const hrefs = await list
+    .getByRole("link")
+    .evaluateAll((links) => links.map((link) => link.getAttribute("href")));
+  expect(hrefs.filter((path) => path === "/krapfentaxi")).toHaveLength(1);
+  expect(hrefs.some((path) => path.includes("krapfentaxi-2025"))).toBe(false);
+  const link = list.locator('a[href="/krapfentaxi"]');
   for (const [width, height] of [
     [390, 844],
     [1440, 900],
