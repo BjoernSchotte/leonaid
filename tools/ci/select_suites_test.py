@@ -31,12 +31,64 @@ def full(selection: s.Selection) -> bool:
     return bool(selection.full and selection.suites == s.everything())
 
 
+BINNED = ("integration", "e2e", "emdash")
+
+
 def outputs(*paths: str) -> dict[str, Any]:
-    return {k: json.loads(v) for k, v in pr(*paths).outputs().items() if k != "reason"}
+    """Selector outputs; matrix bins flattened to their shard names."""
+    raw = {k: json.loads(v) for k, v in pr(*paths).outputs().items() if k != "reason"}
+    for key in BINNED:
+        raw[key] = [shard for leg in raw[key] for shard in leg["shards"].split()]
+    return raw
+
+
+def stack_suites(result: dict[str, Any]) -> dict[str, Any]:
+    """Only what starts a runner: matrix shards plus the flags."""
+    return {k: v for k, v in result.items() if k in BINNED or v is True}
+
+
+# Path -> exactly the suites it must start (flags that are true, shard lists).
+PRECISE: tuple[tuple[str, dict[str, Any]], ...] = (
+    # Gate data of always-running jobs: Security judges the allowlist, the
+    # pins workflow checks the policy; no stack suite reads it.
+    ("infra/security/vulnerability-allowlist.json", {"pins": True}),
+    ("infra/security/image-scan-scope.json", {"pins": True}),
+    ("tools/ci/reviewed_network_faults.json", {}),
+    ("tools/ci/gate.py", {}),
+    ("tools/ci/gate_test.py", {}),
+    ("tools/ci/workflow_contract.py", {}),
+    ("tools/ci/security.sh", {}),
+    ("tools/ci/lint-types.sh", {}),
+    ("tools/ci/flake_summary.py", {}),
+    ("tools/ci/build.sh", {}),
+    ("specs/leonaid-poc/KNOWN-LIMITS.md", {}),
+    ("apps/docs/src/content/docs/de/index.mdx", {}),
+    (".github/workflows/docs.yml", {}),
+    (".github/workflows/nightly-watchdog.yml", {}),
+    (".github/workflows/release.yml", {}),
+    (".github/workflows/surveys.yml", {"surveys": True}),
+    (".github/workflows/api-contract.yml", {"api": True}),
+    (".github/workflows/pins.yml", {"pins": True}),
+    ("tools/ci/contract.sh", {"contract": True, "integration": ["contract"]}),
+    (
+        "tools/ci/e2e.sh",
+        {"e2e": sorted(s.E2E_SHARDS)},
+    ),
+    (
+        "tools/ci/integration.sh",
+        {
+            "contract": True,
+            "integration": sorted([*s.INTEGRATION_SHARDS, "contract"]),
+        },
+    ),
+    ("tools/ci/emdash.sh", {"emdash": sorted(s.EMDASH_GROUPS)}),
+    ("tools/delivery/foundation.py", {"integration": ["delivery"]}),
+    ("tools/pwa/test.sh", {"e2e": ["pwa"]}),
+)
 
 
 def case_labels(script: Path) -> set[str]:
-    """Labels of the shell `case` arms in tools/ci/<name>.sh."""
+    """Labels of the two-space-indented shell `case` arms in tools/ci/<name>.sh."""
     labels: set[str] = set()
     for line in script.read_text(encoding="utf-8").splitlines():
         match = re.match(r"^  ([a-z0-9|-]+)\)$", line)
@@ -62,7 +114,14 @@ def main() -> int:
     # Shared infrastructure selects everything.
     for path in (
         ".github/workflows/ci.yml",
+        ".github/workflows/select-suites.yml",
+        ".github/workflows/test-fixture.yml",
+        ".github/actions/build-cache/action.yml",
         "tools/ci/select_suites.py",
+        "tools/ci/run-job.sh",
+        "tools/ci/free-runner-disk.sh",
+        "tools/ci/sanitize_artifacts.py",
+        "tools/ci/docker-bake.hcl",
         "tools/testing/shared_stack.py",
         "infra/compose/compose.yml",
         "infra/locks/images.env",
@@ -147,12 +206,62 @@ def main() -> int:
         outputs("tests/unit/test_x.py")["api"] is True, "API filter keeps tests/unit"
     )
     expect(outputs("tests/unit/test_x.py")["e2e"] == [], "unit tests run no stack")
-    # Matrix order is preserved (long jobs first).
+    # Precise selection: each path starts exactly its own suites.
+    for path, expected in PRECISE:
+        got = stack_suites(outputs(path))
+        want: dict[str, Any] = {key: [] for key in BINNED} | expected
+        got = {k: sorted(v) if isinstance(v, list) else v for k, v in got.items()}
+        expect(got == want, f"{path}: expected {want}, got {got}")
+    # Fewer, fatter jobs: the complete run packs every shard exactly once
+    # into at most MAX_BINS legs per kind; durations exist for every shard.
     expect(
-        json.loads(s.select("push", []).outputs()["integration"])
-        == list(s.INTEGRATION_SHARDS),
-        "full integration matrix must keep the declared order",
+        set(s.INTEGRATION_SECONDS) == {*s.INTEGRATION_SHARDS, "contract"},
+        "INTEGRATION_SECONDS must list every Integration shard and contract",
     )
+    expect(set(s.E2E_SECONDS) == set(s.E2E_SHARDS), "E2E_SECONDS must list every leaf")
+    expect(
+        sorted(g for b in s.EMDASH_BINS for g in b) == sorted(s.EMDASH_GROUPS),
+        "EMDASH_BINS must hold every EmDash group exactly once",
+    )
+    complete = s.select("push", []).outputs()
+    for key, names, seconds in (
+        ("integration", [*s.INTEGRATION_SHARDS, "contract"], s.INTEGRATION_SECONDS),
+        ("e2e", list(s.E2E_SHARDS), s.E2E_SECONDS),
+    ):
+        legs = json.loads(complete[key])
+        packed = [shard for leg in legs for shard in leg["shards"].split()]
+        expect(sorted(packed) == sorted(names), f"{key}: bins lose or repeat shards")
+        expect(len(legs) == s.MAX_BINS[key], f"{key}: {len(legs)} legs")
+        loads = [sum(seconds[x] for x in leg["shards"].split()) for leg in legs]
+        expect(loads == sorted(loads, reverse=True), f"{key}: longest bin first")
+        expect(
+            max(loads) - min(loads) <= max(seconds.values()),
+            f"{key}: unbalanced bins {loads}",
+        )
+        expect(
+            [leg["id"] for leg in legs] == [str(i) for i in range(1, len(legs) + 1)],
+            f"{key}: leg ids must be 1..n",
+        )
+    for leg in json.loads(complete["integration"]):
+        seed = bool(s.SEED_BOOTSTRAP & set(leg["shards"].split()))
+        expect(
+            leg["bootstrap"] == ("seed" if seed else "toolchains"),
+            f"integration bootstrap: {leg}",
+        )
+    total = sum(len(json.loads(complete[key])) for key in BINNED)
+    expect(total <= 10, f"a complete run must stay at 10 stack legs or fewer: {total}")
+    # A small PR packs into one leg; packing is deterministic.
+    small = pr("tools/pwa/test.sh", "tools/tasks/test.sh")
+    legs = json.loads(small.outputs()["e2e"])
+    expect(
+        len(legs) == 1 and set(legs[0]["shards"].split()) == {"pwa", "tasks"},
+        f"two small leaves must share one leg: {legs}",
+    )
+    expect(
+        small.outputs() == pr("tools/tasks/test.sh", "tools/pwa/test.sh").outputs(),
+        "packing must not depend on path order",
+    )
+    expect(s.pack([], s.E2E_SECONDS, 4) == [], "nothing selected packs to no leg")
     # Rules must point at the suites that exist in the CI entry points.
     expect(
         set(s.INTEGRATION_SHARDS) <= case_labels(ROOT / "tools/ci/integration.sh"),

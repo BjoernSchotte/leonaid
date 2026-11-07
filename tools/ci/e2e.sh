@@ -1,72 +1,110 @@
 #!/bin/sh
 set -eu
 
+# Usage: e2e.sh <shard> [<shard>...]
+# Several shards form one CI bin (tools/ci/select_suites.py). Their leaves
+# run on one shared stack per fixture kind: tools/testing/shared_stack.py
+# restores the stopped fixture volumes before every leaf, so each leaf still
+# starts from the identical prepared state. --keep-going runs every leaf even
+# after a failure; the bin then fails and the log names the failed leaves.
 root=$(cd "$(dirname "$0")/../.." && pwd)
-shard=${1:-}
 
-case "$shard" in
+if [ "$#" -eq 0 ]; then
+  echo "ci-e2e: ERROR: at least one shard required" >&2
+  exit 64
+fi
+
+# Prints one "<kind> <leaf script>..." line per fixture kind of one shard.
+# Kind "own": the script builds and removes its own stack (no shared fixture).
+leaves() {
+  case "$1" in
   membership)
-    python3 "$root/tools/testing/shared_stack.py" golden tools/invitations/test.sh tools/sessions/test.sh
+    echo golden tools/invitations/test.sh tools/sessions/test.sh
     ;;
   action-templates)
-    python3 "$root/tools/testing/shared_stack.py" golden tools/actions/test.sh tools/templates/test.sh
+    echo golden tools/actions/test.sh tools/templates/test.sh
     ;;
   acquisition-management)
-    python3 "$root/tools/testing/shared_stack.py" golden tools/assignments/test.sh tools/activities/test.sh
+    echo golden tools/assignments/test.sh tools/activities/test.sh
     ;;
   public-catalog)
-    python3 "$root/tools/testing/shared_stack.py" golden tools/public_actions/test.sh tools/activity_feed/test.sh
+    echo golden tools/public_actions/test.sh tools/activity_feed/test.sh
     # Admin host + public host on their own stack (specs/multi-domain stage 1).
-    /bin/sh "$root/tools/multi_host/test.sh" "$root"
+    echo own tools/multi_host/test.sh
     ;;
   invitations|sessions|matching|assignments|activities|pwa|templates|commitments|invoices)
-    python3 "$root/tools/testing/shared_stack.py" golden "tools/$shard/test.sh"
+    echo golden "tools/$1/test.sh"
     ;;
   action-admin|public-actions|public-orders|activity-feed)
-    directory=$(printf '%s' "$shard" | tr '-' '_')
-    python3 "$root/tools/testing/shared_stack.py" golden "tools/$directory/test.sh"
+    echo golden "tools/$(printf '%s' "$1" | tr '-' '_')/test.sh"
     ;;
   # Leitsystem shell: tokens, contrast, visual baselines, dashboard, UX gates.
   leitsystem-ui)
-    python3 "$root/tools/testing/shared_stack.py" golden \
-      tools/ui_system/test.sh tools/ux_acceptance/test.sh tools/dashboard/test.sh
+    echo golden tools/ui_system/test.sh tools/ux_acceptance/test.sh tools/dashboard/test.sh
     ;;
   operations)
-    python3 "$root/tools/testing/shared_stack.py" golden \
-      tools/operations/test.sh tools/feature_flags/test.sh tools/privacy/test.sh
+    echo golden tools/operations/test.sh tools/feature_flags/test.sh tools/privacy/test.sh
     ;;
   invoice-flows)
-    python3 "$root/tools/testing/shared_stack.py" golden \
-      tools/invoice_delivery/test.sh tools/invoice_settlements/test.sh
+    echo golden tools/invoice_delivery/test.sh tools/invoice_settlements/test.sh
     ;;
   identity)
-    python3 "$root/tools/testing/shared_stack.py" core \
-      tools/identity/test.sh
+    echo core tools/identity/test.sh
     ;;
   tasks|materials|knowledge|inbox)
-    python3 "$root/tools/testing/shared_stack.py" core "tools/$shard/test.sh"
+    echo core "tools/$1/test.sh"
     ;;
   acquisition)
-    python3 "$root/tools/testing/shared_stack.py" golden \
-      tools/matching/test.sh \
-      tools/assignments/test.sh \
-      tools/activities/test.sh \
-      tools/pwa/test.sh
+    echo golden tools/matching/test.sh tools/assignments/test.sh tools/activities/test.sh tools/pwa/test.sh
     ;;
   actions)
-    python3 "$root/tools/testing/shared_stack.py" golden \
-      tools/actions/test.sh
+    echo golden tools/actions/test.sh
     ;;
   public)
-    python3 "$root/tools/testing/shared_stack.py" golden \
-      tools/public_actions/test.sh \
-      tools/public_orders/test.sh \
-      tools/activity_feed/test.sh
+    echo golden tools/public_actions/test.sh tools/public_orders/test.sh tools/activity_feed/test.sh
     ;;
   *)
-    echo "ci-e2e: ERROR: Shard identity|acquisition|actions|public|invoices erforderlich" >&2
-    exit 64
+    return 1
     ;;
-esac
+  esac
+}
 
-echo "ci-e2e: OK: $shard"
+golden=""
+core=""
+own=""
+for shard in "$@"; do
+  if ! lines=$(leaves "$shard"); then
+    echo "ci-e2e: ERROR: unknown shard: $shard" >&2
+    exit 64
+  fi
+  while read -r kind scripts; do
+    case "$kind" in
+      golden) golden="$golden $scripts" ;;
+      core) core="$core $scripts" ;;
+      own) own="$own $scripts" ;;
+    esac
+  done <<EOF_LEAVES
+$lines
+EOF_LEAVES
+done
+
+status=0
+# shellcheck disable=SC2086 # one word per leaf script
+if [ -n "$golden" ]; then
+  python3 "$root/tools/testing/shared_stack.py" --keep-going golden $golden || status=1
+fi
+# shellcheck disable=SC2086
+if [ -n "$core" ]; then
+  python3 "$root/tools/testing/shared_stack.py" --keep-going core $core || status=1
+fi
+for script in $own; do
+  if ! /bin/sh "$root/$script" "$root"; then
+    echo "ci-e2e: leaf $script FAILED" >&2
+    status=1
+  fi
+done
+if [ "$status" -ne 0 ]; then
+  echo "ci-e2e: ERROR: failed leaves in: $*" >&2
+  exit 1
+fi
+echo "ci-e2e: OK: $*"

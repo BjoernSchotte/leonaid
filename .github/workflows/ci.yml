@@ -41,13 +41,13 @@ jobs:
     if: inputs.cold_run != true && inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe'
     uses: ./.github/workflows/test-fixture.yml
 
-  lint-types:
+  lint-unit:
+    # One runner for the two stack-free gates: both need only the locked
+    # toolchains, and a second job would repeat checkout and bootstrap.
     if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
-    name: Lint and types
+    name: Lint, types and unit
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    env:
-      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/lint-types
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -57,57 +57,38 @@ jobs:
       - name: Bootstrap locked Docker toolchains
         run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
       - name: Run lint, type and contract-generation checks
+        env:
+          LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/lint-unit/lint-types
         run: bash tools/ci/run-job.sh lint-types bash tools/ci/lint-types.sh
-      - name: Publish lint and type evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ci-lint-types
-          path: .artifacts/ci/lint-types
-          if-no-files-found: error
-          retention-days: 14
-
-  unit:
-    if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
-    name: Unit
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    env:
-      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/unit
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Prepare empty-cache runner
-        if: inputs.cold_run == true
-        run: docker builder prune --all --force
-      - name: Bootstrap locked Docker toolchains
-        run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
+      # Runs after a lint failure too, so one run reports both gates.
       - name: Run unit tests with real domain objects
+        if: ${{ !cancelled() }}
+        env:
+          LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/lint-unit/unit
         run: bash tools/ci/run-job.sh unit ./leonaid test-unit
-      - name: Publish unit evidence
+      - name: Publish lint, type and unit evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ci-unit
-          path: .artifacts/ci/unit
+          name: ci-lint-unit
+          path: .artifacts/ci/lint-unit
           if-no-files-found: error
           retention-days: 14
 
   integration-shards:
     needs: [select, fixture]
     if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.integration != '[]' && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
-    name: Integration / ${{ matrix.shard }}
+    name: Integration / ${{ matrix.bin.title }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
-      max-parallel: 8
       matrix:
-        # Shards and order (long jobs first): tools/ci/select_suites.py
-        # INTEGRATION_SHARDS. GitHub creation order is not a start guarantee.
-        shard: ${{ fromJSON(needs.select.outputs.integration) }}
+        # Bins of selected shards (and Contract), longest first:
+        # tools/ci/select_suites.py INTEGRATION_SECONDS and pack().
+        bin: ${{ fromJSON(needs.select.outputs.integration) }}
     env:
-      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/integration-${{ matrix.shard }}
+      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/integration-${{ matrix.bin.id }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -120,16 +101,12 @@ jobs:
         if: inputs.cold_run != true
         uses: ./.github/actions/build-cache
         with:
-          bootstrap: ${{ contains(fromJSON('["seed-cold","seed-reset","compose","twenty-install"]'), matrix.shard) && 'seed' || 'toolchains' }}
+          bootstrap: ${{ matrix.bin.bootstrap }}
       - name: Bootstrap locked Docker toolchains
         if: inputs.cold_run == true
         env:
-          TEST_SHARD: ${{ matrix.shard }}
-        run: |
-          case "$TEST_SHARD" in
-            seed-cold|seed-reset) sh tools/ci/retry-infra.sh sh tools/ci/bootstrap-prefetch.sh seed ;;
-            *) sh tools/ci/retry-infra.sh ./leonaid bootstrap ;;
-          esac
+          BOOTSTRAP_PROFILE: ${{ matrix.bin.bootstrap }}
+        run: sh tools/ci/retry-infra.sh sh tools/ci/bootstrap-prefetch.sh "$BOOTSTRAP_PROFILE"
       - name: Use prepared synthetic data
         if: inputs.cold_run != true
         uses: ./.github/actions/test-fixture
@@ -137,90 +114,34 @@ jobs:
           key: ${{ needs.fixture.outputs.key }}
       - name: Finish freeing runner disk
         run: sh tools/ci/free-runner-disk.sh wait
-      - name: Run real service integration suite
-        run: bash tools/ci/run-job.sh integration-${{ matrix.shard }} bash tools/ci/integration.sh ${{ matrix.shard }}
+      - name: Run real service integration shards
+        env:
+          SHARDS: ${{ matrix.bin.shards }}
+        # One word per shard; every shard runs on its own fresh stack.
+        run: bash tools/ci/run-job.sh "integration-${{ matrix.bin.id }}" bash tools/ci/integration.sh $SHARDS
       - name: Publish integration evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ci-integration-${{ matrix.shard }}
-          path: .artifacts/ci/integration-${{ matrix.shard }}
-          if-no-files-found: error
-          retention-days: 14
-
-  integration:
-    name: Integration
-    needs: [select, integration-shards]
-    if: ${{ !cancelled() && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Require every selected integration shard
-        env:
-          SELECT: ${{ needs.select.result }}
-          SELECTED: ${{ needs.select.outputs.integration != '[]' }}
-          RESULT: ${{ needs.integration-shards.result }}
-        # Unselected suites must be skipped, selected ones must succeed.
-        run: |
-          test "$SELECT" = success
-          if [ "$SELECTED" = true ]; then test "$RESULT" = success; else test "$RESULT" = skipped; fi
-
-  contract:
-    needs: [select, fixture]
-    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.contract == 'true' && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
-    name: Contract
-    runs-on: ubuntu-24.04
-    timeout-minutes: 75
-    env:
-      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/contract
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Start freeing runner disk from unused toolchains
-        run: sh tools/ci/free-runner-disk.sh start
-      - name: Prepare empty-cache runner
-        if: inputs.cold_run == true
-        run: docker builder prune --all --force
-      - name: Reuse persistent Docker build layers
-        if: inputs.cold_run != true
-        uses: ./.github/actions/build-cache
-        with:
-          bootstrap: toolchains
-      - name: Bootstrap locked Docker toolchains
-        if: inputs.cold_run == true
-        run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
-      - name: Use prepared synthetic data
-        if: inputs.cold_run != true
-        uses: ./.github/actions/test-fixture
-        with:
-          key: ${{ needs.fixture.outputs.key }}
-      - name: Finish freeing runner disk
-        run: sh tools/ci/free-runner-disk.sh wait
-      - name: Run OpenAPI and cross-system contracts
-        run: bash tools/ci/run-job.sh contract bash tools/ci/contract.sh
-      - name: Publish contract evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ci-contract
-          path: .artifacts/ci/contract
+          name: ci-integration-${{ matrix.bin.id }}
+          path: .artifacts/ci/integration-${{ matrix.bin.id }}
           if-no-files-found: error
           retention-days: 14
 
   e2e:
     needs: [select, fixture]
     if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.e2e != '[]' && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
-    name: E2E leaf / ${{ matrix.shard }}
+    name: E2E / ${{ matrix.bin.title }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
       fail-fast: false
-      max-parallel: 7
       matrix:
-        # Shards: tools/ci/select_suites.py E2E_SHARDS.
-        shard: ${{ fromJSON(needs.select.outputs.e2e) }}
+        # Bins of selected leaves, longest first: tools/ci/select_suites.py
+        # E2E_SECONDS and pack(); tools/ci/e2e.sh runs them per fixture kind.
+        bin: ${{ fromJSON(needs.select.outputs.e2e) }}
     env:
-      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/e2e-${{ matrix.shard }}
+      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/e2e-${{ matrix.bin.id }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -233,10 +154,10 @@ jobs:
         if: inputs.cold_run != true
         uses: ./.github/actions/build-cache
         with:
-          bootstrap: browser
+          bootstrap: ${{ matrix.bin.bootstrap }}
       - name: Bootstrap locked Docker toolchains
         if: inputs.cold_run == true
-        run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
+        run: sh tools/ci/retry-infra.sh sh tools/ci/bootstrap-prefetch.sh browser
       - name: Use prepared synthetic data
         if: inputs.cold_run != true
         uses: ./.github/actions/test-fixture
@@ -244,38 +165,19 @@ jobs:
           key: ${{ needs.fixture.outputs.key }}
       - name: Finish freeing runner disk
         run: sh tools/ci/free-runner-disk.sh wait
-      - name: Run real browser shard
-        run: >-
-          bash tools/ci/run-job.sh
-          e2e-${{ matrix.shard }}
-          bash tools/ci/e2e.sh ${{ matrix.shard }}
+      - name: Run real browser leaves
+        env:
+          SHARDS: ${{ matrix.bin.shards }}
+        # One word per shard.
+        run: bash tools/ci/run-job.sh "e2e-${{ matrix.bin.id }}" bash tools/ci/e2e.sh $SHARDS
       - name: Publish browser evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ci-e2e-${{ matrix.shard }}
-          path: .artifacts/ci/e2e-${{ matrix.shard }}
+          name: ci-e2e-${{ matrix.bin.id }}
+          path: .artifacts/ci/e2e-${{ matrix.bin.id }}
           if-no-files-found: error
           retention-days: 14
-
-  e2e-summary:
-    name: E2E / ${{ matrix.group }}
-    needs: [select, e2e]
-    if: ${{ !cancelled() && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        group: [identity, acquisition, actions, public, invoices]
-    steps:
-      - name: Require every selected E2E leaf
-        env:
-          SELECT: ${{ needs.select.result }}
-          SELECTED: ${{ needs.select.outputs.e2e != '[]' }}
-          RESULT: ${{ needs.e2e.result }}
-        # Unselected suites must be skipped, selected ones must succeed.
-        run: |
-          test "$SELECT" = success
-          if [ "$SELECTED" = true ]; then test "$RESULT" = success; else test "$RESULT" = skipped; fi
 
   emdash-cases:
     # Own stacks, own synthetic seed: no prepared fixture needed. No workflow
@@ -283,17 +185,17 @@ jobs:
     # and every shared Core, proxy or public change; the queue runs them all.
     needs: select
     if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.emdash != '[]' && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
-    name: EmDash proof / ${{ matrix.group }}
+    name: EmDash proof / ${{ matrix.bin.title }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         # Each case runs once; tools/ci/emdash.sh never retries a failure.
-        # Groups: tools/ci/select_suites.py EMDASH_GROUPS.
-        group: ${{ fromJSON(needs.select.outputs.emdash) }}
+        # Bins of groups: tools/ci/select_suites.py EMDASH_BINS.
+        bin: ${{ fromJSON(needs.select.outputs.emdash) }}
     env:
-      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/emdash-${{ matrix.group }}
+      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/emdash-${{ matrix.bin.id }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -306,48 +208,29 @@ jobs:
         if: inputs.cold_run != true
         uses: ./.github/actions/build-cache
         with:
-          bootstrap: ${{ matrix.group == 'static' && 'toolchains' || 'browser' }}
+          bootstrap: ${{ matrix.bin.bootstrap }}
           targets: emdash
       - name: Bootstrap locked Docker toolchains
         if: inputs.cold_run == true
         env:
-          EMDASH_GROUP: ${{ matrix.group }}
-        run: |
-          case "$EMDASH_GROUP" in
-            static) sh tools/ci/retry-infra.sh ./leonaid bootstrap ;;
-            *) sh tools/ci/retry-infra.sh sh tools/ci/bootstrap-prefetch.sh browser ;;
-          esac
+          BOOTSTRAP_PROFILE: ${{ matrix.bin.bootstrap }}
+        run: sh tools/ci/retry-infra.sh sh tools/ci/bootstrap-prefetch.sh "$BOOTSTRAP_PROFILE"
       - name: Finish freeing runner disk
         run: sh tools/ci/free-runner-disk.sh wait
       - name: Run EmDash proof cases
         env:
-          EMDASH_GROUP: ${{ matrix.group }}
-        run: bash tools/ci/run-job.sh "emdash-$EMDASH_GROUP" sh tools/ci/emdash.sh "$EMDASH_GROUP"
+          EMDASH_ID: ${{ matrix.bin.id }}
+          EMDASH_GROUPS: ${{ matrix.bin.shards }}
+        # One word per group.
+        run: bash tools/ci/run-job.sh "emdash-$EMDASH_ID" sh tools/ci/emdash.sh $EMDASH_GROUPS
       - name: Publish EmDash proof evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ci-emdash-${{ matrix.group }}
-          path: .artifacts/ci/emdash-${{ matrix.group }}
+          name: ci-emdash-${{ matrix.bin.id }}
+          path: .artifacts/ci/emdash-${{ matrix.bin.id }}
           if-no-files-found: error
           retention-days: 14
-
-  emdash-proofs:
-    name: EmDash proofs
-    needs: [select, emdash-cases]
-    if: ${{ !cancelled() && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Require every selected EmDash proof group
-        env:
-          SELECT: ${{ needs.select.result }}
-          SELECTED: ${{ needs.select.outputs.emdash != '[]' }}
-          RESULT: ${{ needs.emdash-cases.result }}
-        # Unselected suites must be skipped, selected ones must succeed.
-        run: |
-          test "$SELECT" = success
-          if [ "$SELECTED" = true ]; then test "$RESULT" = success; else test "$RESULT" = skipped; fi
 
   security:
     needs: fixture
@@ -529,15 +412,10 @@ jobs:
     needs:
       - select
       - fixture
-      - lint-types
-      - unit
+      - lint-unit
       - integration-shards
-      - integration
-      - contract
       - e2e
-      - e2e-summary
       - emdash-cases
-      - emdash-proofs
       - security
       - build
       - golden-parts
@@ -557,7 +435,6 @@ jobs:
         run: |
           set -- --name "CI gate" \
             --selectable integration-shards=integration \
-            --selectable contract=contract \
             --selectable e2e=e2e \
             --selectable emdash-cases=emdash \
             --selectable golden-parts=golden

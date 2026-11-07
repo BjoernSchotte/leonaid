@@ -4,7 +4,10 @@ import importlib.util
 import os
 from pathlib import Path
 import shlex
+import shutil
 import subprocess
+import sys
+import tempfile
 import unittest
 
 SPEC = importlib.util.spec_from_file_location(
@@ -82,6 +85,52 @@ class SharedStackTests(unittest.TestCase):
         subprocess.run(["mkdir", str(second.directory / "in-use")], check=True)
         self.assertTrue((first.directory / "in-use").is_dir())
         self.assertTrue((second.directory / "in-use").is_dir())
+
+
+class LeafSequenceTests(unittest.TestCase):
+    """main(): every leaf gets prepare(); --keep-going runs leaves after a failure."""
+
+    def run_main(self, *arguments):
+        prepared = []
+
+        class FakeStack:
+            def __init__(self, root, kind):
+                self.kind = kind
+
+            def prepare(self):
+                prepared.append(self.kind)
+                return {}
+
+            def close(self):
+                prepared.append("closed")
+
+        directory = Path(tempfile.mkdtemp(prefix="leonaid-shared-stack-test-"))
+        self.addCleanup(shutil.rmtree, directory)
+        failing = directory / "failing.sh"
+        failing.write_text("exit 3\n")
+        marker = directory / "second-ran"
+        passing = directory / "passing.sh"
+        passing.write_text(f"touch {shlex.quote(str(marker))}\n")
+        original_stack, original_argv = module.SharedStack, sys.argv
+        module.SharedStack = FakeStack
+        sys.argv = ["shared_stack.py", *arguments, "core", str(failing), str(passing)]
+        try:
+            code = module.main()
+        finally:
+            module.SharedStack, sys.argv = original_stack, original_argv
+        return code, marker.exists(), prepared
+
+    def test_first_failure_stops_by_default(self):
+        code, second_ran, prepared = self.run_main()
+        self.assertEqual(code, 3)
+        self.assertFalse(second_ran)
+        self.assertEqual(prepared, ["core", "closed"])
+
+    def test_keep_going_runs_every_leaf_and_keeps_the_failure(self):
+        code, second_ran, prepared = self.run_main("--keep-going")
+        self.assertEqual(code, 3)
+        self.assertTrue(second_ran)
+        self.assertEqual(prepared, ["core", "core", "closed"])
 
 
 if __name__ == "__main__":

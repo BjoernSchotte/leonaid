@@ -23,11 +23,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import subprocess
 import sys
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
@@ -73,6 +74,59 @@ EMDASH_GROUPS = ("krapfentaxi-orders", "krapfentaxi-migration", "static")
 # Whole-workflow or whole-job suites.
 FLAGS = ("contract", "golden", "surveys", "api", "pins")
 
+# Fewer, fatter jobs. A runner job costs about two minutes before its first
+# test (checkout, build-layer import, bootstrap, fixture, image pulls), so the
+# selected shards are bin-packed into at most MAX_BINS jobs per kind of about
+# TARGET_SECONDS of test time each. Every shard still runs exactly once, each
+# on its own fresh stack (tools/ci/integration.sh, e2e.sh). Seconds are the
+# measured test-step durations of PR run 42360553738 (2026-11-07); refresh
+# them from `gh run view <id> --json jobs` when a shard grows a lot.
+INTEGRATION_SECONDS = {
+    "compose": 263,
+    "seed-cold": 243,
+    "seed-reset": 201,
+    "core": 226,
+    "typst": 119,
+    "storage": 142,
+    "documents": 149,
+    "profiles": 127,
+    "crm-gateway": 129,
+    "crm-import": 100,
+    "twenty-install": 133,
+    "policy": 206,
+    "schema-outbox": 199,
+    "delivery": 30,
+    # The Contract job (tools/ci/contract.sh) rides in an Integration bin.
+    "contract": 178,
+}
+E2E_SECONDS = {
+    "acquisition-management": 156,
+    # 183 s measured plus an estimate for the own-stack multi-host proof (#97).
+    "public-catalog": 300,
+    "membership": 160,
+    "invoices": 120,
+    "commitments": 175,
+    "pwa": 180,
+    "action-templates": 123,
+    "action-admin": 155,
+    "public-orders": 152,
+    "identity": 129,
+    "matching": 103,
+    "tasks": 162,
+    "materials": 112,
+    "knowledge": 127,
+    "inbox": 99,
+    "leitsystem-ui": 278,
+    "operations": 294,
+    "invoice-flows": 188,
+}
+# EmDash bins are fixed: the order proof alone is the longest job of the run.
+EMDASH_BINS = (("krapfentaxi-orders",), ("krapfentaxi-migration", "static"))
+TARGET_SECONDS = 600
+MAX_BINS = {"integration": 4, "e2e": 4}
+# Integration shards that need the Twenty image prefetched (seed bootstrap).
+SEED_BOOTSTRAP = frozenset({"compose", "seed-cold", "seed-reset", "twenty-install"})
+
 ALL = "*"
 
 
@@ -100,8 +154,59 @@ RULES: tuple[Rule, ...] = (
     Rule(("tests/fixtures/**",), ALL, "shared test fixtures"),
     # Prose never feeds a stack suite; docs.yml and the checks cover it.
     Rule(("**/*.md", "**/*.mdx"), NONE, "documentation"),
-    # The EmDash CI entry point only drives the EmDash proof groups.
+    # CI entry points drive only their own suites.
     Rule(("tools/ci/emdash.sh",), EMDASH, "EmDash CI entry point"),
+    Rule(
+        ("tools/ci/e2e.sh",),
+        e2e(*E2E_SHARDS),
+        "E2E CI entry point",
+    ),
+    Rule(
+        ("tools/ci/integration.sh",),
+        integration(*INTEGRATION_SHARDS) | {"contract"},
+        "Integration CI entry point (also runs Contract)",
+    ),
+    Rule(("tools/ci/contract.sh",), frozenset({"contract"}), "Contract CI entry point"),
+    # Gates of always-running jobs: Lint and types / Unit, Build, Security and
+    # the CI gate itself run on every event, so their scripts and checkers
+    # select no stack suite. tools/ci/lint-types.sh runs the *_test.py files.
+    Rule(
+        (
+            "tools/ci/*_test.py",
+            "tools/ci/axe_helper.py",
+            "tools/ci/build.sh",
+            "tools/ci/conflict_markers.py",
+            "tools/ci/core_oneoff_user.py",
+            "tools/ci/disk-report.sh",
+            "tools/ci/flake_summary.py",
+            "tools/ci/gate.py",
+            "tools/ci/legacy_ui.py",
+            "tools/ci/lint-types.sh",
+            "tools/ci/measure-cache.sh",
+            "tools/ci/no_test_doubles.py",
+            "tools/ci/reviewed_network_faults.json",
+            "tools/ci/security.sh",
+            "tools/ci/workflow_contract.py",
+        ),
+        NONE,
+        "always-on CI gate",
+    ),
+    # Workflows that run no ci.yml suite. Each gated workflow selects itself.
+    Rule(
+        (
+            ".github/workflows/cache-benchmark.yml",
+            ".github/workflows/docs.yml",
+            ".github/workflows/docs-watchdog.yml",
+            ".github/workflows/nightly-watchdog.yml",
+            ".github/workflows/pin-drift.yml",
+            ".github/workflows/release.yml",
+        ),
+        NONE,
+        "workflow without stack suites",
+    ),
+    Rule((".github/workflows/surveys.yml",), frozenset({"surveys"}), "Survey workflow"),
+    Rule((".github/workflows/api-contract.yml",), frozenset({"api"}), "API workflow"),
+    Rule((".github/workflows/pins.yml",), frozenset({"pins"}), "pins workflow"),
     # Shared infrastructure: wins over every narrower rule below.
     Rule(
         (
@@ -551,6 +656,52 @@ def classify(path: str) -> tuple[frozenset[str], str]:
     return everything(), "unmapped path"
 
 
+def pack(
+    names: Sequence[str], seconds: Mapping[str, int], max_bins: int
+) -> list[list[str]]:
+    """Longest-processing-time-first bin packing, deterministic.
+
+    The bin count is the smallest that keeps the average at TARGET_SECONDS,
+    capped at ``max_bins``. Bins come back longest first.
+    """
+    if not names:
+        return []
+    ordered = sorted(names, key=lambda name: (-seconds[name], name))
+    total = sum(seconds[name] for name in ordered)
+    count = max(1, min(max_bins, len(ordered), math.ceil(total / TARGET_SECONDS)))
+    bins: list[list[str]] = [[] for _ in range(count)]
+    loads = [0] * count
+    for name in ordered:
+        index = min(range(count), key=lambda i: (loads[i], i))
+        bins[index].append(name)
+        loads[index] += seconds[name]
+    order = sorted(range(count), key=lambda i: (-loads[i], i))
+    return [bins[i] for i in order]
+
+
+def matrix(
+    bins: Sequence[Sequence[str]], bootstrap: Callable[[Sequence[str]], str]
+) -> list[dict[str, str]]:
+    """GitHub matrix legs: stable id for artifacts, readable title for the UI."""
+    return [
+        {
+            "id": str(number),
+            "title": ", ".join(names),
+            "shards": " ".join(names),
+            "bootstrap": bootstrap(names),
+        }
+        for number, names in enumerate(bins, start=1)
+    ]
+
+
+def integration_bootstrap(names: Sequence[str]) -> str:
+    return "seed" if SEED_BOOTSTRAP & set(names) else "toolchains"
+
+
+def emdash_bootstrap(names: Sequence[str]) -> str:
+    return "toolchains" if set(names) == {"static"} else "browser"
+
+
 @dataclass(frozen=True)
 class Selection:
     full: bool
@@ -558,18 +709,33 @@ class Selection:
     suites: frozenset[str]
     explanation: tuple[tuple[str, str, tuple[str, ...]], ...] = ()
 
-    def outputs(self) -> dict[str, str]:
-        def listed(prefix: str, names: Sequence[str]) -> str:
-            return json.dumps([n for n in names if f"{prefix}:{n}" in self.suites])
+    def shards(self, prefix: str, names: Sequence[str]) -> list[str]:
+        return [n for n in names if f"{prefix}:{n}" in self.suites]
 
+    def integration_units(self) -> list[str]:
+        units = self.shards("integration", INTEGRATION_SHARDS)
+        return units + (["contract"] if "contract" in self.suites else [])
+
+    def integration_bins(self) -> list[list[str]]:
+        return pack(
+            self.integration_units(), INTEGRATION_SECONDS, MAX_BINS["integration"]
+        )
+
+    def e2e_bins(self) -> list[list[str]]:
+        return pack(self.shards("e2e", E2E_SHARDS), E2E_SECONDS, MAX_BINS["e2e"])
+
+    def emdash_bins(self) -> list[list[str]]:
+        return [list(b) for b in EMDASH_BINS] if "emdash" in self.suites else []
+
+    def outputs(self) -> dict[str, str]:
         result = {
             "full": json.dumps(self.full),
             "reason": self.reason,
-            "integration": listed("integration", INTEGRATION_SHARDS),
-            "e2e": listed("e2e", E2E_SHARDS),
-            "emdash": json.dumps(
-                list(EMDASH_GROUPS) if "emdash" in self.suites else []
+            "integration": json.dumps(
+                matrix(self.integration_bins(), integration_bootstrap)
             ),
+            "e2e": json.dumps(matrix(self.e2e_bins(), lambda _: "browser")),
+            "emdash": json.dumps(matrix(self.emdash_bins(), emdash_bootstrap)),
         }
         for flag in FLAGS:
             result[flag] = json.dumps(flag in self.suites)
@@ -623,7 +789,14 @@ def summary(selection: Selection) -> str:
         "| Suite | Selected |",
         "|---|---|",
     ]
-    for key in ("integration", "e2e", "emdash", *FLAGS):
+    for key, bins in (
+        ("integration", selection.integration_bins()),
+        ("e2e", selection.e2e_bins()),
+        ("emdash", selection.emdash_bins()),
+    ):
+        jobs = "<br>".join(f"{n}: {', '.join(b)}" for n, b in enumerate(bins, 1))
+        lines.append(f"| {key} | {jobs or '—'} |")
+    for key in FLAGS:
         lines.append(f"| {key} | `{outputs[key]}` |")
     if selection.explanation and not selection.full:
         lines += ["", "| Changed path | Rule | Suites |", "|---|---|---|"]

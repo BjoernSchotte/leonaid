@@ -2,6 +2,29 @@
 set -eu
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
+
+# Several shards (one CI bin, tools/ci/select_suites.py): each runs on its own
+# fresh stack, in order; a failure does not stop the later shards, the bin
+# fails at the end and names every failed shard.
+if [ "$#" -gt 1 ]; then
+  failed=""
+  for part in "$@"; do
+    started=$(date +%s)
+    if /bin/sh "$root/tools/ci/integration.sh" "$part"; then
+      echo "ci-integration: bin: $part passed ($(( $(date +%s) - started ))s)"
+    else
+      echo "ci-integration: bin: $part FAILED ($(( $(date +%s) - started ))s)" >&2
+      failed="$failed $part"
+    fi
+  done
+  if [ -n "$failed" ]; then
+    echo "ci-integration: ERROR: failed shards:$failed" >&2
+    exit 1
+  fi
+  echo "ci-integration: OK: $*"
+  exit 0
+fi
+
 shard=${1:-all}
 
 case "$shard" in
@@ -68,6 +91,10 @@ case "$shard" in
     ;;
   policy)
     /bin/sh "$root/tools/policy/test.sh" "$root"
+    ;;
+  # OpenAPI and cross-system contracts; rides in an Integration bin.
+  contract)
+    /bin/sh "$root/tools/ci/contract.sh"
     ;;
   pilot-import)
     /bin/sh "$root/tools/pilot_import/test.sh" "$root"
