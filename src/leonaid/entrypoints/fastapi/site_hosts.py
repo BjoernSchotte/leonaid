@@ -10,7 +10,10 @@ from datetime import datetime
 from typing import Literal, cast
 from uuid import UUID
 
-from fastapi import APIRouter, Request, Response
+from datetime import timezone
+
+from fastapi import APIRouter, Query, Request, Response
+from fastapi.responses import PlainTextResponse
 from pydantic import Field
 
 from leonaid.application.identity import IdentityQueryService
@@ -30,7 +33,13 @@ from leonaid.application.site_hosts import (
     SiteHostView,
     UnbindEdition,
 )
+from leonaid.adapters.postgres.site_host_verification import (
+    AsyncpgSiteHostVerification,
+)
+from leonaid.application.errors import PermissionDenied, ResourceNotFound
+from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import IdentityPrincipal
+from leonaid.domain.site_hosts import check_answer, normalize_hostname
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.entrypoints.fastapi.schemas import AUTHENTICATED_CONFLICT_ERROR_RESPONSES
 from leonaid.platform.http import TransportModel
@@ -427,3 +436,98 @@ async def remove_site_host(
         response,
         RemoveSiteHost(body.command_id, host_id, body.revision),
     )
+
+
+@router.post(
+    "/{host_id}/check", operation_id="checkSiteHost", response_model=SiteHostResponse
+)
+async def check_site_host(
+    host_id: UUID, request: Request, response: Response
+) -> SiteHostResponse:
+    """Prüfen (§7.4): the host check runs now; the answer has its result."""
+    response.headers["Cache-Control"] = "no-store"
+    # It changes the host's status, like every other write on hosts.
+    actor = await _identity(request).authenticate_fresh(
+        request.cookies.get(SESSION_COOKIE_NAME)
+    )
+    view = await _service(request).check(
+        actor, host_id, request_id=cast(str, request.state.request_id)
+    )
+    return host_response(view)
+
+
+# Infrastructure endpoints, not part of the product API.
+infrastructure_router = APIRouter(include_in_schema=False)
+
+
+def _verification(request: Request) -> AsyncpgSiteHostVerification:
+    return cast(AsyncpgSiteHostVerification, request.app.state.site_host_verification)
+
+
+def _request_hostname(request: Request) -> str | None:
+    host = request.headers.get("host", "").strip().lower()
+    if host.startswith("["):
+        return None
+    host = host.rsplit(":", 1)[0] if ":" in host else host
+    try:
+        return normalize_hostname(host)
+    except DomainInvariantError:
+        return None
+
+
+@infrastructure_router.get(HOST_CHECK_PREFIX + "{token}")
+async def host_check_answer(
+    token: str,
+    request: Request,
+    nonce: str = Query(default="", max_length=64),
+) -> Response:
+    """Answered on port 80 of every name; proves the name reaches us (§7.4).
+
+    The answer is an HMAC over host, token and the checker's nonce, keyed
+    with the installation secret. Lookups come from an in-process snapshot.
+    """
+    hostname = _request_hostname(request)
+    if (
+        hostname is None
+        or not 32 <= len(token) <= 128
+        or not 16 <= len(nonce) <= 64
+        or not all(character in "0123456789abcdef" for character in nonce)
+        or not await _verification(request).answers(hostname, token)
+    ):
+        raise ResourceNotFound("site_host_check_unknown", "Unbekannte Host-Prüfung.")
+    return PlainTextResponse(
+        check_answer(
+            cast(str, request.app.state.site_host_check_secret),
+            hostname,
+            token,
+            nonce,
+        ),
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@infrastructure_router.get("/internal/tls/ask")
+async def tls_ask(request: Request, domain: str = Query(max_length=300)) -> Response:
+    """Caddy's on-demand TLS permission (§9.1); 2xx means: issue.
+
+    Only Caddy's own ask request reaches this path: the edge answers 404 for
+    /internal/* on every host, and a request the edge proxied carries
+    forwarding headers, which are refused here as well.
+    """
+    if any(
+        name in request.headers
+        for name in ("x-forwarded-for", "x-forwarded-host", "forwarded")
+    ):
+        raise PermissionDenied("tls_ask_internal_only", "Nur intern.")
+    try:
+        hostname = normalize_hostname(domain)
+    except DomainInvariantError:
+        raise PermissionDenied("tls_ask_refused", "Kein Zertifikat.") from None
+    # Configured hosts have their own site blocks; never on demand.
+    if _service(request).configured.refusal(hostname) is not None:
+        raise PermissionDenied("tls_ask_refused", "Kein Zertifikat.")
+    if not await _verification(request).approve_tls(
+        hostname, datetime.now(timezone.utc)
+    ):
+        raise PermissionDenied("tls_ask_refused", "Kein Zertifikat.")
+    return PlainTextResponse("ok", headers={"Cache-Control": "no-store"})

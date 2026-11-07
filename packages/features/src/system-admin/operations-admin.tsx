@@ -1,3 +1,4 @@
+import { adminHref } from "@leonaid/ui/base-paths";
 import {
   useMutation,
   useQueryClient,
@@ -454,6 +455,49 @@ export function OperationsTab({
           </ul>
         ) : null}
       </section>
+
+      {data.siteHosts?.length ? (
+        <section
+          aria-labelledby="site-hosts-ops-title"
+          className="panel"
+          data-testid="operations-site-hosts"
+        >
+          <header className="panel-header">
+            <h2 id="site-hosts-ops-title">Domains für Aktionen</h2>
+            <a className="small" href={adminHref("system/domains")}>
+              Zu den Domains
+            </a>
+          </header>
+          <ul className="svc-list">
+            {data.siteHosts.map((host) => {
+              const waiting = host.status === "verified" && !host.failedChecks;
+              return (
+                <li className="svc-row" key={host.hostname}>
+                  <StatusIcon
+                    label={waiting ? "Wartet" : "Handlung nötig"}
+                    size={16}
+                    status={waiting ? "progress" : "alert"}
+                  />
+                  <span className="svc-name">{host.hostname}</span>
+                  <span className="svc-state">
+                    {host.status === "disabled"
+                      ? "Abgeschaltet"
+                      : waiting
+                        ? "Zertifikat ausstehend"
+                        : `${host.failedChecks} Prüfung(en) fehlgeschlagen`}
+                  </span>
+                  <span className="svc-detail small muted">
+                    {host.lastCheckResult ?? "Noch nicht geprüft."}
+                    {host.status === "disabled" && host.liveBindings
+                      ? ` ${host.liveBindings} Ausgabe(n) werden nicht ausgeliefert.`
+                      : ""}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       <section aria-labelledby="ver-title" className="panel">
         <header className="panel-header">
