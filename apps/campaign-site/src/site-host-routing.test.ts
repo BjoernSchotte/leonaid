@@ -164,6 +164,23 @@ describe("campaign host routing", () => {
     });
   });
 
+  it("refuses a lapsed or removed host although its certificate still works", () => {
+    // Acceptance (review of #105): Core answers 404 for every host that is
+    // not active, so the middleware serves nothing, also not the order POST.
+    for (const [path, method] of [
+      ["/", "GET"],
+      ["/2025/", "GET"],
+      ["/?_action=createPublicOrder", "POST"],
+      [`/campaigns/lions-open-2025/media/${MEDIA}`, "GET"],
+      ["/robots.txt", "GET"],
+      ["/archive/", "GET"],
+    ] as const)
+      expect(decide(null, new URL(path, HOST), method)).toEqual({
+        kind: "respond",
+        status: 404,
+      });
+  });
+
   it("answers 404 for unknown hosts, other paths and editor paths", () => {
     expect(decide(null, new URL("/", HOST), "GET")).toEqual({
       kind: "respond",

@@ -39,6 +39,26 @@ export function campaignHostname(
   return DOMAIN.test(hostname) ? hostname : null;
 }
 
+/**
+ * Whether the public app serves this request (§9.2): configured hosts
+ * always; any other name only while Core returns it as an active campaign
+ * host. A lapsed or removed host is refused here even while Caddy still
+ * holds its certificate.
+ */
+export async function admitHost(
+  hostHeader: string | null,
+  configured: Set<string>,
+  isActive: (hostname: string) => Promise<boolean>,
+): Promise<"serve" | "refuse" | "unavailable"> {
+  const hostname = campaignHostname(hostHeader, configured);
+  if (hostname === null) return "serve";
+  try {
+    return (await isActive(hostname)) ? "serve" : "refuse";
+  } catch {
+    return "unavailable";
+  }
+}
+
 const TTL_MS = 30_000;
 type Lookup = (hostname: string) => Promise<boolean>;
 

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PublicCampaignListItemResponse } from "@leonaid/api-client";
 import {
+  admitHost,
   campaignHostname,
   campaignHref,
   canonicalRedirect,
@@ -53,6 +54,24 @@ describe("campaign hosts in the public app", () => {
       "",
     ])
       expect(campaignHostname(host, configured)).toBeNull();
+  });
+
+  it("refuses a lapsed or removed host although its certificate still works", async () => {
+    // Acceptance (review of #105): Caddy keeps serving a certificate it
+    // already holds; the app itself must refuse every non-active host.
+    const inactive = async () => false;
+    expect(await admitHost("lionsopen.de", configured, inactive)).toBe(
+      "refuse",
+    );
+    expect(
+      await admitHost("lionsopen.de", configured, async () => {
+        throw new Error("core down");
+      }),
+    ).toBe("unavailable");
+    expect(await admitHost("lionsopen.de", configured, async () => true)).toBe(
+      "serve",
+    );
+    expect(await admitHost("example.org", configured, inactive)).toBe("serve");
   });
 
   it("caches Core's answer for 30 s", async () => {
