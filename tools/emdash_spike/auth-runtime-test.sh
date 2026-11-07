@@ -486,13 +486,18 @@ if [ "$mode" != auth ]; then
         export LEONAID_PROXY_CADDYFILE LEONAID_ADMIN_DOMAIN LEONAID_PUBLIC_DOMAIN \
           LEONAID_ADMIN_BASE_URL LEONAID_SITE_BASE_URL LEONAID_PUBLIC_HOST_ENABLED
         compose up --no-deps --detach --wait api public campaign-site proxy
+        # The recreated proxy may hold a new internal CA.
+        compose cp proxy:/data/caddy/pki/authorities/local/root.crt "$proof/root.crt"
         host_variant=admin-only
       fi
       host_probe() {
         compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
           node tools/emdash_spike/campaign-host-http-proof.mjs "$@" $host_variant
       }
-      host_probe active
+      host_probe active || {
+        compose logs --no-color --tail=80 proxy api >&2
+        exit 1
+      }
       fixture /repo/tools/emdash_spike/site_host_fixture.py disable
       # Ask snapshot 10 s; host caches of both apps and Core origins 30 s:
       # the lapsed state must show within that bound (the probe polls).
