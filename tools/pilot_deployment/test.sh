@@ -732,21 +732,23 @@ LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
 echo "pilot-deployment-test: pilot-revoke-sessions signs every member out and records it"
 revoke_token=pilot-revoke-proof-session-token-with-enough-length-0001
 revoke_digest=$(printf %s "$revoke_token" | sha256sum | cut -d ' ' -f 1)
+# A session as Core writes it: it ends exactly 90 days after its start.
 printf '%s\n' \
   "INSERT INTO user_account (id, email, display_name, status) VALUES ('97800000-0000-4000-8000-000000000001', 'revoke.proof@leonaid.org', 'Revoke Proof', 'active');" \
-  "INSERT INTO user_session (id, user_id, token_digest, expires_at, last_seen_at, fresh_login_at, created_at, updated_at) VALUES ('97800000-0000-4000-8000-000000000002', '97800000-0000-4000-8000-000000000001', '$revoke_digest', now() + interval '1 day', now(), now(), now(), now());" |
+  "INSERT INTO user_session (id, user_id, token_digest, expires_at, last_seen_at, fresh_login_at, created_at, updated_at) VALUES ('97800000-0000-4000-8000-000000000002', '97800000-0000-4000-8000-000000000001', '$revoke_digest', now() + interval '90 days', now(), now(), now(), now());" |
   runtime_compose exec -T core-postgres sh -ec \
     'psql -v ON_ERROR_STOP=1 -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 identity_status() {
-  # Through the real edge: TLS, Caddy routes and the API's proxy trust.
-  runtime_compose exec -T proxy curl -s -o /dev/null -w '%{http_code}' \
-    --cacert /data/caddy/pki/authorities/local/root.crt \
-    --resolve portal.leonaid.org:443:127.0.0.1 \
-    -H "Cookie: __Host-leonaid_session=$revoke_token" \
-    https://portal.leonaid.org/api/v1/identity/me
+  # Through the real edge: TLS, Caddy routes and the API's proxy trust, the
+  # same way as the health probes above.
+  curl --silent --insecure --output /dev/null --write-out '%{http_code}' \
+    --resolve "$base_url:$https_port:127.0.0.1" \
+    --header "Cookie: __Host-leonaid_session=$revoke_token" \
+    "https://$base_url:$https_port/api/v1/identity/me"
 }
-[ "$(identity_status)" = 200 ] || {
-  echo "pilot-deployment-test: ERROR: the proof session does not sign in" >&2
+session_status=$(identity_status)
+[ "$session_status" = 200 ] || {
+  echo "pilot-deployment-test: ERROR: the proof session does not sign in (HTTP $session_status)" >&2
   exit 1
 }
 revoke_output=$(LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
@@ -763,8 +765,9 @@ case "$revoke_output" in
     exit 1
     ;;
 esac
-[ "$(identity_status)" = 401 ] || {
-  echo "pilot-deployment-test: ERROR: a revoked session still signs in" >&2
+session_status=$(identity_status)
+[ "$session_status" = 401 ] || {
+  echo "pilot-deployment-test: ERROR: a revoked session still signs in (HTTP $session_status)" >&2
   exit 1
 }
 audit_rows=$(printf '%s\n' "SELECT count(*) FROM audit_event WHERE event_type = 'identity.sessions.revoked_all' AND actor_user_id IS NULL AND payload->>'revokedCount' <> '0';" |
