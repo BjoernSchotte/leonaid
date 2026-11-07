@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from tools.ci import gate as gate_script  # noqa: E402
 from tools.ci import select_suites  # noqa: E402
 
 REQUIRED_JOBS = {
@@ -727,6 +728,13 @@ def check_repository(root: Path) -> list[str]:
         if f"name: {job}\n" not in text:
             problems.append(f"{name}: required job '{job}' missing.")
     select = (workflows / "select-suites.yml").read_text(encoding="utf-8")
+    # The title-edit mirror (gate.py real_run) recognizes real runs by this
+    # job name; a rename would make every mirror fail (closed, but red).
+    if f"\n    name: {gate_script.SELECT_JOB_NAME}\n" not in select:
+        problems.append(
+            f"select-suites.yml: the select job must be named "
+            f"{gate_script.SELECT_JOB_NAME!r} (tools/ci/gate.py SELECT_JOB_NAME)."
+        )
     if "tools/ci/select_suites.py --event" not in select:
         problems.append("select-suites.yml must run tools/ci/select_suites.py.")
     problems.extend(check_first_attempts(root))

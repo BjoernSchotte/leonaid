@@ -232,6 +232,12 @@ CI_MUTATIONS = (
 
 OTHER_MUTATIONS = (
     (
+        "select-suites.yml",
+        "    name: Select suites\n",
+        "    name: Choose suites\n",
+        "the select job must be named 'Select suites'",
+    ),
+    (
         "nightly-watchdog.yml",
         " surveys.yml:30:nightly",
         "",
