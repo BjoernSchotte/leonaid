@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Protocol
 from uuid import UUID
@@ -11,6 +12,7 @@ from leonaid.application.policies import require_system_admin
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.legal_configuration import (
     EVIDENCE_ID,
+    LATER_OPTIONAL_FIELDS,
     LegalConfigurationDraft,
     LegalConfigurationState,
     LegalConfigurationVersion,
@@ -86,13 +88,33 @@ class LegalConfigurationService:
         configuration: LegalConfigurationDraft,
         expected_revision: int,
         request_id: str,
+        omitted_fields: frozenset[str] = frozenset(),
     ) -> LegalConfigurationState:
+        """Save a new draft version.
+
+        `omitted_fields` names request fields the client did not send. For
+        fields added after the first contract an omission means "keep the
+        previous version's value" (an admin app from before the update), not
+        "clear it"; the previous version is the open draft, else the active one.
+        """
         require_system_admin(actor)
         if expected_revision < 1:
             raise Conflict(
                 "legal_configuration_revision_invalid",
                 "Bitte laden Sie die Konfiguration neu und versuchen Sie es erneut.",
             )
+        carried = omitted_fields & LATER_OPTIONAL_FIELDS
+        if carried:
+            state = await self._repository.state()
+            previous = state.draft or state.active
+            if previous is not None:
+                configuration = replace(
+                    configuration,
+                    **{
+                        name: getattr(previous.configuration, name)
+                        for name in sorted(carried)
+                    },
+                )
         return await self._repository.save_draft(
             configuration=configuration,
             actor_user_id=actor.account.id,

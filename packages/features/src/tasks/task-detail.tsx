@@ -413,6 +413,7 @@ function TaskMoveSection({
         <div className="cluster">
           <Button
             disabled={!move.previous || move.pending}
+            focusableWhenDisabled
             icon={ArrowUp}
             onClick={move.up}
             size="sm"
@@ -422,6 +423,7 @@ function TaskMoveSection({
           </Button>
           <Button
             disabled={!move.next || move.pending}
+            focusableWhenDisabled
             icon={ArrowDown}
             onClick={move.down}
             size="sm"
@@ -456,6 +458,7 @@ function TaskMoveSection({
             </label>
             <Button
               disabled={move.pending || epics.isPending}
+              focusableWhenDisabled
               icon={FolderInput}
               size="sm"
               type="submit"
@@ -484,6 +487,7 @@ function TaskMoveSection({
             </label>
             <Button
               disabled={move.pending}
+              focusableWhenDisabled
               icon={CalendarDays}
               size="sm"
               type="submit"

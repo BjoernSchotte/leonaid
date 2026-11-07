@@ -1,7 +1,7 @@
 """Campaign hosts and their editions.
 
-Revision ID: 0055_site_hosts
-Revises: 0054_preferred_surface
+Revision ID: 0056_site_hosts
+Revises: 0055_preferred_surface
 
 specs/multi-domain §7.3: ``site_host`` holds what belongs to a hostname
 (verification, certificate approval, redirect host); ``site_binding`` maps
@@ -20,8 +20,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0055_site_hosts"
-down_revision: str | None = "0054_preferred_surface"
+revision: str = "0056_site_hosts"
+down_revision: str | None = "0055_preferred_surface"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -292,7 +292,7 @@ def downgrade() -> None:
     op.execute(
         "DO $$ BEGIN IF EXISTS (SELECT 1 FROM site_host) "
         "OR EXISTS (SELECT 1 FROM site_binding) THEN "
-        "RAISE EXCEPTION '0055 downgrade refused: site hosts or bindings exist; "
+        "RAISE EXCEPTION '0056 downgrade refused: site hosts or bindings exist; "
         "remove them explicitly first'; "
         "END IF; END $$"
     )

@@ -3,7 +3,7 @@
 Every command runs in one transaction under one advisory lock, checks the
 system-admin role at the start and at the end, writes an audit event per
 changed row and a command receipt for the idempotent command id. The
-partial unique indexes of migration 0055 are the last line of defence for
+partial unique indexes of migration 0056 are the last line of defence for
 "one root per host", "one live segment per host", "an action once per host"
 and "one primary binding per action".
 """

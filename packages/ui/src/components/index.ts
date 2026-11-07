@@ -20,6 +20,7 @@ export * from "./status-icon";
 export * from "./option-menu";
 export * from "./popover";
 export * from "./leave-guard";
+export * from "./legal-links";
 export * from "./mobile-shell";
 export * from "./modal";
 export { FOCUS_FALLBACK_ATTRIBUTE } from "./focus-return";

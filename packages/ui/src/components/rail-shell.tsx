@@ -33,6 +33,7 @@ import { useFocusNotObscured } from "./focus-clear";
 import { Avatar } from "./avatar";
 import { IconButton } from "./button";
 import { isMacPlatform, Kbd } from "./kbd";
+import { LegalLinks } from "./legal-links";
 import { OptionMenu } from "./option-menu";
 import { Popover } from "./popover";
 import {
@@ -512,6 +513,7 @@ function MoreSheet({
               <span className="btn-label">Abmelden</span>
             </button>
           </div>
+          <LegalLinks className="sheet-legal" />
         </div>
       ) : null}
     </dialog>
@@ -649,6 +651,7 @@ function ShellFrame({
             ))}
           </nav>
           <RailUser onLogout={onLogout} user={user} />
+          <LegalLinks className="rail-legal" />
         </div>
       </aside>
       <div className="shell-body">
