@@ -155,6 +155,23 @@ printf '%s\n' "DELETE FROM commitment_cancellation;" | cancellation_sql
 compose run --rm --no-deps --entrypoint alembic api downgrade 0050_invoice_partial_payments
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 
+echo "poc021-test: 0052 stores only web or pwa as preferred start area"
+preference_sql() {
+  compose exec -T core-postgres sh -ec \
+    'psql -v ON_ERROR_STOP=1 -q -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+}
+printf '%s\n' "UPDATE user_account SET preferred_surface = 'pwa' WHERE id = '10000000-0000-4000-8000-000000000001';" | preference_sql
+if printf '%s\n' "UPDATE user_account SET preferred_surface = 'crm' WHERE id = '10000000-0000-4000-8000-000000000001';" | preference_sql 2>/dev/null; then
+  echo "poc021-test: ERROR: 0052 accepted an unknown start area" >&2
+  exit 1
+fi
+compose run --rm --no-deps --entrypoint alembic api downgrade 0051_commitment_cancellation
+[ -z "$(printf '%s\n' "SELECT 1 FROM information_schema.columns WHERE table_name = 'user_account' AND column_name = 'preferred_surface';" | preference_sql)" ] || {
+  echo "poc021-test: ERROR: 0052 downgrade kept preferred_surface" >&2
+  exit 1
+}
+compose run --rm --no-deps --entrypoint alembic api upgrade head
+
 echo "poc021-test: 0050 downgrade refuses payment data the old schema cannot hold"
 payment_guard() {
   compose run --rm --user "$(id -u):$(id -g)" --no-deps \

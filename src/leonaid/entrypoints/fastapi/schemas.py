@@ -128,6 +128,16 @@ class CurrentIdentityResponse(TransportModel):
     fresh_login_at: datetime
     fresh_until: datetime
     installation: InstallationResponse
+    # Start area after login and on `/` of the admin host (§6.7): a path
+    # below the admin or PWA base path, computed by Core.
+    landing_path: str = Field(examples=["/app/", "/admin/system"])
+    preferred_surface: Literal["web", "pwa"] | None = None
+
+
+class PreferredSurfaceRequest(TransportModel):
+    """The start area a member chooses; null returns to the default rule."""
+
+    surface: Literal["web", "pwa"] | None
 
 
 class MemberDirectoryMembershipResponse(TransportModel):

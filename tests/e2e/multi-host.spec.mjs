@@ -142,3 +142,42 @@ test("the admin host refuses public order actions and sends campaign pages away"
   await page.goto(`${adminUrl}/krapfentaxi`);
   expect(new URL(page.url()).origin).toBe(publicUrl);
 });
+
+test("the admin host entry signs in first and keeps deep links", async ({
+  browser,
+  page,
+}) => {
+  // Signed out: `/` asks for the login, a deep link survives it (§6.7).
+  await page.goto(`${adminUrl}/`);
+  expect(new URL(page.url()).pathname).toBe("/login");
+  await page.goto(`${adminUrl}/admin/orders?commitment=c1`);
+  await page.waitForURL((url) => url.pathname === "/login");
+  expect(new URL(page.url()).searchParams.get("returnTo")).toBe(
+    "/admin/orders?commitment=c1",
+  );
+
+  // Core computes the start area and refuses one without a role for it.
+  const context = await signedIn(browser, "acquirer");
+  const member = await context.newPage();
+  await member.goto(`${adminUrl}/`);
+  await member.waitForURL((url) => url.pathname.startsWith("/app/"));
+  const result = await member.evaluate(async () => {
+    const identity = await (await fetch("/api/v1/identity/me")).json();
+    const refused = await fetch("/api/v1/identity/me/preferred-surface", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ surface: "web" }),
+    });
+    return {
+      landingPath: identity.landingPath,
+      refused: refused.status,
+      code: (await refused.json()).error?.code,
+    };
+  });
+  expect(result).toEqual({
+    landingPath: "/app/",
+    refused: 409,
+    code: "preferred_surface_unavailable",
+  });
+  await context.close();
+});

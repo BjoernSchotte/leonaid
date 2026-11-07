@@ -100,6 +100,7 @@ function identity(
     roleLabels: [],
     sessionExpiresAt: "2026-11-04T08:00:00Z",
     sessionLastSeenAt: "2026-11-03T08:00:00Z",
+    landingPath: "/admin/",
     userId: me,
     ...overrides,
   };

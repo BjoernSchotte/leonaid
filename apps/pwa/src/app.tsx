@@ -29,6 +29,13 @@ import {
 
 import { pwaModuleNavigationKeys, pwaModules, pwaPath } from "./modules";
 import { mobileNavigation } from "./navigation";
+import {
+  ADMIN_BASE,
+  PWA_BASE,
+  loginHref,
+  pwaHref,
+} from "@leonaid/ui/base-paths";
+import { hasBackOffice } from "@leonaid/features";
 
 interface AppProps {
   readonly client: LeonAidApiClient;
@@ -49,14 +56,14 @@ type PwaRoute =
 
 function currentRoute(): PwaRoute {
   const { pathname, search } = window.location;
-  if (pathname.startsWith("/app/commitments")) return "commitment";
-  if (pathname.startsWith("/app/activities")) {
+  if (pathname.startsWith(pwaHref("commitments"))) return "commitment";
+  if (pathname.startsWith(pwaHref("activities"))) {
     return new URLSearchParams(search).get("view") === "contacts"
       ? "follow-ups"
       : "news";
   }
-  if (pathname.startsWith("/app/sponsors")) return "sponsors";
-  if (pathname.startsWith("/app/delivery")) return "delivery";
+  if (pathname.startsWith(pwaHref("sponsors"))) return "sponsors";
+  if (pathname.startsWith(pwaHref("delivery"))) return "delivery";
   return "overview";
 }
 
@@ -129,7 +136,7 @@ function usePwaLifecycle(): PwaLifecycle {
         onControllerChange,
       );
       void navigator.serviceWorker
-        .register("/app/sw.js", { scope: "/app/" })
+        .register(pwaHref("sw.js"), { scope: PWA_BASE })
         .then((value) => {
           if (disposed) return;
           registration.current = value;
@@ -270,6 +277,13 @@ export function App({ client }: AppProps) {
     staleTime: 30_000,
   });
 
+  // Signed out: the deep link survives the login (specs/multi-domain §6.7).
+  useEffect(() => {
+    if (identity.error instanceof ApiError && identity.error.status === 401) {
+      window.location.replace(loginHref(window.location));
+    }
+  }, [identity.error]);
+
   if (identity.isPending) {
     return (
       <div aria-live="polite" className="pwa-loading" role="status">
@@ -300,7 +314,7 @@ export function App({ client }: AppProps) {
             {signedOut ? (
               <a
                 className={buttonClassName({ variant: "primary" })}
-                href="/login"
+                href={loginHref(window.location)}
               >
                 Zur Anmeldung
               </a>
@@ -346,10 +360,30 @@ export function App({ client }: AppProps) {
     memberships[0]?.actionName ??
     "Keine aktive Akquise-Aktion";
 
+  // Members with back-office roles reach the admin app from here and may
+  // choose the acquisition app as their start area (specs/multi-domain §6.7).
+  const backOffice = hasBackOffice(identity.data.navigation);
+  const surfaces = backOffice
+    ? {
+        switchTo: { label: "Zur Verwaltung", href: ADMIN_BASE },
+        startArea: identity.data.landingPath.startsWith(PWA_BASE)
+          ? undefined
+          : {
+              label: "Akquise-App als Startbereich verwenden",
+              onSelect: () => {
+                void client
+                  .setPreferredSurface({ surface: "pwa" })
+                  .then(() => identity.refetch());
+              },
+            },
+      }
+    : undefined;
+
   return (
     <PwaShell
       campaign={currentAction}
       navigation={identity.data.navigation}
+      surfaces={surfaces}
       menuSearch={
         <ModuleSearch
           client={client}

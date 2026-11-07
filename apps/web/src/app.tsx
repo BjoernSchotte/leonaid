@@ -33,10 +33,11 @@ import {
   storeCampaign,
   withCampaign,
   withCrossSurfaceLinks,
+  hasPwaWork,
   type PaletteCommand,
   type UiModule,
 } from "@leonaid/features";
-import { ArrowLeftRight, Moon, Sun } from "lucide-react";
+import { ArrowLeftRight, House, Moon, Sun } from "lucide-react";
 
 import {
   activeNavigationKey,
@@ -50,6 +51,13 @@ import {
 } from "@leonaid/ui";
 
 import { webModules } from "./modules";
+import {
+  ADMIN_BASE,
+  PWA_BASE,
+  adminHref,
+  baseRoot,
+  loginHref,
+} from "@leonaid/ui/base-paths";
 
 /** Opens the rail's campaign switcher (also collapsed and on phones). */
 const campaignCommand: PaletteCommand = {
@@ -86,10 +94,17 @@ export interface AppProps {
   readonly client: LeonAidApiClient;
 }
 
-function RedirectToOperationalApp() {
+function RedirectToOperationalApp({
+  landingPath,
+}: {
+  readonly landingPath: string;
+}) {
   useEffect(() => {
-    window.location.replace("/app/");
-  }, []);
+    // Core's landing rule; a non-PWA landing would loop back here.
+    window.location.replace(
+      landingPath.startsWith(PWA_BASE) ? landingPath : PWA_BASE,
+    );
+  }, [landingPath]);
 
   return (
     <main className="ui-main">
@@ -139,7 +154,13 @@ function CampaignUrlGate({
 
 function route(available: readonly UiModule[]) {
   const pathname =
-    window.location.pathname.replace(/^\/admin/, "").replace(/\/+$/, "") || "/";
+    window.location.pathname
+      .slice(
+        window.location.pathname.startsWith(baseRoot(ADMIN_BASE))
+          ? baseRoot(ADMIN_BASE).length
+          : 0,
+      )
+      .replace(/\/+$/, "") || "/";
   const moduleRoute = resolveModuleRoute(available, "web", pathname);
   if (moduleRoute) return { kind: "module", ...moduleRoute } as const;
   if (pathname === "/") return { kind: "dashboard" } as const;
@@ -198,6 +219,12 @@ export function App({ client }: AppProps) {
   }, [identity.data, openedWithCampaign]);
   // In-page tab switches (System ↔ Datenschutz) move the rail highlight.
   useLocationHref();
+  // Signed out: the deep link survives the login (specs/multi-domain §6.7).
+  useEffect(() => {
+    if (identity.error instanceof ApiError && identity.error.status === 401) {
+      window.location.replace(loginHref(window.location));
+    }
+  }, [identity.error]);
 
   if (identity.isPending) {
     return (
@@ -228,7 +255,7 @@ export function App({ client }: AppProps) {
           {signedOut ? (
             <a
               className={buttonClassName({ variant: "primary" })}
-              href="/login"
+              href={loginHref(window.location)}
             >
               Zur Anmeldung
             </a>
@@ -257,7 +284,7 @@ export function App({ client }: AppProps) {
         !webModules.some((module) => module.id === item.key),
     )
   ) {
-    return <RedirectToOperationalApp />;
+    return <RedirectToOperationalApp landingPath={identity.data.landingPath} />;
   }
 
   const currentRoute = route(availableModules);
@@ -300,13 +327,34 @@ export function App({ client }: AppProps) {
     storeCampaign(id);
     setStoredCampaign(id);
     if (currentRoute.kind === "manage") {
-      window.location.assign(`/admin/actions/${id}`);
+      window.location.assign(adminHref(`actions/${id}`));
     } else if (scoped) {
       window.location.assign(withCampaign(window.location.pathname, id));
     }
     // Other pages do not depend on the campaign: the rail and its links
     // follow the choice without a reload.
   };
+
+  // Members with acquisition work start in the PWA by default; they may
+  // choose the admin app instead (specs/multi-domain §6.7).
+  const startAreaCommands: PaletteCommand[] =
+    hasPwaWork(identity.data.navigation) &&
+    identity.data.landingPath.startsWith(PWA_BASE)
+      ? [
+          {
+            id: "start-area-web",
+            label: "Verwaltung als Startbereich verwenden",
+            group: "Einstellungen",
+            icon: House,
+            keywords: ["Startbereich", "Startseite", "Anmeldung", "Verwaltung"],
+            run: () => {
+              void client
+                .setPreferredSurface({ surface: "web" })
+                .then(() => identity.refetch());
+            },
+          },
+        ]
+      : [];
 
   return (
     <FeatureFlagProvider client={client} identity={identity.data} surface="web">
@@ -326,11 +374,11 @@ export function App({ client }: AppProps) {
         organizationName={identity.data.installation.clubName}
         palette={
           <CommandPalette
-            commands={
-              campaigns.length > 0
-                ? [campaignCommand, ...themeCommands]
-                : themeCommands
-            }
+            commands={[
+              ...(campaigns.length > 0 ? [campaignCommand] : []),
+              ...themeCommands,
+              ...startAreaCommands,
+            ]}
             context={{ client, identity: identity.data }}
             modules={webModules}
             navigation={shellNavigation}

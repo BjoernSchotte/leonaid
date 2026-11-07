@@ -27,16 +27,35 @@ adds the roles for campaign hosts and the admin host without a public host
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# Base paths of the two member apps. Stage 1b moves them into the shared
-# base-path module; the Caddy table reads them from here until then.
-ADMIN_BASE = "/admin/"
-PWA_BASE = "/app/"
+
+def _base_paths() -> dict[str, str]:
+    """ADMIN_BASE and PWA_BASE from Core's one source (specs/multi-domain §6.7).
+
+    Read as text: the generator runs on the plain runner Python, without the
+    Core dependencies.
+    """
+    source = (ROOT / "src/leonaid/platform/base_paths.py").read_text(encoding="utf-8")
+    values = dict(
+        re.findall(r'^(ADMIN_BASE|PWA_BASE): Final = "([^"]+)"$', source, re.M)
+    )
+    if set(values) != {"ADMIN_BASE", "PWA_BASE"}:
+        raise SystemExit(
+            "caddyfiles: base paths missing in src/leonaid/platform/base_paths.py"
+        )
+    return values
+
+
+ADMIN_BASE = _base_paths()["ADMIN_BASE"]
+PWA_BASE = _base_paths()["PWA_BASE"]
+# The role-based entry page of apps/public; `/` on the admin host serves it.
+ENTRY_PAGE = "/login/start"
 
 ADMIN_ORIGIN = {"pilot": "https://{$LEONAID_ADMIN_DOMAIN}", "dev": ""}
 PUBLIC_ORIGIN = {"pilot": "https://{$LEONAID_PUBLIC_DOMAIN}", "dev": ""}
@@ -87,7 +106,7 @@ def _slashless(base: str) -> str:
     return base.rstrip("/")
 
 
-MEMBER_PAGES = ("/login", "/invite", "/email-change", "/fresh-login")
+MEMBER_PAGES = ("/login", "/login/*", "/invite", "/email-change", "/fresh-login")
 # One Impressum and one privacy notice per installation, on every host (D4).
 LEGAL_PAGES = ("/impressum", "/datenschutz")
 # The sign-in pages on the admin host load these files of the public app.
@@ -212,7 +231,7 @@ ROUTES: tuple[Route, ...] = (
     ),
     # Order forms exist only on site hosts.
     Route("public_order", PUBLIC_ORDER, {"admin": NOT_FOUND, "admin_only": NOT_FOUND}),
-    # Stage 1b replaces the interim redirect with the role-based entry (§6.7).
+    # Role-based entry: login, then the view for the member's role (§6.7).
     Route("root", ("/",), {"admin": ENTRY, "admin_only": ENTRY}),
     Route("crm", ("/crm/*",), {"single": CRM, "admin": CRM}, dev_only=True),
     Route("mail", ("/mail/*",), {"single": MAIL, "admin": MAIL}, dev_only=True),
@@ -504,10 +523,9 @@ reverse_proxy public:3000 {
     if action == TO_PUBLIC:
         return f"redir {public}{{uri}} 308"
     if action == ENTRY:
-        # Interim until the role-based entry (stage 1b): the admin web app
-        # signs in and forwards acquirers to the PWA.
-        # "*": a first argument starting with "/" would be read as a matcher.
-        return f"redir * {ADMIN_BASE} 302"
+        # Role-based entry (§6.7): the public app asks Core for the session
+        # and answers 302 to /login or to the member's landingPath.
+        return f"rewrite * {ENTRY_PAGE}\n" + _action_body(PUBLIC, environment, paths)
     if action == RETIRED_WORKER:
         # No braces: Caddy would read them as placeholders. matchAll() lists
         # the window clients by default.

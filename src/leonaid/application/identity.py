@@ -8,6 +8,7 @@ import hashlib
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from enum import StrEnum
 from typing import Protocol
 from uuid import UUID
 
@@ -29,15 +30,30 @@ from leonaid.domain.identity import (
 )
 from leonaid.domain.sessions import UserSession
 from leonaid.platform.navigation import NavigationItem
+from leonaid.platform.base_paths import ADMIN_BASE, PWA_BASE
+
+
+class PreferredSurface(StrEnum):
+    """The app a member chose as start area (specs/multi-domain §6.7)."""
+
+    WEB = "web"
+    PWA = "pwa"
 
 
 @dataclass(frozen=True, slots=True)
 class AuthenticatedIdentity:
     principal: IdentityPrincipal
     session: UserSession
+    preferred_surface: PreferredSurface | None = None
 
 
 class IdentityRepository(Protocol):
+    async def set_preferred_surface(
+        self,
+        user_id: UUID,
+        surface: PreferredSurface | None,
+    ) -> None: ...
+
     async def principal_for_session(
         self,
         token_digest: str,
@@ -115,6 +131,9 @@ class CurrentIdentity:
     session_last_seen_at: datetime
     fresh_login_at: datetime
     fresh_until: datetime
+    # Where this member starts after login or on `/` of the admin host.
+    landing_path: str = PWA_BASE
+    preferred_surface: PreferredSurface | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -315,6 +334,77 @@ def paginate_member_directory(
     return page, len(filtered), next_cursor
 
 
+def has_back_office(principal: IdentityPrincipal) -> bool:
+    """Roles that open the admin web app beyond the module pages."""
+    action_roles = {membership.role for membership in principal.action_memberships}
+    return (
+        principal.is_system_admin
+        or GlobalRole.FINANCE_READER in principal.global_roles
+        or GlobalRole.FINANCE_MANAGER in principal.global_roles
+        or ActionRole.CHARITY_ADMIN in action_roles
+        or ActionRole.FINANCE_READER in action_roles
+    )
+
+
+def has_pwa_work(navigation: tuple[NavigationItem, ...]) -> bool:
+    """Role work in the PWA (acquisition, delivery), not only module pages.
+
+    Module items come in both surfaces for every member; a PWA item without
+    a web item of the same key is role work (as in apps/public app-links).
+    """
+    web_keys = {item.key for item in navigation if item.surface == "web"}
+    return any(
+        item.surface == "pwa"
+        and item.key != "overview-pwa"
+        and item.key not in web_keys
+        for item in navigation
+    )
+
+
+def web_landing_path(principal: IdentityPrincipal) -> str:
+    action_roles = {membership.role for membership in principal.action_memberships}
+    if principal.is_system_admin:
+        return ADMIN_BASE + "system"
+    if ActionRole.CHARITY_ADMIN in action_roles:
+        return ADMIN_BASE
+    if (
+        GlobalRole.FINANCE_READER in principal.global_roles
+        or GlobalRole.FINANCE_MANAGER in principal.global_roles
+        or ActionRole.FINANCE_READER in action_roles
+    ):
+        return ADMIN_BASE + "invoices"
+    return ADMIN_BASE
+
+
+def landing_path(
+    principal: IdentityPrincipal,
+    navigation: tuple[NavigationItem, ...],
+    preferred: PreferredSurface | None = None,
+) -> str:
+    """The one landing rule (Björn, 2026-11-03; specs/multi-domain §6.7).
+
+    A chosen start area wins while the member has a role for it. Otherwise any
+    acquirer role leads to the acquisition app, even next to other roles;
+    then system admin, charity admin and finance roles lead to their admin
+    page. Members without back-office roles start in the PWA, where their
+    work (delivery, module pages) lives.
+    """
+    back_office = has_back_office(principal)
+    pwa_work = has_pwa_work(navigation)
+    if preferred is PreferredSurface.WEB and back_office:
+        return web_landing_path(principal)
+    if preferred is PreferredSurface.PWA and pwa_work:
+        return PWA_BASE
+    if any(
+        membership.role is ActionRole.ACQUIRER
+        for membership in principal.action_memberships
+    ):
+        return PWA_BASE
+    if back_office:
+        return web_landing_path(principal)
+    return PWA_BASE
+
+
 def navigation_for(
     principal: IdentityPrincipal,
     module_items: tuple[NavigationItem, ...] = (),
@@ -335,41 +425,49 @@ def navigation_for(
         or ActionRole.FINANCE_READER in action_roles
     )
     items: list[NavigationItem] = [
-        NavigationItem("overview-pwa", "Übersicht", "/app/", "pwa"),
+        NavigationItem("overview-pwa", "Übersicht", PWA_BASE, "pwa"),
         *module_items,
     ]
     if has_web_access:
         items.insert(
             0,
-            NavigationItem("overview-web", "Übersicht", "/admin/", "web"),
+            NavigationItem("overview-web", "Übersicht", ADMIN_BASE, "web"),
         )
     if principal.is_system_admin:
         items.extend(
             (
-                NavigationItem("actions", "Charity-Aktionen", "/admin/actions", "web"),
-                NavigationItem("members", "Mitglieder", "/admin/members", "web"),
+                NavigationItem(
+                    "actions", "Charity-Aktionen", ADMIN_BASE + "actions", "web"
+                ),
+                NavigationItem("members", "Mitglieder", ADMIN_BASE + "members", "web"),
                 NavigationItem(
                     "legal",
                     "Organisation & Recht",
-                    "/admin/legal",
+                    ADMIN_BASE + "legal",
                     "web",
                 ),
-                NavigationItem("privacy", "Datenschutz", "/admin/privacy", "web"),
-                NavigationItem("system", "System", "/admin/system", "web"),
+                NavigationItem("privacy", "Datenschutz", ADMIN_BASE + "privacy", "web"),
+                NavigationItem("system", "System", ADMIN_BASE + "system", "web"),
             )
         )
     if ActionRole.CHARITY_ADMIN in action_roles:
         items.extend(
             (
-                NavigationItem("actions", "Charity-Aktionen", "/admin/actions", "web"),
                 NavigationItem(
-                    "acquisition-web", "Akquise", "/admin/acquisition", "web"
+                    "actions", "Charity-Aktionen", ADMIN_BASE + "actions", "web"
                 ),
-                NavigationItem("orders", "Bestellungen", "/admin/orders", "web"),
-                NavigationItem("invoices", "Rechnungen", "/admin/invoices", "web"),
-                NavigationItem("members", "Mitglieder", "/admin/members", "web"),
-                NavigationItem("activities", "Neues", "/admin/activities", "web"),
-                NavigationItem("acquisition-pwa", "Akquise", "/app/acquisition", "pwa"),
+                NavigationItem(
+                    "acquisition-web", "Akquise", ADMIN_BASE + "acquisition", "web"
+                ),
+                NavigationItem("orders", "Bestellungen", ADMIN_BASE + "orders", "web"),
+                NavigationItem(
+                    "invoices", "Rechnungen", ADMIN_BASE + "invoices", "web"
+                ),
+                NavigationItem("members", "Mitglieder", ADMIN_BASE + "members", "web"),
+                NavigationItem("activities", "Neues", ADMIN_BASE + "activities", "web"),
+                NavigationItem(
+                    "acquisition-pwa", "Akquise", PWA_BASE + "acquisition", "pwa"
+                ),
             )
         )
     # Only where a managed action actually delivers (``delivery``: the
@@ -378,39 +476,43 @@ def navigation_for(
         principal.is_system_admin or ActionRole.CHARITY_ADMIN in action_roles
     ):
         items.append(
-            NavigationItem("delivery", "Auslieferung", "/admin/delivery", "web")
+            NavigationItem("delivery", "Auslieferung", ADMIN_BASE + "delivery", "web")
         )
     if (
         GlobalRole.FINANCE_READER in principal.global_roles
         or GlobalRole.FINANCE_MANAGER in principal.global_roles
         or ActionRole.FINANCE_READER in action_roles
     ):
-        items.append(NavigationItem("invoices", "Rechnungen", "/admin/invoices", "web"))
+        items.append(
+            NavigationItem("invoices", "Rechnungen", ADMIN_BASE + "invoices", "web")
+        )
     if ActionRole.ACQUIRER in action_roles:
         items.extend(
             (
                 NavigationItem(
                     "sponsors",
                     "Meine Sponsoren",
-                    "/app/sponsors",
+                    PWA_BASE + "sponsors",
                     "pwa",
                 ),
                 NavigationItem(
                     "commitment",
                     "Bestellung erfassen",
-                    "/app/commitments/new",
+                    PWA_BASE + "commitments/new",
                     "pwa",
                 ),
                 NavigationItem(
                     "activities",
                     "Neues",
-                    "/app/activities",
+                    PWA_BASE + "activities",
                     "pwa",
                 ),
             )
         )
     if ActionRole.DRIVER in action_roles:
-        items.append(NavigationItem("delivery", "Auslieferung", "/app/delivery", "pwa"))
+        items.append(
+            NavigationItem("delivery", "Auslieferung", PWA_BASE + "delivery", "pwa")
+        )
 
     if principal.is_system_admin or ActionRole.CHARITY_ADMIN in action_roles:
         items.append(
@@ -527,6 +629,17 @@ class IdentityQueryService:
         )
         all_roles: set[GlobalRole | ActionRole] = set(principal.global_roles)
         all_roles.update(item.role for item in principal.action_memberships)
+        navigation = navigation_for(
+            principal,
+            self._module_navigation(principal)
+            if self._module_navigation is not None
+            else (),
+            delivery=(
+                await self._delivery_navigation(principal)
+                if self._delivery_navigation is not None
+                else False
+            ),
+        )
         return CurrentIdentity(
             user_id=principal.account.id,
             display_name=principal.account.display_name,
@@ -534,22 +647,40 @@ class IdentityQueryService:
             global_roles=tuple(sorted(principal.global_roles, key=str)),
             action_memberships=memberships,
             role_labels=tuple(ROLE_LABELS[role] for role in sorted(all_roles, key=str)),
-            navigation=navigation_for(
-                principal,
-                self._module_navigation(principal)
-                if self._module_navigation is not None
-                else (),
-                delivery=(
-                    await self._delivery_navigation(principal)
-                    if self._delivery_navigation is not None
-                    else False
-                ),
-            ),
+            navigation=navigation,
             session_expires_at=identity.session.expires_at,
             session_last_seen_at=identity.session.last_seen_at,
             fresh_login_at=identity.session.fresh_login_at,
             fresh_until=identity.session.fresh_login_at + self._fresh_login_window,
+            landing_path=landing_path(
+                principal, navigation, identity.preferred_surface
+            ),
+            preferred_surface=identity.preferred_surface,
         )
+
+    async def set_preferred_surface(
+        self,
+        session_token: str | None,
+        surface: PreferredSurface | None,
+    ) -> CurrentIdentity:
+        """Store the start area; only one the member has a role for."""
+        identity = await self.authenticate_session(session_token)
+        if surface is not None:
+            current = await self.current_identity(session_token)
+            available = (
+                has_back_office(identity.principal)
+                if surface is PreferredSurface.WEB
+                else has_pwa_work(current.navigation)
+            )
+            if not available:
+                raise Conflict(
+                    "preferred_surface_unavailable",
+                    "Dieser Bereich steht für Ihre Rollen nicht zur Verfügung.",
+                )
+        await self._repository.set_preferred_surface(
+            identity.principal.account.id, surface
+        )
+        return await self.current_identity(session_token)
 
     async def list_members(
         self,

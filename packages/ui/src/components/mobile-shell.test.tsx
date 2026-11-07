@@ -167,6 +167,41 @@ describe("MobileShell", () => {
     );
   });
 
+  it("offers the admin app and the start area to members with both roles", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    renderShell({
+      surfaces: {
+        switchTo: { label: "Zur Verwaltung", href: "/admin/" },
+        startArea: {
+          label: "Akquise-App als Startbereich verwenden",
+          onSelect,
+        },
+      },
+    });
+    await user.click(screen.getByRole("button", { name: "Mehr" }));
+    const sheet = screen.getByRole("dialog", { name: "Mehr" });
+    const surfaces = within(sheet).getByTestId("pwa-surfaces");
+    expect(
+      within(surfaces)
+        .getByRole("link", { name: "Zur Verwaltung" })
+        .getAttribute("href"),
+    ).toBe("/admin/");
+    await user.click(
+      within(surfaces).getByRole("button", {
+        name: "Akquise-App als Startbereich verwenden",
+      }),
+    );
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows no Bereiche section without a second app", async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await user.click(screen.getByRole("button", { name: "Mehr" }));
+    expect(screen.queryByTestId("pwa-surfaces")).toBeNull();
+  });
+
   it("opens the Mehr sheet with areas, theme and sign-out", async () => {
     const user = userEvent.setup();
     const { onLogout } = renderShell();

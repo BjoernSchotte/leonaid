@@ -12,6 +12,7 @@ from leonaid.domain.action_templates import OfferingUnit
 from leonaid.domain.commitments import UnitQuantity
 from leonaid.application.policies import concealed_resource
 from leonaid.domain.identity import ActionRole, IdentityPrincipal
+from leonaid.platform.base_paths import ADMIN_BASE, PWA_BASE
 
 
 class ActivityFeedStatus(StrEnum):
@@ -171,11 +172,11 @@ class ActivityFeedService:
         if ActionRole.ACQUIRER in roles and stored.assignment_id is not None:
             next_action_label = "Kontakt und Bestellung abstimmen"
             next_action_href = (
-                f"/app/activities?view=contacts&assignment={stored.assignment_id}"
+                f"{PWA_BASE}activities?view=contacts&assignment={stored.assignment_id}"
             )
         else:
             next_action_label = "Bestellung prüfen und zuordnen"
-            next_action_href = f"/admin/orders?commitment={commitment_id}"
+            next_action_href = f"{ADMIN_BASE}orders?commitment={commitment_id}"
         return ActivityFeedItem(
             id=stored.id,
             action_id=stored.action_id,

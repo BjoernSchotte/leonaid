@@ -11,6 +11,7 @@ import {
 import type { NavigationItemResponse } from "@leonaid/api-client";
 
 import { zoneForNavKey } from "@leonaid/features";
+import { pwaHref } from "@leonaid/ui/base-paths";
 
 /** Tab of the acquisition app's bottom bar. */
 export interface MobileNavTab {
@@ -92,7 +93,7 @@ const TAB_DEFINITIONS: readonly TabDefinition[] = [
     label: "Neu",
     icon: Plus,
     shortcut: "3",
-    href: "/app/sponsors?view=new",
+    href: pwaHref("sponsors?view=new"),
     primary: true,
     matches: (path, query, base) =>
       under(path, base) && query.get("view") === "new",
@@ -103,7 +104,7 @@ const TAB_DEFINITIONS: readonly TabDefinition[] = [
     label: "Wiedervorlagen",
     icon: ListTodo,
     shortcut: "4",
-    href: "/app/activities?view=contacts",
+    href: pwaHref("activities?view=contacts"),
     matches: (path, query, base) =>
       under(path, base) && query.get("view") === "contacts",
   },

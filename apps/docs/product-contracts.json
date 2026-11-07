@@ -524,7 +524,7 @@
     },
     {
       "file": "src/leonaid/modules/tasks/api.py",
-      "contains": ["\"Aufgaben\", \"/admin/tasks\", \"web\""]
+      "contains": ["\"Aufgaben\", ADMIN_BASE + \"tasks\", \"web\""]
     }
   ],
   "DOC-P042": [
@@ -567,7 +567,7 @@
     },
     {
       "file": "src/leonaid/modules/materials/api.py",
-      "contains": ["\"Materialien\", \"/admin/materials\", \"web\""]
+      "contains": ["\"Materialien\", ADMIN_BASE + \"materials\", \"web\""]
     }
   ],
   "DOC-P044": [

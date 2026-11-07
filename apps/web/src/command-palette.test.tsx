@@ -80,6 +80,7 @@ function identity(
     roleLabels: [],
     sessionExpiresAt: "2026-11-04T10:00:00Z",
     sessionLastSeenAt: "2026-11-03T10:00:00Z",
+    landingPath: "/admin/",
     userId: "10000000-0000-4000-8000-000000000002",
   };
 }

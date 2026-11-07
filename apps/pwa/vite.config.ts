@@ -5,10 +5,14 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
+import { PWA_BASE } from "../../packages/ui/src/lib/base-paths";
 import { columnQueries } from "./column-queries";
 
 const BUILD_ID_TOKEN = "__LEONAID_BUILD_ID__";
 const ASSETS_TOKEN = "/* __LEONAID_BUILD_ASSETS__ */ []";
+// Static files of public/ that name the base path (specs/multi-domain §6.7).
+const BASE_TOKEN = "__LEONAID_PWA_BASE__";
+const BASE_FILES = ["sw.js", "manifest.webmanifest", "offline.html"];
 
 function filesBelow(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -44,7 +48,15 @@ function serviceWorkerBuild(): Plugin {
       }
       const assets = files
         .filter((file) => file.startsWith("assets/") && !file.endsWith(".map"))
-        .map((file) => `/app/${file}`);
+        .map((file) => `${PWA_BASE}${file}`);
+      for (const file of BASE_FILES) {
+        const path = join(outDir, file);
+        const content = readFileSync(path, "utf8");
+        if (!content.includes(BASE_TOKEN)) {
+          throw new Error(`${file} lacks the base path placeholder`);
+        }
+        writeFileSync(path, content.replaceAll(BASE_TOKEN, PWA_BASE));
+      }
       const target = join(outDir, "sw.js");
       const source = readFileSync(target, "utf8");
       if (!source.includes(BUILD_ID_TOKEN) || !source.includes(ASSETS_TOKEN)) {
@@ -61,7 +73,7 @@ function serviceWorkerBuild(): Plugin {
 }
 
 export default defineConfig({
-  base: "/app/",
+  base: PWA_BASE,
   build: {
     outDir: "dist",
     sourcemap: true,
