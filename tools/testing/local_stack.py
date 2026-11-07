@@ -169,7 +169,7 @@ class LocalStack:
                             flush=True,
                             file=self.output,
                         )
-                        self.stack.call([*self.stack.compose, "build"])
+                        self.stack.build_images([])
             if stop:
                 return
             if self.stack is None:

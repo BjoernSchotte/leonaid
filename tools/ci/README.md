@@ -438,6 +438,22 @@ Survey defaults select the 26 PR checks; `--suite all`, `--suite nightly`,
 local survey checks use the same locked fixture. CI always uses ephemeral
 job-local writable fixtures. Only their synthetic initialization template is cached.
 
+## Shared image tags
+
+Test stacks and standalone suites (`build_shared_images` in
+`tools/testing/owned_teardown.sh`) reuse images across checkouts by content:
+`python3 tools/testing/image_tags.py <service>` hashes the Dockerfile, the
+Compose build definition, `.dockerignore` and every file the Dockerfile copies
+from its context (after `.dockerignore`, with file modes). A stack whose hash
+already exists as `leonaid-local/<service>:<hash>` only tags it as
+`<project>-<service>` (about 0.8 s for seven images instead of 8–25 s of
+`compose build`); otherwise it builds and records the tag (not in CI). A FROM
+without digest, `ADD` of a URL, a bind mount or unknown `.dockerignore` syntax
+makes the script exit non-zero, and the stack builds without sharing.
+Teardown removes only `<project>-*` tags; the newest three content tags per
+service are kept (`LEONAID_IMAGE_KEEP`). CI may push the same hash as
+`ghcr.io/bjoernschotte/leonaid-ci/<service>:<hash>`.
+
 ## Persistent GitHub BuildKit cache
 
 The local composite action `.github/actions/build-cache` prepares a job-local

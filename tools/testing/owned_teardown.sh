@@ -5,9 +5,11 @@
 #   network and volume that still carries PROJECT's Compose label. Any leftover
 #   is printed by name, removed by that exact label and makes the call fail:
 #   a leak is a harness bug that must surface, but it must not exhaust the
-#   host's Docker address pools while someone looks into it. Finally the images
-#   that Compose built for PROJECT ("PROJECT-<service>") are removed; they are
-#   never reused because project names are unique per invocation.
+#   host's Docker address pools while someone looks into it. Finally the
+#   "PROJECT-<service>" image tags are removed; project names are unique per
+#   invocation. Content-hash tags shared by all checkouts
+#   (leonaid-local/<service>:<hash>, see build_shared_images) are never
+#   removed here; tools/testing/image_tags.py keeps the newest few per service.
 #   --keep-images skips that for a mid-run reset that rebuilds nothing.
 #   Returns 1 on leftovers or unreadable inventories, 0 otherwise.
 #
@@ -71,6 +73,24 @@ verify_owned_project_removed() {
     remove_owned_project_images "$teardown_project"
   fi
   return "$teardown_status"
+}
+
+# build_shared_images SERVICE...
+#   Builds the images of $project's `compose` for SERVICE, reusing the
+#   content-hash tags shared by all checkouts and standalone suites: a hit is
+#   only tagged as "$project-<service>", a miss is built and (outside CI)
+#   recorded. The hash covers every build input (tools/testing/image_tags.py).
+build_shared_images() {
+  shared_missing=$(python3 "$root/tools/testing/image_tags.py" adopt "$project" "$@") ||
+    return 1
+  [ -n "$shared_missing" ] || return 0
+  # Intentional splitting of the service list.
+  # shellcheck disable=SC2086
+  compose build $shared_missing || return 1
+  if [ -z "${CI:-}" ]; then
+    # shellcheck disable=SC2086
+    python3 "$root/tools/testing/image_tags.py" record "$project" $shared_missing
+  fi
 }
 
 # remove_owned_project_images PROJECT

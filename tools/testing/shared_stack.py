@@ -122,6 +122,32 @@ class SharedStack:
                 raise RuntimeError(f"Owned {resource} could not be removed")
         return found
 
+    def build_images(self, targets):
+        """Build this project's images, reusing content-hash tags of all checkouts.
+
+        `leonaid-local/<service>:<hash>` covers every build input
+        (tools/testing/image_tags.py); a hit is only tagged as
+        `<project>-<service>`, a miss is built and recorded. CI builds without
+        recording, so job disks keep freeing images at teardown.
+        """
+        if __package__:
+            from . import image_tags
+        else:
+            import image_tags
+        configured = json.loads(
+            self.call([*self.compose, "config", "--format", "json"], capture=True)
+        )["services"]
+        services = [
+            name
+            for name in (targets or sorted(configured))
+            if "build" in configured.get(name, {})
+        ]
+        missing = image_tags.adopt(self.root, self.project, services)
+        if missing:
+            self.call([*self.compose, "build", *missing])
+            if not self.env.get("CI"):
+                image_tags.record(self.root, self.project, missing)
+
     def remove_built_images(self):
         """Remove the `<project>-<service>` images Compose built for this project."""
         tags = self.call(
@@ -199,7 +225,7 @@ class SharedStack:
             if self.kind == "survey"
             else []
         )
-        self.call([*self.compose, "build", *targets])
+        self.build_images(targets)
         fixture = self.env.get("LEONAID_CI_FIXTURE")
         if fixture:
             self.import_fixture(Path(fixture))

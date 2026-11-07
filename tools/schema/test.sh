@@ -61,7 +61,7 @@ docker run --rm \
   python /repo/tools/schema/check_migrations.py /repo/migrations/versions
 
 echo "poc021-test: migrating a fully empty PostgreSQL instance to head"
-compose build api
+build_shared_images api
 compose up --detach --wait --wait-timeout 120 core-postgres
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 compose run --rm --no-deps --entrypoint alembic api upgrade head
