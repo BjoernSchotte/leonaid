@@ -89,6 +89,11 @@ export function TaskOrdering({
 /**
  * The grip of one row. Its `.row` is the sortable node; the drag offset is
  * written through CSSOM (strict CSP: no style attributes in markup).
+ *
+ * `disabled` never becomes the HTML attribute: a disabled button drops
+ * focus to `<body>`, so a keyboard user would lose their place while a move
+ * saves. dnd-kit marks the grip `aria-disabled` and drops its listeners
+ * instead, which keeps it focusable but inert.
  */
 export function TaskOrderHandle({
   disabled,
@@ -148,7 +153,6 @@ export function TaskOrderHandle({
       className="task-order-handle"
       id={`task-move-${id}`}
       type="button"
-      disabled={disabled}
       aria-label={`Aufgabe verschieben: ${title}`}
       title="Ziehen oder mit Leertaste und Pfeiltasten verschieben"
     >

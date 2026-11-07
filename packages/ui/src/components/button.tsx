@@ -27,6 +27,14 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** A binding such as "c" or "mod+enter", shown as subtle keycaps. */
   readonly shortcut?: string;
   readonly loading?: boolean;
+  /**
+   * Keep the button focusable while `disabled`: it is marked
+   * `aria-disabled` and ignores activation instead of carrying the HTML
+   * `disabled` attribute, which would drop focus to `<body>`. For buttons
+   * that disable themselves after being pressed (a move that saves), so a
+   * keyboard user keeps their place.
+   */
+  readonly focusableWhenDisabled?: boolean;
   /** For anchoring a Popover to the button. */
   readonly ref?: Ref<HTMLButtonElement>;
 }
@@ -55,21 +63,34 @@ export function Button({
   children,
   className,
   disabled,
+  focusableWhenDisabled,
   icon,
   loading,
+  onClick,
   shortcut,
   size = "md",
   type = "button",
   variant = "primary",
   ...props
 }: ButtonProps) {
+  const inactive = !!(disabled || loading);
+  const soft = inactive && !!focusableWhenDisabled;
   return (
     <button
       aria-busy={loading || undefined}
+      aria-disabled={soft || undefined}
       className={cn(buttonClassName({ size, variant }), className)}
-      disabled={disabled || loading}
+      disabled={inactive && !soft}
       type={type}
       {...props}
+      onClick={
+        soft
+          ? (event) => {
+              // Also stops a submit button from submitting its form.
+              event.preventDefault();
+            }
+          : onClick
+      }
     >
       {loading ? (
         <span aria-hidden="true" className="spinner" />
