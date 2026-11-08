@@ -257,6 +257,8 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           STACK_BASE: ${{ github.base_ref }}
           GATE_NAME: Survey gate
+          # A fast run never satisfies the gate while the PR carries full-ci.
+          FULL_CI_GATE: "true"
         # backup-recovery runs only nightly or on dispatch; when it runs it
         # must pass.
         run: >-

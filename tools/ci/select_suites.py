@@ -179,7 +179,9 @@ FAST_MAX_BINS = 2
 # request into main runs each, in a leg of its own outside the fast budget,
 # whenever a changed path matches its patterns, also for shared and unmapped
 # paths. Integration / policy is the authorization negative contract
-# (sessions and foreign-action access against real PostgreSQL and Twenty).
+# (sessions and foreign-action access against real PostgreSQL and Twenty),
+# including the inputs it reads: the Golden fixtures, the seed and Twenty
+# provisioning, and the Compose stack it starts.
 FAST_REQUIRED: dict[str, tuple[str, ...]] = {
     "policy": (
         "src/leonaid/**",
@@ -187,6 +189,10 @@ FAST_REQUIRED: dict[str, tuple[str, ...]] = {
         "alembic.ini",
         "tools/policy/**",
         "tools/sessions/**",
+        "tests/fixtures/golden/**",
+        "tools/twenty/**",
+        "tools/seed/**",
+        "infra/compose/**",
     ),
 }
 # Never in the fast tier: browser suites and multi-minute acceptance runs.

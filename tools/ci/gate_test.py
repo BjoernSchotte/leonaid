@@ -422,6 +422,51 @@ def test_pull_request_context() -> None:
     # (tools/ci/hold_gate.py) is newer than the green gate and blocks; a
     # mirror copies it as red; only the complete run's newer gate replaces it.
     expect(gate.HOLD_TITLE == hold_gate.HOLD_TITLE, "hold titles agree")
+    # N1: re-running an old fast run after full-ci was added must not create
+    # a green gate that lifts the hold; only the complete run counts.
+    full_env = {
+        **base_env,
+        "FULL_CI_GATE": "true",
+        "PR_NUMBER": "7",
+        "EVENT_ACTION": "synchronize",
+    }
+
+    def labels(*names: str) -> gate.Fetch:
+        def fetch(path: str) -> object:
+            assert path.endswith("/pulls/7"), path
+            return {"labels": [{"name": name} for name in names]}
+
+        return fetch
+
+    def broken(path: str) -> object:
+        raise urllib.error.URLError("down")
+
+    for env, outputs, fetch, pending, what in (
+        (full_env, {"tier": "fast"}, labels("full-ci"), True, "fast run, label set"),
+        (full_env, {}, labels("x", "full-ci"), True, "no tier output, label set"),
+        (full_env, {"tier": "fast"}, labels("x"), False, "fast run, no label"),
+        (full_env, {"tier": "full"}, labels("full-ci"), False, "the complete run"),
+        (full_env, {"tier": "fast"}, broken, True, "unreadable PR fails closed"),
+        (full_env, {"tier": "fast"}, lambda path: {}, True, "no labels field"),
+        (
+            {**full_env, "FULL_CI_GATE": ""},
+            {"tier": "fast"},
+            never,
+            False,
+            "workflows without a full tier (API contract, pins)",
+        ),
+        (
+            {**full_env, "EVENT_NAME": "push"},
+            {"tier": "post-merge"},
+            never,
+            False,
+            "post-merge runs",
+        ),
+    ):
+        expect(
+            gate.full_ci_pending(env, outputs, fetch) is pending,
+            f"full_ci_pending: {what}",
+        )
     sent: list[tuple[str, dict[str, object]]] = []
     hold_gate.main(
         {

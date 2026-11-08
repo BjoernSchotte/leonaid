@@ -485,7 +485,9 @@ def check_drafts(text: str, name: str) -> list[str]:
     for job in jobs_of(text):
         block = job_block(text, job)
         if gated and job == "gate":
-            context = GATE_CONTEXT + ((LABEL_CONTEXT,) if labelled else ())
+            context = GATE_CONTEXT + (
+                (LABEL_CONTEXT, 'FULL_CI_GATE: "true"') if labelled else ()
+            )
             if "permissions:" not in block or not all(
                 item in block for item in context
             ):

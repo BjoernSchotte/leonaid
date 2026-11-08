@@ -235,6 +235,39 @@ def stacked_result(environ: Mapping[str, str], outputs: Mapping[str, object]) ->
     )
 
 
+def full_ci_pending(
+    environ: Mapping[str, str], outputs: Mapping[str, object], fetch: Fetch
+) -> bool:
+    """A real run without the complete suite while the PR carries full-ci.
+
+    Only the workflows with a full-ci tier set FULL_CI_GATE. Re-running an
+    old fast run after the label was added would otherwise create a newer
+    green gate and lift the hold (tools/ci/hold_gate.py) without the heavy
+    suites. The labels are read live; an unreadable pull request counts as
+    labelled (fail closed).
+    """
+    if (
+        environ.get("FULL_CI_GATE") != "true"
+        or environ.get("EVENT_NAME") != "pull_request"
+    ):
+        return False
+    if str(outputs.get("tier", "")) == "full":
+        return False
+    try:
+        pull = fetch(
+            f"repos/{environ.get('GITHUB_REPOSITORY', '')}/pulls/"
+            f"{environ.get('PR_NUMBER', '')}"
+        )
+    except Exception:  # noqa: BLE001 - any API failure fails closed
+        return True
+    if not isinstance(pull, dict) or not isinstance(pull.get("labels"), list):
+        return True
+    return any(
+        isinstance(label, dict) and label.get("name") == FULL_CI_LABEL
+        for label in pull["labels"]
+    )
+
+
 def parse_selectable(values: Sequence[str]) -> dict[str, str]:
     mapping: dict[str, str] = {}
     for value in values:
@@ -268,6 +301,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         print(f"ci-gate: OK: {args.name}")
         return 0
+    if full_ci_pending(os.environ, outputs, github_fetch):
+        print(
+            f"ci-gate: ERROR: {args.name}: the pull request carries {FULL_CI_LABEL}, "
+            f"but this run is the {outputs.get('tier') or 'unknown'} tier; only the "
+            "complete run's gate counts (push, or re-add the label)",
+            file=sys.stderr,
+        )
+        return 1
     rows = evaluate(needs, parse_selectable(args.selectable), args.may_skip)
     lines = [
         f"### {args.name}",

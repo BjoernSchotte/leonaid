@@ -106,6 +106,18 @@ def test_called_workflows_get_the_permissions_they_request(path: Path) -> None:
         )
 
 
+def test_reusable_api_callers_request_actions_read() -> None:
+    """The Actions API lookups need actions: read in the called workflows.
+
+    Without it they work only while the repository is public (the post-merge
+    base lookup would quietly fall back to the complete suite, the fixture
+    peer wait would wait its full time).
+    """
+    for name in ("select-suites.yml", "test-fixture.yml"):
+        asked = requested(load(WORKFLOWS / name))
+        assert asked.get("actions") == "read", f"{name}: requests {asked}"
+
+
 def test_local_actions_parse() -> None:
     actions = sorted((ROOT / ".github/actions").glob("*/action.yml"))
     assert actions

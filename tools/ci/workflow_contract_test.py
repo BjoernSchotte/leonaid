@@ -51,6 +51,11 @@ CI_MUTATIONS = (
         "ci.yml: the selector must diff a push since the last green run",
     ),
     (
+        '          FULL_CI_GATE: "true"\n',
+        "",
+        "ci.yml: the gate must hand the draft/edit/label/stack context",
+    ),
+    (
         "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
         "  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}\n",
         "ci.yml: only pull-request runs may be cancelled",

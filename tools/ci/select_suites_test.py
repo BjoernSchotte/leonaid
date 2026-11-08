@@ -399,6 +399,10 @@ def main() -> int:
         "src/leonaid/modules/tasks/api.py",
         "migrations/versions/0052_x.py",
         "alembic.ini",
+        "tests/fixtures/golden/v1/dataset.json",
+        "tools/twenty/provision.py",
+        "tools/seed/seed_core.py",
+        "infra/compose/compose.yml",
     ):
         guarded = pr(path)
         expect(

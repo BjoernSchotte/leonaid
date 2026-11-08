@@ -637,6 +637,8 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           STACK_BASE: ${{ github.base_ref }}
           GATE_NAME: CI gate
+          # A fast run never satisfies the gate while the PR carries full-ci.
+          FULL_CI_GATE: "true"
           COLD_RUN: ${{ inputs.cold_run == true }}
         # A cold run rebuilds everything and deliberately skips the fixture.
         run: |
