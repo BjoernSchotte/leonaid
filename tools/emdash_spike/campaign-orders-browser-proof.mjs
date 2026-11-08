@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 // hand-written approximation of its devalue wire format.
 import { deserializeActionResult } from "../../node_modules/astro/dist/actions/runtime/client.js";
 import { readdir, writeFile } from "node:fs/promises";
-import { chromium, firefox, webkit } from "playwright";
+import { chromium } from "playwright";
 import { guardCsp } from "./csp-guard.mjs";
 import { WCAG_TAGS, analyzeAccessibility } from "../../tests/e2e/axe.mjs";
 import {
@@ -91,25 +91,18 @@ let timedOutOrders = 0;
 // synthetic visitors eight seconds apart. Targeted real SQL locks exercise
 // deadline recovery separately, without deliberately exhausting CRM capacity.
 let nextOrderAt = 0;
-// Twelve orders, not the full 3 x 2 x 4 cross product: the order scenarios
-// are server logic, the engines and modes are rendering and form submission.
-// Every scenario runs at least once per mode, every engine twice per mode,
-// and the accessibility/CSP scan's Chromium-JS new-company run stays.
+// Four orders in Chromium (E-026): the order scenarios are server logic,
+// several engines run only in the EmDash editor, Golden and the PWA. Every
+// scenario runs once, both modes twice; the accessibility/CSP scan's
+// Chromium-JS new-company run stays.
 const SCENARIOS = {
   chromium: {
-    native: ["new-company", "existing-company"],
+    native: ["existing-company", "mixed"],
     js: ["new-company", "person"],
-  },
-  firefox: { native: ["person", "mixed"], js: ["existing-company", "mixed"] },
-  webkit: {
-    native: ["mixed", "new-company"],
-    js: ["person", "existing-company"],
   },
 };
 for (const [engineName, engine] of Object.entries({
   chromium,
-  firefox,
-  webkit,
 })) {
   const browser = guardCsp(await engine.launch({ headless: true }));
   try {
@@ -564,5 +557,5 @@ for (const [engineName, engine] of Object.entries({
     await browser.close();
   }
 }
-if (controlledDeadline) assert.equal(timedOutOrders, 3);
+if (controlledDeadline) assert.equal(timedOutOrders, 1);
 await writeFile("/proof/orders-ui.json", JSON.stringify(orders));

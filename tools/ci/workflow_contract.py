@@ -22,38 +22,29 @@ from tools.ci import rerun_stale_gates  # noqa: E402
 from tools.ci import select_suites  # noqa: E402
 
 REQUIRED_JOBS = {
-    "artifact-probe",
     "build",
     "e2e",
     "emdash-cases",
-    "flake-summary",
     "gate",
     "golden-journey",
     "golden-parts",
     "integration-shards",
     "lint",
-    "pilot-cold-rehearsal",
     "security",
     "select",
     "unit",
     "vulnerability",
 }
-# Jobs without own test output: selector, gate, Golden comparison, nightly report.
-NO_EVIDENCE = {"select", "gate", "golden-journey", "flake-summary"}
+# Jobs without own test output: selector, gate, Golden comparison.
+NO_EVIDENCE = {"select", "gate", "golden-journey"}
 # Removed pure summary jobs: tools/ci/gate.py already requires every selected
 # matrix leg, and each summary cost a runner slot per run.
 REMOVED_SUMMARIES = ("integration", "e2e-summary", "emdash-proofs")
-# Not part of the gate: dispatch-only probes, the post-gate report and the
-# full-ci hold (it only posts a red gate check; tools/ci/hold_gate.py) and the
-# main-only image publication.
+# Not part of the gate: the full-ci hold (it only posts a red gate check;
+# tools/ci/hold_gate.py).
 OUTSIDE_GATE = {
     "gate",
     "hold",
-    "pilot-cold-rehearsal",
-    "artifact-probe",
-    "flake-summary",
-    # main only: publishes images, gates nothing (decision E-020).
-    "publish-images",
 }
 
 # Editor load race (PR #37) and Caddy body drain (PR #38) were only visible here.
@@ -121,10 +112,9 @@ RETRYABLE = re.compile(
 # Small AWS-hosted runners start with about 14 GB free disk; every job that
 # builds or loads LeonAid images must free about 18 GB first. Jobs using the
 # build cache need it unless listed as light (one or two small images);
-# the cold rehearsal and nightly recovery proofs build without the cache.
+# the nightly recovery proofs build without the cache.
 FREE_DISK_LIGHT = {("api-contract.yml", "contract"), ("pins.yml", "sbom")}
 FREE_DISK_EXTRA = {
-    ("ci.yml", "pilot-cold-rehearsal"),
     ("surveys.yml", "backup-recovery"),
 }
 # Composite-action steps whose failure is retried once by the next steps.
@@ -204,19 +194,6 @@ def check(path: Path) -> list[str]:
         problems.append("Shared log/sanitizing wrapper is missing.")
     if "tools/ci/integration.sh" not in text or "tools/ci/e2e.sh" not in text:
         problems.append("Integration/E2E do not use the local test paths.")
-    if "ci-artifact-probe" not in text:
-        problems.append("Intentionally failing probe branch is missing.")
-    cold = job_block(text, "pilot-cold-rehearsal")
-    if "if: inputs.cold_run == true" not in cold:
-        problems.append("Final dress rehearsal is not bound exclusively to cold_run.")
-    if "docker system prune --all --volumes --force" not in cold:
-        problems.append("Cold run does not clear Docker system state and caches.")
-    if "./leonaid test-pilot-rehearsal --synthetic" not in cold:
-        problems.append("Cold run does not execute the full synthetic dress rehearsal.")
-    if "LEONAID_PILOT_REHEARSAL_ARTIFACT_DIR" not in cold:
-        problems.append(
-            "Cold run does not publish the sanitized dress-rehearsal evidence."
-        )
     if "services:" in text:
         problems.append("Workflow must not define services that differ from Compose.")
     for summary in REMOVED_SUMMARIES:
@@ -510,7 +487,7 @@ def check_drafts(text: str, name: str) -> list[str]:
         )
         runs_on_pr = condition is None or not re.search(
             r"github\.event_name == 'schedule'|github\.event\.schedule == "
-            r"|inputs\.(?:cold_run|artifact_probe) == true|needs: build",
+            r"|needs: build",
             condition.group(1),
         )
         if not ((not needs or always) and runs_on_pr):
@@ -656,7 +633,7 @@ NIGHTLY_CRON = '"7 3 * * *"'
 
 
 def check_nightly(text: str) -> list[str]:
-    """One schedule: the nightly complete run with the flake summary.
+    """One schedule: the nightly complete run.
 
     The former 3-hourly run is replaced by the post-merge runs; another
     schedule would compete with pull requests for the 20 runners.
@@ -670,12 +647,6 @@ def check_nightly(text: str) -> list[str]:
             "ci.yml: the nightly run is the only schedule; main is proven by the "
             "post-merge runs."
         )
-    report = job_block(text, "flake-summary")
-    if (
-        "github.event_name == 'schedule'" not in report
-        or "tools/ci/flake_summary.py" not in report
-    ):
-        problems.append("ci.yml: nightly flake summary missing.")
     return problems
 
 
@@ -982,7 +953,7 @@ def main() -> None:
         raise SystemExit(1)
     print(
         "ci-workflow-contract: OK: tiers, schedules, drafts, gates, selector, infra-only "
-        "retries, shards, cold rehearsal and failure artifacts"
+        "retries, shards and failure artifacts"
     )
 
 

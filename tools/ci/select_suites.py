@@ -157,8 +157,9 @@ EMDASH_SECONDS = {
     # Measured on PR #145 run 42511933095: commerce half 458 s, deadline
     # half 413 s, redirect-aliases 147 s; campaign-hosts 160 s plus its
     # admin-only round on the same stack (about 60 s, estimate).
-    "krapfentaxi-orders": 458,
-    "krapfentaxi-deadlines": 413,
+    # Chromium-only orders and deadlines (E-026): estimates −64 s and −100 s.
+    "krapfentaxi-orders": 395,
+    "krapfentaxi-deadlines": 315,
     "campaign-edge": 370,
     "static": 107,
 }
@@ -274,13 +275,10 @@ RULES: tuple[Rule, ...] = (
             "tools/ci/build.sh",
             "tools/ci/conflict_markers.py",
             "tools/ci/core_oneoff_user.py",
-            "tools/ci/disk-report.sh",
-            "tools/ci/flake_summary.py",
             "tools/ci/gate.py",
             "tools/ci/hold_gate.py",
             "tools/ci/legacy_ui.py",
             "tools/ci/lint-types.sh",
-            "tools/ci/measure-cache.sh",
             "tools/ci/no_test_doubles.py",
             "tools/ci/reviewed_network_faults.json",
             "tools/ci/security.sh",
@@ -293,7 +291,6 @@ RULES: tuple[Rule, ...] = (
     # Workflows that run no ci.yml suite. Each gated workflow selects itself.
     Rule(
         (
-            ".github/workflows/cache-benchmark.yml",
             ".github/workflows/docs.yml",
             ".github/workflows/docs-watchdog.yml",
             ".github/workflows/nightly-watchdog.yml",
