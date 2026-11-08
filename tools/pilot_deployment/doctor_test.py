@@ -140,15 +140,15 @@ def main() -> None:
 
         # Without the key the API no longer waits for Twenty (E-031), so a
         # forgotten key must fail here instead of looking ready.
-        for label, change in (
-            ("missing integration key", lambda v: v.pop("TWENTY_INTEGRATION_API_KEY")),
-            (
-                "empty integration key",
-                lambda v: v.update(TWENTY_INTEGRATION_API_KEY=""),
-            ),
+        for label, missing in (
+            ("missing integration key", True),
+            ("empty integration key", False),
         ):
             without_key = dict(values)
-            change(without_key)
+            if missing:
+                del without_key["TWENTY_INTEGRATION_API_KEY"]
+            else:
+                without_key["TWENTY_INTEGRATION_API_KEY"] = ""
             write_environment(environment_path, without_key)
             rejected(
                 label,
