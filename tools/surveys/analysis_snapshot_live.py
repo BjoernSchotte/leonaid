@@ -496,9 +496,12 @@ async def main():
             version,
             today_start,
         )
-        assert open_end["participationCount"] <= before_today
-        if before_today == 0:
-            assert open_end["participationCount"] == 0
+        # The engine counts what began before today; the API view withholds
+        # 1 to K - 1 of them (R1). Just after midnight that is the case: the
+        # proof's own participations then belong to the previous club day.
+        raw = (await stored(open_end))["participationCount"]
+        assert raw <= before_today, (raw, before_today)
+        assert open_end["participationCount"] == (None if 0 < raw < 5 else raw)
         # The boundary semantics, checked as the survey owner (raw reader).
         inclusive = await call(
             "POST",
@@ -525,6 +528,24 @@ async def main():
             },
         )
         assert (await stored(exclusive))["participationCount"] == 1
+        # The day boundary on purpose (run 42532443333 failed at 00:00 Berlin):
+        # one participation moves to the previous club day, so the open end
+        # counts it and withholds it.
+        await conn.execute(
+            "UPDATE survey_participation SET created_at=$3, last_answer_changed_at=$3, completed_at=$3 WHERE id=(SELECT id FROM survey_participation WHERE survey_id=$1 AND version_id=$2 AND NOT is_test AND status='completed' ORDER BY created_at, id LIMIT 1)",
+            sid,
+            version,
+            today_start - timedelta(hours=1),
+        )
+        after_midnight = await call(
+            "POST",
+            path,
+            {"operationId": "open-end-after-midnight", "filter": filters},
+            analyst,
+        )
+        raw = (await stored(after_midnight))["participationCount"]
+        assert 1 <= raw < 5, raw
+        assert after_midnight["participationCount"] is None
         await conn.execute(
             "DELETE FROM survey_grant WHERE survey_id=$1 AND user_id=$2",
             sid,
