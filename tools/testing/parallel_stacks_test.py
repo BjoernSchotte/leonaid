@@ -4,7 +4,9 @@ Real files, flock and processes; the stacks are minimal in-process stand-ins
 for the scheduling test (their reset is covered by shared_stack_live.py).
 """
 
+import contextlib
 import fcntl
+import io
 from pathlib import Path
 import shutil
 import subprocess
@@ -177,9 +179,16 @@ class SchedulingTests(unittest.TestCase):
 
     def test_undecodable_output_never_drops_a_failure(self):
         scripts = self.leaves(2, failing=0, body="printf '\\377\\376'\n")
-        results = self.runner([self.Stack("a"), self.Stack("b")], scripts, True).run()
+        console = io.StringIO()
+        with contextlib.redirect_stdout(console):
+            results = self.runner(
+                [self.Stack("a"), self.Stack("b")], scripts, True
+            ).run()
         self.assertIn((scripts[0], 3), results)
         self.assertEqual(len(results), 2)
+        # The console (and a CI log of it) only ever gets valid UTF-8.
+        self.assertIn("\ufffd", console.getvalue())
+        console.getvalue().encode("utf-8")
 
     def test_a_broken_stack_is_retired_and_its_leaf_requeued(self):
         scripts = self.leaves(5)

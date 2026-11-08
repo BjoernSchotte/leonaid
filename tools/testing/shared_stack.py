@@ -709,9 +709,11 @@ class LeafRunner:
                 with self.output_lock:
                     if log is not None:
                         log.seek(0)
+                        # Decoded with replacement: logs (and CI artifacts
+                        # built from them) stay valid UTF-8 whatever a leaf
+                        # printed.
+                        sys.stdout.write(log.read().decode("utf-8", "replace"))
                         sys.stdout.flush()
-                        sys.stdout.buffer.write(log.read())
-                        sys.stdout.buffer.flush()
                     if code is not None:
                         print(
                             f"shared-stack: {script} {time.monotonic() - start:.1f}s, "
