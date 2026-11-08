@@ -13,21 +13,9 @@ inputs:
   write:
     description: Only the designated Build job exports the normal cache
     default: "false"
-  read:
-    description: Disable imports for a measured cold run
-    default: "true"
-  load:
-    description: Also load warm-tag images for the explicit cache benchmark
-    default: "false"
-  measure:
-    description: Optional directory for bounded timing metadata
-    default: ""
 runs:
   using: composite
   steps:
-    - name: Start measurement
-      shell: bash
-      run: echo "CACHE_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
     - name: Start independent toolchain and image preparation
       id: bootstrap
       if: inputs.bootstrap != ''
@@ -65,7 +53,6 @@ runs:
       env:
         CACHE_NAMESPACE: ${{ inputs.namespace }}
         CACHE_WRITE: ${{ inputs.write }}
-        CACHE_READ: ${{ inputs.read }}
         DOCKER_BUILD_RECORD_UPLOAD: "false"
         # No build-record export and job summary in the post step.
         DOCKER_BUILD_SUMMARY: "false"
@@ -73,12 +60,10 @@ runs:
         source: .
         files: tools/ci/docker-bake.hcl
         targets: ${{ inputs.targets }}
-        load: ${{ inputs.load == 'true' }}
         # Materialize imported layers: cache-only warm-up showed cache misses
         # in subsequent Compose builds in CI. Discard the OCI archive; only
         # the actual harness loads runtime images into the Docker daemon.
-        set: ${{ inputs.load != 'true' && '*.output=type=oci,dest=/dev/null' || '' }}
-        no-cache: ${{ inputs.read == 'false' }}
+        set: "*.output=type=oci,dest=/dev/null"
         github-token: ${{ github.token }}
     - name: Back off before retrying the cache import
       if: steps.bake.outcome == 'failure'
@@ -92,7 +77,6 @@ runs:
       env:
         CACHE_NAMESPACE: ${{ inputs.namespace }}
         CACHE_WRITE: ${{ inputs.write }}
-        CACHE_READ: ${{ inputs.read }}
         DOCKER_BUILD_RECORD_UPLOAD: "false"
         # No build-record export and job summary in the post step.
         DOCKER_BUILD_SUMMARY: "false"
@@ -100,23 +84,11 @@ runs:
         source: .
         files: tools/ci/docker-bake.hcl
         targets: ${{ inputs.targets }}
-        load: ${{ inputs.load == 'true' }}
         # Materialize imported layers: cache-only warm-up showed cache misses
         # in subsequent Compose builds in CI. Discard the OCI archive; only
         # the actual harness loads runtime images into the Docker daemon.
-        set: ${{ inputs.load != 'true' && '*.output=type=oci,dest=/dev/null' || '' }}
-        no-cache: ${{ inputs.read == 'false' }}
+        set: "*.output=type=oci,dest=/dev/null"
         github-token: ${{ github.token }}
-    - name: Record cache preparation time
-      if: inputs.measure != ''
-      shell: bash
-      env:
-        MEASUREMENT_DIRECTORY: ${{ inputs.measure }}
-        CACHE_TARGETS: ${{ inputs.targets }}
-      run: |
-        mkdir -p "$MEASUREMENT_DIRECTORY"
-        elapsed=$(( $(date +%s) - CACHE_STARTED_AT ))
-        printf '{"seconds":%s,"targets":"%s","commit":"%s"}\n' "$elapsed" "$CACHE_TARGETS" "$GITHUB_SHA" > "$MEASUREMENT_DIRECTORY/build.json"
     - name: Require completed toolchain and image preparation
       if: always() && steps.bootstrap.outputs.directory != ''
       shell: bash

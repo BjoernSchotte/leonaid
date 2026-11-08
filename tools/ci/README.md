@@ -719,8 +719,8 @@ Buildx builder from GitHub cache v2, then selects that same builder for subseque
 Compose builds. Normal jobs materialize imported layers through an OCI export discarded at
 `/dev/null`, then load images once when the test harness builds its runtime tags.
 A cache-only export leaves lazy imported records that the subsequent Compose
-build did not reuse in our GitHub measurement; it must not replace this export. Only the explicit cache
-benchmark enables `load: "true"` to retain its warm-tag runtime probe. Project-specific image names remain independent; initialized
+build did not reuse in our GitHub measurement; it must not replace this export.
+Project-specific image names remain independent; initialized
 volumes, secrets and runtime state are never exported.
 
 Scopes are stable per image family and `linux/amd64`; BuildKit invalidates layers
@@ -728,16 +728,6 @@ from Dockerfile and source inputs. API and worker share the Core cache. Only the
 normal Build job exports the production cache. Other image-consuming jobs import
 it without concurrent writes.
 Survey sudo invocations preserve CI and the selected Docker builder/configuration.
-
-The opt-in Build cache benchmark (manual dispatch or the
-`benchmark-build-cache` pull-request label) uses fresh GitHub runners for
-proxy-only and full-image scenarios, in three sequential rounds: cold without
-imports, unchanged with imports, and a comment-only Public source change with
-imports. Its cache namespace includes the workflow run ID and cannot alter the
-normal cache. Reports include builder preparation/import/build/export/load time
-and a subsequent project-renamed Compose build. The latter must cache every
-Dockerfile RUN step. Full-image cases also start the real Public Node image and
-verify its HTTP readiness. No database or test stack is needed for this benchmark.
 
 ## Runner disk budget
 
