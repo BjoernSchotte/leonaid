@@ -14,6 +14,7 @@ import type {
 } from "@leonaid/api-client";
 import { EmptyState } from "@leonaid/ui";
 
+import { useOfflineRuntime } from "../offline/runtime";
 import { isoDay, localIsoDate, relativeDay } from "../shared/dates";
 import {
   ActionChoice,
@@ -21,6 +22,7 @@ import {
   BoardLoading,
   SponsorRow,
   navigateToScreen,
+  sponsorBoardQuery,
   sponsorHref,
   useAcquirerAction,
   useScreenHeading,
@@ -87,15 +89,12 @@ export function ActivityWorkspace({
   // contact sheet. The link names no campaign, so the campaign holding the
   // assignment is looked up among the acquirer's campaigns.
   const linked = new URLSearchParams(window.location.search).get("assignment");
+  const runtime = useOfflineRuntime();
   const boards = useQueries({
     queries: linked
-      ? memberships.map((membership) => ({
-          queryFn: () =>
-            client.getAcquisitionActivityBoard(membership.actionId, {
-              limit: 100,
-            }),
-          queryKey: ["acquisition-activity-board", membership.actionId],
-        }))
+      ? memberships.map((membership) =>
+          sponsorBoardQuery(client, runtime, membership.actionId),
+        )
       : [],
   });
   const settled = boards.every((result) => !result.isPending);
@@ -136,6 +135,7 @@ export function ActivityWorkspace({
         <BoardLoading label="Wiedervorlagen werden geladen" />
       ) : board.isError ? (
         <BoardFailed
+          error={board.error}
           onRetry={() => void board.refetch()}
           title="Wiedervorlagen nicht erreichbar"
         />

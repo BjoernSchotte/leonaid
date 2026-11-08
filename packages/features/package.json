@@ -10,7 +10,8 @@
     "./tasks": "./src/tasks/module.tsx",
     "./materials": "./src/materials/module.tsx",
     "./knowledge": "./src/knowledge/module.tsx",
-    "./inbox": "./src/inbox/module.tsx"
+    "./inbox": "./src/inbox/module.tsx",
+    "./offline": "./src/offline/index.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",

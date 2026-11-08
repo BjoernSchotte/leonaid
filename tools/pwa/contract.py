@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any
@@ -31,6 +32,8 @@ ANNA_ID = UUID("10000000-0000-4000-8000-000000000004")
 BERND_ID = UUID("10000000-0000-4000-8000-000000000005")
 CARLA_ID = UUID("10000000-0000-4000-8000-000000000006")
 GESA_ID = UUID("10000000-0000-4000-8000-000000000008")
+# Charity admin: the offline specs sign her in on /admin/ (offline queue D6).
+KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 SESSION_NAMESPACE = UUID("16c66204-ded1-45bd-9800-a3e561328a83")
 MARA_PHONE = "+493012345678"
 
@@ -52,7 +55,7 @@ def token_for(user_id: UUID) -> str:
 
 async def prepare_personas(connection: asyncpg.Connection[Any]) -> None:
     now = datetime.now(timezone.utc)
-    users = (ANNA_ID, BERND_ID, CARLA_ID, GESA_ID)
+    users = (ANNA_ID, BERND_ID, CARLA_ID, GESA_ID, KLARA_ID)
     await connection.execute(
         """
         UPDATE user_account
@@ -199,13 +202,17 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
     )
 
 
-async def main() -> None:
+async def main(sessions_only: bool = False) -> None:
     connection = await asyncpg.connect(require_env("CORE_DATABASE_URL"))
     try:
-        await exercise(connection)
+        if sessions_only:
+            # Fresh persona sessions for browser specs that sign out.
+            await prepare_personas(connection)
+        else:
+            await exercise(connection)
     finally:
         await connection.close()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main(sessions_only="--sessions-only" in sys.argv[1:]))

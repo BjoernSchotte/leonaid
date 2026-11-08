@@ -23,6 +23,14 @@ import {
   type StatusShape,
 } from "@leonaid/ui";
 
+import { minimizeBoard } from "../offline/read-cache";
+import {
+  STALE_READ_CACHE_TEXT,
+  StaleReadCacheError,
+  readThrough,
+  useOfflineRuntime,
+  type OfflineRuntime,
+} from "../offline/runtime";
 import { navigateInPage } from "../shared/location";
 import { relativeDay } from "../shared/dates";
 import { PWA_BASE, pwaHref } from "@leonaid/ui/base-paths";
@@ -129,15 +137,38 @@ export function ActionChoice({
   );
 }
 
-/** The acquirer's sponsors with follow-ups and recent contacts. */
+/**
+ * The acquirer's sponsors with follow-ups and recent contacts. In the PWA
+ * with offline capture on, a minimized copy is kept on the device and
+ * shown without network (specs/pwa-offline-queue §8.2).
+ */
 export function useSponsorBoard(client: LeonAidApiClient, actionId: string) {
+  const runtime = useOfflineRuntime();
   return useQuery({
     enabled: Boolean(actionId),
+    ...sponsorBoardQuery(client, runtime, actionId),
+  });
+}
+
+/** One query definition for every reader of the sponsor board key. */
+export function sponsorBoardQuery(
+  client: LeonAidApiClient,
+  runtime: OfflineRuntime,
+  actionId: string,
+) {
+  return {
     // All of the acquirer's sponsors; `limit` caps only the latest contacts
     // across all sponsors (the detail's "Verlauf" shows those).
-    queryFn: () => client.getAcquisitionActivityBoard(actionId, { limit: 100 }),
+    queryFn: () =>
+      readThrough(
+        runtime,
+        "board",
+        actionId,
+        () => client.getAcquisitionActivityBoard(actionId, { limit: 100 }),
+        minimizeBoard,
+      ),
     queryKey: ["acquisition-activity-board", actionId],
-  });
+  };
 }
 
 export function sponsorHref(actionId: string, assignmentId: string) {
@@ -273,10 +304,13 @@ export function BoardLoading({ label }: { readonly label: string }) {
 }
 
 export function BoardFailed({
+  error,
   onRetry,
   retryLabel = "Erneut laden",
   title,
 }: {
+  /** The query's error; a device copy older than 7 days has its own text. */
+  readonly error?: unknown;
   readonly onRetry: () => void;
   readonly retryLabel?: string;
   readonly title: string;
@@ -285,9 +319,10 @@ export function BoardFailed({
     <StatusMessage tone="error">
       <div>
         <strong>{title}</strong>
-        <p>
-          Prüfe deine Verbindung. Bereits geöffnete Daten werden nicht offline
-          verändert.
+        <p data-testid="board-failed-text">
+          {error instanceof StaleReadCacheError
+            ? STALE_READ_CACHE_TEXT
+            : "Prüfe deine Verbindung. Bereits geöffnete Daten werden nicht offline verändert."}
         </p>
         <Button onClick={onRetry} variant="secondary">
           {retryLabel}

@@ -1151,6 +1151,17 @@ check_stdlib() {
     /bin/sh /workspace/tools/dx/stdlib_checks.sh /workspace
 }
 
+# The harness self-tests CI runs on the host Python (they need the git and
+# Docker CLIs): tools/ci/security.sh and tools/ci/lint-types.sh.
+check_host_tests() {
+  python3 "$root/tools/local_tests_test.py" &&
+    python3 "$root/tools/testing/ci_fixture_test.py" &&
+    python3 "$root/tools/testing/image_tags_test.py" &&
+    python3 "$root/tools/testing/phase_test.py" &&
+    python3 "$root/tools/testing/fixture_cache_test.py" &&
+    python3 "$root/tools/dx/pre_push_test.py"
+}
+
 check_browser_image() {
   docker run --rm \
     -e PYTHONPATH=/workspace \
@@ -1241,6 +1252,7 @@ check_all() {
   echo "check: running independent groups in parallel; results follow in order"
   check_groups_begin
   check_group stdlib check_stdlib
+  check_group host-tests check_host_tests
   check_group browser-image check_browser_image
   check_group ruff check_ruff
   check_group mypy check_mypy
@@ -1298,8 +1310,9 @@ check_fast() {
     -p no:cacheprovider tests/unit --ignore "$solver_tests"
   check_group frontend check_fast_frontend
   check_group repository docker run --rm --network none \
+    --user "$host_user" -e HOME=/tmp \
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
-    python /workspace/tools/ci/conflict_markers.py /workspace
+    /bin/sh /workspace/tools/dx/fast_ci_checks.sh /workspace
   check_groups_end check-fast
   echo "check-fast: OK (run ./leonaid check before opening a PR)"
 }

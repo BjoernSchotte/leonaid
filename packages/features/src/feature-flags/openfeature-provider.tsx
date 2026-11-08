@@ -17,6 +17,7 @@ export const FEATURE_FLAG_DOMAIN = "leonaid";
 
 export const FEATURE_FLAGS = {
   previewNotice: "admin.preview_notice",
+  pwaOfflineQueue: "pwa.offline_queue",
   systemStatusPanel: "admin.system_status_panel",
 } as const;
 
@@ -44,6 +45,7 @@ function featureConfiguration(
 
   return {
     [FEATURE_FLAGS.previewNotice]: configured(FEATURE_FLAGS.previewNotice),
+    [FEATURE_FLAGS.pwaOfflineQueue]: configured(FEATURE_FLAGS.pwaOfflineQueue),
     [FEATURE_FLAGS.systemStatusPanel]: configured(
       FEATURE_FLAGS.systemStatusPanel,
     ),

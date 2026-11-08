@@ -102,6 +102,15 @@
         "property-newly-required:CurrentIdentityResponse.landingPath"
       ],
       "rationale": "Multi-domain stage 1b adds landingPath, the role-based start page computed by Core for the signed-in member, to the authenticated identity response. It is output-only: Core always serializes it, and no request contract changes. The generated client ships with the matching Core release; this does not promise compatibility with an older Core server. Approved by Björn Schotte on 2026-11-07. Approval is bound to these exact contract hashes and changes."
+    },
+    {
+      "oldSha256": "b2becff586a07552d5e5558830d3145060ed2384f2ef9dc59ce854c7e4171552",
+      "newSha256": "e7eb397b5a75ad3510ddc347fd5c71c6fe1bb9859257cca8ad2bebadde9a3f92",
+      "changes": [
+        "property-type-changed:FeatureFlagAdminResponse.key",
+        "property-type-changed:FeatureFlagEvaluationResponse.key"
+      ],
+      "rationale": "Offline queue stage 1 adds the feature flag key pwa.offline_queue. Only the literal set of response-only flag keys grows; no request contract or existing value changes. The generated client ships with the matching Core release. Approved by Björn Schotte on 2026-11-08 (lead decision log E-009). Approval is bound to these exact contract hashes and changes."
     }
   ]
 }

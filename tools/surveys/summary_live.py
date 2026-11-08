@@ -17,6 +17,7 @@ from uuid import UUID, uuid4
 
 import asyncpg
 import httpx
+from club_day import database_now, refused_start
 
 from leonaid.domain.sessions import SESSION_LIFETIME, session_token_digest
 
@@ -187,13 +188,14 @@ async def main():
                 "operationId": "narrow",
                 "filter": {
                     "versionId": version["id"],
-                    "createdFrom": (now - timedelta(hours=3)).isoformat(),
+                    "createdFrom": refused_start(await database_now(conn)).isoformat(),
                 },
             },
             analyst,
             422,
         )
-        # Whole Berlin days only, never into today: a start 3 hours ago is empty.
+        # Whole Berlin days only, never into today: a start today is empty.
+        # Not "3 hours ago": after midnight that is yesterday (club_day.py).
         assert narrow["error"]["code"] == "range_whole_days"
         whole = await call(
             "POST",

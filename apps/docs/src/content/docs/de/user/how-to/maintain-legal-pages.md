@@ -4,8 +4,8 @@ description: Pflichtangaben nach § 5 DDG und die Texte der Seite /datenschutz a
 docId: DOC-P048
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
+contentRevision: 2
+reviewedRevision: 2
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -57,14 +57,21 @@ deinem Namen beziehungsweise im Menü **Mehr**.
    und die zuständige Aufsichtsbehörde.
 3. Der **Datenschutzhinweis für Mitglieder** enthält den Abschnitt
    „Speicherung auf deinem Gerät“: welche Daten die Akquise-App für die
-   Erfassung ohne Netz auf dem Gerät speichert (eigene Sponsoren mit
+   Erfassung ohne Netz auf dem Gerät speichert (eine Kurzform der eigenen
+   Anmeldung mit Name, Aktionen und Rollen, eigene Sponsoren mit
    Ansprechperson, Telefonnummer und E-Mail-Adresse sowie noch nicht gesendete
-   Einträge), dass sie verschlüsselt sind, dass nicht gesendete Einträge nach
-   14 Tagen ablaufen und dass Abmelden oder die Anmeldung einer anderen Person
-   alles löscht. Er beschreibt die Offline-Erfassung der Akquise-App. Behalte
-   ihn nur, wenn die Offline-Erfassung aktiv ist, sonst lösche den ganzen
-   Abschnitt. Die Vorlage markiert das mit einem `[[ … ]]`-Hinweis, der die
-   Aktivierung blockiert, bis du ihn entfernst.
+   Einträge, bei Bestellungen mit Rechnungs- und Lieferadresse), dass sie nur
+   auf diesem Gerät und verschlüsselt liegen, dass nicht gesendete Einträge
+   nach 14 Tagen ablaufen und dass Abmelden in einer der beiden Apps oder die
+   Anmeldung einer anderen Person alles löscht. Er beschreibt die
+   Offline-Erfassung der Akquise-App. Behalte ihn nur, wenn die
+   Offline-Erfassung aktiv ist, sonst lösche den ganzen Abschnitt. Die
+   Vorlage markiert das mit einem `[[ … ]]`-Hinweis, der die Aktivierung
+   blockiert, bis du ihn entfernst. Die System-Administration schaltet das
+   Feature-Flag **Offline-Erfassung in der Akquise-App** erst ein, wenn ein
+   Hinweis mit diesem Abschnitt aktiv ist. Den Text hat Claude Code
+   vorgeschlagen; er braucht wie jede Fassung die Freigabe im
+   Vier-Augen-Ablauf (Prüfung durch Björn Schotte offen).
 4. Format: Trenne Absätze durch eine Leerzeile. `## ` am Zeilenanfang beginnt
    eine Überschrift, `- ` einen Listenpunkt.
 5. Wähle **Als Entwurf speichern**.

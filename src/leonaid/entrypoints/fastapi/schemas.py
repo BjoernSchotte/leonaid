@@ -240,6 +240,7 @@ class SearchResponse(TransportModel):
 FeatureFlagKeyValue = Literal[
     "admin.system_status_panel",
     "admin.preview_notice",
+    "pwa.offline_queue",
 ]
 
 

@@ -34,7 +34,15 @@ import {
   followInPage,
   sponsorHref,
   useScreenHeading,
+  useSponsorBoard,
 } from "../acquisition/pwa-common";
+import { minimizeCaptureContext } from "../offline/read-cache";
+import {
+  STALE_READ_CACHE_TEXT,
+  StaleReadCacheError,
+  readThrough,
+  useOfflineRuntime,
+} from "../offline/runtime";
 import { useLocationHref } from "../shared/location";
 import { CompleteDraft } from "./complete-draft";
 import {
@@ -346,9 +354,19 @@ export function CommitmentCapturePage({
   const commandId = useRef(crypto.randomUUID());
   const queries = useQueryClient();
 
+  const runtime = useOfflineRuntime();
   const context = useQuery({
     enabled: Boolean(actionId),
-    queryFn: () => client.getCommitmentCaptureContext(actionId),
+    // Offers and windows come from the device copy without network
+    // (specs/pwa-offline-queue §8.2).
+    queryFn: () =>
+      readThrough(
+        runtime,
+        "capture",
+        actionId,
+        () => client.getCommitmentCaptureContext(actionId),
+        minimizeCaptureContext,
+      ),
     queryKey: ["commitment-capture-context", actionId],
     refetchOnWindowFocus: false,
   });
@@ -357,11 +375,7 @@ export function CommitmentCapturePage({
     queryKey: ["commitment", actionId, existingId],
     queryFn: () => client.getCommitment(actionId, existingId),
   });
-  const sponsors = useQuery({
-    enabled: Boolean(actionId),
-    queryFn: () => client.getAcquisitionActivityBoard(actionId, { limit: 100 }),
-    queryKey: ["acquisition-activity-board", actionId],
-  });
+  const sponsors = useSponsorBoard(client, actionId);
   const sponsor = sponsors.data?.workItems.find(
     (item) => item.assignmentId === assignmentId,
   );
@@ -555,7 +569,12 @@ export function CommitmentCapturePage({
       <StatusMessage tone="error">
         <div>
           <strong>Bestellangaben nicht erreichbar</strong>
-          <p>Prüfe deine Verbindung und lade die Angaben erneut.</p>
+          <p>
+            {context.error instanceof StaleReadCacheError ||
+            sponsors.error instanceof StaleReadCacheError
+              ? STALE_READ_CACHE_TEXT
+              : "Prüfe deine Verbindung und lade die Angaben erneut."}
+          </p>
           <Button
             onClick={() => {
               void context.refetch();
