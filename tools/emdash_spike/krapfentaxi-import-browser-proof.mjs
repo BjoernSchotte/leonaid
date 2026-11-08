@@ -18,7 +18,22 @@ const action = "20000000-0000-4000-8000-000000000001";
 const replacementImage = await readFile(
   "apps/public/src/assets/krapfentaxi/logo.png",
 );
-for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
+// EMDASH_EDITOR_ENGINES (comma list) narrows the engines; WebKit runs
+// last, so its marker is the published state later order proofs read.
+const engines = (process.env.EMDASH_EDITOR_ENGINES ?? "chromium,firefox,webkit")
+  .split(",")
+  .filter(Boolean);
+assert.ok(
+  engines.length > 0 &&
+    engines.every((name) => ["chromium", "firefox", "webkit"].includes(name)) &&
+    engines.at(-1) === "webkit",
+  `EMDASH_EDITOR_ENGINES: ${engines}`,
+);
+for (const [name, engine] of Object.entries({
+  chromium,
+  firefox,
+  webkit,
+}).filter(([name]) => engines.includes(name))) {
   const browser = guardCsp(await engine.launch({ headless: true }));
   try {
     const context = await browser.newContext({ ignoreHTTPSErrors: true });

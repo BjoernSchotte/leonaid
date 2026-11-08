@@ -499,7 +499,7 @@ jobs:
           # the nightly run and a dispatch on main) write the shared BuildKit
           # cache, which every pull request imports; writing after each merge
           # is intended, it keeps the PR imports current. Pull requests and bot dispatches on other
-          # branches (ci/refit-timings, pins/repin-images) only read: their
+          # branches (pins/repin-images) only read: their
           # layers would evict main's from the 10 GB budget.
           write: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && 'true' || 'false' }}
           # tools/ci/build.sh reuses shared tags; a cache write bakes all.

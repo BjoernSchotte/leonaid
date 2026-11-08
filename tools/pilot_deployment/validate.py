@@ -525,9 +525,9 @@ def validate_hosts(
         raise DeploymentContractError("public app hosts differ from the proxy hosts")
 
 
-# Released after the EmDash case campaign-hosts-admin-only passed in CI
-# (run 42417644446, #109). Kept as a switch so the contract test can prove the
-# refusal path.
+# Released after the EmDash admin-only proof passed in CI (now the second
+# round of case campaign-hosts; run 42417644446, #109). Kept as a switch so the
+# contract test can prove the refusal path.
 ADMIN_ONLY_RELEASED = True
 
 
@@ -548,7 +548,7 @@ def validate_admin_only(
     if not ADMIN_ONLY_RELEASED:
         raise DeploymentContractError(
             "Caddyfile.admin-only (no public host) is not released yet: its "
-            "stack proof (test-emdash-spike --case campaign-hosts-admin-only) "
+            "stack proof (test-emdash-spike --case campaign-hosts, admin-only round) "
             "must pass in CI first"
         )
     if public_domain or aliases or public_origins:

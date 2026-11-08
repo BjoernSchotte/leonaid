@@ -10,7 +10,7 @@ name: Nightly watchdog
 # every post-merge workflow here.
 on:
   workflow_run:
-    workflows: [LeonAid CI, Dependency pins, Image pin drift, Refit CI timings]
+    workflows: [LeonAid CI, Dependency pins, Image pin drift]
     types: [completed]
   # Also catches a schedule that stopped firing or a missed workflow_run.
   schedule:
@@ -39,7 +39,7 @@ jobs:
       # for days). ci.yml runs after every merge; its nightly run (every
       # E2E leaf, survey recovery and backup) is tracked on its own. Runs after every completed
       # scheduled or post-merge run (workflow_run), and daily.
-      WATCHED: "ci.yml:push ci.yml:30:nightly pin-drift.yml:30 pins.yml:192 refit-timings.yml:192"
+      WATCHED: "ci.yml:push ci.yml:30:nightly pin-drift.yml:30 pins.yml:192"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

@@ -19,7 +19,7 @@ recovery_orders_prepare() {
   cp "$proof/recovery-orders-browser/orders-ui.json" "$proof/orders-ui.json"
   fixture /repo/tools/emdash_spike/campaign_orders_verify.py
   cp "$proof/orders-ui.json" "$proof/pre-recovery-orders.json"
-  echo "recovery-orders: 24 actual browser orders and Twenty records verified before backup"
+  echo "recovery-orders: actual browser orders and Twenty records verified before backup"
 }
 recovery_orders_verify() {
   # Never provision, reseed or replace the restricted key on the restored CRM.
@@ -32,6 +32,6 @@ recovery_orders_verify() {
   # The target has its own CA; do not accidentally verify against source TLS.
   compose cp proxy:/data/caddy/pki/authorities/local/root.crt "$proof/root.crt" >/dev/null
   LEONAID_ENV=test fixture /repo/tools/emdash_spike/valid_order_ingress_proof.py
-  echo "recovery-orders: pre-backup orders preserved, 24 new browser orders converged with restored Twenty, native replay and public Core ingress denial passed"
+  echo "recovery-orders: pre-backup orders preserved, new browser orders converged with restored Twenty, native replay and public Core ingress denial passed"
   echo "recovery-orders: synthetic screenshots retained in $recovery_visual_proof"
 }

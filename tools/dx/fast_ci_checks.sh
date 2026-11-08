@@ -15,7 +15,7 @@ check() {
 check conflict-markers python "$w/tools/ci/conflict_markers.py" "$w"
 check check-parity python "$w/tools/dx/check_parity_test.py" "$w"
 for test in axe_helper base_path_literals conflict_markers core_oneoff_user gate \
-  leak_check no_test_doubles refit_timings select_suites workflow_contract; do
+  leak_check no_test_doubles select_suites workflow_contract; do
   check "$test" python "$w/tools/ci/${test}_test.py" "$w"
 done
 if [ -n "$failed" ]; then
