@@ -457,7 +457,26 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         repeat.raise_for_status()
         if repeat.json().get("updated") != 0:
             raise ContractFailure("Mark all as read is not idempotent")
-        # The browser tests that follow expect Anna's entries unread again.
+        # The charity admin's work queue: mark-all reads Klara's one entry
+        # and leaves the acquirers' feeds alone.
+        klara_all = await authenticated_request(
+            api,
+            "POST",
+            "/api/v1/activity-feed/read",
+            tokens[KLARA_ID],
+            "poc082:klara-read-all",
+            None,
+        )
+        klara_all.raise_for_status()
+        klara_after = await get_feed(api, token=tokens[KLARA_ID], label="klara-all")
+        anna_still = await get_feed(api, token=tokens[ANNA_ID], label="anna-still")
+        if (
+            klara_all.json().get("updated") != 1
+            or klara_after.get("unreadCount") != 0
+            or anna_still.get("unreadCount") != 0
+        ):
+            raise ContractFailure("Charity admin mark-all is wrong or leaks")
+        # Leave Anna's entries unread again, as seeded.
         for item in anna_items:
             restored = await authenticated_request(
                 api,

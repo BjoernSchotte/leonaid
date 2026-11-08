@@ -72,8 +72,12 @@ else
   compose up --detach --wait --wait-timeout 420 api
 fi
 
+# Whether the running API has a CRM key decides if readiness must list Twenty.
+crm_configured=$(compose exec -T api sh -c \
+  'if [ -n "${TWENTY_INTEGRATION_API_KEY:-}" ]; then echo true; else echo false; fi')
 docker run --rm \
   --network "${project}_edge" \
+  --env LEONAID_CONTRACT_CRM_CONFIGURED="$crm_configured" \
   -v "$root:/workspace:ro" \
   -w /workspace \
   "$BUN_IMAGE" \

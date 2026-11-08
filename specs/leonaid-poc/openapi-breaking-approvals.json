@@ -111,6 +111,14 @@
         "property-type-changed:FeatureFlagEvaluationResponse.key"
       ],
       "rationale": "Offline queue stage 1 adds the feature flag key pwa.offline_queue. Only the literal set of response-only flag keys grows; no request contract or existing value changes. The generated client ships with the matching Core release. Approved by Björn Schotte on 2026-11-08 (lead decision log E-009). Approval is bound to these exact contract hashes and changes."
+    },
+    {
+      "oldSha256": "e7eb397b5a75ad3510ddc347fd5c71c6fe1bb9859257cca8ad2bebadde9a3f92",
+      "newSha256": "9d7b395e3fac3fccde46b6f30e077bd13b6b4440a8dd6b08914cab5e8c3ad120",
+      "changes": [
+        "property-constraint-tightened:UpdateCase.closureNote"
+      ],
+      "rationale": "The inbox closing note must have at least 10 characters on the server too. The web UI already enforced this, so its requests do not change; any other client could close a case with one character, which was a bug. Approved by Björn Schotte on 2026-11-08 (E-032). Approval is bound to these exact contract hashes and changes."
     }
   ]
 }

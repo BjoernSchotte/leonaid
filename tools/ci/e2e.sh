@@ -53,7 +53,7 @@ leaves() {
   identity)
     echo core tools/identity/test.sh
     ;;
-  tasks|materials|knowledge|inbox)
+  tasks|knowledge|inbox)
     echo core "tools/$1/test.sh"
     ;;
   acquisition)

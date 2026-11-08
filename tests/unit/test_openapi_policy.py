@@ -45,6 +45,27 @@ def test_breaking_policy_detects_removed_and_newly_required_properties() -> None
     ]
 
 
+def test_breaking_policy_detects_tightened_constraints_only() -> None:
+    def note(**bounds: object) -> dict[str, Any]:
+        contract = document()
+        contract["components"]["schemas"]["Example"]["properties"]["name"] = {
+            "anyOf": [{"type": "string", **bounds}, {"type": "null"}]
+        }
+        return contract
+
+    old = note(minLength=1, maxLength=4000)
+    assert breaking_changes(old, note(minLength=10, maxLength=4000)) == [
+        "property-constraint-tightened:Example.name"
+    ]
+    assert breaking_changes(old, note(minLength=1, maxLength=200)) == [
+        "property-constraint-tightened:Example.name"
+    ]
+    assert breaking_changes(old, note(minLength=1, maxLength=4000, pattern="^a")) == [
+        "property-constraint-tightened:Example.name"
+    ]
+    assert breaking_changes(old, note(maxLength=8000)) == []
+
+
 def test_breaking_policy_requires_exact_hash_changes_and_rationale() -> None:
     old = document()
     new = document(include_name=False)

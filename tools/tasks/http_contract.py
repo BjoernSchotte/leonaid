@@ -302,6 +302,51 @@ async def main() -> None:
                         f"/api/v1/task-lists/{listing['id']}", headers=editor_headers
                     )
                 ).json()["canEdit"]
+                tag_path = f"/api/v1/task-lists/{listing['id']}/tags"
+                tag_command = {"idempotencyKey": str(uuid4()), "title": "Urgent"}
+                tag = await client.post(tag_path, headers=headers, json=tag_command)
+                assert tag.status_code == 200, tag.text
+                assert (
+                    await client.post(tag_path, headers=headers, json=tag_command)
+                ).json() == tag.json()
+                assert (
+                    await client.post(
+                        tag_path,
+                        headers=editor_headers,
+                        json={"idempotencyKey": str(uuid4()), "title": "Viewer"},
+                    )
+                ).status_code == 404
+                assert (
+                    await client.get(
+                        tag_path, headers=editor_headers, params={"search": "urg"}
+                    )
+                ).json()["items"] == [tag.json()]
+                someday = await client.put(
+                    plan_path,
+                    headers=editor_headers,
+                    json={
+                        "idempotencyKey": str(uuid4()),
+                        "expectedRevision": 0,
+                        "state": "someday",
+                    },
+                )
+                assert someday.status_code == 200, someday.text
+                someday_params = {"view": "someday", "timeZone": "Europe/Berlin"}
+                assert [
+                    item["id"]
+                    for item in (
+                        await client.get(
+                            "/api/v1/task-plans",
+                            headers=editor_headers,
+                            params=someday_params,
+                        )
+                    ).json()["items"]
+                ] == [task["id"]]
+                assert (
+                    await client.get(
+                        "/api/v1/task-plans", headers=headers, params=someday_params
+                    )
+                ).json()["items"] == []
                 assert not (
                     await client.get("/api/v1/tasks", headers=editor_headers)
                 ).json()["items"][0]["canEdit"]
@@ -435,6 +480,12 @@ async def main() -> None:
                 assert (
                     await client.get("/api/v1/tasks", headers=editor_headers)
                 ).json()["items"] == []
+                assert (
+                    await client.get(plan_path, headers=editor_headers)
+                ).status_code == 404
+                assert (
+                    await client.get(tag_path, headers=editor_headers)
+                ).status_code == 404
                 await connection.execute(
                     "UPDATE user_account SET status='suspended' WHERE id=$1", user_id
                 )

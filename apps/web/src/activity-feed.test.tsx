@@ -1,5 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import axe from "axe-core";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -12,7 +19,9 @@ import { ActivityFeedPage } from "../../../packages/features/src/activity-feed/a
 
 const itemId = "30000000-0000-4000-8000-000000000001";
 
-function feedItem(): ActivityFeedItemResponse {
+function feedItem(
+  overrides: Partial<ActivityFeedItemResponse> = {},
+): ActivityFeedItemResponse {
   return {
     actionId: "20000000-0000-4000-8000-000000000001",
     actionName: "Krapfentaxi 2026",
@@ -33,6 +42,7 @@ function feedItem(): ActivityFeedItemResponse {
     totalBoxes: 2,
     totalMinor: 2400,
     totalPieces: 0,
+    ...overrides,
   };
 }
 
@@ -108,5 +118,113 @@ describe("activity feed next action", () => {
     expect(JSON.parse(String(patch.init.body))).toEqual({ read: true });
     // A full-page navigation aborts a normal fetch mid-body (API: 400).
     expect(patch.init.keepalive).toBe(true);
+  });
+});
+
+const secondId = "30000000-0000-4000-8000-000000000002";
+
+/** Two unread entries; reads and mark-all change what the next GET returns. */
+function keyboardClient(sent: SentRequest[]) {
+  const read = new Set<string>();
+  const items = () =>
+    [
+      feedItem(),
+      feedItem({ id: secondId, partyDisplayName: "Musterwerk GmbH" }),
+    ].map((item) => ({ ...item, isRead: read.has(item.id) }));
+  return new LeonAidApiClient("", async (input, init = {}) => {
+    const url = String(input);
+    sent.push({ url, init });
+    if (init.method === "PATCH") {
+      const id = url.split("/").at(-1)!;
+      read.add(id);
+      return json(items().find((item) => item.id === id));
+    }
+    if (init.method === "POST") {
+      const updated = items().filter((item) => !item.isRead).length;
+      items().forEach((item) => read.add(item.id));
+      return json({ updated });
+    }
+    const all = items();
+    return json({
+      items: all,
+      limit: 50,
+      offset: 0,
+      total: all.length,
+      unreadCount: all.filter((item) => !item.isRead).length,
+    });
+  });
+}
+
+function press(key: string, shiftKey = false) {
+  act(() => {
+    (document.activeElement ?? document.body).dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key,
+        shiftKey,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  });
+}
+
+describe("activity feed keyboard and a11y", () => {
+  it("moves with j, reads with u, marks all with Shift+U and passes axe", async () => {
+    const sent: SentRequest[] = [];
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const { container } = render(
+      <QueryClientProvider client={queryClient}>
+        <HotkeyProvider>
+          <ToastProvider>
+            <ActivityFeedPage client={keyboardClient(sent)} surface="web" />
+          </ToastProvider>
+        </HotkeyProvider>
+      </QueryClientProvider>,
+    );
+    const links = await screen.findAllByTestId("activity-feed-next-action");
+    expect(links).toHaveLength(2);
+    // jsdom has no layout, so axe skips colour contrast here.
+    const result = await axe.run(container, {
+      rules: { "color-contrast": { enabled: false } },
+    });
+    expect(result.violations.map((violation) => violation.id)).toEqual([]);
+
+    press("j");
+    expect(document.activeElement).toBe(links[0]);
+    press("j");
+    expect(document.activeElement).toBe(links[1]);
+    expect(links[1]!.tabIndex).toBe(0);
+    expect(links[0]!.tabIndex).toBe(-1);
+
+    press("u");
+    await waitFor(() =>
+      expect(screen.getByTestId("activity-feed-unread-count").textContent).toBe(
+        "1 ungelesen",
+      ),
+    );
+    const patch = sent.find(({ init }) => init.method === "PATCH")!;
+    expect(patch.url).toBe(`/api/v1/activity-feed/${secondId}`);
+    expect(JSON.parse(String(patch.init.body))).toEqual({ read: true });
+
+    const markAll = screen.getByRole("button", {
+      name: /Alle als gelesen markieren/,
+    }) as HTMLButtonElement;
+    expect(markAll.disabled).toBe(false);
+    press("U", true);
+    await waitFor(() => expect(markAll.disabled).toBe(true));
+    expect(screen.getByTestId("activity-feed-unread-count").textContent).toBe(
+      "Alles gelesen",
+    );
+    expect(
+      sent.filter(
+        ({ init, url }) =>
+          init.method === "POST" && url === "/api/v1/activity-feed/read",
+      ),
+    ).toHaveLength(1);
+    // Shift+U with nothing unread sends nothing more.
+    press("U", true);
+    expect(sent.filter(({ init }) => init.method === "POST")).toHaveLength(1);
   });
 });

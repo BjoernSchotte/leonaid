@@ -25,11 +25,21 @@ if (live.status !== "live") {
 }
 
 const ready = await client.getHealthReady();
+// Twenty is a readiness dependency exactly when the API has a CRM key
+// (decision E-031); tools/openapi/test.sh reads that from the running API.
+const crmConfigured = (
+  globalThis as { process?: { env: Record<string, string | undefined> } }
+).process?.env.LEONAID_CONTRACT_CRM_CONFIGURED;
+if (crmConfigured !== "true" && crmConfigured !== "false") {
+  throw new Error("LEONAID_CONTRACT_CRM_CONFIGURED must be true or false");
+}
 if (
   ready.status !== "ready" ||
   ready.checks.postgres?.status !== "ready" ||
-  ready.checks.twenty?.status !== "ready" ||
-  ready.checks.rustfs?.status !== "ready"
+  ready.checks.rustfs?.status !== "ready" ||
+  (crmConfigured === "true"
+    ? ready.checks.twenty?.status !== "ready"
+    : "twenty" in ready.checks)
 ) {
   throw new Error(`API is not ready: ${JSON.stringify(ready)}`);
 }
