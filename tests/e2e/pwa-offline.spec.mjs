@@ -389,13 +389,26 @@ test("the admin web app clears the device copy too (D6, §8.5)", async ({
   await context.setOffline(false);
 
   // Sign-out in the admin web app deletes the copy as well. Klara has no
-  // acquirer role, so a copy of hers is planted the way the PWA names it.
+  // acquirer role, so a copy of hers with an empty queue is planted the way
+  // the PWA lays it out (an unreadable one would make sign-out ask).
   await page.goto(`${baseUrl}/admin/`);
   await expect(page.getByTestId("display-name")).toHaveText(/Klara/);
   await page.evaluate(async (id) => {
     localStorage.setItem("leonaid-pwa-active-user", id);
     await new Promise((resolve, reject) => {
-      const request = indexedDB.open(`leonaid-pwa-v1-${id}`);
+      const request = indexedDB.open(`leonaid-pwa-v1-${id}`, 1);
+      request.onupgradeneeded = () => {
+        const database = request.result;
+        const queue = database.createObjectStore("queue", {
+          keyPath: "entryId",
+        });
+        queue.createIndex("state", "state");
+        queue.createIndex("actionId", "actionId");
+        queue.createIndex("sequence", "sequence", { unique: true });
+        queue.createIndex("dependsOn", "dependsOn");
+        database.createObjectStore("cache", { keyPath: "id" });
+        database.createObjectStore("meta", { keyPath: "name" });
+      };
       request.onsuccess = () => {
         request.result.close();
         resolve(undefined);
