@@ -185,7 +185,10 @@ Domain muss auf eine Adresse dieses Servers zeigen; LeonAid nimmt dafür die
 Adressen des Verwaltungshosts oder `LEONAID_SITE_HOST_EDGE_ADDRESSES`.
 Zusätzlich fragt LeonAid öffentliche DNS-Server (Standard `1.1.1.1` und
 `9.9.9.9`, `LEONAID_SITE_HOST_PUBLIC_RESOLVERS`); Port 53 nach außen muss dafür
-offen sein. Hat das Zertifikat einer Domain weniger als 20 Tage Laufzeit,
+offen sein (UDP und TCP). Ist es gesperrt, schlägt die Prüfung jeder Domain
+fehl und meldet, dass der öffentliche DNS-Server nicht antwortet; nach 72
+Stunden sind alle bestätigten Domains deaktiviert. Mit `LEONAID_SITE_HOST_PUBLIC_RESOLVERS=none`
+entfällt diese Abfrage. Hat das Zertifikat einer Domain weniger als 20 Tage Laufzeit,
 zählt die Prüfung als fehlgeschlagen. Den Nachweis von außen liefert:
 
 ```sh

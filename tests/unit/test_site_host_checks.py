@@ -233,6 +233,7 @@ def test_split_view_dns_fails() -> None:
     outcome = run(with_public(down, [EDGE_V4]))
     assert not outcome.http_ok
     assert "1.1.1.1 antwortet nicht" in outcome.message
+    assert "Ausgehendes DNS (Port 53" in outcome.message
 
 
 def test_a_certificate_close_to_expiry_fails() -> None:
