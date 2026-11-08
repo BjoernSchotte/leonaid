@@ -64,15 +64,15 @@ Eintrag noch einmal, und LeonAid speichert ihn trotzdem nur einmal.
 Das Netz-Symbol oben rechts zeigt, was wartet. Tippe darauf, um die
 **Warteschlange** zu öffnen.
 
-| Anzeige                          | Bedeutung                                                        |
-| -------------------------------- | ---------------------------------------------------------------- |
-| **Wartet auf Verbindung**        | Wird gesendet, sobald du online bist.                            |
-| **Wird gesendet …**              | Die App sendet gerade.                                           |
-| **Gesendet**                     | LeonAid hat den Eintrag (bis du die App schließt).               |
-| **Braucht deine Entscheidung**   | LeonAid hat den Eintrag nicht so angenommen; du wählst, wie es weitergeht. |
-| **Konnte nicht gesendet werden** | Mehrere Versuche sind gescheitert; **Erneut versuchen** oder **Verwerfen**. |
-| **Abgelaufen**                   | Älter als 14 Tage; wird zwei Tage später gelöscht.               |
-| **Nicht mehr möglich**           | Du arbeitest nicht mehr in dieser Aktion; wird zwei Tage später gelöscht. |
+| Anzeige                          | Bedeutung                                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------ |
+| **Wartet auf Verbindung**        | Wird gesendet, sobald du online bist.                                          |
+| **Wird gesendet …**              | Die App sendet gerade.                                                         |
+| **Gesendet**                     | LeonAid hat den Eintrag (bis du die App schließt).                             |
+| **Braucht deine Entscheidung**   | LeonAid hat den Eintrag nicht so angenommen; du wählst, wie es weitergeht.     |
+| **Konnte nicht gesendet werden** | Mehrere Versuche sind gescheitert; **Erneut versuchen** oder **Verwerfen**.    |
+| **Abgelaufen**                   | Älter als 14 Tage; wird zwei Tage später gelöscht.                             |
+| **Nicht mehr möglich**           | Du arbeitest nicht mehr in dieser Aktion; bleibt, bis du **Verwerfen** wählst. |
 
 Die App sendet beim Öffnen, wenn du zu ihr zurückkehrst, wenn die Verbindung
 zurückkommt und mit **Jetzt senden**. Auf dem iPhone sendet sie nur, solange
@@ -80,18 +80,18 @@ die App geöffnet ist.
 
 ## Entscheidungen
 
-| Was die App meldet                                         | Deine Wahl                                                                        |
-| ---------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Kontakt gespeichert, Wiedervorlage nicht übernommen        | **Meine Wiedervorlage übernehmen** oder **Die andere Wiedervorlage behalten**     |
-| Kontakt gespeichert, Status nicht übernommen               | **Meinen Stand übernehmen** oder **Den anderen Stand behalten**                   |
-| Der Sponsor möchte auf diesem Weg nicht kontaktiert werden | **Als Besuch speichern** oder **Verwerfen**                                       |
-| Der Sponsor ist dir nicht mehr zugeordnet                  | **Notiz kopieren** oder **Verwerfen**                                             |
-| Das Lieferfenster ist inzwischen ausgebucht                | **Trotzdem eintragen**, **Anderes Fenster wählen**, **Als Entwurf speichern** oder **Verwerfen** |
-| Das Lieferfenster gibt es nicht mehr                       | **Anderes Fenster wählen**, **Als Entwurf speichern** oder **Verwerfen**          |
-| Der Preis hat sich geändert                                | **Neuen Preis übernehmen** oder **Verwerfen**                                     |
-| Die Bestellung braucht jetzt Lieferadresse und Fenster     | **Ergänzen**, **Als Entwurf speichern** oder **Verwerfen**                        |
-| Das Angebot ist nicht mehr bestellbar oder die Aktion nimmt keine Bestellungen mehr an | **Verwerfen**                                           |
-| Die Uhrzeit deines Geräts stimmt nicht                     | Uhrzeit prüfen, dann **Verwerfen** und neu erfassen                               |
+| Was die App meldet                                                                     | Deine Wahl                                                                                       |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Kontakt gespeichert, Wiedervorlage nicht übernommen                                    | **Meine Wiedervorlage übernehmen** oder **Die andere Wiedervorlage behalten**                    |
+| Kontakt gespeichert, Status nicht übernommen                                           | **Meinen Stand übernehmen** oder **Den anderen Stand behalten**                                  |
+| Der Sponsor möchte auf diesem Weg nicht kontaktiert werden                             | **Als Besuch speichern** oder **Verwerfen**                                                      |
+| Der Sponsor ist dir nicht mehr zugeordnet                                              | **Notiz kopieren** oder **Verwerfen**                                                            |
+| Das Lieferfenster ist inzwischen ausgebucht                                            | **Trotzdem eintragen**, **Anderes Fenster wählen**, **Als Entwurf speichern** oder **Verwerfen** |
+| Das Lieferfenster gibt es nicht mehr                                                   | **Anderes Fenster wählen**, **Als Entwurf speichern** oder **Verwerfen**                         |
+| Der Preis hat sich geändert                                                            | **Neuen Preis übernehmen** oder **Verwerfen**                                                    |
+| Die Bestellung braucht jetzt Lieferadresse und Fenster                                 | **Ergänzen**, **Als Entwurf speichern** oder **Verwerfen**                                       |
+| Das Angebot ist nicht mehr bestellbar oder die Aktion nimmt keine Bestellungen mehr an | **Verwerfen**                                                                                    |
+| Die Uhrzeit deines Geräts stimmt nicht                                                 | Uhrzeit prüfen, dann **Verwerfen** und neu erfassen                                              |
 
 ## Abmelden und Gerät wechseln
 

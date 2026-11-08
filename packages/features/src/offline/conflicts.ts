@@ -39,7 +39,7 @@ export function conflictText(entry: QueueEntry, actionName: string): string {
     return "Der Eintrag ist älter als 14 Tage und wird nicht mehr gesendet. In zwei Tagen löscht LeonAid ihn von diesem Gerät.";
   }
   if (entry.state === "blocked") {
-    return `Du kannst für ${actionName || "diese Aktion"} keine Einträge mehr senden. Du kannst den Eintrag noch lesen; in zwei Tagen löscht LeonAid ihn.`;
+    return `Du kannst für ${actionName || "diese Aktion"} keine Einträge mehr senden. Der Eintrag bleibt auf diesem Gerät, bis du ihn verwirfst oder die Berechtigung zurück ist und du ihn erneut versuchst.`;
   }
   const code = entry.lastError?.code ?? "";
   if (entry.state === "failed") {

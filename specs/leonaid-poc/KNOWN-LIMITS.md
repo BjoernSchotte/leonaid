@@ -66,7 +66,8 @@ Punkte sind keine stillschweigenden Produktzusagen.
   - Abmelden fragt in Akquise-App und Verwaltungsbereich, solange Einträge
     warten; „Trotzdem abmelden“ löscht sie vom Gerät.
   - Im Ausschalt-Modus halten Einträge mit Entscheidung oder Fehler das Gerät
-    bis zu 16 Tage (Ablauf plus Warnfrist).
+    bis zu 16 Tage (Ablauf plus Warnfrist); „Nicht mehr möglich“ (keine
+    Berechtigung mehr) hält es, bis die Person den Eintrag verwirft.
   - Die Bestelldetails im Backoffice zeigen „Erfasst offline“, wenn eine
     Erfassung mehr als 5 Minuten nach `capturedAt` ankam.
   - Das Flag darf erst eingeschaltet werden, wenn ein Mitglieder-

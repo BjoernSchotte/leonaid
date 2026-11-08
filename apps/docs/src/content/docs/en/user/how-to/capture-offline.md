@@ -64,15 +64,15 @@ stores it only once.
 The network symbol at the top right shows what is waiting. Tap it to open
 the **Warteschlange** (queue).
 
-| Status                           | Meaning                                                               |
-| -------------------------------- | --------------------------------------------------------------------- |
-| **Wartet auf Verbindung**        | Sent when you are online.                                             |
-| **Wird gesendet …**              | The app is sending.                                                   |
-| **Gesendet**                     | LeonAid has the entry (shown until you close the app).                |
-| **Braucht deine Entscheidung**   | LeonAid did not take the entry as it was; you choose what happens.    |
+| Status                           | Meaning                                                                           |
+| -------------------------------- | --------------------------------------------------------------------------------- |
+| **Wartet auf Verbindung**        | Sent when you are online.                                                         |
+| **Wird gesendet …**              | The app is sending.                                                               |
+| **Gesendet**                     | LeonAid has the entry (shown until you close the app).                            |
+| **Braucht deine Entscheidung**   | LeonAid did not take the entry as it was; you choose what happens.                |
 | **Konnte nicht gesendet werden** | Several attempts failed; **Erneut versuchen** (retry) or **Verwerfen** (discard). |
-| **Abgelaufen**                   | Older than 14 days; deleted two days later.                           |
-| **Nicht mehr möglich**           | You no longer work in this campaign; deleted two days later.          |
+| **Abgelaufen**                   | Older than 14 days; deleted two days later.                                       |
+| **Nicht mehr möglich**           | You no longer work in this campaign; kept until you choose **Verwerfen**.         |
 
 The app sends when it opens, when you return to it, when the connection
 comes back and with **Jetzt senden** (send now). On an iPhone it sends only
@@ -80,18 +80,18 @@ while the app is open.
 
 ## Decisions
 
-| What the app reports                                     | Your choice                                                                        |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Contact stored, follow-up not taken over                  | **Meine Wiedervorlage übernehmen** (keep my follow-up) or **Die andere Wiedervorlage behalten** (keep the other one) |
-| Contact stored, status not taken over                     | **Meinen Stand übernehmen** (keep my status) or **Den anderen Stand behalten** (keep the other one) |
-| The sponsor does not want to be contacted this way        | **Als Besuch speichern** (save as visit) or **Verwerfen**                          |
-| The sponsor is no longer assigned to you                  | **Notiz kopieren** (copy note) or **Verwerfen**                                    |
-| The delivery window is fully booked meanwhile             | **Trotzdem eintragen** (book anyway), **Anderes Fenster wählen** (other window), **Als Entwurf speichern** (save as draft) or **Verwerfen** |
-| The delivery window no longer exists                      | **Anderes Fenster wählen**, **Als Entwurf speichern** or **Verwerfen**             |
-| The price has changed                                     | **Neuen Preis übernehmen** (accept the new price) or **Verwerfen**                 |
-| The order now needs a delivery address and window         | **Ergänzen** (add), **Als Entwurf speichern** or **Verwerfen**                     |
-| The offer can no longer be ordered, or the campaign takes no more orders | **Verwerfen**                                                       |
-| Your device's clock is wrong                              | Check the clock, then **Verwerfen** and capture again                              |
+| What the app reports                                                     | Your choice                                                                                                                                 |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Contact stored, follow-up not taken over                                 | **Meine Wiedervorlage übernehmen** (keep my follow-up) or **Die andere Wiedervorlage behalten** (keep the other one)                        |
+| Contact stored, status not taken over                                    | **Meinen Stand übernehmen** (keep my status) or **Den anderen Stand behalten** (keep the other one)                                         |
+| The sponsor does not want to be contacted this way                       | **Als Besuch speichern** (save as visit) or **Verwerfen**                                                                                   |
+| The sponsor is no longer assigned to you                                 | **Notiz kopieren** (copy note) or **Verwerfen**                                                                                             |
+| The delivery window is fully booked meanwhile                            | **Trotzdem eintragen** (book anyway), **Anderes Fenster wählen** (other window), **Als Entwurf speichern** (save as draft) or **Verwerfen** |
+| The delivery window no longer exists                                     | **Anderes Fenster wählen**, **Als Entwurf speichern** or **Verwerfen**                                                                      |
+| The price has changed                                                    | **Neuen Preis übernehmen** (accept the new price) or **Verwerfen**                                                                          |
+| The order now needs a delivery address and window                        | **Ergänzen** (add), **Als Entwurf speichern** or **Verwerfen**                                                                              |
+| The offer can no longer be ordered, or the campaign takes no more orders | **Verwerfen**                                                                                                                               |
+| Your device's clock is wrong                                             | Check the clock, then **Verwerfen** and capture again                                                                                       |
 
 ## Sign out and switch devices
 

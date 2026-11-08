@@ -325,6 +325,79 @@ test("online, a changed price is asked on the order form (§10.2)", async ({
   }
 });
 
+/** The order the capture page just saved, as Core stored it. */
+async function savedOrder(page) {
+  await expect(page.getByTestId("commitment-success")).toBeVisible();
+  await expect(page).toHaveURL(/commitment=/);
+  const id = new URL(page.url()).searchParams.get("commitment");
+  return apiJson(page, `/api/v1/actions/${ACTION_ID}/commitments/${id}`);
+}
+
+test("an edit after the price question sends what the screen shows (#131 N1)", async ({
+  context,
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await authenticate(context);
+  await page.goto(`${baseUrl}/app/sponsors`);
+  await expect(page.getByTestId("network-state")).toHaveAttribute(
+    "data-queue-state",
+    "empty",
+  );
+  await openOrder(page);
+  await serverChange("price-up");
+  try {
+    await page.getByTestId("commitment-save-draft").click();
+    await expect(page.getByTestId("commitment-price-changed")).toBeVisible();
+    // Back to the quantity: the question ends with the edit.
+    await page.getByRole("button", { name: "Zurück", exact: true }).click();
+    await page.getByRole("button", { name: "Zurück", exact: true }).click();
+    await page.getByTestId("commitment-quantity").fill("3");
+    await page.getByRole("button", { name: "Weiter" }).click();
+    await page.getByRole("button", { name: "Weiter" }).click();
+    await expect(page.getByTestId("commitment-price-changed")).toBeHidden();
+    await page.getByTestId("commitment-save-ready").click();
+    const order = await savedOrder(page);
+    expect(order.status).toBe("review_ready");
+    expect(order.lines.map((line) => line.quantity)).toEqual([3]);
+    // The queued order was changed, not captured a second time.
+    await expect(page.getByTestId("network-state")).toHaveAttribute(
+      "data-queue-state",
+      "empty",
+    );
+  } finally {
+    await serverChange("price-down");
+  }
+});
+
+test("'Als Entwurf speichern' after the price question saves a draft (#131 N1)", async ({
+  context,
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await authenticate(context);
+  await page.goto(`${baseUrl}/app/sponsors`);
+  await expect(page.getByTestId("network-state")).toHaveAttribute(
+    "data-queue-state",
+    "empty",
+  );
+  await openOrder(page);
+  await serverChange("price-up");
+  try {
+    await page.getByTestId("commitment-save-ready").click();
+    await expect(page.getByTestId("commitment-price-changed")).toBeVisible();
+    await page.getByTestId("commitment-save-draft").click();
+    const order = await savedOrder(page);
+    expect(order.status).toBe("draft");
+    await expect(page.getByTestId("network-state")).toHaveAttribute(
+      "data-queue-state",
+      "empty",
+    );
+  } finally {
+    await serverChange("price-down");
+  }
+});
+
 test("two tabs: one sends, each capture reaches Core once (§9.1)", async ({
   context,
 }) => {
