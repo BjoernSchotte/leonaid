@@ -26,10 +26,6 @@ on:
 permissions:
   contents: read
 
-env:
-  # Kill switch of the prebuilt GHCR images (decision E-020, ci.yml).
-  CI_PREBUILT_IMAGES: ${{ vars.CI_PREBUILT_IMAGES }}
-
 concurrency:
   group: api-contract-${{ github.ref }}-${{ github.event.schedule }}${{ ((github.event.action == 'edited' && !github.event.changes.base) || (github.event.pull_request.draft && github.event.action != 'converted_to_draft')) && format('-mirror-{0}', github.run_id) || '' }}
   cancel-in-progress: true
@@ -62,7 +58,7 @@ jobs:
           targets: api
           bootstrap: seed
           # tools/openapi/test.sh reuses shared tags (build_shared_images).
-          prebuilt: "true"
+          prebuilt: ${{ vars.CI_PREBUILT_IMAGES != 'off' }}
 
       - name: Generate, typecheck and run real contract
         run: ./tools/openapi/test.sh "$PWD"

@@ -50,18 +50,24 @@ runs:
           printf "%s\n" "$status" > "$2/status"
         ' bootstrap "$BOOTSTRAP_PROFILE" "$directory" </dev/null >/dev/null 2>&1 &
     # Prebuilt images (decision E-020): every image whose content hash is on
-    # GHCR is pulled by digest, checked and tagged leonaid-local/<service>:<hash>,
-    # where the test harness reuses it; only the misses are baked below. Any
-    # registry problem is a miss and is built here as before. The repository
-    # variable CI_PREBUILT_IMAGES=off (workflow env) turns this off. Not used
-    # when this step writes the shared cache or loads images for a benchmark.
+    # GHCR is pulled and tagged leonaid-local/<service>:<hash>, where the test
+    # harness reuses it; only the misses are baked below. Not used when this
+    # step writes the shared cache or loads images for a benchmark.
     - name: Pull prebuilt images by content hash
       id: prebuilt
       shell: bash
       env:
         PREBUILT_TARGETS: ${{ inputs.targets }}
-        PREBUILT_ENABLED: ${{ inputs.prebuilt == 'true' && inputs.read != 'false' && inputs.write != 'true' && inputs.load != 'true' }}
-      run: python3 -I tools/ci/prebuilt_images.py pull "$PREBUILT_TARGETS"
+        PREBUILT: ${{ inputs.prebuilt == 'true' && inputs.read != 'false' && inputs.write != 'true' && inputs.load != 'true' }}
+      run: |
+        if [ "$PREBUILT" = true ]; then
+          # No image age limit in CI: main republishes every image without
+          # the layer cache once a week (ci.yml publish-images).
+          echo "LEONAID_IMAGE_MAX_AGE_DAYS=36500" >> "$GITHUB_ENV"
+          python3 -I tools/ci/prebuilt_images.py pull "$PREBUILT_TARGETS"
+        else
+          echo "bake=$PREBUILT_TARGETS" >> "$GITHUB_OUTPUT"
+        fi
     - id: builder
       if: steps.prebuilt.outputs.bake != ''
       uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0

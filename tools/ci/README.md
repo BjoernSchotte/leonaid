@@ -747,66 +747,31 @@ verify its HTTP readiness. No database or test stack is needed for this benchmar
 
 ## Prebuilt CI images (GHCR)
 
-Decision E-020. Every image the CI builds also lives on GHCR as
-`ghcr.io/bjoernschotte/leonaid-ci/<image>:<hash>`. The hash is the content
-hash of `tools/testing/image_tags.py`, so one tag names exactly one set of
-build inputs. API and worker share the `api` image (same build section).
+Decision E-020. Images live at
+`ghcr.io/bjoernschotte/leonaid-ci/<service>:<hash>`; the hash is the content
+hash of `tools/testing/image_tags.py`.
 
-- **Pull.** With `prebuilt: "true"`, `.github/actions/build-cache` first
-  runs `python3 -I tools/ci/prebuilt_images.py pull <targets>`. For each
-  image it resolves the hash tag anonymously and checks the registry config:
-  the label `io.leonaid.ci.content-hash` must equal the hash, and the image
-  must be at most 29 days old. It pulls by digest, checks the pulled image
-  again (label, `RepoDigests`) and tags it `leonaid-local/<service>:<hash>`.
-  Only the misses go to the BuildKit layer import, as before. The consumers
-  only tag the image as `<project>-<service>` (`image_tags.adopt`,
-  `prebuilt_images.py adopt`).
-- **Which jobs.** Build (`tools/ci/build.sh`), Vulnerability gate,
-  Security (the stack test borrows a `shared_stack.py` stack) and the API
-  contract. Every image build in these jobs goes through the shared tags.
-  The other image jobs keep the full layer import, because some of their
-  suites build directly (`compose up --build`, `docker buildx build`). For
-  a pulled image such a build would find no warm layers and start cold. A
-  job may switch over once all its build sites use `build_shared_images`.
-- **Age.** BuildKit takes an image's creation time from the last step it
-  really ran. A rebuild from cached layers keeps that time, and so does a
-  republish. CI builds from main's layer cache however old the layers are,
-  so a pulled image is as current as a CI build. `pull` therefore sets
-  `LEONAID_IMAGE_MAX_AGE_DAYS=30` for the harness of that job (locally it
-  stays 7). It takes images only up to 29 days old, so an image stays
-  usable for the whole run. Fresher OS packages come with a new base digest
-  (pin drift), which changes the hash.
-- **Fail-closed.** Every registry or Docker problem (no tag, private
-  package, wrong label, too old, pull error, timeout) is a miss, and a miss is
-  built in the job. The pull never skips a test. Fork pull requests pull
-  without a token and behave the same.
-- **Publish (main only).** The `publish-images` job of `ci.yml` runs after a
-  green Build on push, schedule and dispatch runs of `main`. It is the only
-  job with `packages: write` (`tests/unit/test_workflow_files.py` enforces
-  this). `plan` lists the images whose tag is missing or carries another hash;
-  bake builds them from the shared layers with the hash, revision and
-  source labels. `publish` refuses an image that contains `.env` files
-  (except `.env.example`), session files, SSH keys, registry credentials or a
-  `.git` directory, that has credential-like environment variables or
-  labels, or in which Trivy's secret scanner finds a secret. Then it pushes
-  the image and checks the pushed digest and label. When an anonymous pull
-  fails, it warns that the package is not public yet.
-- **Kill switch.** The repository variable `CI_PREBUILT_IMAGES=off` turns
-  off pulls and publishing. Every job then builds as before. Every workflow
-  with `prebuilt: "true"` passes the variable on as `env`
-  (`tests/unit/test_workflow_files.py`).
-- **Cleanup.** `ci-images-cleanup.yml` runs weekly on main. It deletes
-  versions created more than 30 days ago that carry no hash of the current
-  main checkout. Tags that are not content hashes are never touched. A
-  dispatch is a dry run unless `dry_run` is unticked. The self-test
-  `tools/ci/prebuilt_images_test.py` runs first, and it also runs in
-  `./leonaid check` and the Lint job.
-- **Visibility.** A new GHCR package is private, and only the owner can make
-  it public (package settings, "Change visibility"). Until then pull
-  requests miss and build locally.
-
-`python3 -I tools/ci/prebuilt_images.py check-clean <image>...` runs the
-secret check on local images.
+- **Pull.** Jobs with `prebuilt: true` on `.github/actions/build-cache`
+  (Build, Vulnerability gate, Security, API contract) run
+  `python3 -I tools/ci/prebuilt_images.py pull <targets>` first. It pulls
+  each image, checks its `io.leonaid.ci.content-hash` label and tags it
+  `leonaid-local/<service>:<hash>`, where the harness, `tools/ci/build.sh`
+  and the vulnerability gate reuse it (`image_tags.adopt`). Only the misses
+  go to the layer import. Every failure is a miss and is built as before.
+  Other image jobs keep the full import: some of their suites build directly
+  (`compose up --build`), which would start cold for a pulled image.
+- **Publish.** `publish-images` in `ci.yml`, after a green Build on main only,
+  is the only CI job with `packages: write`
+  (`tests/unit/test_workflow_files.py`). It pushes every image whose tag is
+  missing, after the secret check (forbidden files such as `.env`, keys and
+  `.git`; Trivy's secret scanner). The Monday nightly republishes every image
+  built without the layer cache, so OS packages stay current; CI has no image
+  age limit.
+- **Kill switch.** Repository variable `CI_PREBUILT_IMAGES=off`.
+- **Visibility.** New GHCR packages are private; the owner makes them public
+  once (package settings). Until then pulls miss.
+- **Locally** the hashes differ: a checkout with umask 002 has other file
+  modes than CI, and modes are part of the image. Local pulls would never hit.
 
 ## Runner disk budget
 
