@@ -4,18 +4,22 @@
 from __future__ import annotations
 
 import json
+import urllib.error
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1]))
 
 from tools.ci import flake_summary  # noqa: E402
 from tools.ci import gate  # noqa: E402
+from tools.ci import rerun_stale_gates  # noqa: E402
 
 FAILURES: list[str] = []
 
@@ -295,11 +299,36 @@ def test_pull_request_context() -> None:
     def never(path: str) -> object:
         raise AssertionError(f"unexpected API call {path}")
 
-    # Drafts fail the gate: no CI ran.
-    decision, message = gate.pull_request_context(
-        {**base_env, "DRAFT": "true"}, {}, never
-    )
+    # Drafts fail the gate while the pull request is still a draft (read from
+    # the API, not the event: a re-run after ready_for_review mirrors).
+    draft_env = {
+        **base_env,
+        "DRAFT": "true",
+        "PR_NUMBER": "7",
+        "HEAD_SHA": "abc",
+        "GATE_NAME": "CI gate",
+        "GITHUB_RUN_ID": "9",
+    }
+
+    def still_draft(path: str) -> object:
+        assert path.endswith("/pulls/7"), path
+        return {"draft": True}
+
+    decision, message = gate.pull_request_context(draft_env, {}, still_draft)
     expect(decision is False and "draft" in message, f"draft: {decision} {message}")
+    for real_conclusion, expected in (("success", True), ("failure", False)):
+        mirror = api([check_run(5, "completed", real_conclusion, "t")], {5})
+
+        def now_ready(path: str, mirror: gate.Fetch = mirror) -> object:
+            return {"draft": False} if path.endswith("/pulls/7") else mirror(path)
+
+        decision, _ = gate.pull_request_context(draft_env, {}, now_ready)
+        expect(
+            decision is expected,
+            f"a re-run draft gate mirrors the real {real_conclusion}: {decision}",
+        )
+    decision, _ = gate.pull_request_context(draft_env, {}, lambda path: {})
+    expect(decision is False, "an unreadable pull request stays a draft")
     expect(
         gate.pull_request_context(
             {**base_env, "EVENT_ACTION": "synchronize"}, {}, never
@@ -370,8 +399,125 @@ def test_pull_request_context() -> None:
     )
 
 
+FIXTURES = HERE / "fixtures/rerun_stale_gates"
+
+
+def fixture(name: str) -> dict[str, Any]:
+    """Trimmed real GitHub API payloads (see each file's "source")."""
+    data: dict[str, Any] = json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+    return data
+
+
+def test_rerun_selection() -> None:
+    real = fixture("real-run-134.json")
+    edit = fixture("edit-run-130.json")
+    draft = fixture("draft-run-134.json")
+    docs_real = fixture("docs-real-run-134.json")
+    # The real API shapes: a skipped selector is the caller key "select".
+    expect(rerun_stale_gates.gate_only(edit["jobs"]), "#130 edit run is gate-only")
+    expect(rerun_stale_gates.gate_only(draft["jobs"]), "#134 draft run is gate-only")
+    expect(not rerun_stale_gates.gate_only(real["jobs"]), "a real run is not")
+    expect(rerun_stale_gates.real(real["jobs"]), "a real run is real")
+    expect(not rerun_stale_gates.real(edit["jobs"]), "an edit run is not real")
+    expect(rerun_stale_gates.real(docs_real["jobs"]), "a docs build is real")
+    # A docs draft refusal: the real docs job shape with its refusal failed.
+    refused = json.loads(json.dumps(docs_real["jobs"]))
+    refused[0]["conclusion"] = "failure"
+    for step in refused[0]["steps"]:
+        if step["name"] == rerun_stale_gates.DRAFT_STEP:
+            step["conclusion"] = "failure"
+    expect(rerun_stale_gates.gate_only(refused), "a refused docs draft is gate-only")
+    expect(not rerun_stale_gates.real(refused), "a refused docs draft is not real")
+
+    sha = real["run"]["head_sha"]
+    workflow = real["run"]["workflow_id"]
+    own = real["run"]["id"]
+
+    def candidate(
+        base: dict[str, Any], number: int, **fields: object
+    ) -> dict[str, Any]:
+        run = {**base["run"], "id": number, "head_sha": sha, "workflow_id": workflow}
+        run.update(fields)
+        return run
+
+    runs = [
+        candidate(edit, 2),  # completed, failed edit run: re-run
+        candidate(draft, 3, conclusion="failure"),  # failed draft run: re-run
+        candidate(draft, 4),  # cancelled draft run: does not block, skip
+        candidate(real, 5, conclusion="failure"),  # real red run: stays red
+        candidate(edit, 6, head_sha="old"),  # another commit
+        candidate(edit, 7, status="in_progress", conclusion=None),
+        {**real["run"]},  # this run
+    ]
+    jobs = {
+        2: edit["jobs"],
+        3: draft["jobs"],
+        4: draft["jobs"],
+        5: real["jobs"],
+        6: edit["jobs"],
+        7: edit["jobs"],
+        own: real["jobs"],
+    }
+    posted: list[str] = []
+
+    def make_fetch(head: str, listing: list[dict[str, Any]]) -> Callable[[str], object]:
+        def fetch(path: str) -> object:
+            if path == f"repos/o/r/actions/runs/{own}":
+                return {**real["run"], "pull_requests": [{"number": 134}]}
+            if path == "repos/o/r/pulls/134":
+                return {"head": {"sha": head}}
+            if "/runs?event=pull_request" in path:
+                return {"total_count": len(listing), "workflow_runs": listing}
+            number = int(path.split("/actions/runs/")[1].split("/")[0])
+            return {"total_count": len(jobs[number]), "jobs": jobs[number]}
+
+        return fetch
+
+    code = rerun_stale_gates.refresh(make_fetch(sha, runs), posted.append, "o/r", own)
+    expect(
+        code == 0
+        and posted
+        == [
+            "repos/o/r/actions/runs/2/rerun-failed-jobs",
+            "repos/o/r/actions/runs/3/rerun-failed-jobs",
+        ],
+        f"only failed gate-only runs of this commit are re-run: {posted}",
+    )
+    # A gate-only run completing never refreshes (no loops); a moved pull
+    # request refreshes nothing; a short listing fails visibly.
+    edit_run, notice = rerun_stale_gates.stale_runs(
+        lambda path: {**edit["run"], "pull_requests": []}
+        if path.endswith(f"/runs/{edit['run']['id']}")
+        else {"total_count": len(edit["jobs"]), "jobs": edit["jobs"]},
+        "o/r",
+        edit["run"]["id"],
+    )
+    expect(edit_run == [] and "gate-only" in notice, f"edit run: {notice}")
+    moved, notice = rerun_stale_gates.stale_runs(make_fetch("newer", runs), "o/r", own)
+    expect(moved == [] and "newer commit" in notice, f"moved PR: {notice}")
+
+    def short(path: str) -> object:
+        if "/runs?event=pull_request" in path:
+            return {"total_count": 500, "workflow_runs": runs}
+        return make_fetch(sha, runs)(path)
+
+    try:
+        rerun_stale_gates.stale_runs(short, "o/r", own)
+        expect(False, "a truncated listing must fail")
+    except RuntimeError:
+        pass
+    # A read-only token (fork pull request) cannot re-run: say so, exit 1.
+
+    def forbidden(path: str) -> None:
+        raise urllib.error.HTTPError(path, 403, "Forbidden", None, None)  # type: ignore[arg-type]
+
+    code = rerun_stale_gates.refresh(make_fetch(sha, runs), forbidden, "o/r", own)
+    expect(code == 1, "a refused re-run fails the refresh job visibly")
+
+
 def main() -> int:
     test_gate()
+    test_rerun_selection()
     test_pull_request_context()
     test_flake_tally()
     test_retry_allowlist()

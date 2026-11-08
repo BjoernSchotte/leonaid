@@ -26,9 +26,9 @@ CI_MUTATIONS = (
         "ci.yml: job select must not run for a draft or a title edit",
     ),
     (
-        "${{ github.event.action == 'edited' && !github.event.changes.base && format('-edit-{0}', github.run_id) || '' }}",
+        "&& format('-mirror-{0}', github.run_id) || '' }}",
         "",
-        "a title edit must not share the PR's concurrency group",
+        "title-edit and draft runs must not share the PR's concurrency group",
     ),
     (
         '      LEONAID_CI_STEP_SECONDS: "5100"\n',
@@ -236,6 +236,42 @@ CI_MUTATIONS = (
 )
 
 OTHER_MUTATIONS = (
+    (
+        "refresh-gates.yml",
+        "        Documentation,\n",
+        "",
+        "refresh-gates.yml: must run on workflow_run of exactly",
+    ),
+    (
+        "refresh-gates.yml",
+        "  actions: write\n",
+        "  actions: read\n",
+        "refresh-gates.yml: permissions must be exactly",
+    ),
+    (
+        "refresh-gates.yml",
+        "    if: github.event.workflow_run.event == 'pull_request'\n",
+        "",
+        "refresh-gates.yml: must run tools/ci/rerun_stale_gates.py",
+    ),
+    (
+        "refresh-gates.yml",
+        "          sparse-checkout: tools/ci\n",
+        "          sparse-checkout: tools/ci\n          ref: ${{ github.event.workflow_run.head_sha }}\n",
+        "refresh-gates.yml: must run tools/ci/rerun_stale_gates.py",
+    ),
+    (
+        "pins.yml",
+        "\n  select:\n",
+        "\n  choose:\n",
+        "pins.yml: the selector job key must be 'select'",
+    ),
+    (
+        "docs.yml",
+        "github.event.action != 'converted_to_draft'",
+        "true",
+        "docs.yml: title-edit and draft runs must not share",
+    ),
     (
         "select-suites.yml",
         "    name: Select suites\n",
