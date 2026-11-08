@@ -377,7 +377,7 @@ Survey checks without a stack run under their own names: the `survey-core`,
 `survey-validation-candidate` and `survey-dependencies` lanes of
 `tools/ci/unit.sh`, and the restore receipts in `tools/ci/security.sh`.
 The stack checks run in the shards of `./leonaid test-surveys` (`./leonaid
-help` lists them): seven after the merge and with `full-ci`, four more
+help` lists them): nine after the merge and with `full-ci`, four more
 (recovery, exports-recovery, restic, pilot) nightly and on dispatch, beside
 the nightly backup proofs (job `backup-recovery`: test-backup, test-upgrade,
 test-pilot-backup, test-pilot-deployment, test-pilot-install,

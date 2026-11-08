@@ -681,7 +681,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON((github.event_name == 'pull_request' || github.event_name == 'push') && '["permissions","runner","editor","analysis","lifecycle","invitations","journey"]' || '["permissions","runner","editor","analysis","lifecycle","invitations","journey","recovery","exports-recovery","restic","pilot"]') }}
+        shard: ${{ fromJSON((github.event_name == 'pull_request' || github.event_name == 'push') && '["permissions","limits","runner","editor","analysis","exports","lifecycle","invitations","journey"]' || '["permissions","limits","runner","editor","analysis","exports","lifecycle","invitations","journey","recovery","exports-recovery","restic","pilot"]') }}
     env:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/survey-${{ matrix.shard }}
     steps:

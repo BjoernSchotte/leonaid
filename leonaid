@@ -287,9 +287,9 @@ Commands:
   test-backup       Prove encrypted backup and full fresh-volume recovery
   test-upgrade      Prove pinned Twenty/RustFS upgrade and backup rollback
   test-surveys SHARD
-                    One survey shard, as CI runs it: permissions, runner,
-                    editor, analysis, lifecycle, invitations, journey; nightly:
-                    recovery, exports-recovery, restic, pilot
+                    One survey shard, as CI runs it: permissions, limits,
+                    runner, editor, analysis, exports, lifecycle, invitations,
+                    journey; nightly: recovery, exports-recovery, restic, pilot
   test-surveys-migrations
                     Prove survey upgrades and constraints on a private PostgreSQL
   test-surveys-core Survey parity, Bun tests, solver profiles (no stack; CI unit job)
@@ -1245,15 +1245,17 @@ test_surveys() {
   require_docker
   survey_leaf=tools/surveys/infrastructure.sh
   case "$1" in
-    permissions) set -- survey "$survey_leaf permissions" "$survey_leaf responses" \
-      "$survey_leaf request-limits" "$survey_leaf payload-limits" ;;
+    # About three minutes of checks each (CI run 42514794269).
+    permissions) set -- survey "$survey_leaf permissions" ;;
+    limits) set -- survey "$survey_leaf responses" "$survey_leaf request-limits" \
+      "$survey_leaf payload-limits" ;;
     runner) set -- survey "$survey_leaf runner" ;;
-    editor) set -- survey "$survey_leaf editor" "$survey_leaf preview" "$survey_leaf branding" ;;
-    analysis) set -- survey "$survey_leaf analysis" "$survey_leaf exports" \
-      "$survey_leaf export-permissions" ;;
+    editor) set -- survey "$survey_leaf editor" "$survey_leaf preview" ;;
+    analysis) set -- survey "$survey_leaf analysis" ;;
+    exports) set -- survey "$survey_leaf exports" "$survey_leaf export-permissions" ;;
     lifecycle) set -- survey "$survey_leaf contracts" "$survey_leaf lifecycle" \
       tools/surveys/lifecycle_concurrency.sh ;;
-    invitations) set -- survey "$survey_leaf invitations" ;;
+    invitations) set -- survey "$survey_leaf invitations" "$survey_leaf branding" ;;
     journey)
       /bin/sh "$root/tools/surveys/migrations.sh" "$root"
       /bin/sh "$root/tools/surveys/aggregate-engine.sh" "$root"
