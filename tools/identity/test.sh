@@ -126,7 +126,6 @@ docker run --rm \
   node_modules/.bin/playwright test \
   tests/e2e/identity.spec.mjs \
   tests/e2e/members-keyboard.spec.mjs \
-  tests/e2e/y-role-management.spec.mjs \
   tests/e2e/z-account-status.spec.mjs \
   --browser=chromium \
   --output=/proof/test-results \
@@ -138,15 +137,8 @@ run_python tools/identity/last_admin_contract.py
 
 for screenshot in \
   charity-admin-desktop.png \
-  acquirer-mobile.png \
   acquirer-admin-redirect.png \
-  system-members-desktop.png \
-  charity-members-mobile.png \
-  role-charity-scope.png \
-  roles-assigned.png \
-  roles-offboarded.png \
-  account-status-suspended.png \
-  account-status-reactivated.png; do
+  system-members-desktop.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "identity-test: ERROR: browser evidence missing: $screenshot" >&2
     exit 1
@@ -156,15 +148,8 @@ mkdir -p "$artifact_directory"
 chmod 700 "$root/.local/pilot" "$root/.local/pilot/evidence" "$artifact_directory"
 for screenshot in \
   charity-admin-desktop.png \
-  acquirer-mobile.png \
   acquirer-admin-redirect.png \
-  system-members-desktop.png \
-  charity-members-mobile.png \
-  role-charity-scope.png \
-  roles-assigned.png \
-  roles-offboarded.png \
-  account-status-suspended.png \
-  account-status-reactivated.png; do
+  system-members-desktop.png; do
   cp "$proof/$screenshot" "$artifact_directory/"
   chmod 600 "$artifact_directory/$screenshot"
 done

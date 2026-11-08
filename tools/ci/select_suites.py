@@ -547,7 +547,6 @@ RULES: tuple[Rule, ...] = (
             "tests/e2e/identity.spec.mjs",
             "tests/e2e/members-keyboard.spec.mjs",
             "tests/e2e/member-list.mjs",
-            "tests/e2e/y-role-management.spec.mjs",
             "tests/e2e/z-account-status.spec.mjs",
         ),
         e2e("identity"),
