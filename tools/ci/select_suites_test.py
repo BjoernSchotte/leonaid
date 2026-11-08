@@ -639,7 +639,7 @@ def main() -> int:
     expect(set(s.EMDASH_SECONDS) == set(s.EMDASH_GROUPS), "EMDASH_SECONDS")
     expect(
         s.leg_estimate("integration", ["seed-reset", "policy"], s.INTEGRATION_SECONDS)
-        == s.LEG_SETUP_SECONDS + 2 * s.SHARD_SETUP_SECONDS["integration"] + 330 + 75,
+        == s.LEG_SETUP_SECONDS + 2 * s.SHARD_SETUP_SECONDS["integration"] + 330 + 54,
         "Integration estimates count a stack boot per shard",
     )
     original = dict(s.E2E_SECONDS)

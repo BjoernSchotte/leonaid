@@ -103,27 +103,28 @@ FLAGS = ("contract", "golden", "surveys", "api", "pins")
 # test (checkout, build-layer import, bootstrap, fixture, image pulls), so the
 # selected shards are bin-packed into at most MAX_BINS jobs per kind of about
 # TARGET_SECONDS of test time each. Every shard still runs exactly once, each
-# on its own fresh stack (tools/ci/integration.sh, e2e.sh). Seconds are the
-# measured test-step durations of PR run 42360553738 (2026-11-07); refresh
-# them from `gh run view <id> --json jobs` when a shard grows a lot.
+# on its own fresh stack (tools/ci/integration.sh, e2e.sh). Integration
+# seconds are the bin times of run 42521057525 (2026-11-08), E2E seconds the
+# test-step durations of PR run 42360553738; refresh them from the
+# "ci-integration: bin: <shard> passed (<n>s)" lines when a shard grows a lot.
 INTEGRATION_SECONDS = {
-    # seed-reset 424 s in run 42521057525, minus about 155 s (its second seed
-    # is the golden.py data step), plus about 60 s for the former compose
-    # shard's asserts and restart on the cold-reset stack (one cold start).
+    # 424 s, minus about 155 s (the second seed is the golden.py data step),
+    # plus about 60 s for the former compose shard's asserts and restart on
+    # the cold-reset stack: the suite's only cold start.
     "seed-reset": 330,
-    "typst": 119,
-    "storage": 142,
-    "documents": 149,
-    "profiles": 127,
-    "crm-gateway": 129,
-    "crm-import": 100,
-    # On the prepared fixture: about 75 s less than its cold Twenty start.
+    "typst": 42,
+    "storage": 103,
+    "documents": 94,
+    "profiles": 90,
+    "crm-gateway": 92,
+    "crm-import": 66,
+    # 130 s, minus its own cold Twenty start: it runs on the fixture now.
     "twenty-install": 60,
-    # On the prepared fixture: about 35 s import, 25 s contract.
-    "policy": 75,
-    "schema-outbox": 199,
-    "delivery": 30,
+    "policy": 54,
+    "schema-outbox": 182,
+    "delivery": 14,
     # The Contract job (tools/ci/contract.sh) rides in an Integration bin.
+    # 192 s measured; 178 keeps it in the fast tier until #160 removes that.
     "contract": 178,
 }
 E2E_SECONDS = {
@@ -165,7 +166,9 @@ EMDASH_SECONDS = {
     "campaign-edge": 347,
     "static": 106,
 }
-TARGET_SECONDS = 600
+# Average test seconds per leg; MAX_BINS caps the count. Integration then
+# fills all its legs, small E2E selections still share one.
+TARGET_SECONDS = 400
 # ci.yml timeout-minutes of each leg kind (workflow_contract.py keeps them
 # equal). A leg's estimate is its shards' seconds plus LEG_SETUP_SECONDS; the
 # selector warns at LOAD_WARNING of the timeout, before a growing shard table
