@@ -49,6 +49,7 @@ check base-path-literals python "$w/tools/ci/base_path_literals.py" "$w"
 check failure-excerpt python "$w/tools/surveys/ci_failure_excerpt_test.py"
 check migrations python "$w/tools/schema/check_migrations.py" "$w/migrations/versions"
 check shared-stack env PYTHONPATH="$w" python "$w/tools/testing/shared_stack_test.py"
+check parallel-stacks env PYTHONPATH="$w" python "$w/tools/testing/parallel_stacks_test.py"
 check check-parity python "$w/tools/dx/check_parity_test.py" "$w"
 if [ -n "$failed" ]; then
   echo "stdlib-checks: FAILED:$failed" >&2
