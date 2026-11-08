@@ -4,10 +4,15 @@ root=$1
 . "$root/tools/testing/owned_teardown.sh"
 mode=${2:-auth}
 orders=${3:-false}
+# krapfentaxi-orders phases after the import: all (default), or one half for
+# a CI leg of its own (tools/ci/emdash.sh): commerce = commerce phases and the
+# order journeys, deadlines = native/script deadlines and body deadlines.
+order_phases=${EMDASH_ORDER_PHASES:-all}
+case "$order_phases:$orders:$mode" in all:*|commerce:true:migration|deadlines:true:migration) ;; *) exit 2 ;; esac
 case "$orders:$mode" in false:*|true:public-http|true:migration) ;; *) exit 2 ;; esac
 TWENTY_INTEGRATION_API_KEY=
 export TWENTY_INTEGRATION_API_KEY
-case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|campaign-hosts|campaign-hosts-admin-only|public-media|order-component|migration|migration-operator|alias-http|alias-browser|emdash-upgrade) ;; *) exit 2 ;; esac
+case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|campaign-hosts|public-media|order-component|migration|migration-operator|alias-http|alias-browser|emdash-upgrade) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
 docker run --rm --network none --volume "$root:/workspace:ro" "$NODE_IMAGE" \
   node /workspace/tools/emdash_spike/order-subnet.mjs --self-test
@@ -32,7 +37,7 @@ LEONAID_ORDER_SUBMISSION_KEY=$(docker run --rm --network none "$NODE_IMAGE" \
   node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')
 export LEONAID_ORDER_SUBMISSION_KEY
 order_submission_key=$LEONAID_ORDER_SUBMISSION_KEY
-case "$mode" in campaign-hosts*) campaign_hosts=true ;; *) campaign_hosts=false ;; esac
+case "$mode" in campaign-hosts) campaign_hosts=true ;; *) campaign_hosts=false ;; esac
 if [ "$mode" = order-component ] || [ "$mode" = public-http ] || [ "$campaign_hosts" = true ] || [ "$mode" = public-media ]; then
   docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
     "$BUN_IMAGE" bun tools/emdash_spike/order-redisplay-proof.ts
@@ -209,6 +214,12 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
     for(const key of Object.keys(importer.environment)) assert.ok(!key.startsWith("TWENTY_") && key!=="CORE_POSTGRES_PASSWORD");
   }
   console.log("emdash-auth-runtime: isolated services and Edge-only probe; no host ports");'
+if [ "$orders:$mode" = true:migration ]; then
+  # krapfentaxi-orders: start Twenty now, without waiting. Its first start
+  # (migrations, about 90 s) overlaps the import and editor phases; the order
+  # phase below still waits for it to be healthy before it provisions keys.
+  compose up --detach twenty-server twenty-worker
+fi
 if [ "$mode" = emdash-upgrade ]; then
   . "$root/tools/emdash_spike/emdash-upgrade-legacy.sh"
 fi
@@ -317,20 +328,26 @@ if [ "$mode" != auth ]; then
     fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
     compose run --rm --no-deps --volume "$proof:/proof:ro" krapfentaxi-import-probe
     compose up --no-deps --build --detach --wait public mailpit worker
-    compose run --rm --no-deps admin-browser \
+    # The deadline half needs only the published state the order proofs
+    # read (WebKit's marker); the commerce half runs all three engines.
+    editor_engines=chromium,firefox,webkit
+    if [ "$order_phases" = deadlines ]; then editor_engines=webkit; fi
+    compose run --rm --no-deps --env EMDASH_EDITOR_ENGINES="$editor_engines" admin-browser \
       node tools/emdash_spike/krapfentaxi-import-browser-proof.mjs
     fixture /repo/tools/emdash_spike/redirect_http_proof.py --published
     if [ "$orders" = true ]; then
       # Only real Core rows change between ordinary anonymous browser reads.
       # A dedicated directory excludes operator keys from the editorial witness.
-      mkdir "$proof/core-commerce"
-      compose run --rm --no-deps --volume "$proof/core-commerce:/proof" admin-browser \
-        node tools/emdash_spike/core-commerce-browser-proof.mjs baseline
-      for commerce_phase in price closed restored; do
-        LEONAID_ENV=test fixture /repo/tools/emdash_spike/core_auth_fixture.py "commerce-$commerce_phase"
+      if [ "$order_phases" != deadlines ]; then
+        mkdir "$proof/core-commerce"
         compose run --rm --no-deps --volume "$proof/core-commerce:/proof" admin-browser \
-          node tools/emdash_spike/core-commerce-browser-proof.mjs "$commerce_phase"
-      done
+          node tools/emdash_spike/core-commerce-browser-proof.mjs baseline
+        for commerce_phase in price closed restored; do
+          LEONAID_ENV=test fixture /repo/tools/emdash_spike/core_auth_fixture.py "commerce-$commerce_phase"
+          compose run --rm --no-deps --volume "$proof/core-commerce:/proof" admin-browser \
+            node tools/emdash_spike/core-commerce-browser-proof.mjs "$commerce_phase"
+        done
+      fi
       fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-mixed-offerings
       compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
       compose run --rm --no-deps --user "$(id -u):$(id -g)" --volume "$proof:/proof" orders-operator
@@ -342,13 +359,17 @@ if [ "$mode" != auth ]; then
       fi
       compose up --no-deps --detach --wait api
       visual_proof=$(mktemp -d)
-      . "$root/tools/emdash_spike/native-order-deadline-phase.sh"
-      LEONAID_ENV=test fixture /repo/tools/emdash_spike/order_body_deadline.py
-      compose run --rm --no-deps --volume "$proof:/proof" --volume "$visual_proof:/visual-proof" admin-browser \
-        node tools/emdash_spike/campaign-orders-browser-proof.mjs --imported
-      fixture /repo/tools/emdash_spike/campaign_orders_verify.py
-      LEONAID_ENV=test fixture /repo/tools/emdash_spike/valid_order_ingress_proof.py
-      echo "krapfentaxi-orders: synthetic screenshots retained in $visual_proof"
+      if [ "$order_phases" != commerce ]; then
+        . "$root/tools/emdash_spike/native-order-deadline-phase.sh"
+        LEONAID_ENV=test fixture /repo/tools/emdash_spike/order_body_deadline.py
+      fi
+      if [ "$order_phases" != deadlines ]; then
+        compose run --rm --no-deps --volume "$proof:/proof" --volume "$visual_proof:/visual-proof" admin-browser \
+          node tools/emdash_spike/campaign-orders-browser-proof.mjs --imported
+        fixture /repo/tools/emdash_spike/campaign_orders_verify.py
+        LEONAID_ENV=test fixture /repo/tools/emdash_spike/valid_order_ingress_proof.py
+      fi
+      echo "krapfentaxi-orders: phases $order_phases passed; synthetic screenshots retained in $visual_proof"
     fi
     exit 0
   fi
@@ -371,36 +392,40 @@ if [ "$mode" != auth ]; then
       # specs/multi-domain §7 and §14, review of #107 I1: the published
       # campaign on its own host through the real Caddy (on-demand TLS with
       # Core's ask), campaign site, public app and Core.
-      fixture /repo/tools/emdash_spike/site_host_fixture.py activate
-      host_variant=
-      if [ "$mode" = campaign-hosts-admin-only ]; then
-        # The same stack without a general public host (§6.6): proxy is the
-        # admin host only, every app runs the admin-only configuration.
-        LEONAID_PROXY_CADDYFILE=Caddyfile.admin-only
-        LEONAID_ADMIN_DOMAIN=proxy
-        LEONAID_PUBLIC_DOMAIN=
-        LEONAID_ADMIN_BASE_URL=https://proxy:8443
-        LEONAID_SITE_BASE_URL=https://proxy:8443
-        LEONAID_PUBLIC_HOST_ENABLED=false
-        export LEONAID_PROXY_CADDYFILE LEONAID_ADMIN_DOMAIN LEONAID_PUBLIC_DOMAIN \
-          LEONAID_ADMIN_BASE_URL LEONAID_SITE_BASE_URL LEONAID_PUBLIC_HOST_ENABLED
-        compose up --no-deps --detach --wait api public campaign-site proxy
-        # The recreated proxy may hold a new internal CA.
-        compose cp proxy:/data/caddy/pki/authorities/local/root.crt "$proof/root.crt"
-        host_variant=admin-only
-      fi
       host_probe() {
         compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
           node tools/emdash_spike/campaign-host-http-proof.mjs "$@" $host_variant
       }
-      host_probe active || {
-        compose logs --no-color --tail=80 proxy api >&2
-        exit 1
+      host_round() {
+        host_probe active || {
+          compose logs --no-color --tail=80 proxy api >&2
+          exit 1
+        }
+        fixture /repo/tools/emdash_spike/site_host_fixture.py disable
+        # Ask snapshot 10 s; host caches of both apps and Core origins 30 s:
+        # the lapsed state must show within that bound (the probe polls).
+        host_probe disabled
       }
-      fixture /repo/tools/emdash_spike/site_host_fixture.py disable
-      # Ask snapshot 10 s; host caches of both apps and Core origins 30 s:
-      # the lapsed state must show within that bound (the probe polls).
-      host_probe disabled
+      fixture /repo/tools/emdash_spike/site_host_fixture.py activate
+      host_variant=
+      host_round
+      # The same stack without a general public host (§6.6): proxy is the
+      # admin host only, every app runs the admin-only configuration. The
+      # recreated processes start with empty host caches.
+      fixture /repo/tools/emdash_spike/site_host_fixture.py reactivate
+      LEONAID_PROXY_CADDYFILE=Caddyfile.admin-only
+      LEONAID_ADMIN_DOMAIN=proxy
+      LEONAID_PUBLIC_DOMAIN=
+      LEONAID_ADMIN_BASE_URL=https://proxy:8443
+      LEONAID_SITE_BASE_URL=https://proxy:8443
+      LEONAID_PUBLIC_HOST_ENABLED=false
+      export LEONAID_PROXY_CADDYFILE LEONAID_ADMIN_DOMAIN LEONAID_PUBLIC_DOMAIN \
+        LEONAID_ADMIN_BASE_URL LEONAID_SITE_BASE_URL LEONAID_PUBLIC_HOST_ENABLED
+      compose up --no-deps --detach --wait api public campaign-site proxy
+      # The recreated proxy may hold a new internal CA.
+      compose cp proxy:/data/caddy/pki/authorities/local/root.crt "$proof/root.crt"
+      host_variant=admin-only
+      host_round
       exit 0
     fi
     if [ "$mode" = public-media ]; then

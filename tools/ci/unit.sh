@@ -46,6 +46,10 @@ lane() {
 
 lane rest run_python uv run --frozen --no-sync pytest -p no:cacheprovider \
   tests/unit --ignore="$solver"
+# Survey checks without a stack (decision E-022), each in a named lane.
+lane survey-core "$root/leonaid" test-surveys-core
+lane survey-validation-candidate "$root/leonaid" test-surveys-validation-candidate
+lane survey-dependencies "$root/leonaid" test-surveys-dependencies
 index=0
 while [ "$index" -lt "$shards" ]; do
   lane "solver-$index" run_python env PYTHONPATH=/workspace:/workspace/src \
@@ -66,7 +70,7 @@ for status_file in "$lanes"/*.status; do
     failed="$failed $name"
   fi
 done
-expected=$((shards + 1))
+expected=$((shards + 4))
 found=$(find "$lanes" -name '*.status' | wc -l)
 if [ "$found" -ne "$expected" ]; then
   echo "ci-unit: ERROR: $found of $expected lanes reported a result" >&2
@@ -76,4 +80,4 @@ if [ -n "$failed" ]; then
   echo "ci-unit: ERROR: failed lanes:$failed" >&2
   exit 1
 fi
-echo "ci-unit: OK: unit tests and $shards solver shards"
+echo "ci-unit: OK: unit tests, $shards solver shards and 3 survey lanes"

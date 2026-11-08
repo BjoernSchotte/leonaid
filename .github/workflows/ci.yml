@@ -27,27 +27,14 @@ on:
   # Post-merge tier: every push to main runs the suites of the paths changed
   # since the last green run there; every post-merge run finishes (E-019),
   # GitHub keeps only the newest pending one;
-  # nightly-watchdog.yml opens an issue when one is red. The artifact probe
-  # branch runs its probe.
+  # nightly-watchdog.yml opens an issue when one is red.
   push:
     branches:
       - main
-      - ci-artifact-probe
-  # Nightly complete run with the flake summary.
+  # Nightly complete run.
   schedule:
     - cron: "7 3 * * *"
   workflow_dispatch:
-    inputs:
-      cold_run:
-        description: Remove the ephemeral runner's Docker build cache first
-        required: false
-        type: boolean
-        default: false
-      artifact_probe:
-        description: Run the intentionally failing artifact proof only
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -62,7 +49,7 @@ concurrency:
 
 jobs:
   select:
-    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
+    if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
     uses: ./.github/workflows/select-suites.yml
     # actions: read finds the last green run on main for the post-merge diff.
     permissions:
@@ -97,7 +84,7 @@ jobs:
         run: python3 tools/ci/hold_gate.py
 
   fixture:
-    if: inputs.cold_run != true && inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
+    if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
     uses: ./.github/workflows/test-fixture.yml
     # A called workflow may not request more than its caller grants
     # (select-suites.yml and test-fixture.yml read the Actions API).
@@ -107,7 +94,7 @@ jobs:
 
   lint:
     # Stack-free: three parallel lanes inside tools/ci/lint-types.sh.
-    if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
+    if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
     name: Lint and types
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -116,9 +103,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Prepare empty-cache runner
-        if: inputs.cold_run == true
-        run: docker builder prune --all --force
       - name: Bootstrap locked Docker toolchains
         run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
       - name: Run lint, type and contract-generation checks
@@ -135,7 +119,7 @@ jobs:
   unit:
     # Stack-free: the exhaustive disclosure solver proof is spread over
     # parallel pytest processes beside the other unit tests (tools/ci/unit.sh).
-    if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
+    if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
     name: Unit
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -144,9 +128,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Prepare empty-cache runner
-        if: inputs.cold_run == true
-        run: docker builder prune --all --force
       - name: Bootstrap locked Docker toolchains
         run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
       - name: Run unit tests with real domain objects
@@ -162,8 +143,8 @@ jobs:
 
   integration-shards:
     needs: [select, fixture]
-    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.integration != '[]' && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
-    # Stable names keep the flake history comparable; shards: job summary.
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.integration != '[]' && needs.fixture.result == 'success' }}
+    # Stable leg names; shards: job summary.
     name: Integration ${{ matrix.bin.id }}/${{ matrix.bin.count }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -183,21 +164,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Start freeing runner disk from unused toolchains
         run: sh tools/ci/free-runner-disk.sh start
-      - name: Prepare empty-cache runner
-        if: inputs.cold_run == true
-        run: docker builder prune --all --force
       - name: Reuse persistent Docker build layers
-        if: inputs.cold_run != true
         uses: ./.github/actions/build-cache
         with:
           bootstrap: ${{ matrix.bin.bootstrap }}
-      - name: Bootstrap locked Docker toolchains
-        if: inputs.cold_run == true
-        env:
-          BOOTSTRAP_PROFILE: ${{ matrix.bin.bootstrap }}
-        run: sh tools/ci/retry-infra.sh sh tools/ci/bootstrap-prefetch.sh "$BOOTSTRAP_PROFILE"
       - name: Use prepared synthetic data
-        if: inputs.cold_run != true
         uses: ./.github/actions/test-fixture
         with:
           key: ${{ needs.fixture.outputs.key }}
@@ -207,19 +178,11 @@ jobs:
         env:
           SHARDS: ${{ matrix.bin.title }}
         run: printf '### Integration leg ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n\n%s\n' "$SHARDS" | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: Start sampling peak runner disk
-        run: sh tools/ci/disk-peak.sh start
       - name: Run real service integration shards
         env:
           SHARDS: ${{ matrix.bin.shards }}
         # One word per shard; every shard runs on its own fresh stack.
         run: bash tools/ci/run-job.sh "integration-${{ matrix.bin.id }}" bash tools/ci/integration.sh $SHARDS
-      - name: Report peak runner disk of this leg
-        # Data for the free-runner-disk.sh skip threshold (40 GB).
-        if: always()
-        run: |
-          sh tools/ci/disk-peak.sh stop
-          sh tools/ci/disk-report.sh "job end"
       - name: Publish integration evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -231,7 +194,7 @@ jobs:
 
   e2e:
     needs: [select, fixture]
-    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.e2e != '[]' && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.e2e != '[]' && needs.fixture.result == 'success' }}
     name: E2E ${{ matrix.bin.id }}/${{ matrix.bin.count }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -251,19 +214,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Start freeing runner disk from unused toolchains
         run: sh tools/ci/free-runner-disk.sh start
-      - name: Prepare empty-cache runner
-        if: inputs.cold_run == true
-        run: docker builder prune --all --force
       - name: Reuse persistent Docker build layers
-        if: inputs.cold_run != true
         uses: ./.github/actions/build-cache
         with:
           bootstrap: ${{ matrix.bin.bootstrap }}
-      - name: Bootstrap locked Docker toolchains
-        if: inputs.cold_run == true
-        run: sh tools/ci/retry-infra.sh sh tools/ci/bootstrap-prefetch.sh browser
       - name: Use prepared synthetic data
-        if: inputs.cold_run != true
         uses: ./.github/actions/test-fixture
         with:
           key: ${{ needs.fixture.outputs.key }}
@@ -273,19 +228,11 @@ jobs:
         env:
           SHARDS: ${{ matrix.bin.title }}
         run: printf '### E2E leg ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n\n%s\n' "$SHARDS" | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: Start sampling peak runner disk
-        run: sh tools/ci/disk-peak.sh start
       - name: Run real browser leaves
         env:
           SHARDS: ${{ matrix.bin.shards }}
         # One word per shard.
         run: bash tools/ci/run-job.sh "e2e-${{ matrix.bin.id }}" bash tools/ci/e2e.sh $SHARDS
-      - name: Report peak runner disk of this leg
-        # Data for the free-runner-disk.sh skip threshold (40 GB).
-        if: always()
-        run: |
-          sh tools/ci/disk-peak.sh stop
-          sh tools/ci/disk-report.sh "job end"
       - name: Publish browser evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -300,7 +247,7 @@ jobs:
     # path filters: tools/ci/select_suites.py selects these for EmDash inputs
     # and every shared Core, proxy or public change; the queue runs them all.
     needs: select
-    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.emdash != '[]' && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.emdash != '[]' }}
     name: EmDash proof ${{ matrix.bin.id }}/${{ matrix.bin.count }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -320,40 +267,23 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Start freeing runner disk from unused toolchains
         run: sh tools/ci/free-runner-disk.sh start
-      - name: Prepare empty-cache runner
-        if: inputs.cold_run == true
-        run: docker builder prune --all --force
       - name: Reuse persistent Docker build layers
-        if: inputs.cold_run != true
         uses: ./.github/actions/build-cache
         with:
           bootstrap: ${{ matrix.bin.bootstrap }}
           targets: emdash
-      - name: Bootstrap locked Docker toolchains
-        if: inputs.cold_run == true
-        env:
-          BOOTSTRAP_PROFILE: ${{ matrix.bin.bootstrap }}
-        run: sh tools/ci/retry-infra.sh sh tools/ci/bootstrap-prefetch.sh "$BOOTSTRAP_PROFILE"
       - name: Finish freeing runner disk
         run: sh tools/ci/free-runner-disk.sh wait
       - name: List this leg's shards in the job summary
         env:
           SHARDS: ${{ matrix.bin.title }}
         run: printf '### EmDash leg ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n\n%s\n' "$SHARDS" | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: Start sampling peak runner disk
-        run: sh tools/ci/disk-peak.sh start
       - name: Run EmDash proof cases
         env:
           EMDASH_ID: ${{ matrix.bin.id }}
           EMDASH_GROUPS: ${{ matrix.bin.shards }}
         # One word per group.
         run: bash tools/ci/run-job.sh "emdash-$EMDASH_ID" sh tools/ci/emdash.sh $EMDASH_GROUPS
-      - name: Report peak runner disk of this leg
-        # Data for the free-runner-disk.sh skip threshold (40 GB).
-        if: always()
-        run: |
-          sh tools/ci/disk-peak.sh stop
-          sh tools/ci/disk-report.sh "job end"
       - name: Publish EmDash proof evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -368,7 +298,7 @@ jobs:
     # Builds every own image and scans it, the checkout, both lockfiles and
     # every pinned third-party image (tools/security/vulnerability-scan.sh).
     needs: select
-    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.heavy != 'false' && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.heavy != 'false' }}
     name: Vulnerability gate
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -377,34 +307,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Report runner disk at job start
-        run: sh tools/ci/disk-report.sh "job start"
       - name: Start freeing runner disk from unused toolchains
         run: sh tools/ci/free-runner-disk.sh start
-      - name: Prepare empty-cache runner
-        if: inputs.cold_run == true
-        run: docker builder prune --all --force
       - name: Reuse persistent Docker build layers
-        if: inputs.cold_run != true
         uses: ./.github/actions/build-cache
         with:
           bootstrap: toolchains
           # Every own image, the campaign site included.
           targets: build
-          # vulnerability-scan.sh reuses shared tags (prebuilt_images.py adopt).
-          # Kill switch for every prebuilt pull: repository variable
-          # CI_PREBUILT_IMAGES=off (decision E-020).
-          prebuilt: ${{ vars.CI_PREBUILT_IMAGES != 'off' }}
-      - name: Bootstrap locked Docker toolchains
-        if: inputs.cold_run == true
-        run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
       - name: Finish freeing runner disk
         run: sh tools/ci/free-runner-disk.sh wait
       - name: Run the HIGH/CRITICAL vulnerability gate
         run: bash tools/ci/run-job.sh vulnerability sh tools/security/vulnerability-scan.sh
-      - name: Report runner disk at job end
-        if: always()
-        run: sh tools/ci/disk-report.sh "job end"
       - name: Publish vulnerability evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -419,7 +333,7 @@ jobs:
     # Policy self-tests and the secret scan beside the security stack test;
     # the image gate is the vulnerability job.
     needs: [select, fixture]
-    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.heavy != 'false' && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.heavy != 'false' && needs.fixture.result == 'success' }}
     name: Security
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -430,37 +344,20 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: Report runner disk at job start
-        run: sh tools/ci/disk-report.sh "job start"
       - name: Start freeing runner disk from unused toolchains
         run: sh tools/ci/free-runner-disk.sh start
-      - name: Prepare empty-cache runner
-        if: inputs.cold_run == true
-        run: docker builder prune --all --force
       - name: Reuse persistent Docker build layers
-        if: inputs.cold_run != true
         uses: ./.github/actions/build-cache
         with:
           bootstrap: toolchains
-          # The stack test borrows a shared_stack.py stack (shared tags).
-          prebuilt: ${{ vars.CI_PREBUILT_IMAGES != 'off' }}
-      - name: Bootstrap locked Docker toolchains
-        if: inputs.cold_run == true
-        run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
       - name: Use prepared synthetic data
-        if: inputs.cold_run != true
         uses: ./.github/actions/test-fixture
         with:
           key: ${{ needs.fixture.outputs.key }}
       - name: Finish freeing runner disk
         run: sh tools/ci/free-runner-disk.sh wait
-      - name: Report runner disk after preparation
-        run: sh tools/ci/disk-report.sh "prepared"
       - name: Run policies, secret scan and the security stack test
         run: bash tools/ci/run-job.sh security bash tools/ci/security.sh
-      - name: Report runner disk at job end
-        if: always()
-        run: sh tools/ci/disk-report.sh "job end"
       - name: Publish security evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -473,7 +370,7 @@ jobs:
   build:
     # Skipped only in a stacked pull request (selector output heavy=false).
     needs: select
-    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.heavy != 'false' && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.heavy != 'false' }}
     name: Build
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -486,11 +383,7 @@ jobs:
       # (each with the workspace's production node_modules) need more.
       - name: Start freeing runner disk from unused toolchains
         run: sh tools/ci/free-runner-disk.sh start
-      - name: Prepare empty-cache runner
-        if: inputs.cold_run == true
-        run: docker builder prune --all --force
       - name: Reuse persistent Docker build layers
-        if: inputs.cold_run != true
         uses: ./.github/actions/build-cache
         with:
           bootstrap: toolchains
@@ -499,14 +392,9 @@ jobs:
           # the nightly run and a dispatch on main) write the shared BuildKit
           # cache, which every pull request imports; writing after each merge
           # is intended, it keeps the PR imports current. Pull requests and bot dispatches on other
-          # branches (ci/refit-timings, pins/repin-images) only read: their
+          # branches (pins/repin-images) only read: their
           # layers would evict main's from the 10 GB budget.
           write: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && 'true' || 'false' }}
-          # tools/ci/build.sh reuses shared tags; a cache write bakes all.
-          prebuilt: ${{ vars.CI_PREBUILT_IMAGES != 'off' }}
-      - name: Bootstrap locked Docker toolchains
-        if: inputs.cold_run == true
-        run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
       - name: Finish freeing runner disk
         run: sh tools/ci/free-runner-disk.sh wait
       - name: Build the canonical Compose application
@@ -520,77 +408,9 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  publish-images:
-    # Prebuilt CI images (decision E-020): only runs on main publish, after a
-    # green Build; pull requests only pull (.github/actions/build-cache). Each
-    # image whose content-hash tag is missing is pushed after the secret
-    # check. The Monday nightly rebuilds and republishes every image without
-    # the layer cache, so OS packages stay current; CI has no image age limit.
-    needs: [select, build]
-    if: ${{ !cancelled() && needs.select.result == 'success' && needs.build.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.CI_PREBUILT_IMAGES != 'off' && inputs.cold_run != true && inputs.artifact_probe != true }}
-    name: Publish prebuilt images
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    # packages: write only here and in release.yml (test_workflow_files.py).
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Start freeing runner disk from unused toolchains
-        run: sh tools/ci/free-runner-disk.sh start
-      - name: Log in to the GitHub Container Registry
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
-      - name: Choose the images to publish
-        id: plan
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = schedule ] && [ "$(date -u +%u)" = 1 ]; then
-            echo "uncached=true" >> "$GITHUB_OUTPUT"
-            python3 -I tools/ci/prebuilt_images.py plan --all build
-          else
-            python3 -I tools/ci/prebuilt_images.py plan build
-          fi
-      - id: builder
-        if: steps.plan.outputs.targets != ''
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
-        with:
-          cleanup: false
-      - name: Build the images with the hash label
-        if: steps.plan.outputs.targets != ''
-        uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7.3.0
-        env:
-          CACHE_WRITE: "false"
-          CACHE_READ: "true"
-          DOCKER_BUILD_RECORD_UPLOAD: "false"
-          DOCKER_BUILD_SUMMARY: "false"
-        with:
-          source: .
-          files: |
-            tools/ci/docker-bake.hcl
-            ${{ steps.plan.outputs.override }}
-          targets: ${{ steps.plan.outputs.targets }}
-          load: true
-          no-cache: ${{ steps.plan.outputs.uncached == 'true' }}
-          github-token: ${{ github.token }}
-      - name: Finish freeing runner disk
-        run: sh tools/ci/free-runner-disk.sh wait
-      - name: Check each image for secrets and push it
-        if: steps.plan.outputs.targets != ''
-        env:
-          OVERRIDE: ${{ steps.plan.outputs.override }}
-        run: python3 -I tools/ci/prebuilt_images.py publish "$OVERRIDE"
-      - name: Remove the registry login
-        if: always()
-        run: docker logout ghcr.io
-
   golden-parts:
     needs: [select, fixture]
-    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.golden == 'true' && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.golden == 'true' && needs.fixture.result == 'success' }}
     name: Golden installation / ${{ matrix.part }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -606,19 +426,12 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Start freeing runner disk from unused toolchains
         run: sh tools/ci/free-runner-disk.sh start
-      - name: Prepare empty-cache runner
-        if: inputs.cold_run == true
-        run: docker builder prune --all --force
       - name: Reuse persistent Docker build layers
-        if: inputs.cold_run != true
         uses: ./.github/actions/build-cache
         with:
           bootstrap: browser
-      - name: Bootstrap locked Docker toolchains
-        if: inputs.cold_run == true
-        run: sh tools/ci/retry-infra.sh sh tools/ci/bootstrap-prefetch.sh browser
       - name: Use prepared synthetic data for the functional rounds
-        if: matrix.part == 'primary' && inputs.cold_run != true
+        if: matrix.part == 'primary'
         uses: ./.github/actions/test-fixture
         with:
           key: ${{ needs.fixture.outputs.key }}
@@ -643,7 +456,7 @@ jobs:
   golden-journey:
     name: Golden journey
     needs: [select, golden-parts]
-    if: ${{ !cancelled() && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled' && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -686,7 +499,7 @@ jobs:
       - build
       - golden-parts
       - golden-journey
-    if: ${{ always() && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
+    if: ${{ always() }}
     permissions:
       checks: read
       contents: read
@@ -715,8 +528,6 @@ jobs:
           GATE_NAME: CI gate
           # A fast run never satisfies the gate while the PR carries full-ci.
           FULL_CI_GATE: "true"
-          COLD_RUN: ${{ inputs.cold_run == true }}
-        # A cold run rebuilds everything and deliberately skips the fixture.
         run: |
           set -- --name "CI gate" \
             --selectable integration-shards=integration \
@@ -726,85 +537,4 @@ jobs:
             --selectable security=heavy \
             --selectable vulnerability=heavy \
             --selectable build=heavy
-          if [ "$COLD_RUN" = true ]; then set -- "$@" --may-skip fixture; fi
           python3 tools/ci/gate.py "$@"
-
-  flake-summary:
-    # Nightly only: which jobs failed or needed a rerun across recent runs.
-    name: Flake summary
-    needs: gate
-    if: ${{ always() && github.event_name == 'schedule' && github.event.schedule == '7 3 * * *' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      actions: read
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          sparse-checkout: tools/ci
-      - name: Summarize failed and rerun jobs of recent runs
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: >-
-          python3 tools/ci/flake_summary.py
-          --repository "$GITHUB_REPOSITORY"
-          --workflow ci.yml --workflow surveys.yml
-          --runs 50
-
-  pilot-cold-rehearsal:
-    if: inputs.cold_run == true && inputs.artifact_probe != true
-    name: Pilot cold rehearsal
-    runs-on: ubuntu-24.04
-    timeout-minutes: 180
-    env:
-      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/pilot-cold-rehearsal
-      LEONAID_PILOT_REHEARSAL_ARTIFACT_DIR: .artifacts/ci/pilot-cold-rehearsal/rehearsal
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Start freeing runner disk from unused toolchains
-        run: sh tools/ci/free-runner-disk.sh start
-      - name: Prove empty Docker state without caches
-        run: docker system prune --all --volumes --force
-      - name: Bootstrap locked Docker toolchains
-        run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
-      - name: Finish freeing runner disk
-        run: sh tools/ci/free-runner-disk.sh wait
-      - name: Run complete synthetic pilot rehearsal from empty state
-        run: >-
-          bash tools/ci/run-job.sh
-          pilot-cold-rehearsal
-          ./leonaid test-pilot-rehearsal --synthetic
-      - name: Publish sanitized cold-rehearsal evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ci-pilot-cold-rehearsal
-          path: .artifacts/ci/pilot-cold-rehearsal
-          if-no-files-found: error
-          retention-days: 14
-
-  artifact-probe:
-    if: github.ref == 'refs/heads/ci-artifact-probe' || inputs.artifact_probe == true
-    name: Artifact probe
-    runs-on: ubuntu-24.04
-    timeout-minutes: 75
-    env:
-      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/artifact-probe
-      LEONAID_TESTKIT_E2E_SPEC: ci-artifact-probe.spec.mjs
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Bootstrap locked Docker toolchains
-        run: ./leonaid bootstrap
-      - name: Run intentionally failing real-stack browser probe
-        run: bash tools/ci/run-job.sh artifact-probe ./leonaid test-testkit
-      - name: Publish failure evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ci-artifact-probe
-          path: .artifacts/ci/artifact-probe
-          if-no-files-found: error
-          retention-days: 14

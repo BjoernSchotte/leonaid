@@ -158,25 +158,27 @@ async def main() -> None:
             },
         ) as twenty:
             before = await snapshot(core, twenty)
-            for path in (
+            # The slow-body deadline (4 s each) is the proxy's, the same on
+            # every route: one route proves it. Size limits stay on all three.
+            slow = ("slow-length", "slow-chunked", "slow-multipart")
+            sizes = ("declared-overflow", "overflow", "exact-limit")
+            routes = (
                 "/campaigns/krapfentaxi-2026/?_action=createPublicOrder",
                 "/krapfentaxi?_action=createPublicOrder",
                 "/_actions/createPublicOrder",
-            ):
-                for case in (
-                    "slow-length",
-                    "slow-chunked",
-                    "slow-multipart",
-                    "declared-overflow",
-                    "overflow",
-                    "exact-limit",
-                ):
+            )
+            for case in slow:
+                await call(routes[0], case)
+            for path in routes:
+                for case in sizes:
                     await call(path, case)
             assert await snapshot(core, twenty) == before, (
                 "Rejected or invalid order bodies mutated Core or Twenty"
             )
             print(
-                "order-body-deadline: 18 real TLS cases across both native renderers and RPC; seven Core tables and Twenty unchanged",
+                "order-body-deadline: 12 real TLS cases (slow bodies on the campaign "
+                "route, size limits on both native renderers and RPC); seven Core "
+                "tables and Twenty unchanged",
                 flush=True,
             )
     finally:

@@ -15,7 +15,7 @@ once across all workflows.
 | `pull_request` with the `full-ci` label | The complete suite before the merge, every E2E leaf and survey shard included. The lead sets it on migrations, security changes and large rewrites. Adding the label starts that run at once (`labeled`), and its first job (`hold`, `tools/ci/hold_gate.py`) posts a failed `CI gate` / `Survey gate` check on the head commit right away, so a green fast gate cannot be merged meanwhile; only the complete run's gate (or a later push's, which with the label is complete too) replaces it, and title edits mirror it as red. The label also applies to every later push. |
 | `pull_request` `labeled`/`unlabeled` (any other label, or removing one) | No suite: the gates mirror like a title edit (below), so an unrelated label neither replaces nor cancels the real result. |
 | `push` to `main` (**post-merge tier**) | The suites of the paths changed since the newest green run of the same workflow on `main` (`select-suites.yml` `post-merge`): the mapping below, E2E leaves by module paths, specs and the import graph, every non-E2E suite plus the smoke leg for shared or unmapped paths. Post-merge runs are never cancelled (E-019): the running one finishes, GitHub keeps only the newest pending run per group, and that one diffs since the last green run, so the dropped pending runs lose nothing; a red run's paths stay in the next diff. Base lookup: `tools/ci/post_merge.py base` (tested in `post_merge_test.py`). No green run found, or its commit not fetchable: the complete suite. `nightly-watchdog.yml` opens an issue when the newest post-merge run is red. `api-contract.yml`, `pins.yml` and `docs.yml` run completely on every push to `main`. |
-| draft `pull_request` | No suite. The gates (and `Bilingual site artifact`) **fail** with "draft: no CI ran", so a stale result can never pass between `ready_for_review` and the new run's gate. `ready_for_review` starts the normal run; `converted_to_draft` cancels a running one through the shared concurrency group. Agents open PRs as drafts and mark them ready when done. Expect red checks (and GitHub's failure notifications) on every draft push; `gh pr checks` reports a draft as failed; `flake_summary.py` ignores such runs. |
+| draft `pull_request` | No suite. The gates (and `Bilingual site artifact`) **fail** with "draft: no CI ran", so a stale result can never pass between `ready_for_review` and the new run's gate. `ready_for_review` starts the normal run; `converted_to_draft` cancels a running one through the shared concurrency group. Agents open PRs as drafts and mark them ready when done. Expect red checks (and GitHub's failure notifications) on every draft push; `gh pr checks` reports a draft as failed; |
 | `pull_request` `edited` | A base change (a stacked PR retargeted to `main`) runs the normal selection against the new base. A title or body edit runs no suite, in its own concurrency group (it never cancels the real run); its gate mirrors this commit's newest **completed** gate of a **real** run (draft, title-edit and label-mirror runs are skipped, so mirrors never copy each other) and fails fast when there is none yet. GitHub creates a gate's check run only when its jobs finish. It keeps the check runs of a *failed* gate-only run blocking the pull request after the real gates passed (seen on #130); a *cancelled* one does not block (#134). So `refresh-gates.yml` (on `workflow_run` of every required workflow, from `main`, `actions: write`) runs `tools/ci/rerun_stale_gates.py` when a real pull-request run completes and its commit is still the head: it re-runs every completed, failed gate-only run of the same workflow and commit (a skipped selector `select` and a failed gate, or a refused docs draft). The re-run mirrors the completed real gate: a red real gate stays red, and a pull request that is still a draft fails again (the gate and docs' "Refuse a draft" read the current draft state from the API). Title-edit, label and draft runs (except `converted_to_draft`, which must cancel the running CI) have their own concurrency group, so their re-runs never cancel another run. A fork's read-only token cannot re-run; the refresh job then fails with a notice to re-run by hand. A gate-only run that is still finishing when the real run completes is not re-run (small window: re-run it by hand). `docs.yml` simply rebuilds. |
 | stacked `pull_request` (base is another branch) | Lint and types; Unit; Documentation; the fast tier of the suites that module-local paths select. Shared infrastructure, unmapped paths and the API/pins path filters select nothing; Security, the vulnerability gate and Build are skipped (`heavy=false`). The gates of a stacked run never pass ("retarget to main for the real gate"): GitHub creates a later run's gate only when its jobs finish, so a stacked green would stay the newest result for minutes after a retarget. The ruleset applies only to `main`, so merging into the parent branch is not blocked. |
 | nightly `schedule` (`7 3 * * *`), `workflow_dispatch` | Everything, including every E2E leaf. The former 3-hourly runs on `main` (`ci.yml`, `surveys.yml`) are gone: the post-merge runs cover every change, and a schedule would take runners from pull requests. |
@@ -101,11 +101,11 @@ selects, the tier decides when it runs):
   OpenAPI approvals, EmDash route inventory and pilot plan files), `tests/unit/**`.
 - **No stack suite** for the scripts and checkers of always-running jobs:
   `tools/ci/*_test.py`, `gate.py`, `workflow_contract.py`, `lint-types.sh`,
-  `security.sh`, `build.sh`, `flake_summary.py`, the static gates
+  `security.sh`, `build.sh`, the static gates
   (`conflict_markers.py`, `legacy_ui.py`, `no_test_doubles.py`, ...) and
   `reviewed_network_faults.json`; and for workflows that run no `ci.yml` suite
   (`docs.yml`, `docs-watchdog.yml`, `nightly-watchdog.yml`, `pin-drift.yml`,
-  `release.yml`, `cache-benchmark.yml`). `surveys.yml`, `api-contract.yml`
+  `release.yml`). `surveys.yml`, `api-contract.yml`
   and `pins.yml` select only their own workflow. Gate data such as
   `infra/security/vulnerability-allowlist.json` selects only the pins
   workflow; Security judges it on every run anyway.
@@ -172,19 +172,15 @@ Every retry writes an `Infrastructure retry` warning annotation.
 "retry", and any first-attempt `continue-on-error` in the two actions without a
 follow-up retry.
 
-### Nightly run and flake summary
+### Nightly run
 
-`ci.yml` runs completely every night at 03:07 UTC; only that run has the `Flake summary`. `surveys.yml` runs its nightly selection with the backup proofs at 01:17 UTC. Both also run after every push to `main` (post-merge tier). The nightly `Flake summary`
-job runs `tools/ci/flake_summary.py` over the last 50 completed runs of `ci.yml`
-and `surveys.yml` (all events) and writes a table to the workflow summary:
-failures in the final attempt and failures that were followed by a rerun
-(the flake signal). Cancelled (superseded) jobs are ignored.
+`ci.yml` runs completely every night at 03:07 UTC. `surveys.yml` runs its nightly selection with the backup proofs at 01:17 UTC. Both also run after every push to `main` (post-merge tier). A red run opens the watchdog issue; reruns are visible in the Actions run history.
 
 ### Nightly watchdog
 
 A red scheduled or post-merge run has no pull request that shows it.
 `nightly-watchdog.yml` runs after every scheduled and post-merge run of
-`ci.yml`, `surveys.yml`, `pins.yml`, `pin-drift.yml` and `refit-timings.yml`
+`ci.yml`, `surveys.yml`, `pins.yml` and `pin-drift.yml`
 on `main`, and once a day on its own schedule. For each entry it reads the
 latest completed run on `main` (post-merge: the latest that was not
 cancelled):
@@ -195,8 +191,8 @@ cancelled):
   attention`) with the run link and the failed jobs, or adds one comment per
   new failed run;
 - a schedule older than its limit (30 hours for the nightly `ci.yml` and
-  `surveys.yml` runs and `pin-drift.yml`, 8 days for the weekly `pins.yml`
-  and `refit-timings.yml`): the same issue reports a stopped schedule;
+  `surveys.yml` runs and `pin-drift.yml`, 8 days for the weekly `pins.yml`):
+  the same issue reports a stopped schedule;
 - green and current: it closes the issue.
 
 It uses only `GITHUB_TOKEN` with `actions: read` and `issues: write`.
@@ -232,7 +228,7 @@ bootstrap, fixture restore and image pulls before its first test. Most of the
 | Vulnerability gate | 1 | Own images built and scanned with the checkout, both lockfiles and every pinned third-party image; four Trivy lanes on one read-only advisory snapshot |
 | `Integration / <shards>` | 4 | All Integration shards and Contract |
 | `E2E / <leaves>` | 4 | All E2E leaves |
-| `EmDash proof / <groups>` | 2 | `krapfentaxi-orders`; `krapfentaxi-migration` + `static` |
+| `EmDash proof / <groups>` | 3 | `krapfentaxi-orders`; `krapfentaxi-deadlines`; `campaign-edge` + `static` |
 | Golden installation | 2 | Prepared and fresh installation (must stay separate runners) |
 | Golden journey, CI gate | 1 + 1 | Result comparison; the required check |
 
@@ -245,7 +241,7 @@ into at most `MAX_BINS` legs per kind, using the measured seconds in
 `INTEGRATION_SECONDS` / `E2E_SECONDS`, and opens a further leg only per
 `TARGET_SECONDS` (600 s) of tests. A pull request that touches two small leaves
 gets one E2E leg. Legs have stable names (`Integration 1/4`, `E2E 2/4`,
-`EmDash proof 1/2`) so the flake history stays comparable; the shard list is
+`EmDash proof 1/2`) so run histories stay comparable; the shard list is
 in the job summary. The leg id names the artifact (`ci-integration-1`, ...).
 The select job warns (`CI leg near timeout`) when a leg's estimate (shard
 seconds, `LEG_SETUP_SECONDS` per leg and `SHARD_SETUP_SECONDS` per
@@ -276,8 +272,6 @@ Inside a leg every shard keeps its own isolation:
   124. `run-job.sh` then adds the last lines of every running container
   (`timeout-container-logs.txt`), sanitizes and uploads. A job killed by
   GitHub's own timeout would lose all of that.
-- `tools/ci/disk-peak.sh` logs start, peak and end disk use of each leg, the
-  data for the 40 GB skip threshold below.
 
 On a fixture cache miss, `surveys.yml` waits up to 10 minutes for the
 identical fixture key that `ci.yml`'s fixture job uploads for the same ref
@@ -334,16 +328,12 @@ Then `tools/ci/sanitize_artifacts.py` withholds the excerpt on personal data,
 and a credential keyword still followed by a value withholds it too. Its
 self-test runs in Lint and types.
 
-The heaviest single case, `krapfentaxi-orders` (about 12 minutes of tests),
-sets the wall time of a complete run. `refit-timings.yml` (weekly, Monday 05:29 UTC) keeps the seconds tables
-current: `tools/ci/refit_timings.py` reads the job logs of the last 7
-successful nightly runs, takes per shard the median after dropping values
-outside half to double of it, and opens a pull request (`ci/refit-timings`,
-the required workflows dispatched like `pin-drift.yml`) only for entries
-that moved by more than 15 %. Integration shards come from
-`ci-integration: bin: <shard> passed (<n>s)`, E2E shards from the
-`shared-stack:` / `ci-e2e: own leaf:` lines of their leaf scripts plus 30 s
-of stack preparation, EmDash groups from `ci-emdash: OK: <case> (<n>s)`.
+The heaviest EmDash half, `krapfentaxi-orders` (about 7 minutes of tests),
+sets the wall time of a complete run. The seconds tables in
+`select_suites.py` are measured test-step seconds; the pull request that
+changes a shard updates its entry from the job log
+(`ci-integration: bin: <shard> passed (<n>s)`, `shared-stack:` leaf lines,
+`ci-emdash: OK: <case> (<n>s)`).
 
 Cache write discipline: the shared BuildKit cache is written only by the
 Build job of runs on `main` (post-merge, nightly, dispatch); pull requests
@@ -364,11 +354,11 @@ bound by CPU and I/O contention on the 4-vCPU runner, not by downloads
 |---|---|---|
 | uv/bun dependency cache | `.venv` + `node_modules` 830 MB, bootstrap 20 s alone | skipped: no faster to restore |
 | Third-party image tarball cache | images 1.7 GB (Playwright 1.0 GB), pull hidden behind bootstrap | skipped: no gain, 1.7 GB of the 10 GB cache budget |
-| GHCR CI images by content hash | layer import 40–50 s per image job (#140) | built (E-020): see [Prebuilt CI images](#prebuilt-ci-images-ghcr) |
+| GHCR CI images by content hash | pulling 8 images took ~47 s, as long as the layer import; Build −30 s, Security −25 s, wall time unchanged (PR #150) | built in #143, removed again (E-030) |
 | Split EmDash `krapfentaxi-orders` per browser | 3 legs ≈ 20 runner-min instead of 11, +2 jobs; wall −1 min (E2E legs are as long) | not done: every E2E leaf runs only nightly now |
 | Concurrent light shards per leg | see the peaks below | not now: CPU-bound (4 vCPU, timing-sensitive browser proofs), gain ≤ ~1 min setup per merged leg |
 
-Peaks per leg on a GitHub-hosted runner (4 vCPU, 15.6 GB; `disk-peak.sh`,
+Peaks per leg on a GitHub-hosted runner (4 vCPU, 15.6 GB; measured with the former disk sampler,
 run 42414052641, complete selection):
 
 | Leg | Memory in use, peak | Disk growth, peak |
@@ -382,29 +372,29 @@ skip threshold is about eight times the largest growth. CPU is the limit and
 is not measured. If concurrency is revisited: Integration shards only, two at
 a time, first on the nightly run with a load-average sampler.
 
-Refit guards: a shard value changes only with at least 3 observations, never
-below 1 s; no nightly run, no timing line or an unreadable log fails the
-workflow, so the watchdog reports it. The shared cache is written only by
-runs on `main` (schedule or dispatch there); bot dispatches on
-`ci/refit-timings` or `pins/repin-images` only read it.
+The shared cache is written only by runs on `main` (schedule or dispatch
+there); bot dispatches on `pins/repin-images` only read it.
 
 ## Integration and survey shards
 
-Normal PR/main-push CI runs separate Integration shards for Compose cold start,
-seed cold/idempotency, seed mutation/reset, Core, schema, outbox, storage, documents,
-Typst, Twenty installation, CRM gateway, CRM import and policy. Pilot import includes a
+Normal PR/main-push CI runs separate Integration shards for the one cold start
+(Compose, with the Core API smoke on it), seed idempotency/mutation/reset, schema,
+outbox, storage, documents, Typst, Twenty installation, CRM gateway, CRM import and
+policy (on the prepared fixture). Pilot import includes a
 real backup/restore and runs nightly instead. `bash tools/ci/integration.sh`
 also excludes pilot import by default; that shard remains explicitly selectable.
 
-Survey acceptance defines 39 checks in `tools/surveys/gate.json`: the two foundation diagnostics are separate entries, and the duplicate aggregate adapter run is consolidated.
-PR checks occupy 7 shards of about 8 minutes each (`foundation`, `foundation-acceptance`,
-`runner-permissions`, `editor-authoring`, `analysis-exports`, `lifecycle-contracts`,
-`journeys-responses`), with compatible checks sharing one stack; the six nightly
-shards still contain 13 checks, with no overlap or missing checks. Nightly-only shards are:
+Survey acceptance defines 31 stack checks in `tools/surveys/gate.json` (decision
+E-022). Survey checks without a stack run elsewhere under their own names: the
+`survey-core`, `survey-validation-candidate` and `survey-dependencies` lanes of
+`tools/ci/unit.sh`, and the restore receipts in `tools/ci/security.sh`.
+PR checks occupy 6 shards (`foundation`, `runner-permissions`, `editor-authoring`,
+`analysis-exports`, `lifecycle-contracts`, `journeys-responses`), with compatible
+checks sharing one stack; the five nightly shards contain 12 checks, with no
+overlap or missing checks. Nightly-only shards are:
 
 - recovery-deletion, recovery-retention, recovery-restic and recovery-pilot;
-- exports-recovery, including its state/limit checks;
-- restore-receipts, previously part of foundation.
+- exports-recovery, including its state/limit checks.
 
 `.github/workflows/surveys.yml` runs the nightly selection daily at 01:17 UTC
 (02:17 CET / 03:17 CEST). GitHub schedules start only after the workflow is on
@@ -437,13 +427,15 @@ The optional campaign site (Compose profile `emdash`) has its own proof cases
 (`./leonaid test-emdash-spike --case <name>`). Two regressions were only visible
 in them: an EmDash editor load race (PR #37) and a Caddy body-drain regression
 (PR #38). PR and main CI therefore run `tools/ci/emdash.sh` in the
-`EmDash proof / <groups>` matrix, gated by `CI gate`. Two legs
-(`EMDASH_BINS`): `krapfentaxi-orders` alone, `krapfentaxi-migration` with `static`.
+`EmDash proof / <groups>` matrix, gated by `CI gate`. Three legs
+(`EMDASH_BINS`): `krapfentaxi-orders` alone, `krapfentaxi-deadlines` alone,
+`campaign-edge` with `static`.
 
 | Group | Cases |
 |---|---|
-| `krapfentaxi-orders` | `krapfentaxi-orders`: Krapfentaxi import, Chromium/Firefox/WebKit editor and order journeys, Core/Twenty order ingress, native order deadlines |
-| `krapfentaxi-migration` | `krapfentaxi-migration`: Krapfentaxi import with original media, three-browser editor and renderer proof, published redirects; `redirect-aliases`: Chromium/Firefox/WebKit redirect alias editor (create, disable/enable, collision, move, remove) under the strict CSP |
+| `krapfentaxi-orders` | `krapfentaxi-orders-commerce`, the commerce half of `krapfentaxi-orders`: the whole `krapfentaxi-migration` case first (Krapfentaxi import with original media, three-browser editor and renderer proof, published redirects), then Chromium/Firefox/WebKit commerce phases, four Chromium order journeys (every scenario once, two per mode) with Core/Twenty verification, valid order ingress. `krapfentaxi-migration` therefore does not run on its own. |
+| `krapfentaxi-deadlines` | `krapfentaxi-orders-deadlines`, the deadline half on its own stack: import, WebKit editor publication (the state the order proofs read), native and script order deadlines and the partial CRM write in Chromium, Caddy body deadlines (slow bodies on one route, size limits on all three). |
+| `campaign-edge` | `campaign-hosts`: a campaign on its own host through the real edge, with and then (same stack, apps recreated) without a general public host; `redirect-aliases`: Chromium/Firefox/WebKit redirect alias editor (create, disable/enable, collision, move, remove) under the strict CSP |
 | `static` | stack-free `dependencies`, `krapfentaxi-source`, `authorization-inventory`, `release-manifest-compatibility`, `release-legacy-boundary`, `release-image-identity`, `closed-runtime`; plus `proxy-routing` (Caddy, public and CMS only, no database) |
 
 The jobs need no prepared fixture: every case builds its own isolated stack and
@@ -455,11 +447,13 @@ workflow retries a failed case, so an intermittent failure stays red and must
 be fixed at its cause. `tools/ci/workflow_contract.py` rejects a missing group,
 a path filter, `continue-on-error` or a retry in the job.
 
-Observed GitHub runtimes (PR #40, run 42360553738): `krapfentaxi-orders`
-12–15 min, `krapfentaxi-migration` 4–6 min, `static` 1–3 min.
-`krapfentaxi-orders` is one stateful case (import, three-browser commerce
-phases, Twenty start, order journeys) and remains the longest job of the run;
-the other legs are packed to finish before it.
+Observed GitHub runtimes (post-merge run 42508593075, before the
+`campaign-edge` regrouping): `krapfentaxi-orders` 719 s, the former
+`krapfentaxi-migration` group 687 s (its own `krapfentaxi-migration` case
+204 s of it), `static` 105 s.
+Both halves start Twenty beside the import (`compose up --detach`) and wait
+for it only before the order phases. Locally `--case krapfentaxi-orders`
+still runs both halves on one stack.
 
 The jobs import the `emdash` BuildKit group; the Build job also exports the
 `campaign-site` cache. On failure the harness stores `compose ps` and the
@@ -690,8 +684,8 @@ pre-build hash only if the inputs still hash the same (not in CI). A FROM or
 build secrets/ssh, symlinks leaving the context or unknown `.dockerignore`
 syntax make it build without sharing (the CLI exits non-zero). Teardown removes
 only `<project>-*` tags; the four most recently used content tags per service
-are kept (`LEONAID_IMAGE_KEEP`). CI pulls the same hash from
-`ghcr.io/bjoernschotte/leonaid-ci/<image>:<hash>` (see Prebuilt CI images).
+are kept (`LEONAID_IMAGE_KEEP`). CI may push the same hash as
+`ghcr.io/bjoernschotte/leonaid-ci/<service>:<hash>`.
 
 ## Shared package caches
 
@@ -732,7 +726,7 @@ volumes, secrets and runtime state are never exported.
 Scopes are stable per image family and `linux/amd64`; BuildKit invalidates layers
 from Dockerfile and source inputs. API and worker share the Core cache. Only the
 normal Build job exports the production cache. Other image-consuming jobs import
-it without concurrent writes. Explicit `cold_run` jobs bypass this action.
+it without concurrent writes.
 Survey sudo invocations preserve CI and the selected Docker builder/configuration.
 
 The opt-in Build cache benchmark (manual dispatch or the
@@ -744,34 +738,6 @@ normal cache. Reports include builder preparation/import/build/export/load time
 and a subsequent project-renamed Compose build. The latter must cache every
 Dockerfile RUN step. Full-image cases also start the real Public Node image and
 verify its HTTP readiness. No database or test stack is needed for this benchmark.
-
-## Prebuilt CI images (GHCR)
-
-Decision E-020. Images live at
-`ghcr.io/bjoernschotte/leonaid-ci/<service>:<hash>`; the hash is the content
-hash of `tools/testing/image_tags.py`.
-
-- **Pull.** Jobs with `prebuilt: true` on `.github/actions/build-cache`
-  (Build, Vulnerability gate, Security, API contract) run
-  `python3 -I tools/ci/prebuilt_images.py pull <targets>` first. It pulls
-  each image, checks its `io.leonaid.ci.content-hash` label and tags it
-  `leonaid-local/<service>:<hash>`, where the harness, `tools/ci/build.sh`
-  and the vulnerability gate reuse it (`image_tags.adopt`). Only the misses
-  go to the layer import. Every failure is a miss and is built as before.
-  Other image jobs keep the full import: some of their suites build directly
-  (`compose up --build`), which would start cold for a pulled image.
-- **Publish.** `publish-images` in `ci.yml`, after a green Build on main only,
-  is the only CI job with `packages: write`
-  (`tests/unit/test_workflow_files.py`). It pushes every image whose tag is
-  missing, after the secret check (forbidden files such as `.env`, keys and
-  `.git`; Trivy's secret scanner). The Monday nightly republishes every image
-  built without the layer cache, so OS packages stay current; CI has no image
-  age limit.
-- **Kill switch.** Repository variable `CI_PREBUILT_IMAGES=off`.
-- **Visibility.** New GHCR packages are private; the owner makes them public
-  once (package settings). Until then pulls miss.
-- **Locally** the hashes differ: a checkout with umask 002 has other file
-  modes than CI, and modes are part of the image. Local pulls would never hit.
 
 ## Runner disk budget
 
@@ -797,9 +763,6 @@ runner ran out while building the own images.
 - `tools/security/pulled-images.sh` removes a pinned image right after its use
   only when that exact digest was absent before. Locally present images,
   including any other tags of the same image, stay untouched.
-- `LEONAID_CI_DISK_REPORT=1` makes the scan log `tools/ci/disk-report.sh`
-  output after every phase (start, advisory databases, own images built, all
-  targets scanned). The per-target reports cost about 45 s per run.
 - In CI, `tools/ci/security.sh` runs the vulnerability gate beside the policy
   checks and the security stack test (`LEONAID_SCAN_KEEP_PULLED=1`: the
   third-party images stay until the job ends, because the stack may use them).

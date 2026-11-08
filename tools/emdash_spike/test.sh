@@ -19,8 +19,8 @@ case "$test_case" in
   release-legacy-boundary) ;;
   release-manifest-compatibility) ;;
   release-image-identity) ;;
-  krapfentaxi-source|krapfentaxi-migration|krapfentaxi-orders|alias-namespaces|alias-persistence|alias-commands|alias-http|redirect-aliases) ;;
-  campaign-public-content|campaign-public-http|campaign-hosts|campaign-hosts-admin-only|campaign-public-media|postgres-pool|public-order-component|order-ingress-pilot|campaign-orders) ;;
+  krapfentaxi-source|krapfentaxi-migration|krapfentaxi-orders|krapfentaxi-orders-commerce|krapfentaxi-orders-deadlines|alias-namespaces|alias-persistence|alias-commands|alias-http|redirect-aliases) ;;
+  campaign-public-content|campaign-public-http|campaign-hosts|campaign-public-media|postgres-pool|public-order-component|order-ingress-pilot|campaign-orders) ;;
   all|dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime|admin-browser|authorization-inventory|authorization-surface|campaign-content|campaign-runtime|schema-runtime|schema-migration|campaign-auth-race|campaign-editorial-isolation|campaign-media-binding|campaign-media-upload|campaign-media-http|campaign-editor-pointer|campaign-core-public) ;;
   *) echo "emdash-spike: case not implemented: $test_case" >&2; exit 2 ;;
 esac
@@ -79,6 +79,13 @@ fi
 if [ "$test_case" = krapfentaxi-orders ]; then
   /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" migration true
 fi
+# The two halves of krapfentaxi-orders, each on its own stack (CI legs).
+if [ "$test_case" = krapfentaxi-orders-commerce ]; then
+  EMDASH_ORDER_PHASES=commerce /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" migration true
+fi
+if [ "$test_case" = krapfentaxi-orders-deadlines ]; then
+  EMDASH_ORDER_PHASES=deadlines /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" migration true
+fi
 if [ "$test_case" = krapfentaxi-migration ] || [ "$test_case" = all ]; then
   /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" migration
 fi
@@ -108,14 +115,10 @@ if [ "$test_case" = campaign-public-http ]; then
   /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" public-http
 fi
 
-# Campaign hosts through the real edge (specs/multi-domain §7, §14).
+# Campaign hosts through the real edge (specs/multi-domain §7, §14), then
+# on the same stack without a general public host (§6.6, review of #109).
 if [ "$test_case" = campaign-hosts ]; then
   /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" campaign-hosts
-fi
-
-# The same without a general public host (§6.6, review of #109).
-if [ "$test_case" = campaign-hosts-admin-only ]; then
-  /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" campaign-hosts-admin-only
 fi
 
 if [ "$test_case" = campaign-public-content ]; then

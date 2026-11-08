@@ -4,8 +4,8 @@ description: FastAPI, kanonisches OpenAPI und den TypeScript-Client in einem rep
 docId: DOC-P032
 audience: [dev]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
+contentRevision: 2
+reviewedRevision: 2
 verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
 reviewer: Björn Schotte
 ---
@@ -20,9 +20,9 @@ reviewer: Björn Schotte
    Core-Änderung entsprechen.
 4. Aktualisiere Verbraucher und die kuratierten DE/EN-Erklärungen. Die
    Docs-API-Referenz wird beim Docs-Gate aus genau diesem JSON erzeugt.
-5. Führe `tools/openapi/test.sh` sowie den betroffenen Feature-Test aus. Der
-   OpenAPI-Test erzeugt Vertrag und Client erneut, vergleicht bytegenau,
-   typecheckt und prüft den realen API-Client.
+5. Führe `./leonaid check` und `tools/openapi/test.sh` sowie den betroffenen
+   Feature-Test aus. Der Check erzeugt Vertrag und Client erneut, vergleicht
+   bytegenau und typecheckt; der OpenAPI-Test prüft den realen API-Client.
 
 Eine brechende Änderung benötigt die exakte, begründete Freigabe im
 versionierten Breaking-Approval-Vertrag. Ein fehlender oder vom Core

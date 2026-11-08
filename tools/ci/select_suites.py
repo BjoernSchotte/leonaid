@@ -56,9 +56,7 @@ ROOT = Path(__file__).resolve().parents[2]
 # Matrix order is the request order: long jobs first.
 INTEGRATION_SHARDS = (
     "compose",
-    "seed-cold",
     "seed-reset",
-    "core",
     "typst",
     "storage",
     "documents",
@@ -93,7 +91,12 @@ E2E_SHARDS = (
 # Short browser smoke leg (tools/ci/e2e.sh smoke): real login, one list view,
 # one public order. Runs alone in its leg.
 SMOKE = "smoke"
-EMDASH_GROUPS = ("krapfentaxi-orders", "krapfentaxi-migration", "static")
+EMDASH_GROUPS = (
+    "krapfentaxi-orders",
+    "krapfentaxi-deadlines",
+    "campaign-edge",
+    "static",
+)
 # Whole-workflow or whole-job suites.
 FLAGS = ("contract", "golden", "surveys", "api", "pins")
 
@@ -105,10 +108,10 @@ FLAGS = ("contract", "golden", "surveys", "api", "pins")
 # measured test-step durations of PR run 42360553738 (2026-11-07); refresh
 # them from `gh run view <id> --json jobs` when a shard grows a lot.
 INTEGRATION_SECONDS = {
-    "compose": 263,
-    "seed-cold": 243,
-    "seed-reset": 201,
-    "core": 226,
+    # Run 42508593075: compose 296 s (now with the Core smoke), seed-reset
+    # 273 s (now with the idempotent second seed of the former seed-cold).
+    "compose": 300,
+    "seed-reset": 295,
     "typst": 119,
     "storage": 142,
     "documents": 149,
@@ -116,7 +119,8 @@ INTEGRATION_SECONDS = {
     "crm-gateway": 129,
     "crm-import": 100,
     "twenty-install": 133,
-    "policy": 206,
+    # On the prepared fixture: about 35 s import, 25 s contract.
+    "policy": 75,
     "schema-outbox": 199,
     "delivery": 30,
     # The Contract job (tools/ci/contract.sh) rides in an Integration bin.
@@ -146,10 +150,19 @@ E2E_SECONDS = {
     SMOKE: 240,
 }
 # EmDash bins are fixed: the order proof alone is the longest job of the run.
-EMDASH_BINS = (("krapfentaxi-orders",), ("krapfentaxi-migration", "static"))
+EMDASH_BINS = (
+    ("krapfentaxi-orders",),
+    ("krapfentaxi-deadlines",),
+    ("campaign-edge", "static"),
+)
 EMDASH_SECONDS = {
-    "krapfentaxi-orders": 736,
-    "krapfentaxi-migration": 328,
+    # Measured on PR #145 run 42511933095: commerce half 458 s, deadline
+    # half 413 s, redirect-aliases 147 s; campaign-hosts 160 s plus its
+    # admin-only round on the same stack (about 60 s, estimate).
+    # Chromium-only orders and deadlines (E-026): estimates −64 s and −100 s.
+    "krapfentaxi-orders": 395,
+    "krapfentaxi-deadlines": 315,
+    "campaign-edge": 370,
     "static": 107,
 }
 TARGET_SECONDS = 600
@@ -166,9 +179,7 @@ LOAD_WARNING = 0.75
 MAX_BINS = {"integration": 4, "e2e": 4}
 # Integration shards that start Twenty: its image (about 40 s of pulls in
 # the policy leg of run 42504505501) is prefetched beside the layer import.
-SEED_BOOTSTRAP = frozenset(
-    {"compose", "seed-cold", "seed-reset", "twenty-install", "policy"}
-)
+SEED_BOOTSTRAP = frozenset({"compose", "seed-reset", "twenty-install", "policy"})
 
 # Fast tier (pull requests): Integration shards and Contract that a specific
 # rule selects run before the merge only when each fits FAST_LEG_SECONDS of
@@ -199,6 +210,13 @@ FAST_REQUIRED: dict[str, tuple[str, ...]] = {
         "infra/compose/**",
         "infra/proxy/**",
         "tools/typst/render_golden.sh",
+    ),
+    # The campaign renderer switch is system-admin only (cutover and
+    # rollback, tests/integration/test_campaign_renderer_api.py, E-028).
+    "schema-outbox": (
+        "tests/integration/test_campaign_renderer_api.py",
+        "src/leonaid/adapters/postgres/campaign_aliases.py",
+        "src/leonaid/application/campaign_renderer.py",
     ),
 }
 # Never in the fast tier: browser suites and multi-minute acceptance runs.
@@ -256,18 +274,14 @@ RULES: tuple[Rule, ...] = (
     Rule(
         (
             "tools/ci/*_test.py",
-            "tools/ci/refit_timings.py",
             "tools/ci/axe_helper.py",
             "tools/ci/build.sh",
             "tools/ci/conflict_markers.py",
             "tools/ci/core_oneoff_user.py",
-            "tools/ci/disk-report.sh",
-            "tools/ci/flake_summary.py",
             "tools/ci/gate.py",
             "tools/ci/hold_gate.py",
             "tools/ci/legacy_ui.py",
             "tools/ci/lint-types.sh",
-            "tools/ci/measure-cache.sh",
             "tools/ci/no_test_doubles.py",
             "tools/ci/reviewed_network_faults.json",
             "tools/ci/security.sh",
@@ -280,7 +294,6 @@ RULES: tuple[Rule, ...] = (
     # Workflows that run no ci.yml suite. Each gated workflow selects itself.
     Rule(
         (
-            ".github/workflows/cache-benchmark.yml",
             ".github/workflows/docs.yml",
             ".github/workflows/docs-watchdog.yml",
             ".github/workflows/nightly-watchdog.yml",
@@ -366,7 +379,6 @@ RULES: tuple[Rule, ...] = (
             "src/leonaid/modules/surveys/**",
             "packages/surveys/**",
             "packages/features/src/surveys/**",
-            "apps/surveys-demo/**",
             "tests/e2e/surveys-*.spec.mjs",
         ),
         frozenset({"surveys"}),
@@ -493,13 +505,14 @@ RULES: tuple[Rule, ...] = (
     # Integration shards with their own proof directories.
     Rule(("tools/delivery/**",), integration("delivery"), "delivery proofs"),
     Rule(("tools/compose/**",), integration("compose", "profiles"), "Compose proofs"),
-    Rule(("tools/core/**",), integration("core"), "Core proofs"),
+    Rule(("tools/core/**",), integration("compose"), "Core smoke (in compose)"),
     Rule(
         (
             "tools/schema/**",
             "tools/outbox/**",
             "tests/integration/test_order_cancellation_api.py",
             "tests/integration/test_offline_capture_api.py",
+            "tests/integration/test_campaign_renderer_api.py",
         ),
         integration("schema-outbox"),
         "schema/outbox proofs",

@@ -43,6 +43,15 @@ async def main() -> None:
         action = await fixture.action(
             "renderer", "active", now - day, now + 30 * day, cms=False
         )
+        # A charity admin of this action may manage its aliases, but only a
+        # system admin switches the renderer.
+        await connection.execute(
+            "INSERT INTO action_membership(id,user_id,action_id,role,active_from) "
+            "VALUES($1,$2,$3,'charity_admin',now()-interval '1 day')",
+            uuid4(),
+            fixture.users[-1],
+            action,
+        )
         alias = await connection.fetchrow(
             "SELECT id, revision FROM public_action_alias WHERE action_id=$1", action
         )
@@ -84,9 +93,10 @@ async def main() -> None:
                     return row["campaign_redirect"], row["revision"]
 
                 start = alias["revision"]
-                # Not a system admin: refused, nothing changes.
+                # The action's charity admin: refused, nothing changes.
                 refused = await put(member_token, start, "campaign", uuid4())
                 assert refused.status_code == 403, refused.text
+                assert error(refused) == "system_admin_required"
                 assert await state() == (False, start)
 
                 # Cutover to the campaign renderer.
@@ -120,6 +130,12 @@ async def main() -> None:
                 assert rollback.json()["renderer"] == "legacy"
                 assert await state() == (False, start + 2)
 
+                # Replaying the cutover after the rollback returns the stored
+                # result and does not switch back to the campaign.
+                again = await put(admin_token, start, "campaign", cutover)
+                assert again.status_code == 200 and again.json() == body
+                assert await state() == (False, start + 2)
+
         audit = await connection.fetch(
             "SELECT payload->>'previousRenderer' AS before, "
             "payload->>'newRenderer' AS after FROM audit_event "
@@ -134,6 +150,10 @@ async def main() -> None:
     finally:
         await connection.execute(
             "DELETE FROM audit_event WHERE action_id = ANY($1::uuid[])",
+            list(fixture.actions.values()),
+        )
+        await connection.execute(
+            "DELETE FROM action_membership WHERE action_id = ANY($1::uuid[])",
             list(fixture.actions.values()),
         )
         await connection.execute(

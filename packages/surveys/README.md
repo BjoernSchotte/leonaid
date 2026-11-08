@@ -78,7 +78,7 @@ Restoration applies initial answers before attaching save listeners.
 
 The current baseline uses browser rendering in Astro; it does not claim SSR
 support or hydration parity across additional hosts yet. The runner defaults to German and now accepts host locale/messages; see the
-packed-consumer section below. The editor also accepts host translation and preview locale; see below.
+host configuration section below. The editor also accepts host translation and preview locale; see below.
 The host can set `--survey-accent` and `--survey-font`; the stylesheet maps these
 to SurveyJS 3's actual `--sjs2-*` tokens on its theme root. It imports the fontless
 upstream stylesheet and uses host-provided fonts.
@@ -88,7 +88,7 @@ uses `html:has(.survey-shell) { scroll-behavior: auto; }`: delayed focus-trigger
 scroll events otherwise dismiss SurveyJS dropdown popups during pointer selection.
 
 Tests live in `tools/surveys/saves.test.ts` and
-`tests/e2e/surveys-runner.spec.mjs`. `./leonaid test-surveys-runner` builds a fresh
+`tests/e2e/surveys-runner.spec.mjs`. `./leonaid test-surveys --check runner` builds a fresh
 isolated stack and exercises actual services before the browser scenarios.
 
 The runner model maps the profile's minimum text length to a native SurveyJS
@@ -153,8 +153,8 @@ history. Subsequent saves use the returned revision. Network failures retain the
 original operation ID/payload so an uncertain committed save can be resolved
 before sending newer edits. The browser gate covers both cases.
 
-Full property/profile compatibility, responsive/accessibility acceptance and
-independent packed-consumer proof remain required work. This editor does not claim SurveyJS Creator feature parity.
+Full property/profile compatibility and responsive/accessibility acceptance
+remain required work. This editor does not claim SurveyJS Creator feature parity.
 
 The web host currently enables TypeScript `skipLibCheck`, matching the neutral
 package: SurveyJS 3.0.3's matrix renderer declaration returns `Element | null`
@@ -162,7 +162,7 @@ while its declared base method returns `Element` (TS2416). Application source
 remains strictly checked; this setting does not establish clean upstream type
 declarations. Track removal when the pinned upstream declarations are corrected.
 
-## Packed consumer and host configuration
+## Host configuration
 
 Host-supplied adapters connect the React questionnaire editor and respondent
 runner to persistence. This package does not import LeonAid's API client, UI,
@@ -172,9 +172,9 @@ private and is not being published.
 Entrypoints: `editor`, `runner`, `contracts`, `analysis`, `analytics`, `exports`,
 `styles`, `editor-styles`, `analytics-styles`, `export-styles`. The current
 spike distributes TypeScript sources for a TypeScript-capable consumer bundler.
-React and React DOM are peer dependencies (`^19.2.8`). The independently packed
-consumer and LeonAid currently verify exactly `19.2.8`; the compatibility range
-does not claim that future releases have already been tested. Runtime hosts keep
+React and React DOM are peer dependencies (`^19.2.8`). LeonAid currently verifies
+exactly `19.2.8`; the compatibility range does not claim that future releases
+have already been tested. Runtime hosts keep
 exact dependency versions and frozen lockfiles. Import the runner stylesheet once;
 the editor also uses it for preview. Use `--survey-accent` and `--survey-font`
 inside the host's survey container to customize the runner theme.
@@ -188,12 +188,10 @@ Questionnaire validation and all authoritative writes remain server concerns.
 Provide a secure browser context (HTTPS, or localhost for local development)
 for cryptographic operation IDs.
 
-The independent demo installs an actual tarball outside workspace resolution and
-saves to SQLite through its own adapter. It is a consumer proof, not a hosted
-service or production backend. The independent export page uses a separate
-bundle and the host's own SQLite-backed CSV adapter. Additional host language catalogues,
-compiled distribution and full cross-host theme/hydration acceptance remain
-tracked in the spike plan.
+LeonAid is the only host. The package is consumed through the workspace; a
+packed installation in a foreign host is not tested (decision E-022). Additional
+host language catalogues, compiled distribution and cross-host theme/hydration
+acceptance remain tracked in the spike plan.
 
 ## Server aggregate engine
 
@@ -265,8 +263,7 @@ keeps its job list in memory; restoring a job list after navigation is a separat
 host concern. Completed downloads use temporary object URLs that are revoked
 after triggering the download; the component does not persist response blobs.
 Import this entrypoint only in an authorized result/export view to keep it out
-of the respondent bundle. The independent demo demonstrates this separation
-with an actual packed installation and its own persisted CSV export adapter.
+of the respondent bundle.
 
 ### Editor host translation
 
@@ -308,11 +305,8 @@ and German are available in the current bundle. Hosts using another SurveyJS
 locale must register its corresponding SurveyJS translation and set their page
 language. The editor does not provide a catalogue for every language.
 
-The packed independent `/editor` demo proves translated controls, reordered
-numbered labels, generated defaults, JSON errors, English preview and actual
-SQLite draft persistence across backend restart. Its deliberately small synthetic
-adapter supports load/save/validation and disables publication. It is not a
-production authentication or arbitrary-questionnaire validation service.
+`tools/surveys/editor-i18n.test.ts` covers translated controls, numbered labels
+and generated defaults.
 
 ### Host logo
 
@@ -329,8 +323,7 @@ an image request. An omitted logo renders no image. Hosts own the asset and its
 serving policy: use a static route that does not redirect off-origin and do not
 put participant data in a filename. The image sends no referrer and fits a
 160-by-64 CSS box constrained to the available width. No image upload or remote
-asset fetching service is added. LeonAid supplies its existing local brand mark;
-the independent demo supplies its own mark and an interactive configuration field.
+asset fetching service is added. LeonAid supplies its existing local brand mark.
 
 ### Narrow progress navigation
 

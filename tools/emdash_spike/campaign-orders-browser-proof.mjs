@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 // Decode real RPC receipts with the installed Astro implementation, not a
 // hand-written approximation of its devalue wire format.
 import { deserializeActionResult } from "../../node_modules/astro/dist/actions/runtime/client.js";
-import { readdir, writeFile } from "node:fs/promises";
-import { chromium, firefox, webkit } from "playwright";
+import { writeFile } from "node:fs/promises";
+import { chromium } from "playwright";
 import { guardCsp } from "./csp-guard.mjs";
 import { WCAG_TAGS, analyzeAccessibility } from "../../tests/e2e/axe.mjs";
 import {
@@ -35,11 +35,7 @@ async function checkConsents(page, form, label) {
   }
 }
 
-const legacyEntry = process.argv.includes("--legacy-entry");
-const primaryAlias = process.argv.includes("--primary-alias");
-const postCutover = process.argv.includes("--after-cutover");
-assert.ok(!(legacyEntry && primaryAlias));
-const path = legacyEntry ? "/krapfentaxi" : "/campaigns/krapfentaxi-2026/";
+const path = "/campaigns/krapfentaxi-2026/";
 const orders = [];
 assert.ok(!process.argv.includes("--burst"), "Stress mode is not supported");
 const imported = process.argv.includes("--imported");
@@ -54,47 +50,25 @@ assert.ok(
 );
 const controlledDeadline =
   process.argv.includes("--native-deadline") || partialCrm || scriptDeadline;
-const beforeRecovery = process.argv.includes("--before-recovery");
-const afterRecovery = process.argv.includes("--after-recovery");
-const afterRollback = process.argv.includes("--after-rollback");
-assert.ok(
-  [beforeRecovery, afterRecovery, afterRollback].filter(Boolean).length <= 1,
-);
-assert.ok(!postCutover || (imported && afterRecovery && primaryAlias));
-assert.ok(!legacyEntry || afterRollback);
-assert.ok(
-  !controlledDeadline ||
-    (imported &&
-      !beforeRecovery &&
-      !afterRecovery &&
-      !afterRollback &&
-      !postCutover &&
-      !legacyEntry &&
-      !primaryAlias),
-);
-if (beforeRecovery || afterRecovery || afterRollback) {
-  assert.ok(
-    (await readdir("/proof")).every((name) => name === "orders-ui.json"),
-    "Recovery browser must receive only its receipt directory, not operator secrets",
-  );
-}
-const recoveryPrefix = beforeRecovery
-  ? "before-recovery-"
-  : afterRecovery
-    ? "after-recovery-"
-    : afterRollback
-      ? "after-rollback-"
-      : "";
+assert.ok(!controlledDeadline || imported);
 let timedOutOrders = 0;
 // Functional acceptance, not a burst/load test: each order performs several
 // CRM requests under Core's unchanged 100 requests/minute limiter. Keep these
 // synthetic visitors eight seconds apart. Targeted real SQL locks exercise
 // deadline recovery separately, without deliberately exhausting CRM capacity.
 let nextOrderAt = 0;
+// Four orders in Chromium (E-026): the order scenarios are server logic,
+// several engines run only in the EmDash editor, Golden and the PWA. Every
+// scenario runs once, both modes twice; the accessibility/CSP scan's
+// Chromium-JS new-company run stays.
+const SCENARIOS = {
+  chromium: {
+    native: ["existing-company", "mixed"],
+    js: ["new-company", "person"],
+  },
+};
 for (const [engineName, engine] of Object.entries({
   chromium,
-  firefox,
-  webkit,
 })) {
   const browser = guardCsp(await engine.launch({ headless: true }));
   try {
@@ -103,8 +77,8 @@ for (const [engineName, engine] of Object.entries({
       : [false, true]) {
       for (const scenario of controlledDeadline
         ? [partialCrm ? "new-company" : "person"]
-        : ["new-company", "existing-company", "person", "mixed"]) {
-        const label = `${partialCrm ? "partial-" : controlledDeadline ? "deadline-" : ""}${recoveryPrefix}${engineName}-${javaScriptEnabled ? "js" : "native"}-${scenario}`;
+        : SCENARIOS[engineName][javaScriptEnabled ? "js" : "native"]) {
+        const label = `${partialCrm ? "partial-" : controlledDeadline ? "deadline-" : ""}${engineName}-${javaScriptEnabled ? "js" : "native"}-${scenario}`;
         await new Promise((resolve) =>
           setTimeout(resolve, Math.max(0, nextOrderAt - Date.now())),
         );
@@ -121,17 +95,8 @@ for (const [engineName, engine] of Object.entries({
           extraHTTPHeaders: { "X-LeonAid-Order-Key": "0".repeat(64) },
         });
         const page = await context.newPage();
-        const entered = await page.goto(
-          `https://proxy:8443${primaryAlias ? "/krapfentaxi" : path}`,
-        );
+        const entered = await page.goto(`https://proxy:8443${path}`);
         assert.equal(entered.status(), 200);
-        if (primaryAlias) {
-          assert.equal(page.url(), `https://proxy:8443${path}`);
-          const redirected = entered.request().redirectedFrom();
-          assert.ok(redirected);
-          assert.equal(redirected.url(), "https://proxy:8443/krapfentaxi");
-          assert.equal(redirected.redirectedFrom(), null);
-        }
         if (imported) {
           assert.equal(
             await page.locator("body").getAttribute("class"),
@@ -140,9 +105,7 @@ for (const [engineName, engine] of Object.entries({
           assert.equal(
             await page
               .getByRole("heading", {
-                name: postCutover
-                  ? "Published after recovery point"
-                  : "Published imported campaign webkit",
+                name: "Published imported campaign webkit",
                 exact: true,
               })
               .count(),
@@ -150,9 +113,7 @@ for (const [engineName, engine] of Object.entries({
           );
           assert.ok(
             !(await page.locator("body").textContent()).includes(
-              postCutover
-                ? "Private after recovery point"
-                : "Private follow-up webkit",
+              "Private follow-up webkit",
             ),
           );
           assert.equal(await page.locator("[data-order-form]").count(), 1);
@@ -549,5 +510,5 @@ for (const [engineName, engine] of Object.entries({
     await browser.close();
   }
 }
-if (controlledDeadline) assert.equal(timedOutOrders, 3);
+if (controlledDeadline) assert.equal(timedOutOrders, 1);
 await writeFile("/proof/orders-ui.json", JSON.stringify(orders));

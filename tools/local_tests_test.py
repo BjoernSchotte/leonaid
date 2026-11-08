@@ -42,8 +42,8 @@ class LocalTests(unittest.TestCase):
             for c in manifest["ciShards"][shard]
         }
         self.assertFalse(pr & nightly)
-        self.assertEqual(len(pr), 26)  # passing/failing foundation proofs are separate
-        self.assertEqual(len(nightly), 13)
+        self.assertEqual(len(pr), 19)
+        self.assertEqual(len(nightly), 12)
 
     def test_changes_invalidate_only_required_cache(self):
         with tempfile.TemporaryDirectory() as directory:

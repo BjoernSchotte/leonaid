@@ -126,6 +126,14 @@ assert sorted(bindings) == sorted([
 print("compose-test: every service healthy; exact loopback bindings verified")
 PYRUNTIME
 
+# Core on the cold-started stack: real ASGI server, PostgreSQL, API contract
+# and error format (formerly its own cold start in tools/core/test.sh).
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+  --env LEONAID_INTEGRATION_BASE_URL=http://api:8000 \
+  --volume "$root:/repo:ro" \
+  --entrypoint python \
+  api /repo/tools/core/smoke.py
+
 base_url="http://127.0.0.1:$port"
 test "$(curl --fail --silent "$base_url/_health")" = "ready"
 test "$(curl --fail --insecure --silent "https://localhost:$https_port/_health")" = "ready"
