@@ -9,6 +9,7 @@ case "$*" in
     "sh tools/ci/bootstrap-prefetch.sh toolchains" | \
     "sh tools/ci/bootstrap-prefetch.sh seed" | \
     "sh tools/ci/bootstrap-prefetch.sh browser" | \
+    "sh tools/ci/bootstrap-prefetch.sh api-stack" | \
     "docker pull "*) ;;
   *)
     echo "ci-retry-infra: ERROR: not an allowlisted infrastructure command: $*" >&2
