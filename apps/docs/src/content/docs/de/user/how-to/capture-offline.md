@@ -108,7 +108,9 @@ zeigt.
 - Offline gehen nur Sponsoren, Wiedervorlagen, Kontakte und Bestellungen. Die
   Startseite mit dem Aktionsstand, Aufgaben, Material, Wissen, Postfach und
   das Lieferboard brauchen eine Verbindung.
-- Straßenadressen deiner Sponsoren liegen nicht auf dem Gerät. Für eine
+- Straßenadressen deiner Sponsoren liegen nicht auf dem Gerät. Ergänzt du
+  bei der Prüfung eines Entwurfs die Straße, bleibt sie verschlüsselt auf dem
+  Gerät, bis die Prüfung abgeschlossen ist, längstens 14 Tage. Für eine
   Bestellung gibst du die Adresse ein.
 - Zwei Geräte wissen nichts voneinander: Erfasst du denselben Kontakt auf
   beiden, steht er zweimal im Verlauf.

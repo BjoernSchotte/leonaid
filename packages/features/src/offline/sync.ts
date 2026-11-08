@@ -68,6 +68,12 @@ export async function drainQueue(
     if (rule === "expire") {
       await store.put({
         ...entry,
+        // An expired draft is never checked again: the resolve body (with
+        // a street added during the check) and Core's answer go now, so
+        // they stay at most 14 days (E-017).
+        ...(entry.kind === "sponsor-draft"
+          ? { resolution: null, resolveRequest: null }
+          : {}),
         state: "expired",
         settledAt: now().toISOString(),
       });
