@@ -525,10 +525,10 @@ def validate_hosts(
         raise DeploymentContractError("public app hosts differ from the proxy hosts")
 
 
-# Until the EmDash case campaign-hosts-admin-only is green in CI, production
-# refuses the mode (review of #109); the contract test lifts it to prove the
-# remaining rules.
-ADMIN_ONLY_RELEASED = False
+# Released after the EmDash case campaign-hosts-admin-only passed in CI
+# (run 42417644446, #109). Kept as a switch so the contract test can prove the
+# refusal path.
+ADMIN_ONLY_RELEASED = True
 
 
 def validate_admin_only(
