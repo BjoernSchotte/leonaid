@@ -144,7 +144,7 @@ def triggers_of(data: dict[str, Any]) -> set[str]:
     return {str(item) for item in (on or {})}
 
 
-# Hit measurement of the prebuilt images (E-020), run 1.
+# Hit measurement of the prebuilt images (E-020), run 2.
 MAIN_ONLY = "github.ref == 'refs/heads/main'"
 NOT_PULL_REQUEST = "github.event_name != 'pull_request'"
 TAG_ONLY = "github.ref_type == 'tag'"
