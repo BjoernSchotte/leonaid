@@ -7,7 +7,9 @@ export default defineConfig({
   fullyParallel: false,
   // Several engines only in Golden, the PWA and the EmDash editor (E-026);
   // WebKit runs the tests tagged @webkit (session cookie, no-JS autofocus).
-  projects: ["chromium", "webkit"].map((browserName) => ({
+  // It runs first: the later Chromium delivery-window tests retire every
+  // window, after which no order can be placed.
+  projects: ["webkit", "chromium"].map((browserName) => ({
     name: browserName,
     grep: browserName === "webkit" ? /@webkit/ : undefined,
     use: {
