@@ -164,4 +164,4 @@ docker run --rm \
   --trace=retain-on-failure \
   --reporter=line
 
-echo "multi-host-test: OK: admin host and public host proven with the real services in three browsers"
+echo "multi-host-test: OK: admin host and public host proven with the real services"

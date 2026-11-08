@@ -236,6 +236,32 @@ async def main() -> None:
                 assert (
                     removed.status_code == 200 and removed.json()["accessRevision"] == 3
                 )
+                # A signed-in user without access learns nothing, not even
+                # that the material exists.
+                target_token = uuid4().hex + uuid4().hex
+                await connection.execute(
+                    "INSERT INTO user_session (id,user_id,token_digest,expires_at,last_seen_at,fresh_login_at,device_hint,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$5,'Material outsider',$5,$5)",
+                    uuid4(),
+                    target_id,
+                    session_token_digest(target_token),
+                    now + SESSION_LIFETIME,
+                    now,
+                )
+                outsider = {
+                    **headers,
+                    "Cookie": f"{SESSION_COOKIE_NAME}={target_token}",
+                }
+                for denied in (
+                    path,
+                    path + "/versions/1",
+                    path + "/versions/1/download",
+                ):
+                    assert (
+                        await client.get(denied, headers=outsider)
+                    ).status_code == 404, denied
+                assert (
+                    await client.get(root + "?search=HTTP", headers=outsider)
+                ).json()["items"] == []
                 assert (await client.get(path, headers=headers)).json()["revision"] == 1
                 next_command = {"idempotencyKey": str(uuid4()), "expectedRevision": "1"}
                 changed = await client.post(

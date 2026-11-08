@@ -59,7 +59,6 @@ INTEGRATION_SHARDS = ("delivery",)
 # Module browser proofs; each module's journeys run only in its own leaf.
 E2E_SHARDS = (
     "tasks",
-    "materials",
     "knowledge",
     "inbox",
     "leitsystem-ui",

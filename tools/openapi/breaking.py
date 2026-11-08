@@ -59,6 +59,51 @@ def type_contract(schema: object) -> object:
     }
 
 
+LOWER_BOUNDS = {"minLength", "minimum", "exclusiveMinimum", "minItems"}
+UPPER_BOUNDS = {"maxLength", "maximum", "exclusiveMaximum", "maxItems"}
+
+
+def constraints(schema: object, at: str = "") -> dict[str, object]:
+    """Bounds and patterns by position, through anyOf/oneOf/allOf/items."""
+    if isinstance(schema, list):
+        return {
+            key: value
+            for index, item in enumerate(schema)
+            for key, value in constraints(item, f"{at}/{index}").items()
+        }
+    if not isinstance(schema, dict):
+        return {}
+    found: dict[str, object] = {
+        f"{at}/{key}": value
+        for key, value in schema.items()
+        if key in LOWER_BOUNDS | UPPER_BOUNDS | {"pattern"}
+    }
+    for key in ("anyOf", "oneOf", "allOf", "items"):
+        found.update(constraints(schema.get(key), f"{at}/{key}"))
+    return found
+
+
+def tightened(old: object, new: object) -> bool:
+    before, after = constraints(old), constraints(new)
+    for position, value in after.items():
+        keyword = position.rsplit("/", 1)[1]
+        if position not in before:
+            return True
+        previous = before[position]
+        if keyword == "pattern":
+            if value != previous:
+                return True
+        elif not isinstance(value, (int, float)) or not isinstance(
+            previous, (int, float)
+        ):
+            return True
+        elif keyword in LOWER_BOUNDS and value > previous:
+            return True
+        elif keyword in UPPER_BOUNDS and value < previous:
+            return True
+    return False
+
+
 def breaking_changes(
     old: dict[str, Any],
     new: dict[str, Any],
@@ -118,6 +163,8 @@ def breaking_changes(
                 new_properties[property_name]
             ):
                 changes.add(f"property-type-changed:{name}.{property_name}")
+            elif tightened(old_property, new_properties[property_name]):
+                changes.add(f"property-constraint-tightened:{name}.{property_name}")
         old_required = set(old_schema.get("required", []))
         new_required = set(new_schema.get("required", []))
         for property_name in new_required - old_required:

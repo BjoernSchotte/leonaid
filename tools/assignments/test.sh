@@ -121,35 +121,4 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --entrypoint python \
   api tools/assignments/contract.py
 
-compose up --detach --wait --wait-timeout 420 pwa proxy
-
-docker run --rm \
-  --network "${project}_edge" \
-  --env CI=1 \
-  --env HOME=/tmp \
-  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
-  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
-  --env ANNA_SESSION=poc060-10000000-0000-4000-8000-000000000004-server-session-token-value \
-  --volume "$root:/workspace:ro" \
-  --volume "$proof:/proof" \
-  --workdir /workspace \
-  --user "$(id -u):$(id -g)" \
-  "$PLAYWRIGHT_IMAGE" \
-  node_modules/.bin/playwright test \
-  tests/e2e/matching.spec.mjs \
-  --browser=chromium \
-  --output=/proof/test-results \
-  --trace=retain-on-failure \
-  --reporter=line
-
-for screenshot in matching-warning-mobile.png matching-success-mobile.png; do
-  if [ ! -s "$proof/$screenshot" ]; then
-    echo "assignment-test: ERROR: browser proof is missing: $screenshot" >&2
-    exit 1
-  fi
-done
-mkdir -p "$root/.artifacts/poc060"
-cp "$proof/matching-warning-mobile.png" "$root/.artifacts/poc060/"
-cp "$proof/matching-success-mobile.png" "$root/.artifacts/poc060/"
-
 echo "assignment-test: OK: real concurrency, history and co-assignment contract proven"

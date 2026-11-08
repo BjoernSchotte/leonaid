@@ -197,7 +197,8 @@ test("public forms reach their own host's API and order action", async ({
   expect(results.member).toBe(404);
 });
 
-test("member paths move to the admin host and sign-in works there", async ({
+// @webkit: WebKit cookie handling (ITP) is the risk for the host-only session.
+test("member paths move to the admin host and sign-in works there @webkit", async ({
   browser,
   page,
 }) => {

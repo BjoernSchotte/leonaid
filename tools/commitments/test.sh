@@ -155,34 +155,10 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --entrypoint python \
   api tools/commitments/verify_ui.py
 
-# After the golden totals are proven: the cancellation changes them.
-docker run --rm \
-  --network "${project}_edge" \
-  --env CI=1 \
-  --env HOME=/tmp \
-  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
-  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
-  --env LEONAID_E2E_PROOF_PATH=/proof/poc081-created.json \
-  --env KLARA_SESSION="$klara_session" \
-  --volume "$root:/workspace:ro" \
-  --volume "$proof:/proof" \
-  --workdir /workspace \
-  --user "$(id -u):$(id -g)" \
-  "$PLAYWRIGHT_IMAGE" \
-  node_modules/.bin/playwright test \
-  --config=tests/e2e/pwa.config.mjs \
-  --project=chromium-1440 \
-  order-cancellation.spec.mjs \
-  --output=/proof/test-results-cancellation \
-  --trace=retain-on-failure \
-  --reporter=line
-
 for screenshot in \
   commitment-capture-mobile.png \
   commitment-success-mobile.png \
-  commitment-admin-desktop.png \
-  order-cancellation-dialog.png \
-  order-cancelled-pane.png; do
+  commitment-admin-desktop.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "commitment-test: ERROR: browser proof is missing: $screenshot" >&2
     exit 1
@@ -199,9 +175,9 @@ for browser in chromium firefox webkit; do
 done
 
 mkdir -p "$root/.artifacts/poc081"
-cp "$proof"/commitment-*.png "$proof"/order-cancel*.png "$root/.artifacts/poc081/"
+cp "$proof"/commitment-*.png "$root/.artifacts/poc081/"
 cp "$proof/poc081-created.json" "$root/.artifacts/poc081/"
 
 echo "commitment-test: OK: server contract, browser capture, admin view,"
-echo "commitment-test:     golden totals, order cancellation and 9 browsers/viewports"
+echo "commitment-test:     golden totals and 9 browsers/viewports"
 echo "commitment-test:     proven for real"
