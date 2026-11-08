@@ -268,7 +268,10 @@ def main() -> int:
         "apps/campaign-site/emdash-editor-patch.mjs",
         "tools/emdash_spike/auth-patch-proof.mjs",
     )
-    expect(campaign["emdash"] == list(s.EMDASH_GROUPS), f"campaign site: {campaign}")
+    expect(
+        sorted(campaign["emdash"]) == sorted(s.EMDASH_GROUPS),
+        f"campaign site: {campaign}",
+    )
     expect(
         campaign["e2e"] == []
         and campaign["integration"] == []

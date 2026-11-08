@@ -154,17 +154,17 @@ E2E_SECONDS = {
 # EmDash bins are fixed: the order proof alone is the longest job of the run.
 EMDASH_BINS = (
     ("krapfentaxi-orders",),
-    ("krapfentaxi-deadlines",),
-    ("campaign-edge", "static"),
+    # The stack-free static group rides with the shortest stack case.
+    ("krapfentaxi-deadlines", "static"),
+    ("campaign-edge",),
 )
 EMDASH_SECONDS = {
-    # Run 42521057525: orders 420 s, deadlines 364 s, campaign-edge 377 s,
-    # static 106 s. Orders and deadlines minus about 85 s: Twenty's cold
-    # start now overlaps the editor phases.
-    "krapfentaxi-orders": 335,
-    "krapfentaxi-deadlines": 280,
-    "campaign-edge": 377,
-    "static": 106,
+    # Run 42530398039 (#163): orders 344 s, deadlines 273 s, campaign-edge
+    # 346 s, static 105 s.
+    "krapfentaxi-orders": 344,
+    "krapfentaxi-deadlines": 273,
+    "campaign-edge": 346,
+    "static": 105,
 }
 # Average test seconds per leg; MAX_BINS caps the count. Integration then
 # fills all its legs, small E2E selections still share one.
