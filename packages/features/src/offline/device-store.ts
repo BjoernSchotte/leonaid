@@ -126,6 +126,10 @@ function cacheId(kind: CacheKind, actionId: string) {
   return `${kind}:${actionId}`;
 }
 
+function cacheBinding(id: string, fetchedAt: string) {
+  return `cache:${id}@${fetchedAt}`;
+}
+
 /** Whether this browser has what the device storage needs. */
 export function deviceStorageAvailable(): boolean {
   return (
@@ -137,20 +141,59 @@ export function deviceStorageAvailable(): boolean {
 
 export class DeviceStore {
   readonly userId: string;
-  readonly #database: IDBDatabase;
   readonly #key: CryptoKey;
+  #database: IDBDatabase | null;
+  #reopening: Promise<IDBDatabase> | null = null;
+  /** Deleted (sign-out, account switch) or closed for good. */
+  #gone = false;
+  readonly #onPageHide = () => this.#suspend();
 
   private constructor(userId: string, database: IDBDatabase, key: CryptoKey) {
     this.userId = userId;
     this.#database = database;
     this.#key = key;
-    // A deletion from another tab (sign-out, account switch) wins. A page
-    // kept in the back-forward cache closes its connection when it is
-    // hidden, so it never blocks such a deletion.
-    database.onversionchange = () => database.close();
-    window.addEventListener("pagehide", () => database.close(), {
-      once: true,
+    this.#watch(database);
+    // A page kept in the back-forward cache lets go of its connection, so
+    // it never blocks a deletion from another tab; after a restore the
+    // next access opens it again (#db).
+    window.addEventListener("pagehide", this.#onPageHide);
+  }
+
+  #watch(database: IDBDatabase) {
+    // A deletion from another tab (sign-out, account switch) wins, and
+    // this store never recreates the database it removed.
+    database.onversionchange = () => {
+      database.close();
+      this.#database = null;
+      this.#gone = true;
+    };
+  }
+
+  #suspend() {
+    this.#database?.close();
+    this.#database = null;
+  }
+
+  async #db(): Promise<IDBDatabase> {
+    if (this.#database) return this.#database;
+    if (this.#gone) throw new Error("LeonAid device storage was removed");
+    this.#reopening ??= (async () => {
+      const name = databaseName(this.userId);
+      if (typeof indexedDB.databases === "function") {
+        const names = (await indexedDB.databases()).map((item) => item.name);
+        if (!names.includes(name)) {
+          this.#gone = true;
+          throw new Error("LeonAid device storage was removed");
+        }
+      }
+      const database = await openDatabase(name);
+      this.#watch(database);
+      this.#database = database;
+      return database;
+    })().finally(() => {
+      this.#reopening = null;
     });
+    return this.#reopening;
   }
 
   /** Opens the user's database and creates its device key once. */
@@ -186,12 +229,20 @@ export class DeviceStore {
   }
 
   close() {
-    this.#database.close();
+    this.#gone = true;
+    window.removeEventListener("pagehide", this.#onPageHide);
+    this.#database?.close();
+    this.#database = null;
+  }
+
+  /** Still usable (not closed and not deleted). */
+  get open(): boolean {
+    return !this.#gone;
   }
 
   async getMeta<T>(name: string): Promise<T | undefined> {
     const record = (await requestResult(
-      this.#database.transaction("meta").objectStore("meta").get(name),
+      (await this.#db()).transaction("meta").objectStore("meta").get(name),
     )) as MetaRecord | undefined;
     if (!record?.sealed) return undefined;
     return unseal<T>(this.#key, `meta:${name}`, record.sealed);
@@ -200,14 +251,14 @@ export class DeviceStore {
   async putMeta(name: string, value: unknown): Promise<void> {
     if (name === KEY_RECORD) throw new Error("Reserved meta record");
     const sealed = await seal(this.#key, `meta:${name}`, value);
-    const transaction = this.#database.transaction("meta", "readwrite");
+    const transaction = (await this.#db()).transaction("meta", "readwrite");
     transaction.objectStore("meta").put({ name, sealed } satisfies MetaRecord);
     await transactionDone(transaction);
   }
 
   async deleteMeta(name: string): Promise<void> {
     if (name === KEY_RECORD) throw new Error("Reserved meta record");
-    const transaction = this.#database.transaction("meta", "readwrite");
+    const transaction = (await this.#db()).transaction("meta", "readwrite");
     transaction.objectStore("meta").delete(name);
     await transactionDone(transaction);
   }
@@ -218,11 +269,21 @@ export class DeviceStore {
   ): Promise<CachedValue<T> | undefined> {
     const id = cacheId(kind, actionId);
     const record = (await requestResult(
-      this.#database.transaction("cache").objectStore("cache").get(id),
+      (await this.#db()).transaction("cache").objectStore("cache").get(id),
     )) as CacheRecord | undefined;
     if (!record || !isSealedValue(record.sealed)) return undefined;
-    const value = await unseal<T>(this.#key, `cache:${id}`, record.sealed);
-    return { value, fetchedAt: record.fetchedAt };
+    try {
+      // The fetch time is authenticated with the value: an edited clear-
+      // text time (to look fresher, D3) makes the record unreadable.
+      const value = await unseal<T>(
+        this.#key,
+        cacheBinding(id, record.fetchedAt),
+        record.sealed,
+      );
+      return { value, fetchedAt: record.fetchedAt };
+    } catch {
+      return undefined;
+    }
   }
 
   /** Replaces the document of one kind and action as a whole (§8.2). */
@@ -233,8 +294,8 @@ export class DeviceStore {
     fetchedAt: string,
   ): Promise<void> {
     const id = cacheId(kind, actionId);
-    const sealed = await seal(this.#key, `cache:${id}`, value);
-    const transaction = this.#database.transaction("cache", "readwrite");
+    const sealed = await seal(this.#key, cacheBinding(id, fetchedAt), value);
+    const transaction = (await this.#db()).transaction("cache", "readwrite");
     transaction
       .objectStore("cache")
       .put({ id, fetchedAt, sealed } satisfies CacheRecord);
@@ -242,14 +303,14 @@ export class DeviceStore {
   }
 
   async deleteCache(kind: CacheKind, actionId: string): Promise<void> {
-    const transaction = this.#database.transaction("cache", "readwrite");
+    const transaction = (await this.#db()).transaction("cache", "readwrite");
     transaction.objectStore("cache").delete(cacheId(kind, actionId));
     await transactionDone(transaction);
   }
 
   async listCache(): Promise<CacheEntryInfo[]> {
     const records = (await requestResult(
-      this.#database.transaction("cache").objectStore("cache").getAll(),
+      (await this.#db()).transaction("cache").objectStore("cache").getAll(),
     )) as CacheRecord[];
     return records.flatMap((record) => {
       const separator = record.id.indexOf(":");
@@ -266,7 +327,7 @@ export class DeviceStore {
   }
 
   async clearCache(): Promise<void> {
-    const transaction = this.#database.transaction("cache", "readwrite");
+    const transaction = (await this.#db()).transaction("cache", "readwrite");
     transaction.objectStore("cache").clear();
     await transactionDone(transaction);
   }
@@ -275,7 +336,7 @@ export class DeviceStore {
 
   async queueRecords<T>(): Promise<{ index: QueueIndex; value: T }[]> {
     const records = (await requestResult(
-      this.#database
+      (await this.#db())
         .transaction("queue")
         .objectStore("queue")
         .index("sequence")
@@ -291,7 +352,7 @@ export class DeviceStore {
 
   async putQueueRecord(index: QueueIndex, value: unknown): Promise<void> {
     const sealed = await seal(this.#key, `queue:${index.entryId}`, value);
-    const transaction = this.#database.transaction("queue", "readwrite");
+    const transaction = (await this.#db()).transaction("queue", "readwrite");
     transaction
       .objectStore("queue")
       .put({ ...index, sealed } satisfies QueueRecord);
@@ -299,14 +360,14 @@ export class DeviceStore {
   }
 
   async deleteQueueRecord(entryId: string): Promise<void> {
-    const transaction = this.#database.transaction("queue", "readwrite");
+    const transaction = (await this.#db()).transaction("queue", "readwrite");
     transaction.objectStore("queue").delete(entryId);
     await transactionDone(transaction);
   }
 
   async queueCount(): Promise<number> {
     return requestResult(
-      this.#database.transaction("queue").objectStore("queue").count(),
+      (await this.#db()).transaction("queue").objectStore("queue").count(),
     );
   }
 }

@@ -4,8 +4,8 @@ description: Create, approve and activate the § 5 DDG details and the texts of 
 docId: DOC-P048
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
+contentRevision: 2
+reviewedRevision: 2
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -56,13 +56,18 @@ app and in the acquisition app, the links are below your name or in the
    supervisory authority.
 3. The **Datenschutzhinweis für Mitglieder** contains the section "Speicherung
    auf deinem Gerät": which data the acquisition app keeps on the device for
-   offline capture (own sponsors with contact name, phone number and e-mail
-   address, and entries not sent yet), that they are encrypted, that unsent
-   entries expire after 14 days and that signing out or another person signing
-   in deletes everything. It describes the acquisition app's offline capture.
-   Keep it only when offline capture is active; otherwise delete the whole
-   section. The template marks this with a `[[ … ]]` note that blocks
-   activation until you remove it.
+   offline capture (a short form of the own sign-in with name, campaigns and
+   roles, own sponsors with contact name, phone number and e-mail address,
+   and entries not sent yet, for orders with invoice and delivery address),
+   that they stay on this device only and are encrypted, that unsent entries
+   expire after 14 days and that signing out in either app or another person
+   signing in deletes everything. It describes the acquisition app's offline
+   capture. Keep it only when offline capture is active; otherwise delete the
+   whole section. The template marks this with a `[[ … ]]` note that blocks
+   activation until you remove it. The system administration switches on the
+   feature flag **Offline-Erfassung in der Akquise-App** only once a notice
+   with this section is active. Claude Code proposed the text; like every
+   version it needs the four-eyes approval (review by Björn Schotte open).
 4. Format: separate paragraphs with an empty line. `## ` at the start of a line
    starts a heading, `- ` a list item.
 5. Choose **Als Entwurf speichern**.

@@ -528,7 +528,15 @@ describe("LegalConfigurationPage four-eyes flow", () => {
     expect(notice.value).toContain("## Speicherung auf deinem Gerät");
     expect(notice.value).toContain("Telefonnummer und E-Mail-Adresse");
     expect(notice.value).toContain("14 Tage");
-    expect(notice.value).toContain("Wenn du dich abmeldest, löscht die App");
+    expect(notice.value).toContain(
+      "Wenn du dich abmeldest, in der Akquise-App oder im Verwaltungsbereich, löscht die App",
+    );
+    // What the offline start and an unsent order keep (D8, stage review).
+    expect(notice.value).toContain(
+      "dein Name, deine Aktionen und deine Rollen",
+    );
+    expect(notice.value).toContain("Bestellungen mit Rechnungsadresse");
+    expect(notice.value).toContain("nur auf diesem Gerät, verschlüsselt");
     expect(notice.value).toContain("Endet deine Mitarbeit in einer Aktion");
     // The device section describes the offline queue: the club must decide
     // consciously whether it applies yet.

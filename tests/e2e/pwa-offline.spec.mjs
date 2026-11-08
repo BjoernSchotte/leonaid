@@ -224,28 +224,27 @@ test("the PWA starts offline from the encrypted device copy", async ({
   await page.goto(`${baseUrl}/app/delivery`);
   await expect(page).toHaveTitle("LeonAid ist offline");
 
-  // D3: a sponsor list older than 7 days is not shown offline.
+  // §8.4: the fetch time is authenticated with the copy. An edited clear-
+  // text time (to look fresher) makes the copy unusable, not fresh.
   await page.goto(`${baseUrl}/app/sponsors`);
   await expect(page.getByTestId("sponsor-row").first()).toBeVisible();
-  await page.evaluate(async (id) => {
-    const database = await new Promise((resolve, reject) => {
-      const request = indexedDB.open(`leonaid-pwa-v1-${id}`);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-    const transaction = database.transaction("cache", "readwrite");
-    const store = transaction.objectStore("cache");
-    const records = await new Promise((resolve) => {
-      const request = store.getAll();
-      request.onsuccess = () => resolve(request.result);
-    });
-    const old = new Date(Date.now() - 8 * 86_400_000).toISOString();
-    for (const record of records) store.put({ ...record, fetchedAt: old });
-    await new Promise((resolve) => {
-      transaction.oncomplete = resolve;
-    });
-    database.close();
-  }, ANNA_ID);
+  await editFetchedAt(page, new Date(Date.now() + 60_000).toISOString());
+  await page.reload();
+  await expect(page.getByTestId("board-failed-text")).toContainText(
+    "Prüfe deine Verbindung.",
+  );
+  await expect(page.getByTestId("sponsor-row")).toHaveCount(0);
+
+  // Online again, a fresh copy replaces it.
+  await context.setOffline(false);
+  await page.reload();
+  await expect(row).toBeVisible();
+  await expect.poll(() => copiesFreshInPage(page)).toBe(true);
+
+  // D3: eight days later (the page's clock), offline, the copy is not
+  // shown and capture is blocked.
+  await context.setOffline(true);
+  await page.clock.install({ time: Date.now() + 8 * 86_400_000 });
   await page.reload();
   await expect(page.getByTestId("board-failed-text")).toHaveText(
     "Deine Sponsorenliste ist älter als 7 Tage. Geh online, um sie zu aktualisieren.",
@@ -256,30 +255,60 @@ test("the PWA starts offline from the encrypted device copy", async ({
   await context.setOffline(false);
   await page.reload();
   await expect(row).toBeVisible();
-  await expect
-    .poll(async () => {
-      const records = await page.evaluate(async (id) => {
-        const database = await new Promise((resolve, reject) => {
-          const request = indexedDB.open(`leonaid-pwa-v1-${id}`);
-          request.onsuccess = () => resolve(request.result);
-          request.onerror = () => reject(request.error);
-        });
-        const result = await new Promise((resolve) => {
-          const request = database
-            .transaction("cache")
-            .objectStore("cache")
-            .getAll();
-          request.onsuccess = () => resolve(request.result);
-        });
-        database.close();
-        return result.map((record) => record.fetchedAt);
-      }, ANNA_ID);
-      return records.every(
-        (value) => Date.now() - Date.parse(value) < 3_600_000,
-      );
-    })
-    .toBe(true);
+  await expect.poll(() => copiesFreshInPage(page)).toBe(true);
 });
+
+/** Rewrites the clear-text fetch time of every read-cache record. */
+function editFetchedAt(page, fetchedAt) {
+  return page.evaluate(
+    async ([id, value]) => {
+      const database = await new Promise((resolve, reject) => {
+        const request = indexedDB.open(`leonaid-pwa-v1-${id}`);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const transaction = database.transaction("cache", "readwrite");
+      const store = transaction.objectStore("cache");
+      const records = await new Promise((resolve) => {
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result);
+      });
+      for (const record of records) store.put({ ...record, fetchedAt: value });
+      await new Promise((resolve) => {
+        transaction.oncomplete = resolve;
+      });
+      database.close();
+    },
+    [ANNA_ID, fetchedAt],
+  );
+}
+
+/** Every read-cache record was fetched in the last hour, by the page clock. */
+function copiesFreshInPage(page) {
+  return page.evaluate(async (id) => {
+    const database = await new Promise((resolve, reject) => {
+      const request = indexedDB.open(`leonaid-pwa-v1-${id}`);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const result = await new Promise((resolve) => {
+      const request = database
+        .transaction("cache")
+        .objectStore("cache")
+        .getAll();
+      request.onsuccess = () => resolve(request.result);
+    });
+    database.close();
+    return (
+      result.length === 2 &&
+      result.every((record) => {
+        // Written by this page, not the edited time from the future.
+        const age = Date.now() - Date.parse(record.fetchedAt);
+        return age >= 0 && age < 3_600_000;
+      })
+    );
+  }, ANNA_ID);
+}
 
 test("account switch and sign-out delete the device copy (D6, §8.5)", async ({
   browserName,
@@ -319,6 +348,65 @@ test("account switch and sign-out delete the device copy (D6, §8.5)", async ({
   ).toBeNull();
 
   // Without a session and network the app does not start from the cache.
+  await context.setOffline(true);
+  await page.goto(`${baseUrl}/app/sponsors`);
+  await expect(page).toHaveTitle("LeonAid ist offline");
+  await context.setOffline(false);
+});
+
+test("the admin web app clears the device copy too (D6, §8.5)", async ({
+  context,
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const KLARA_ID = "10000000-0000-4000-8000-000000000002";
+  const openPwa = async () => {
+    await authenticate(context, annaSession);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${baseUrl}/app/sponsors`);
+    await expect(page.getByTestId("sponsor-row").first()).toBeVisible();
+    await controlled(page);
+    await expect
+      .poll(async () => (await rawDatabase(page, ANNA_ID))?.cacheIds.length, {
+        timeout: 30_000,
+      })
+      .toBe(2);
+  };
+
+  // Another person signs in and lands in the admin web app.
+  await openPwa();
+  await authenticate(context, sessionFor(KLARA_ID));
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(`${baseUrl}/admin/`);
+  await expect(page.getByTestId("display-name")).toHaveText(/Klara/);
+  await expect.poll(() => databaseNames(page)).toEqual([]);
+  expect(
+    await page.evaluate(() => localStorage.getItem("leonaid-pwa-active-user")),
+  ).toBeNull();
+  await context.setOffline(true);
+  await page.goto(`${baseUrl}/app/sponsors`);
+  await expect(page).toHaveTitle("LeonAid ist offline");
+  await context.setOffline(false);
+
+  // Sign-out in the admin web app deletes the copy as well. Klara has no
+  // acquirer role, so a copy of hers is planted the way the PWA names it.
+  await page.goto(`${baseUrl}/admin/`);
+  await expect(page.getByTestId("display-name")).toHaveText(/Klara/);
+  await page.evaluate(async (id) => {
+    localStorage.setItem("leonaid-pwa-active-user", id);
+    await new Promise((resolve, reject) => {
+      const request = indexedDB.open(`leonaid-pwa-v1-${id}`);
+      request.onsuccess = () => {
+        request.result.close();
+        resolve(undefined);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }, KLARA_ID);
+  expect(await databaseNames(page)).toEqual([`leonaid-pwa-v1-${KLARA_ID}`]);
+  await page.getByTestId("logout").click();
+  await expect(page).toHaveURL(/\/login/);
+  await expect.poll(() => databaseNames(page)).toEqual([]);
   await context.setOffline(true);
   await page.goto(`${baseUrl}/app/sponsors`);
   await expect(page).toHaveTitle("LeonAid ist offline");

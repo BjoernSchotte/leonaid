@@ -3,6 +3,7 @@ import "./queue.css";
 export * from "./conflicts";
 export * from "./controller";
 export * from "./crypto";
+export * from "./device-session";
 export * from "./device-store";
 export * from "./labels";
 export * from "./pending-captures";
