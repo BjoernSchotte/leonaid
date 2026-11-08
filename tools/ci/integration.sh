@@ -51,7 +51,7 @@ case "$shard" in
       "tools/$shard/test.sh"
     ;;
   twenty-install)
-    /bin/sh "$root/tools/twenty/test.sh" "$root"
+    python3 "$root/tools/testing/shared_stack.py" golden tools/twenty/test.sh
     ;;
   crm-gateway)
     python3 "$root/tools/testing/shared_stack.py" golden \

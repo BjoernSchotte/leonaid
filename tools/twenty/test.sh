@@ -1,69 +1,40 @@
 #!/bin/sh
 set -eu
 
+# On a shared stack (shared_stack.py) whose Twenty is already provisioned:
+# the CI fixture or the shared template. Provisioning an empty Twenty is
+# proven by building either of them and by the cold `./leonaid reset` in
+# tools/seed/test.sh.
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
-. "$root/tools/testing/owned_teardown.sh"
 . "$root/infra/locks/images.env"
 
-suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
-project=leonaid-poc030-test-$suffix
-owned=false
-port=18083
+if [ -z "${LEONAID_TEST_STACK:-}" ]; then
+  echo "twenty-test: ERROR: run through tools/testing/shared_stack.py" >&2
+  exit 64
+fi
 env_file="$root/.env.local"
-compose_file="$root/infra/compose/compose.yml"
 proof=$(mktemp -d)
-isolation_file="$proof/compose-isolation.yml"
 host_user_id=$(id -u)
 host_group_id=$(id -g)
 
-if [ ! -f "$env_file" ]; then
-  echo "twenty-test: ERROR: .env.local missing; run ./leonaid bootstrap first" >&2
-  exit 1
-fi
-
-export LEONAID_HTTP_PORT="$port"
-
-compose() {
-  docker compose \
-    --project-name "$project" \
-    --env-file "$env_file" \
-    --file "$compose_file" \
-    --file "$isolation_file" \
-    "$@"
-}
-
-diagnose() {
-  compose ps >&2 || true
-  compose logs --no-color --tail=120 twenty-server twenty-worker >&2 || true
-}
-
 cleanup() {
   status=$?
-  if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
+  if [ "$status" -ne 0 ]; then
     echo "twenty-test: diagnostics for the failed real services:" >&2
-    diagnose
+    compose ps >&2 || true
+    compose logs --no-color --tail=120 twenty-server twenty-worker >&2 || true
   fi
-  if [ "$owned" = true ]; then
-    if ! compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
-    if ! verify_owned_project_removed "$project"; then status=1; fi
-    if [ "$status" -eq 0 ]; then echo "test-isolation: $project passed and owned resources were removed"; fi
+  if [ "${shared_leaf_owned:-false}" = true ]; then
+    rmdir "$LEONAID_TEST_STACK/in-use" || status=1
   fi
   rm -rf "$proof"
   exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
 
-# Refuse existing resources and unreadable inventories before Docker mutations.
-existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
-[ -z "$existing" ]
-existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$project")
-[ -z "$existing" ]
-existing=$(docker network ls -q --filter "label=com.docker.compose.project=$project")
-[ -z "$existing" ]
-python3 "$root/tools/surveys/network_override.py" "$isolation_file"
-owned=true
-compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
+shared_services="twenty-server twenty-worker"
+. "$root/tools/testing/borrow_stack.sh"
 
 run_tool() {
   compose run --rm --no-deps \
@@ -77,15 +48,8 @@ run_tool() {
     api tools/twenty/provision.py "$@"
 }
 
-build_shared_images api
-compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
-
-echo "twenty-test: provisions an empty Twenty instance via the Metadata API"
-run_tool apply \
-  --token-output /proof/integration.env \
-  --snapshot-output /proof/first.json
-
 echo "twenty-test: repeats provisioning without duplicates or drift"
+run_tool check --snapshot-output /proof/first.json
 run_tool apply \
   --token-output /proof/integration.env \
   --snapshot-output /proof/second.json
