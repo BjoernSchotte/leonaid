@@ -175,10 +175,13 @@ test("aggregate-only: charts without quotes, no list, whole past days", async ({
       form.getByLabel("Begonnen ab", { exact: true }),
     ).toHaveAttribute("type", "date");
     // A start today selects nothing: whole days up to yesterday only.
-    const today = new Date();
-    const day = new Date(today.getTime() - today.getTimezoneOffset() * 60000)
-      .toISOString()
-      .slice(0, 10);
+    // "Today" is the club's day (Europe/Berlin), which the API judges, not
+    // the browser's UTC day: from 00:00 to 01:00 Berlin that is yesterday,
+    // a whole past day. A minute ahead keeps it today (or later) for the
+    // API even when midnight passes before the request.
+    const day = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Berlin",
+    }).format(new Date(Date.now() + 60_000));
     await form.getByLabel("Begonnen ab", { exact: true }).fill(day);
     await form.getByRole("button", { name: "Antworten auswählen" }).click();
     await expect(form.getByRole("alert")).toContainText(
