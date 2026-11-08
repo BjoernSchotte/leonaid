@@ -45,12 +45,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # The toolchain bootstrap runs beside the layer import.
+      # The toolchain bootstrap and the Twenty image pull (the contract stack
+      # starts Twenty; about 50 s of pulls otherwise) run beside the import.
       - name: Reuse persistent Core build layers
         uses: ./.github/actions/build-cache
         with:
           targets: api
-          bootstrap: toolchains
+          bootstrap: seed
 
       - name: Generate, typecheck and run real contract
         run: ./tools/openapi/test.sh "$PWD"
