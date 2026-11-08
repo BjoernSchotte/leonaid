@@ -262,12 +262,19 @@ test("captures made offline are kept on the device and sent once online", async 
 });
 
 /** Asks tools/pwa/test.sh for a database change and waits until it is done. */
-async function serverChange(name) {
+async function serverChange(name, { timeout = 30_000 } = {}) {
   const { existsSync, rmSync, writeFileSync } = await import("node:fs");
   const done = `${artifactDirectory}/offline-done-${name}`;
+  const failed = `${artifactDirectory}/offline-failed-${name}`;
   rmSync(done, { force: true });
+  rmSync(failed, { force: true });
   writeFileSync(`${artifactDirectory}/offline-request-${name}`, "");
-  await expect.poll(() => existsSync(done), { timeout: 30_000 }).toBe(true);
+  await expect
+    .poll(
+      () => (existsSync(failed) ? "failed" : existsSync(done) ? "done" : ""),
+      { timeout },
+    )
+    .toBe("done");
 }
 
 async function openOrder(page) {

@@ -276,12 +276,19 @@ test("a sponsor saved offline is checked online, then its contact goes out (D10)
 });
 
 /** Asks tools/pwa/test.sh for a database change and waits until it is done. */
-async function serverChange(name) {
+async function serverChange(name, { timeout = 30_000 } = {}) {
   const { existsSync, rmSync, writeFileSync } = await import("node:fs");
   const done = `${artifactDirectory}/offline-done-${name}`;
+  const failed = `${artifactDirectory}/offline-failed-${name}`;
   rmSync(done, { force: true });
+  rmSync(failed, { force: true });
   writeFileSync(`${artifactDirectory}/offline-request-${name}`, "");
-  await baseExpect.poll(() => existsSync(done), { timeout: 30_000 }).toBe(true);
+  await baseExpect
+    .poll(
+      () => (existsSync(failed) ? "failed" : existsSync(done) ? "done" : ""),
+      { timeout },
+    )
+    .toBe("done");
 }
 
 /** Order for Musterwerk up to the review step; delivery when asked. */
@@ -402,16 +409,24 @@ test("'Trotzdem abmelden' deletes what still waits (§12.5)", async ({
   await expect(warning).toContainText("Noch 1 Eintrag nicht gesendet.");
   // Offline the sign-out request cannot reach Core; the device is cleared
   // first anyway.
-  await warning.getByTestId("sign-out-anyway").click();
-  await context.setOffline(false);
-  await page.goto(`${baseUrl}/login`);
-  await expect
-    .poll(() =>
-      page.evaluate(async () =>
-        (await indexedDB.databases())
-          .map((item) => item.name)
-          .filter((name) => name.startsWith("leonaid-pwa-v1-")),
-      ),
-    )
-    .toEqual([]);
+  try {
+    await warning.getByTestId("sign-out-anyway").click();
+    await context.setOffline(false);
+    // The app moves to the sign-in page on its own; a navigation of ours may
+    // meet it, so the check is retried on a settled page.
+    await expect(async () => {
+      await page.goto(`${baseUrl}/login`);
+      expect(
+        await page.evaluate(async () =>
+          (await indexedDB.databases())
+            .map((item) => item.name)
+            .filter((name) => name.startsWith("leonaid-pwa-v1-")),
+        ),
+      ).toEqual([]);
+    }).toPass({ timeout: 30_000 });
+  } finally {
+    // The sign-out may reach Core and end Anna's fixed session; the specs
+    // after this one need it back.
+    await serverChange("sessions", { timeout: 120_000 });
+  }
 });
