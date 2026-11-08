@@ -129,7 +129,6 @@ PRECISE: tuple[tuple[str, dict[str, Any]], ...] = (
     (".github/workflows/docs.yml", {}),
     (".github/workflows/nightly-watchdog.yml", {}),
     (".github/workflows/release.yml", {}),
-    (".github/workflows/surveys.yml", {"surveys": True}),
     (".github/workflows/api-contract.yml", {"api": True}),
     (".github/workflows/pins.yml", {"pins": True}),
     ("tools/ci/contract.sh", {"contract": True, "integration": ["contract"]}),

@@ -119,13 +119,8 @@ class SurveyTwentyIsolationTests(unittest.TestCase):
     """Twenty is not reset between survey checks, so no survey check may use it."""
 
     PATTERN = re.compile(r"twenty|crm|:3000|/rest/|/graphql", re.IGNORECASE)
-    # Credential redaction only (it names the key to remove it from logs).
     # Subnet allocation names every Compose network, crm-data included.
-    ALLOWED = {
-        "tools/surveys/ci_failure_excerpt.py",
-        "tools/surveys/ci_failure_excerpt_test.py",
-        "tools/surveys/network_override.py",
-    }
+    ALLOWED = {"tools/surveys/network_override.py"}
 
     def test_no_survey_check_or_spec_references_twenty(self):
         paths = sorted(

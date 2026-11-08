@@ -742,7 +742,9 @@ class LeafRunner:
             if self.cancelled.is_set():
                 return None
             child = subprocess.Popen(
-                ["/bin/sh", str(self.root / script), str(self.root)],
+                # A leaf is a script path, optionally followed by its arguments.
+                ["/bin/sh", str(self.root / script.split()[0]), str(self.root)]
+                + script.split()[1:],
                 cwd=self.root,
                 env=env,
                 stdout=log,
@@ -908,7 +910,10 @@ def main():
         help="Run every leaf after a failure; exit with the first failure's code",
     )
     parser.add_argument(
-        "kind", nargs="?", default="documents", choices=["core", "golden", "documents"]
+        "kind",
+        nargs="?",
+        default="documents",
+        choices=["core", "golden", "documents", "survey"],
     )
     parser.add_argument("scripts", nargs="*")
     args = parser.parse_args()

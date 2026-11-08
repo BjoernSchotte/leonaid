@@ -71,10 +71,12 @@ def post(path: str, body: Mapping[str, object]) -> object:
 
 
 def main(environ: Mapping[str, str] = os.environ, send: Post = post) -> int:
-    gate = environ.get("GATE_NAME", "")
-    body = payload(gate, environ.get("HEAD_SHA", ""), environ.get("RUN_URL", ""))
-    send(f"repos/{environ.get('GITHUB_REPOSITORY', '')}/check-runs", body)
-    print(f"hold-gate: {gate} is red until the complete run's gate replaces it")
+    # GATE_NAME may list several gates, comma-separated.
+    for gate in environ.get("GATE_NAME", "").split(","):
+        gate = gate.strip()
+        body = payload(gate, environ.get("HEAD_SHA", ""), environ.get("RUN_URL", ""))
+        send(f"repos/{environ.get('GITHUB_REPOSITORY', '')}/check-runs", body)
+        print(f"hold-gate: {gate} is red until the complete run's gate replaces it")
     return 0
 
 

@@ -23,6 +23,7 @@ from tools.ci import select_suites  # noqa: E402
 
 REQUIRED_JOBS = {
     "artifact-probe",
+    "backup-recovery",
     "build",
     "e2e",
     "emdash-cases",
@@ -35,11 +36,13 @@ REQUIRED_JOBS = {
     "pilot-cold-rehearsal",
     "security",
     "select",
+    "surveys",
+    "survey-gate",
     "unit",
     "vulnerability",
 }
-# Jobs without own test output: selector, gate, Golden comparison, nightly report.
-NO_EVIDENCE = {"select", "gate", "golden-journey", "flake-summary"}
+# Jobs without own test output: selector, gates, Golden comparison, nightly report.
+NO_EVIDENCE = {"select", "gate", "survey-gate", "golden-journey", "flake-summary"}
 # Removed pure summary jobs: tools/ci/gate.py already requires every selected
 # matrix leg, and each summary cost a runner slot per run.
 REMOVED_SUMMARIES = ("integration", "e2e-summary", "emdash-proofs")
@@ -47,6 +50,7 @@ REMOVED_SUMMARIES = ("integration", "e2e-summary", "emdash-proofs")
 # full-ci hold (it only posts a red gate check; tools/ci/hold_gate.py).
 OUTSIDE_GATE = {
     "gate",
+    "survey-gate",
     "hold",
     "pilot-cold-rehearsal",
     "artifact-probe",
@@ -76,13 +80,15 @@ HEAVY_JOBS = ("security", "vulnerability", "build")
 # paths changed since the last green run there (select-suites.yml
 # post-merge), a newer push cancels an older run, the watchdog reports a red
 # one, and adding the full-ci label runs the complete suite before the merge.
-POST_MERGE = ("ci.yml", "surveys.yml")
+POST_MERGE = ("ci.yml",)
+# The ruleset still requires "Survey gate" (decision E-027): ci.yml's job
+# survey-gate mirrors the CI gate, which requires the survey shards.
+SURVEY_GATE = "survey-gate"
 
 # Workflows whose gate is a required check. Each must run on pull_request
 # (never merge_group), must not use path filters and must end in its gate.
 GATED_WORKFLOWS = {
     "ci.yml": "CI gate",
-    "surveys.yml": "Survey gate",
     "api-contract.yml": "API contract gate",
     "pins.yml": "Dependency pins gate",
 }
@@ -118,7 +124,7 @@ RETRYABLE = re.compile(
 FREE_DISK_LIGHT = {("api-contract.yml", "contract"), ("pins.yml", "sbom")}
 FREE_DISK_EXTRA = {
     ("ci.yml", "pilot-cold-rehearsal"),
-    ("surveys.yml", "backup-recovery"),
+    ("ci.yml", "backup-recovery"),
 }
 # Composite-action steps whose failure is retried once by the next steps.
 FIRST_ATTEMPTS = {
@@ -484,6 +490,8 @@ def check_drafts(text: str, name: str) -> list[str]:
         )
     for job in jobs_of(text):
         block = job_block(text, job)
+        if job == SURVEY_GATE:
+            continue
         if gated and job == "gate":
             context = GATE_CONTEXT + (
                 (LABEL_CONTEXT, 'FULL_CI_GATE: "true"') if labelled else ()
@@ -629,6 +637,18 @@ def check_gate(text: str, name: str) -> list[str]:
         problems.append(
             f"{name}: the gate does not require: {', '.join(sorted(missing))}"
         )
+    if name == "ci.yml":
+        alias = job_block(text, SURVEY_GATE)
+        if (
+            "    name: Survey gate\n" not in alias
+            or "    needs: gate\n" not in alias
+            or "    if: ${{ always()" not in alias
+            or 'run: test "$RESULT" = success' not in alias
+        ):
+            problems.append(
+                "ci.yml: the required 'Survey gate' must mirror the CI gate "
+                "(job survey-gate, needs: gate)."
+            )
     return problems
 
 
@@ -692,7 +712,7 @@ def check_post_merge(text: str, name: str) -> list[str]:
         not in hold
         or "checks: write" not in hold
         or "python3 tools/ci/hold_gate.py" not in hold
-        or f"GATE_NAME: {gate}\n" not in hold
+        or f"GATE_NAME: {gate}" not in hold
         or "HEAD_SHA: ${{ github.event.pull_request.head.sha }}" not in hold
     ):
         problems.append(

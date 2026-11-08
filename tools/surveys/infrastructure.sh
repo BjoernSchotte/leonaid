@@ -1,8 +1,15 @@
 #!/bin/sh
 set -eu
 root=${1:-$(pwd)}
-# One check mode of tools/surveys/gate.json (infrastructureModes).
+# One survey check; ./leonaid test-surveys groups them into shards.
 mode=${2:?usage: infrastructure.sh ROOT MODE}
+case "$mode" in
+  contracts | lifecycle | invitations | permissions | analysis | request-limits | \
+    payload-limits | editor | preview | branding | responses | runner | exports | \
+    export-permissions | export-states | export-recovery | export-limits | deletion | \
+    deletion-races | deletion-ui | retention | recovery | journeys) ;;
+  *) echo "infrastructure.sh: unknown mode '$mode'" >&2; exit 64 ;;
+esac
 root=$(cd "$root" && pwd)
 . "$root/tools/testing/owned_teardown.sh"
 # The harness writes recovery proofs and the survey-erasure archive from
@@ -20,21 +27,7 @@ artifact="$root/.artifacts/surveys-infrastructure"
 owned=false
 browser_after_specs=""
 export_verifier_pid=""
-# Only the locked aggregate supplies this run-local image cache. Standalone
-# checks retain the original build path.
-image_cache=${LEONAID_SURVEY_IMAGE_CACHE:-}
-if [ -n "$image_cache" ] && [ ! -f "$image_cache/images.json" ]; then
-  docker compose --env-file "$root/.env.local" \
-    --file "$root/infra/compose/compose.yml" --profile '*' config --format json | \
-    python3 "$root/tools/surveys/image_cache.py" "$image_cache"
-fi
 compose() {
-  if [ -n "$image_cache" ]; then
-    docker compose --project-name "$project" --env-file "$root/.env.local" \
-      --file "$root/infra/compose/compose.yml" --file "$proof/compose.yml" \
-      --file "$image_cache/images.json" --profile dev-mail "$@"
-    return
-  fi
   docker compose --project-name "$project" --env-file "$root/.env.local" \
     --file "$root/infra/compose/compose.yml" --file "$proof/compose.yml" \
     --profile dev-mail "$@"
@@ -73,8 +66,8 @@ trap cleanup EXIT HUP INT TERM
 if [ -n "${LEONAID_TEST_STACK:-}" ]; then
   shared_services="proxy worker mailpit"
   if [ "$mode" = permissions ]; then shared_services="proxy mailpit"; fi
-  # The foundation member probe redirects /admin/ to /app/ for non-admins.
-  # Only journeys exercises that route in a borrowed Survey stack.
+  # The member probe redirects /admin/ to /app/ for non-admins; only
+  # journeys exercises that route in a borrowed stack.
   if [ "$mode" = journeys ]; then shared_services="$shared_services pwa"; fi
   . "$root/tools/testing/borrow_stack.sh"
 else
@@ -88,15 +81,7 @@ existing=$(docker network ls -q --filter "label=com.docker.compose.project=$proj
 python3 "$root/tools/surveys/network_override.py" "$proof/compose.yml"
 owned=true
 compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$proof/compose.yml"
-if [ -n "$image_cache" ]; then
-  if [ ! -f "$image_cache/built" ]; then
-    compose build
-    touch "$image_cache/built"
-  fi
-  compose up --no-build --detach --wait --wait-timeout 420 proxy worker mailpit
-else
-  compose up --build --detach --wait --wait-timeout 420 proxy worker mailpit
-fi
+compose up --build --detach --wait --wait-timeout 420 proxy worker mailpit
 compose run --rm --no-deps --volume "$root:/repo:ro" --workdir /repo \
   --entrypoint alembic api upgrade head
 fi
@@ -529,7 +514,7 @@ import sys
 from pathlib import Path
 proof, artifact = map(Path, sys.argv[1:])
 rows = [json.loads(path.read_text()) for path in sorted(proof.glob("permission-browser-*-*.json"))]
-assert len(rows) == 28 and sum(row["resourcePairs"] for row in rows) == 112
+assert len(rows) == 3 and sum(row["resourcePairs"] for row in rows) == 12
 (artifact / "permissions-browser-proof.json").write_text(json.dumps({"syntheticOnly": True, "cases": rows}, indent=2) + "\n")
 PYMATRIX
 fi
