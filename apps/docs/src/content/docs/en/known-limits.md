@@ -43,7 +43,7 @@ general production approval.
   `specs/multi-domain/PLAN.md`). Own campaign domains can be added, checked
   and bound to campaigns under **System › Domains**; they show only CMS
   campaign pages. Acceptance with a real domain and real certificates is open. An
-  installation without a public host can be set up (`pilot-secrets --no-public-host`); its stack proof is missing. `/` on the admin host is the role-based
+  installation without a public host can be set up (`pilot-secrets --no-public-host`). `/` on the admin host is the role-based
   entry (sign-in, then the start area). Switching to two hosts signs
   every member out once (`pilot-revoke-sessions`). On the public host the
   header shows a static "Mitgliederbereich" link instead of the personal app links:

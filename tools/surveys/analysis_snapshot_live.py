@@ -13,6 +13,7 @@ from uuid import UUID, uuid4
 
 import asyncpg
 import httpx
+from club_day import database_now, refused_start
 
 from leonaid.domain.calendar import local_day, local_day_bounds
 from leonaid.domain.sessions import SESSION_LIFETIME, session_token_digest
@@ -447,13 +448,17 @@ async def main():
         )
         boundary = now - timedelta(minutes=1)
         # Aggregate-only (no read_responses, no export_raw): whole Berlin
-        # days, never into today (disclosure.whole_days).
+        # days, never into today (disclosure.whole_days). A start on the
+        # API's current club day, not "a minute ago" (club_day.py).
         narrow = await call(
             "POST",
             path,
             {
                 "operationId": "narrow",
-                "filter": {**filters, "createdFrom": boundary.isoformat()},
+                "filter": {
+                    **filters,
+                    "createdFrom": refused_start(await database_now(conn)).isoformat(),
+                },
             },
             analyst,
             422,
@@ -476,11 +481,15 @@ async def main():
             snapped["filter"]["createdFrom"],
             snapped["filter"]["createdBefore"],
         ) == ("2025-12-31T23:00:00+00:00", "2026-02-01T23:00:00+00:00")
-        today_start = local_day_bounds(local_day(datetime.now(timezone.utc)))[0]
+        # The API's "today" is its database clock during the request: the
+        # day read before it or, when midnight passes meanwhile, after it.
+        day_starts = {local_day_bounds(local_day(await database_now(conn)))[0]}
         open_end = await call(
             "POST", path, {"operationId": "open-end", "filter": filters}, analyst
         )
-        assert open_end["filter"]["createdBefore"] == today_start.isoformat()
+        day_starts.add(local_day_bounds(local_day(await database_now(conn)))[0])
+        today_start = datetime.fromisoformat(open_end["filter"]["createdBefore"])
+        assert today_start in day_starts, (today_start, day_starts)
         before_today = await conn.fetchval(
             "SELECT count(*) FROM survey_participation WHERE survey_id=$1 AND version_id=$2 AND NOT is_test AND created_at < $3",
             sid,

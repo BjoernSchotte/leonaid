@@ -189,8 +189,8 @@ Punkte sind keine stillschweigenden Produktzusagen.
   grünen Stack-Nachweis als Vorschau markiert. Die Abnahme mit echtem ACME und einer echten Domain ist
   offen (`tools/site_hosts/acme_probe.py`). Eine
   Installation ohne öffentlichen Host (`pilot-secrets --no-public-host`,
-  `Caddyfile.admin-only`) ist im Deployment-Vertrag abgedeckt; ihr
-  Stack-Nachweis mit echten Diensten fehlt noch. `/` auf dem Verwaltungshost ist der
+  `Caddyfile.admin-only`) ist im Deployment-Vertrag abgedeckt und mit
+  echten Diensten nachgewiesen (EmDash `campaign-hosts-admin-only`). `/` auf dem Verwaltungshost ist der
   rollenbasierte Einstieg (`/login/start`: Anmeldung, dann `landingPath`). Weiterleitungsnamen des
   öffentlichen Hosts gibt es im Dev-Stack nicht. Beim Umstellen auf zwei
   Hosts melden sich alle Mitglieder einmal neu an
