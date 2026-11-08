@@ -396,6 +396,8 @@ jobs:
           bootstrap: toolchains
           # Every own image, the campaign site included.
           targets: build
+          # vulnerability-scan.sh reuses shared tags (prebuilt_images.py adopt).
+          prebuilt: "true"
       - name: Bootstrap locked Docker toolchains
         if: inputs.cold_run == true
         run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
@@ -443,6 +445,8 @@ jobs:
         uses: ./.github/actions/build-cache
         with:
           bootstrap: toolchains
+          # The stack test borrows a shared_stack.py stack (shared tags).
+          prebuilt: "true"
       - name: Bootstrap locked Docker toolchains
         if: inputs.cold_run == true
         run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
@@ -501,6 +505,8 @@ jobs:
           # branches (ci/refit-timings, pins/repin-images) only read: their
           # layers would evict main's from the 10 GB budget.
           write: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && 'true' || 'false' }}
+          # tools/ci/build.sh reuses shared tags; a cache write bakes all.
+          prebuilt: "true"
       - name: Bootstrap locked Docker toolchains
         if: inputs.cold_run == true
         run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
@@ -521,8 +527,8 @@ jobs:
     # Prebuilt CI images (decision E-020). Only runs on main publish, after a
     # green Build of the same commit; pull requests, forks included, only
     # pull anonymously by digest (.github/actions/build-cache). Each image is
-    # pushed under its content hash (tools/testing/image_tags.py) once it is
-    # missing or older than 3 days, after the secret check.
+    # pushed under its content hash (tools/testing/image_tags.py) when that
+    # tag is missing or carries another hash, after the secret check.
     needs: [select, build]
     if: ${{ !cancelled() && needs.select.result == 'success' && needs.build.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.CI_PREBUILT_IMAGES != 'off' && inputs.cold_run != true && inputs.artifact_probe != true }}
     name: Publish prebuilt images

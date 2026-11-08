@@ -23,8 +23,12 @@ inputs:
     description: Optional directory for bounded timing metadata
     default: ""
   prebuilt:
-    description: Pull prebuilt GHCR images by content hash first (E-020); only misses are baked
-    default: "true"
+    description: >-
+      Pull prebuilt GHCR images by content hash first and bake only the misses
+      (E-020). Only for jobs whose every image build reuses shared tags
+      (image_tags adopt); a direct `compose build`/`up --build` would find no
+      warm layers for a pulled image and build it cold.
+    default: "false"
 runs:
   using: composite
   steps:

@@ -750,16 +750,30 @@ Decision E-020. Every image the CI builds also lives on GHCR as
 hash of `tools/testing/image_tags.py`, so one tag names exactly one set of
 build inputs. API and worker share the `api` image (same build section).
 
-- **Pull (every image job).** `.github/actions/build-cache` first runs
-  `python3 -I tools/ci/prebuilt_images.py pull <targets>`. For each image it
-  resolves the hash tag anonymously, checks the registry config (label
-  `io.leonaid.ci.content-hash` equals the hash, built at most 6 days ago),
-  pulls by digest, checks the pulled image again (label, `RepoDigests`) and
-  tags it `leonaid-local/<service>:<hash>`. The harness
-  (`build_shared_images`, `shared_stack.py`), `tools/ci/build.sh`, the
-  vulnerability gate and the API contract then only tag it as
-  `<project>-<service>` (`prebuilt_images.py adopt`). Only the misses go
-  to the BuildKit layer import and the Compose build, as before.
+- **Pull.** With `prebuilt: "true"`, `.github/actions/build-cache` first
+  runs `python3 -I tools/ci/prebuilt_images.py pull <targets>`. For each
+  image it resolves the hash tag anonymously and checks the registry config:
+  the label `io.leonaid.ci.content-hash` must equal the hash, and the image
+  must be at most 29 days old. It pulls by digest, checks the pulled image
+  again (label, `RepoDigests`) and tags it `leonaid-local/<service>:<hash>`.
+  Only the misses go to the BuildKit layer import, as before. The consumers
+  only tag the image as `<project>-<service>` (`image_tags.adopt`,
+  `prebuilt_images.py adopt`).
+- **Which jobs.** Build (`tools/ci/build.sh`), Vulnerability gate,
+  Security (the stack test borrows a `shared_stack.py` stack) and the API
+  contract. Every image build in these jobs goes through the shared tags.
+  The other image jobs keep the full layer import, because some of their
+  suites build directly (`compose up --build`, `docker buildx build`). For
+  a pulled image such a build would find no warm layers and start cold. A
+  job may switch over once all its build sites use `build_shared_images`.
+- **Age.** BuildKit takes an image's creation time from the last step it
+  really ran. A rebuild from cached layers keeps that time, and so does a
+  republish. CI builds from main's layer cache however old the layers are,
+  so a pulled image is as current as a CI build. `pull` therefore sets
+  `LEONAID_IMAGE_MAX_AGE_DAYS=30` for the harness of that job (locally it
+  stays 7). It takes images only up to 29 days old, so an image stays
+  usable for the whole run. Fresher OS packages come with a new base digest
+  (pin drift), which changes the hash.
 - **Fail-closed.** Every registry or Docker problem (no tag, private
   package, wrong label, too old, pull error, timeout) is a miss, and a miss is
   built in the job. The pull never skips a test. Fork pull requests pull
@@ -767,17 +781,18 @@ build inputs. API and worker share the `api` image (same build section).
 - **Publish (main only).** The `publish-images` job of `ci.yml` runs after a
   green Build on push, schedule and dispatch runs of `main`. It is the only
   job with `packages: write` (`tests/unit/test_workflow_files.py` enforces
-  this). `plan` lists the images whose tag is missing, foreign or older than
-  3 days; bake builds them from the shared layers with the hash, revision
-  and source labels. `publish` refuses an image that contains `.env` files
+  this). `plan` lists the images whose tag is missing or carries another hash;
+  bake builds them from the shared layers with the hash, revision and
+  source labels. `publish` refuses an image that contains `.env` files
   (except `.env.example`), session files, SSH keys, registry credentials or a
   `.git` directory, that has credential-like environment variables or
   labels, or in which Trivy's secret scanner finds a secret. Then it pushes
   the image and checks the pushed digest and label. When an anonymous pull
   fails, it warns that the package is not public yet.
 - **Kill switch.** The repository variable `CI_PREBUILT_IMAGES=off` turns
-  off pulls and publishing. Every job then builds as before. Each workflow
-  that uses the action passes the variable on as `env`.
+  off pulls and publishing. Every job then builds as before. Every workflow
+  with `prebuilt: "true"` passes the variable on as `env`
+  (`tests/unit/test_workflow_files.py`).
 - **Cleanup.** `ci-images-cleanup.yml` runs weekly on main. It deletes
   versions created more than 30 days ago that carry no hash of the current
   main checkout. Tags that are not content hashes are never touched. A

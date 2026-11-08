@@ -11,14 +11,15 @@ For each image of the bake targets or groups TARGETS: resolve the hash tag
 anonymously, check the registry config (our hash label, age), pull by digest,
 check the pulled image again and tag it ``leonaid-local/<service>:<hash>``,
 where the test harness reuses it (image_tags.adopt). Writes the bake targets
-that still have to be built to ``$GITHUB_OUTPUT`` (``bake=``). Any failure
+that still have to be built to ``$GITHUB_OUTPUT`` (``bake=``) and the CI age
+limit of the harness to ``$GITHUB_ENV``. Any failure
 is a miss, and a miss is built locally as before: a registry problem costs
 time, never a test. ``CI_PREBUILT_IMAGES=off`` (repository variable) makes
 everything a miss.
 
 ``plan TARGETS``, ``publish``: the main-only publish job. ``plan`` lists the
-images whose tag is missing, foreign or older than REFRESH_DAYS and writes a
-bake override (tags, labels) for them; ``publish`` checks each loaded image
+images whose tag is missing or carries another hash and writes a bake
+override (tags, labels) for them; ``publish`` checks each loaded image
 for secrets (file names and image config here, Trivy's secret scanner in the
 workflow), pushes it and verifies the pushed digest and label.
 
@@ -72,11 +73,15 @@ SOURCE_LABEL = "org.opencontainers.image.source"
 HASH = re.compile(r"[0-9a-f]{24}\Z")
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 NAME = re.compile(r"[a-z][a-z0-9-]*\Z")
-# The harness rejects images older than image_tags.DEFAULT_MAX_AGE_DAYS; a
-# pulled image must stay usable for a whole run.
-PULL_MAX_AGE = timedelta(days=image_tags.DEFAULT_MAX_AGE_DAYS - 1)
-# main rebuilds an image this old (the Dockerfiles upgrade OS packages).
-REFRESH_AGE = timedelta(days=3)
+# Age is the image's creation time, which BuildKit takes from the last step it
+# really ran: a rebuild from cached layers (CI imports main's layer cache) and
+# a republish keep it. Locally the harness reuses a shared tag for 7 days
+# (image_tags.DEFAULT_MAX_AGE_DAYS: the Dockerfiles upgrade OS packages); CI
+# builds from the same cached layers however old they are, so a pulled image
+# is as current as a CI build. `pull` sets the harness limit to CI_MAX_AGE_DAYS
+# and takes images one day younger, so an image stays usable for the run.
+CI_MAX_AGE_DAYS = 30
+PULL_MAX_AGE = timedelta(days=CI_MAX_AGE_DAYS - 1)
 CLEANUP_AGE = timedelta(days=30)
 KILL_SWITCH = "CI_PREBUILT_IMAGES"
 HTTP_TIMEOUT = 20
@@ -342,12 +347,12 @@ def parse_time(stamp: str) -> datetime:
 
 
 def check_remote(
-    image: Image, remote: Remote, now: datetime, max_age: timedelta
+    image: Image, remote: Remote, now: datetime, max_age: timedelta | None
 ) -> None:
     found = remote.labels.get(HASH_LABEL)
     if found != image.content:
         raise Unavailable(f"label {HASH_LABEL}={found!r}, expected {image.content}")
-    if now - remote.created > max_age:
+    if max_age is not None and now - remote.created > max_age:
         raise Unavailable(
             f"built {remote.created:%Y-%m-%d}, older than {max_age.days} days"
         )
@@ -592,7 +597,7 @@ def plan(
     todo = []
     for image in images:
         try:
-            check_remote(image, resolver(image), now, REFRESH_AGE)
+            check_remote(image, resolver(image), now, None)
             report.append(f"current {image.tag}")
             continue
         except Unavailable as error:
@@ -646,7 +651,7 @@ def publish(
             continue
         try:
             remote = resolver(image, token)
-            check_remote(image, remote, datetime.now(timezone.utc), REFRESH_AGE)
+            check_remote(image, remote, datetime.now(timezone.utc), None)
         except Unavailable as error:
             report.append(f"FAILED {image.tag}: pushed but not verifiable: {error}")
             ok = False
@@ -818,11 +823,13 @@ def main(
         except Exception as error:  # noqa: BLE001 - fall back to the local build
             build = expand(args.targets)
             report = [f"failed ({type(error).__name__}: {error}); building locally"]
-        write_output(
-            environ,
-            bake=",".join(build),
-            hits=str(len(expand(args.targets)) - len(build)),
-        )
+        hits = len(expand(args.targets)) - len(build)
+        write_output(environ, bake=",".join(build), hits=str(hits))
+        if hits and environ.get("GITHUB_ENV"):
+            # The harness, build.sh and the vulnerability gate accept the
+            # pulled images (see CI_MAX_AGE_DAYS) in the following steps.
+            with open(environ["GITHUB_ENV"], "a", encoding="utf-8") as handle:
+                handle.write(f"LEONAID_IMAGE_MAX_AGE_DAYS={CI_MAX_AGE_DAYS}\n")
         summary(environ, "Prebuilt images", report)
         return 0
     if args.command == "plan":

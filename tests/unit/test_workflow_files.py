@@ -206,11 +206,9 @@ def test_packages_write_check_sees_every_grant() -> None:
 def test_image_jobs_honour_the_prebuilt_kill_switch(path: Path) -> None:
     """CI_PREBUILT_IMAGES=off (repository variable) must reach the action."""
     text = path.read_text(encoding="utf-8")
-    uses = text.count("uses: ./.github/actions/build-cache")
-    if not uses:
+    if 'prebuilt: "true"' not in text:
         return
     env = load(path).get("env") or {}
-    assert (
-        text.count('prebuilt: "false"') == uses
-        or env.get("CI_PREBUILT_IMAGES") == "${{ vars.CI_PREBUILT_IMAGES }}"
-    ), f"{path.name}: set env CI_PREBUILT_IMAGES to vars.CI_PREBUILT_IMAGES"
+    assert env.get("CI_PREBUILT_IMAGES") == "${{ vars.CI_PREBUILT_IMAGES }}", (
+        f"{path.name}: set env CI_PREBUILT_IMAGES to vars.CI_PREBUILT_IMAGES"
+    )

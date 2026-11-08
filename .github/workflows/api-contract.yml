@@ -61,6 +61,8 @@ jobs:
         with:
           targets: api
           bootstrap: seed
+          # tools/openapi/test.sh reuses shared tags (build_shared_images).
+          prebuilt: "true"
 
       - name: Generate, typecheck and run real contract
         run: ./tools/openapi/test.sh "$PWD"

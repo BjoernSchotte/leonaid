@@ -247,11 +247,14 @@ class RegistryTests(unittest.TestCase):
         for remote in (
             pi.Remote("d", {pi.HASH_LABEL: HASH_B}, NOW),
             pi.Remote("d", {}, NOW),
-            pi.Remote("d", {pi.HASH_LABEL: HASH_A}, NOW - timedelta(days=6, hours=1)),
+            pi.Remote("d", {pi.HASH_LABEL: HASH_A}, NOW - timedelta(days=29, hours=1)),
         ):
             with self.subTest(remote=remote), self.assertRaises(pi.Unavailable):
                 pi.check_remote(IMAGE, remote, NOW, pi.PULL_MAX_AGE)
-        self.assertLess(pi.PULL_MAX_AGE.days, image_tags.DEFAULT_MAX_AGE_DAYS)
+        # The harness limit pull sets must outlast every image it accepts.
+        self.assertLess(pi.PULL_MAX_AGE, timedelta(days=pi.CI_MAX_AGE_DAYS))
+        old = pi.Remote("d", {pi.HASH_LABEL: HASH_A}, NOW - timedelta(days=400))
+        pi.check_remote(IMAGE, old, NOW, None)
 
 
 class FetchTests(unittest.TestCase):
@@ -368,6 +371,21 @@ class PullTests(unittest.TestCase):
                 pi.fetch = original
             self.assertEqual(output.read_text(), "bake=api,survey-validator\nhits=0\n")
 
+    def test_hits_raise_the_harness_age_limit_for_later_steps(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output, env = Path(directory) / "output", Path(directory) / "env"
+            environ = {"GITHUB_OUTPUT": str(output), "GITHUB_ENV": str(env)}
+            original = pi.pull
+            pi.pull = lambda targets, environ: (["proxy"], ["hit  api"])  # type: ignore[assignment,misc]
+            try:
+                self.assertEqual(pi.main(["pull", "api,proxy"], environ), 0)
+            finally:
+                pi.pull = original
+            self.assertEqual(output.read_text(), "bake=proxy\nhits=1\n")
+            self.assertEqual(
+                env.read_text(), f"LEONAID_IMAGE_MAX_AGE_DAYS={pi.CI_MAX_AGE_DAYS}\n"
+            )
+
     def test_outputs_are_single_lines(self) -> None:
         with self.assertRaises(ValueError):
             pi.write_output({"GITHUB_OUTPUT": os.devnull}, bake="api\nhits=9")
@@ -435,11 +453,12 @@ class SecretTests(unittest.TestCase):
 class PlanAndPublishTests(unittest.TestCase):
     environ = {"GITHUB_SHA": "c" * 40, "GITHUB_TOKEN": "t"}
 
-    def test_plan_publishes_missing_foreign_and_old_images_only(self) -> None:
+    def test_plan_publishes_missing_and_foreign_images_only(self) -> None:
         remotes = {
-            "api": pi.Remote("d", {pi.HASH_LABEL: HASH_A}, NOW - timedelta(days=1)),
-            "web": pi.Remote("d", {pi.HASH_LABEL: HASH_A}, NOW - timedelta(days=4)),
-            "pwa": pi.Remote("d", {pi.HASH_LABEL: HASH_B}, NOW),
+            # Republishing cannot make an image younger (cached layers).
+            "api": pi.Remote("d", {pi.HASH_LABEL: HASH_A}, NOW - timedelta(days=90)),
+            "web": pi.Remote("d", {pi.HASH_LABEL: HASH_B}, NOW),
+            "pwa": pi.Remote("d", {}, NOW),
         }
 
         def resolver(image: pi.Image) -> pi.Remote:
