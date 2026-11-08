@@ -181,7 +181,7 @@ test("captures made offline are kept on the device and sent once online", async 
   await page.getByTestId("order-open").click();
   await page.getByTestId("commitment-quantity").fill("2");
   await page.getByRole("button", { name: "Weiter" }).click();
-  await page.getByTestId("commitment-street").fill("Offlineweg 7");
+  await page.getByTestId("commitment-street").fill("Warteschlangenweg 7");
   await page.locator("#commitment-postal-code").fill("80331");
   await page.locator("#commitment-city").fill("München");
   await page.getByRole("button", { name: "Weiter" }).click();
@@ -203,7 +203,7 @@ test("captures made offline are kept on the device and sent once online", async 
       "sequence",
       "state",
     ]);
-    for (const secret of [note, "Musterwerk", "Offlineweg"]) {
+    for (const secret of [note, "Musterwerk", "Warteschlangenweg"]) {
       expect(record.clearText).not.toContain(secret);
     }
   }
@@ -230,6 +230,9 @@ test("captures made offline are kept on the device and sent once online", async 
   });
   await page.keyboard.press("Escape");
 
+  // D5: arrival comes measurably after the capture; tools/pwa/test.sh
+  // checks that Core keeps the capture time of the order.
+  await new Promise((resolve) => setTimeout(resolve, 3_000));
   // Back online: sent without a tap, each once.
   await context.setOffline(false);
   await expect(indicator).toHaveAttribute("data-queue-state", "empty", {

@@ -260,13 +260,19 @@ done
 kill "$offline_watcher_pid" 2>/dev/null || true
 offline_flag false
 # Each browser run of pwa-offline-queue.spec.mjs sent one offline draft
-# order, exactly once, with the device's capture time (online drafts of
-# the price test arrive within the same second).
-offline_orders=$(printf "SELECT count(*) FROM commitment WHERE source = 'acquisition' AND status = 'draft' AND captured_at IS NOT NULL AND created_at - captured_at > interval '2 seconds';\n" |
+# order (street "Warteschlangenweg 7"), exactly once, with the device's capture
+# time: the spec stays offline for 3 s after the capture, so arrival and
+# capture differ by more than 2 s.
+offline_query() {
   compose exec -T core-postgres sh -ec \
-    'psql -v ON_ERROR_STOP=1 -q -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB"')
-if [ "$offline_orders" != 2 ]; then
-  echo "pwa-test: ERROR: expected 2 offline orders, found $offline_orders" >&2
+    'psql -v ON_ERROR_STOP=1 -q -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+}
+offline_orders=$(printf "SELECT count(*) || ' ' || count(*) FILTER (WHERE created_at - captured_at > interval '2 seconds') FROM commitment WHERE source = 'acquisition' AND status = 'draft' AND invoice_recipient_snapshot->>'streetLine1' = 'Warteschlangenweg 7';\n" |
+  offline_query)
+if [ "$offline_orders" != "2 2" ]; then
+  echo "pwa-test: ERROR: expected 2 offline orders with the capture time, found (all, with capture time) $offline_orders" >&2
+  printf "SELECT status, captured_at, created_at, created_at - captured_at FROM commitment WHERE invoice_recipient_snapshot->>'streetLine1' = 'Warteschlangenweg 7' ORDER BY created_at;\n" |
+    offline_query >&2 || true
   exit 1
 fi
 pwa_sessions
