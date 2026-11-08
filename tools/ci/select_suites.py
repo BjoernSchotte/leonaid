@@ -366,7 +366,6 @@ RULES: tuple[Rule, ...] = (
             "src/leonaid/modules/surveys/**",
             "packages/surveys/**",
             "packages/features/src/surveys/**",
-            "apps/surveys-demo/**",
             "tests/e2e/surveys-*.spec.mjs",
         ),
         frozenset({"surveys"}),

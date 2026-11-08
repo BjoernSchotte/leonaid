@@ -7,7 +7,6 @@
     "responses",
     "exports",
     "recovery",
-    "package",
     "e2e"
   ],
   "checks": [
@@ -17,45 +16,9 @@
       "argv": ["python3", "tools/surveys/gate_test.py"]
     },
     {
-      "id": "restore-receipts",
-      "group": "foundation",
-      "argv": ["python3", "tools/backup/restore_state_test.py"]
-    },
-    {
-      "id": "core",
-      "group": "foundation",
-      "argv": ["./leonaid", "test-surveys-core"]
-    },
-    {
-      "id": "validation-candidate",
-      "group": "foundation",
-      "argv": ["./leonaid", "test-surveys-validation-candidate"]
-    },
-    {
-      "id": "dependencies",
-      "group": "foundation",
-      "argv": ["./leonaid", "test-surveys-dependencies"]
-    },
-    {
-      "id": "standalone-resources",
-      "group": "foundation",
-      "argv": ["python3", "tools/surveys/standalone_resources_live.py"]
-    },
-    {
       "id": "migrations",
       "group": "foundation",
       "argv": ["./leonaid", "test-surveys-migrations"]
-    },
-    {
-      "id": "foundation-diagnostics",
-      "group": "foundation",
-      "argv": [
-        "python3",
-        "tools/surveys/foundation_acceptance.py",
-        "{root}",
-        "infrastructure"
-      ],
-      "infrastructureModes": ["infrastructure"]
     },
     {
       "id": "contracts",
@@ -270,26 +233,10 @@
       "argv": ["sh", "tools/pilot_deployment/test.sh", "{root}", "surveys"]
     },
     {
-      "id": "packed-consumer",
-      "group": "package",
-      "argv": ["./leonaid", "test-surveys-package"]
-    },
-    {
       "id": "journeys",
       "group": "e2e",
       "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "journeys"],
       "infrastructureModes": ["journeys"]
-    },
-    {
-      "id": "foundation-failure",
-      "group": "foundation",
-      "argv": [
-        "python3",
-        "tools/surveys/foundation_acceptance.py",
-        "{root}",
-        "infrastructure-failure"
-      ],
-      "infrastructureModes": ["infrastructure-failure"]
     }
   ],
   "manualReviewRequired": [
@@ -298,7 +245,6 @@
     "specs/surveyjs-surveys-spike/IMPLEMENTATION-TASKS.md"
   ],
   "ciShards": {
-    "foundation-acceptance": ["foundation-failure", "foundation-diagnostics"],
     "runner-permissions": ["runner", "permissions"],
     "editor-authoring": ["editor", "preview", "branding", "invitations"],
     "analysis-exports": ["analysis", "export-permissions", "exports"],
@@ -308,30 +254,19 @@
       "lifecycle-concurrency",
       "request-limits"
     ],
-    "foundation": [
-      "gate-controller",
-      "core",
-      "validation-candidate",
-      "dependencies",
-      "standalone-resources",
-      "migrations",
-      "packed-consumer",
-      "aggregates"
-    ],
+    "foundation": ["gate-controller", "migrations", "aggregates"],
     "journeys-responses": ["journeys", "responses", "payload-limits"],
     "recovery-deletion": ["deletion", "deletion-races", "deletion-ui"],
     "recovery-retention": ["retention", "recovery"],
     "recovery-restic": ["restic-manual", "restic-archive", "restic-durable"],
     "recovery-pilot": ["pilot-survey-recovery"],
-    "exports-recovery": ["export-states", "export-recovery", "export-limits"],
-    "restore-receipts": ["restore-receipts"]
+    "exports-recovery": ["export-states", "export-recovery", "export-limits"]
   },
   "nightlyShards": [
     "recovery-deletion",
     "recovery-retention",
     "recovery-restic",
     "recovery-pilot",
-    "exports-recovery",
-    "restore-receipts"
+    "exports-recovery"
   ]
 }

@@ -100,11 +100,6 @@ MAX_FAILURE_LINES = 80
 TAIL_LINES = 150
 MAX_LINE = 400
 READ_BYTES = 4 * 1024 * 1024
-# Logs of checks that run their own foundation harness.
-FOUNDATION_LOGS = {
-    "foundation-diagnostics": "infrastructure",
-    "foundation-failure": "infrastructure-failure",
-}
 
 
 def failed_checks(root: Path) -> list[tuple[int, str]]:
@@ -210,19 +205,16 @@ def runtime_keys() -> dict[str, str]:
 def secrets(root: Path) -> dict[str, str]:
     found = sanitize_artifacts.secrets_from(root / ".env.local")
     found.update(runtime_keys())
-    for directory in (
-        root / ".artifacts/surveys-gate",
-        root / ".artifacts/foundation-acceptance",
-    ):
-        if directory.is_dir():
-            for env_file in directory.rglob("*.env"):
-                if not env_file.is_symlink():
-                    found.update(sanitize_artifacts.secrets_from(env_file))
+    directory = root / ".artifacts/surveys-gate"
+    if directory.is_dir():
+        for env_file in directory.rglob("*.env"):
+            if not env_file.is_symlink():
+                found.update(sanitize_artifacts.secrets_from(env_file))
     return found
 
 
 def logs_for(root: Path, iteration: int, check: str) -> list[tuple[str, Path]]:
-    found = [
+    return [
         (f"{iteration}-{check}", path)
         for path in sorted(
             (root / ".artifacts/surveys-gate").glob(
@@ -230,12 +222,6 @@ def logs_for(root: Path, iteration: int, check: str) -> list[tuple[str, Path]]:
             )
         )
     ]
-    if check in FOUNDATION_LOGS:
-        name = FOUNDATION_LOGS[check]
-        found.append(
-            (f"{check}-harness", root / f".artifacts/foundation-acceptance/{name}.log")
-        )
-    return found
 
 
 def export(root: Path, destination: Path) -> list[tuple[str, str]]:
