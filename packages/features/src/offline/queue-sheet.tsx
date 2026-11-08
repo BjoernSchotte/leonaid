@@ -121,7 +121,16 @@ export function QueueSheet({
   const iosHint = useIosHint(open);
   const waitingFor = (draftId: string) =>
     snapshot.entries.filter((entry) => entry.dependsOn === draftId).length;
-  const [discarding, setDiscarding] = useState<QueueEntry | null>(null);
+  // The confirmation names the dependents the store holds (#132 N2).
+  const [discarding, setDiscarding] = useState<{
+    readonly entry: QueueEntry;
+    readonly dependents: readonly QueueEntry[];
+  } | null>(null);
+  const askDiscard = (entry: QueueEntry) => {
+    void (queue?.dependents(entry.entryId) ?? Promise.resolve([])).then(
+      (dependents) => setDiscarding({ dependents, entry }),
+    );
+  };
 
   useEffect(() => {
     const dialog = ref.current;
@@ -250,7 +259,7 @@ export function QueueSheet({
                     client={client}
                     context={contexts.get(entry.actionId) ?? null}
                     entry={entry}
-                    onDiscard={() => setDiscarding(entry)}
+                    onDiscard={() => askDiscard(entry)}
                     online={online}
                     queue={queue}
                   />
@@ -279,19 +288,28 @@ export function QueueSheet({
         description={
           discarding
             ? [
-                isStoredAtCore(discarding)
-                  ? `${entryTitle(discarding)} ist bei LeonAid gespeichert. Verwerfen löscht nur den Hinweis auf diesem Gerät; der Rest wird nicht übernommen.`
-                  : `${entryTitle(discarding)} wird von diesem Gerät gelöscht und nicht gesendet.`,
-                ...snapshot.entries
-                  .filter((entry) => entry.dependsOn === discarding.entryId)
-                  .map((entry) => `Mit gelöscht: ${entryTitle(entry)}.`),
+                isStoredAtCore(discarding.entry)
+                  ? `${entryTitle(discarding.entry)} ist bei LeonAid gespeichert. Verwerfen löscht nur den Hinweis auf diesem Gerät; der Rest wird nicht übernommen.`
+                  : `${entryTitle(discarding.entry)} wird von diesem Gerät gelöscht und nicht gesendet.`,
+                ...discarding.dependents.map(
+                  (entry) => `Mit gelöscht: ${entryTitle(entry)}.`,
+                ),
               ].join(" ")
             : ""
         }
         onConfirm={() => {
-          const entry = discarding;
+          const shown = discarding;
           setDiscarding(null);
-          if (entry) void queue?.discard(entry.entryId);
+          if (!shown || !queue) return;
+          void queue
+            .discard(
+              shown.entry.entryId,
+              shown.dependents.map((entry) => entry.entryId),
+            )
+            // Another tab added a capture meanwhile: ask again, naming it.
+            .then((outcome) => {
+              if (outcome === "changed") askDiscard(shown.entry);
+            });
         }}
         onOpenChange={(next) => {
           if (!next) setDiscarding(null);

@@ -40,6 +40,11 @@ import {
   useHotkeys,
 } from "@leonaid/ui";
 
+import {
+  resolveDraftSponsor,
+  resolveKeptNothing,
+  resumeDraftCheck,
+} from "../offline/draft-check";
 import { PendingCaptures } from "../offline/pending-captures";
 import type { SponsorDraftEntry } from "../offline/queue";
 import {
@@ -757,54 +762,108 @@ function NewSponsor({
       );
     },
   });
+  /** Core resolved the sponsor: a draft's captures follow it (§9.2). */
+  async function settle(result: SponsorResolutionResponse) {
+    setResolution(result);
+    const pending = draftRef.current;
+    if (pending && queue) {
+      // The captures of the draft take the resolved sponsor and the
+      // assignment's real revision, then go out. Without it they keep
+      // waiting; the draft keeps Core's answer, so opening it again only
+      // reads the revision (#132 N1).
+      const revision = await assignmentRevision(
+        client,
+        actionId,
+        result.assignmentId,
+      );
+      if (revision === null) {
+        setFormError(
+          "Der Sponsor ist angelegt, aber noch nicht in deiner Liste. Öffne den Entwurf gleich noch einmal; die wartenden Einträge gehen dann los.",
+        );
+      } else {
+        await queue.resolveDraft(pending.entryId, {
+          assignmentId: result.assignmentId,
+          displayName: result.displayName,
+          partyId: result.twentyId,
+          partyKind: result.partyKind,
+          revision,
+        });
+        draftRef.current = undefined;
+      }
+    }
+    await onAssigned();
+  }
   const resolve = useMutation({
     mutationFn: async () => {
       if (!draft || !match || !commandId) throw new Error("missing-match");
       const selected = match.candidates.find(
         (candidate) => candidate.twentyId === selectedId,
       );
-      return client.resolveSponsorMatch(actionId, {
+      const request = {
         commandId,
         // Only the acquirer's own tick confirms a shared assignment.
         confirmExistingAssignments: confirmed,
         expectedStatus: match.status,
         selectedTwentyId: selected?.twentyId ?? null,
         sponsor: draft,
-      });
-    },
-    onSuccess: async (result) => {
-      setResolution(result);
+      };
       const pending = draftRef.current;
-      if (pending && queue) {
-        // The captures of the draft take the resolved sponsor and the
-        // assignment's real revision, then go out (§9.2). Without it they
-        // keep waiting; a new check replays with the same command id.
-        const revision = await assignmentRevision(
-          client,
-          actionId,
-          result.assignmentId,
-        );
-        if (revision === null) {
-          setFormError(
-            "Der Sponsor ist angelegt, aber noch nicht in deiner Liste. Prüfe den Entwurf gleich noch einmal; die wartenden Einträge gehen dann los.",
-          );
-        } else {
-          await queue.resolveDraft(pending.entryId, {
-            assignmentId: result.assignmentId,
-            displayName: result.displayName,
-            partyId: result.twentyId,
-            partyKind: result.partyKind,
-            revision,
-          });
-          draftRef.current = undefined;
-        }
-      }
-      await onAssigned();
+      // A draft keeps the exact body before it goes out (#132 N1).
+      return pending && queue
+        ? resolveDraftSponsor(client, queue, actionId, pending.entryId, request)
+        : client.resolveSponsorMatch(actionId, request);
     },
+    onError: (error) => {
+      const pending = draftRef.current;
+      if (!pending || !queue || !resolveKeptNothing(error)) return;
+      // Refused: the draft took a new command id for the next check.
+      const fresh = queue.snapshot.entries.find(
+        (entry) => entry.entryId === pending.entryId,
+      );
+      if (fresh?.kind === "sponsor-draft") {
+        draftRef.current = fresh;
+        setCommandId(fresh.commandId);
+      }
+    },
+    onSuccess: settle,
   });
   // The draft as it was when the check opened; it leaves the queue once
   // resolved, while this form still shows the result.
   const draftRef = useRef(draftEntry);
+  // An earlier check of this draft sent a body or got an answer: finish
+  // that one first; a new check would meet idempotency_conflict (#132 N1).
+  const [resumeNeeded] = useState(() =>
+    Boolean(draftEntry?.resolution || draftEntry?.resolveRequest),
+  );
+  const resume = useMutation({
+    mutationFn: async () => {
+      const pending = draftRef.current;
+      if (!pending || !queue) throw new Error("missing-draft");
+      return resumeDraftCheck(client, queue, actionId, pending);
+    },
+    onSuccess: async (check) => {
+      const pending = draftRef.current;
+      if (check.state === "resolved") {
+        await settle(check.resolution);
+      } else if (check.state === "check" && pending) {
+        // Core kept nothing of it: a normal check under a new command id.
+        draftRef.current = {
+          ...pending,
+          commandId: check.commandId,
+          resolveRequest: null,
+        };
+      }
+    },
+  });
+  const startResume = resume.mutate;
+  useEffect(() => {
+    if (resumeNeeded) startResume();
+  }, [resumeNeeded, startResume]);
+  const resumeWaiting =
+    resumeNeeded &&
+    !resolution &&
+    resume.data?.state !== "check" &&
+    resume.data?.state !== "resolved";
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
@@ -863,6 +922,7 @@ function NewSponsor({
     setFormError(null);
   }
   const formLocked =
+    resumeWaiting ||
     preview.isPending ||
     resolve.isPending ||
     match !== null ||
@@ -879,7 +939,36 @@ function NewSponsor({
         onSubmit={submit}
         ref={formRef}
       >
-        {draftRef.current && !match && !resolution ? (
+        {resumeWaiting ? (
+          <StatusMessage
+            tone={
+              resume.isError || resume.data?.state === "unknown"
+                ? "warning"
+                : "info"
+            }
+          >
+            <div className="stack" data-testid="sponsor-draft-resume">
+              {resume.isError || resume.data?.state === "unknown" ? (
+                <>
+                  <p>
+                    Die CRM-Prüfung dieses Entwurfs von vorhin hat noch keine
+                    Antwort. Versuche es gleich noch einmal; es entsteht kein
+                    zweiter Sponsor.
+                  </p>
+                  <Button
+                    loading={resume.isPending}
+                    onClick={() => resume.mutate()}
+                    variant="secondary"
+                  >
+                    Erneut versuchen
+                  </Button>
+                </>
+              ) : (
+                <p>Die CRM-Prüfung dieses Entwurfs von vorhin wird beendet …</p>
+              )}
+            </div>
+          </StatusMessage>
+        ) : draftRef.current && !match && !resolution ? (
           <StatusMessage tone="info">
             <span data-testid="sponsor-draft-check">
               Dein Entwurf von unterwegs. Ergänze bei Bedarf die Straße und

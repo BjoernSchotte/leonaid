@@ -290,14 +290,29 @@ export class QueueController {
    * goes with the captures that wait for it (§10.4), read from the store,
    * so one written in another tab is not left behind.
    */
-  async discard(entryId: string): Promise<void> {
+  async discard(
+    entryId: string,
+    shownDependents?: readonly string[],
+  ): Promise<"discarded" | "changed"> {
+    let outcome: "discarded" | "changed" = "discarded";
     await this.#mutate(async (store) => {
-      for (const entry of await store.list()) {
-        if (entry.dependsOn === entryId) await store.delete(entry.entryId);
+      const dependents = (await store.list()).filter(
+        (entry) => entry.dependsOn === entryId,
+      );
+      // A capture the confirmation did not name (written in another tab
+      // meanwhile) is never deleted unseen: the sheet asks again (#132 N2).
+      if (
+        shownDependents &&
+        dependents.some((entry) => !shownDependents.includes(entry.entryId))
+      ) {
+        outcome = "changed";
+        return;
       }
+      for (const entry of dependents) await store.delete(entry.entryId);
       await store.delete(entryId);
     });
     void this.run();
+    return outcome;
   }
 
   /** A new sponsor saved offline (§10.4); never sent by itself. */
@@ -401,9 +416,32 @@ export class QueueController {
 
   /** The captures that wait for a draft, as the store holds them. */
   async dependents(draftId: string): Promise<QueueEntry[]> {
-    return (await this.#options.store.list()).filter(
-      (entry) => entry.dependsOn === draftId,
+    // Read under the lock: not between a writer's steps in another tab.
+    return this.#exclusive(async () =>
+      (await this.#options.store.list()).filter(
+        (entry) => entry.dependsOn === draftId,
+      ),
     );
+  }
+
+  /**
+   * Keeps what a draft's CRM check sent and got (#132 N1), or gives the
+   * draft a new command id after Core refused the check.
+   */
+  async updateDraft(
+    draftId: string,
+    patch: Partial<
+      Pick<SponsorDraftEntry, "commandId" | "resolveRequest" | "resolution">
+    >,
+  ): Promise<void> {
+    await this.#mutate(async (store) => {
+      const current = (await store.list()).find(
+        (item) => item.entryId === draftId,
+      );
+      if (current?.kind === "sponsor-draft") {
+        await store.put({ ...current, ...patch });
+      }
+    });
   }
 
   /** "Erneut versuchen" of a failed or no-longer-possible entry. */

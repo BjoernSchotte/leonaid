@@ -6,7 +6,9 @@
  */
 import {
   ApiError,
+  type ResolveSponsorMatchRequest,
   type SponsorDraftRequest,
+  type SponsorResolutionResponse,
   type CommitmentResponse,
   type CompleteCommitmentRequest,
   type CreateCommitmentRequest,
@@ -115,6 +117,13 @@ export interface SponsorDraftEntry extends EntryCommon {
   readonly kind: "sponsor-draft";
   /** The `command_id` of `resolveSponsorMatch` for this draft (§10.4). */
   readonly commandId: string;
+  /**
+   * The exact resolve body sent under `commandId`, kept before it goes out:
+   * Core replays only that body (#132 N1). `null`: none sent, or refused.
+   */
+  readonly resolveRequest?: ResolveSponsorMatchRequest | null;
+  /** Core's answer to that resolve, once it arrived. */
+  readonly resolution?: SponsorResolutionResponse | null;
   readonly mode: "company" | "person";
   readonly request: SponsorDraftRequest;
 }
