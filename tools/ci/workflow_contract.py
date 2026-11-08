@@ -18,7 +18,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from tools.ci import gate as gate_script  # noqa: E402
-from tools.ci import rerun_stale_gates  # noqa: E402
 from tools.ci import select_suites  # noqa: E402
 
 REQUIRED_JOBS = {
@@ -43,13 +42,9 @@ NO_EVIDENCE = {"select", "gate", "survey-gate", "golden-journey"}
 # Removed pure summary jobs: tools/ci/gate.py already requires every selected
 # matrix leg, and each summary cost a runner slot per run.
 REMOVED_SUMMARIES = ("integration", "e2e-summary", "emdash-proofs")
-# Not part of the gate: the full-ci hold (it only posts a red gate check;
-# tools/ci/hold_gate.py).
-OUTSIDE_GATE = {
-    "gate",
-    "survey-gate",
-    "hold",
-}
+# Not part of the CI gate: the gates themselves (survey-gate mirrors the
+# CI gate).
+OUTSIDE_GATE = {"gate", "api-gate", "survey-gate"}
 
 # Editor load race (PR #37) and Caddy body drain (PR #38) were only visible here.
 EMDASH_GROUPS = (
@@ -72,8 +67,7 @@ E2E_SHARDS = (
     "invoice-flows",
 )
 
-# Always-on jobs of ci.yml that only a stacked pull request skips (selector
-# output heavy); the CI gate requires each unless heavy is false.
+# Always-on jobs of ci.yml; the CI gate requires each.
 HEAVY_JOBS = ("security", "vulnerability", "build")
 # Workflows with a post-merge tier: every push to main runs the suites of the
 # paths changed since the last green run there (select-suites.yml
@@ -88,7 +82,6 @@ SURVEY_GATE = "survey-gate"
 # (never merge_group), must not use path filters and must end in its gate.
 GATED_WORKFLOWS = {
     "ci.yml": "CI gate",
-    "api-contract.yml": "API contract gate",
     "pins.yml": "Dependency pins gate",
 }
 # Required without a gate: a single always-running job.
@@ -120,7 +113,7 @@ RETRYABLE = re.compile(
 # builds or loads LeonAid images must free about 18 GB first. Jobs using the
 # build cache need it unless listed as light (one or two small images);
 # the nightly recovery proofs build without the cache.
-FREE_DISK_LIGHT = {("api-contract.yml", "contract"), ("pins.yml", "sbom")}
+FREE_DISK_LIGHT = {("pins.yml", "sbom")}
 FREE_DISK_EXTRA = {
     ("ci.yml", "backup-recovery"),
 }
@@ -278,13 +271,9 @@ def check(path: Path) -> list[str]:
         if (
             "select" not in needs_of(block)
             or "needs.select.result == 'success'" not in condition
-            or "needs.select.outputs.heavy != 'false'" not in condition
+            or "outputs." in condition
         ):
-            problems.append(
-                f"{job} may be skipped only for a stacked PR (selector output heavy)."
-            )
-        if f"--selectable {job}=heavy" not in job_block(text, "gate"):
-            problems.append(f"The gate must require {job} unless heavy is false.")
+            problems.append(f"{job} must run whenever the selector succeeded.")
     build = job_block(text, "build")
     if (
         "write: ${{ github.ref == 'refs/heads/main' && github.event_name != "
@@ -383,48 +372,15 @@ def check_emdash(text: str) -> list[str]:
 
 
 DRAFT = "github.event.pull_request.draft != true"
-EDIT = "(github.event.action != 'edited' || github.event.changes.base)"
-DRAFT_TYPES = frozenset(
-    {
-        "opened",
-        "reopened",
-        "synchronize",
-        "ready_for_review",
-        "converted_to_draft",
-        "edited",
-    }
-)
-# Environment the gate step hands to tools/ci/gate.py for drafts, title
-# edits and stacked results.
+# Only events that change what is tested start a run: no mirror runs, so no
+# hold, no refresh and no title-edit concurrency group (E-024/E-025).
+PR_TYPES = frozenset({"opened", "reopened", "synchronize", "ready_for_review"})
+# Environment the gate step hands to tools/ci/gate.py: drafts fail.
 GATE_CONTEXT = (
     "DRAFT: ${{ github.event.pull_request.draft == true }}",
-    "EVENT_ACTION: ${{ github.event.action }}",
-    "BASE_CHANGED: ${{ toJSON(github.event.changes.base) != 'null' }}",
-    "STACK_BASE: ${{ github.base_ref }}",
-    "HEAD_SHA: ${{ github.event.pull_request.head.sha }}",
-    "GATE_NAME: ",
+    "BASE_REF: ${{ github.base_ref }}",
 )
-EDIT_GROUP = (
-    "${{ ((github.event.action == 'edited' && !github.event.changes.base) || "
-    "(github.event.pull_request.draft && github.event.action != 'converted_to_draft')) "
-    "&& format('-mirror-{0}', github.run_id) || '' }}"
-)
-# Post-merge workflows also run on labels: adding full-ci is a real run (the
-# complete suite), every other label change mirrors like a title edit.
 FULL_CI = select_suites.FULL_CI_LABEL
-LABEL = (
-    f"(github.event.action != 'labeled' || github.event.label.name == '{FULL_CI}') "
-    "&& github.event.action != 'unlabeled'"
-)
-LABEL_TYPES = frozenset({"labeled", "unlabeled"})
-LABEL_GROUP = (
-    "${{ ((github.event.action == 'edited' && !github.event.changes.base) || "
-    f"(github.event.action == 'labeled' && github.event.label.name != '{FULL_CI}') || "
-    "github.event.action == 'unlabeled' || "
-    "(github.event.pull_request.draft && github.event.action != 'converted_to_draft')) "
-    "&& format('-mirror-{0}', github.run_id) || '' }}"
-)
-LABEL_CONTEXT = "LABEL: ${{ github.event.label.name }}"
 
 
 def pull_request_types(on: str) -> set[str]:
@@ -441,52 +397,33 @@ def pull_request_types(on: str) -> set[str]:
 
 
 def check_drafts(text: str, name: str) -> list[str]:
-    """Drafts and title edits run no suite; their gate decides fail-closed.
+    """Pull requests run on exactly PR_TYPES; drafts run no suite.
 
     Every job without a `needs` (and every always()/!cancelled() job that
-    does not wait for a successful selector) must skip drafts and edits that
-    did not change the base. The gate runs anyway: tools/ci/gate.py fails a
-    draft, mirrors the commit's real gate result for a title edit and fails
-    a stacked result that no longer targets its base. A base change runs
-    the normal selection. Title-edit and draft runs (except
-    converted_to_draft, which must cancel the running CI) have their own
-    concurrency group, so neither they nor their re-runs (refresh-gates.yml)
-    cancel another run.
+    does not wait for a successful selector) must skip drafts. The gate runs
+    anyway and fails a draft (tools/ci/gate.py).
     """
     problems: list[str] = []
-    on = triggers(text)
-    if not DRAFT_TYPES <= pull_request_types(on):
+    if pull_request_types(triggers(text)) != PR_TYPES:
         problems.append(
-            f"{name}: pull_request must list ready_for_review, converted_to_draft "
-            "and edited."
+            f"{name}: pull_request must list exactly opened, reopened, "
+            "synchronize and ready_for_review."
         )
+    if "-mirror-" in text or "hold_gate" in text:
+        problems.append(f"{name}: no mirror runs and no hold job.")
     gated = name in GATED_WORKFLOWS
     labelled = name in POST_MERGE
-    if labelled and not LABEL_TYPES <= pull_request_types(on):
-        problems.append(
-            f"{name}: pull_request must list labeled and unlabeled ({FULL_CI} runs "
-            "the complete suite)."
-        )
-    group = LABEL_GROUP if labelled else EDIT_GROUP
-    if group not in text[: text.find("\njobs:\n")]:
-        problems.append(
-            f"{name}: title-edit, label and draft runs must not share the PR's "
-            "concurrency group."
-        )
     for job in jobs_of(text):
         block = job_block(text, job)
         if job == SURVEY_GATE:
             continue
         if gated and job == "gate":
-            context = GATE_CONTEXT + (
-                (LABEL_CONTEXT, 'FULL_CI_GATE: "true"') if labelled else ()
-            )
+            context = GATE_CONTEXT + (('FULL_CI_GATE: "true"',) if labelled else ())
             if "permissions:" not in block or not all(
                 item in block for item in context
             ):
                 problems.append(
-                    f"{name}: the gate must hand the draft/edit/label/stack context "
-                    "to gate.py."
+                    f"{name}: the gate must hand the draft context to gate.py."
                 )
             continue
         condition = re.search(r"(?m)^    if: (.*)$", block)
@@ -505,23 +442,17 @@ def check_drafts(text: str, name: str) -> list[str]:
             needs
             and always
             and condition is not None
-            and "needs.select.result == 'success'" in condition.group(1)
+            and (
+                "needs.select.result == 'success'" in condition.group(1)
+                or "tools/ci/gate.py" in block
+            )
         ):
             continue
         if not gated and "if: github.event.pull_request.draft == true" in block:
-            # A single required job (docs.yml) fails a draft at once and
-            # simply rebuilds on an edit.
+            # A single required job (docs.yml) fails a draft at once.
             continue
-        if (
-            condition is None
-            or DRAFT not in condition.group(1)
-            or (gated and EDIT not in condition.group(1))
-            or (labelled and LABEL not in condition.group(1))
-        ):
-            problems.append(
-                f"{name}: job {job} must not run for a draft, a title edit or a "
-                "label change other than adding full-ci."
-            )
+        if condition is None or DRAFT not in condition.group(1):
+            problems.append(f"{name}: job {job} must not run for a draft.")
     return problems
 
 
@@ -539,65 +470,6 @@ def check_tiers(text: str, name: str) -> list[str]:
         select = job_block(text, "select")
         if "uses: ./.github/workflows/select-suites.yml" not in select:
             problems.append(f"{name}: the select job must use select-suites.yml.")
-    return problems
-
-
-REFRESH = "refresh-gates.yml"
-REFRESH_PERMISSIONS = {
-    ("actions", "write"),
-    ("contents", "read"),
-    ("pull-requests", "read"),
-}
-
-
-def check_refresh(root: Path) -> list[str]:
-    """Failed gate-only runs are re-run when a real run of their workflow ends.
-
-    GitHub keeps the check runs of a failed title-edit or draft run blocking
-    a pull request after the real gates passed; refresh-gates.yml re-runs
-    them (tools/ci/rerun_stale_gates.py) for every required workflow.
-    """
-    workflows = root / ".github/workflows"
-    path = workflows / REFRESH
-    if not path.exists():
-        return [f"{REFRESH}: failed mirror gates must be refreshed after real runs."]
-    text = path.read_text(encoding="utf-8")
-    problems: list[str] = []
-    listened = re.search(r"(?ms)^    workflows:\s*\[([^\]]*)\]$", text)
-    names = {
-        item.strip() for item in (listened.group(1).split(",") if listened else [])
-    } - {""}
-    required = {
-        workflow_name((workflows / name).read_text(encoding="utf-8"))
-        for name in (*GATED_WORKFLOWS, *UNGATED_REQUIRED)
-    }
-    if "\n  workflow_run:" not in triggers(text) or names != required:
-        problems.append(
-            f"{REFRESH}: must run on workflow_run of exactly {', '.join(sorted(required))}"
-        )
-    permissions = re.search(r"(?m)^permissions:\n((?:  .*\n|#.*\n)+)", text)
-    granted = (
-        set(re.findall(r"(?m)^  ([a-z-]+): ([a-z]+)$", permissions.group(1)))
-        if permissions
-        else set()
-    )
-    if granted != REFRESH_PERMISSIONS:
-        problems.append(
-            f"{REFRESH}: permissions must be exactly actions: write, contents: read, pull-requests: read"
-        )
-    if (
-        "python3 tools/ci/rerun_stale_gates.py" not in text
-        or "RUN_ID: ${{ github.event.workflow_run.id }}" not in text
-        or "github.event.workflow_run.event == 'pull_request'" not in text
-        or "ref:" in text
-        or "secrets." in text
-        or "persist-credentials: false" not in text
-    ):
-        problems.append(
-            f"{REFRESH}: must run tools/ci/rerun_stale_gates.py for pull-request runs "
-            "only, from main (no ref:), with GITHUB_TOKEN and without persisted "
-            "git credentials."
-        )
     return problems
 
 
@@ -683,20 +555,6 @@ def check_post_merge(text: str, name: str) -> list[str]:
         problems.append(
             f"{name}: only pull-request runs may be cancelled; every post-merge "
             "run must finish (E-019)."
-        )
-    hold = job_block(text, "hold")
-    gate = GATED_WORKFLOWS.get(name, "")
-    if (
-        f"github.event.action == 'labeled' && github.event.label.name == '{FULL_CI}'"
-        not in hold
-        or "checks: write" not in hold
-        or "python3 tools/ci/hold_gate.py" not in hold
-        or f"GATE_NAME: {gate}" not in hold
-        or "HEAD_SHA: ${{ github.event.pull_request.head.sha }}" not in hold
-    ):
-        problems.append(
-            f"{name}: adding {FULL_CI} must hold '{gate}' red at once "
-            "(job hold, tools/ci/hold_gate.py)."
         )
     select = job_block(text, "select")
     if (
@@ -934,27 +792,25 @@ def check_repository(root: Path) -> list[str]:
         if f"name: {job}\n" not in text:
             problems.append(f"{name}: required job '{job}' missing.")
     select = (workflows / "select-suites.yml").read_text(encoding="utf-8")
-    # The title-edit mirror (gate.py real_run) recognizes real runs by this
-    # job name; a rename would make every mirror fail (closed, but red).
-    if f"\n    name: {gate_script.SELECT_JOB_NAME}\n" not in select:
-        problems.append(
-            f"select-suites.yml: the select job must be named "
-            f"{gate_script.SELECT_JOB_NAME!r} (tools/ci/gate.py SELECT_JOB_NAME)."
-        )
     if "tools/ci/select_suites.py --event" not in select:
         problems.append("select-suites.yml must run tools/ci/select_suites.py.")
     if gate_script.FULL_CI_LABEL != select_suites.FULL_CI_LABEL:
         problems.append(
             "tools/ci/gate.py FULL_CI_LABEL must equal select_suites.FULL_CI_LABEL."
         )
-    problems.extend(check_refresh(root))
-    for name in GATED_WORKFLOWS:
-        text = (workflows / name).read_text(encoding="utf-8")
-        if f"\n  {rerun_stale_gates.SELECT_JOB_KEY}:\n" not in text:
-            problems.append(
-                f"{name}: the selector job key must be "
-                f"{rerun_stale_gates.SELECT_JOB_KEY!r} (tools/ci/rerun_stale_gates.py)."
-            )
+    ci = (workflows / "ci.yml").read_text(encoding="utf-8")
+    api = job_block(ci, "api-gate")
+    if (
+        "    name: API contract gate\n" not in api
+        or "python3 tools/ci/gate.py" not in api
+        or not all(item in api for item in GATE_CONTEXT)
+        or not {"select", "lint", "integration-shards"} <= needs_of(api)
+        or "tools/openapi/breaking.py" not in job_block(ci, "lint")
+    ):
+        problems.append(
+            "ci.yml: 'API contract gate' must require Lint (OpenAPI breaking "
+            "check) and the Integration legs (api-contract) through gate.py."
+        )
     problems.extend(check_first_attempts(root))
     problems.extend(check_actions_read(root))
     problems.extend(check_static_gates(root))

@@ -66,6 +66,11 @@ case "$shard" in
       /bin/sh "$root/tools/ci/integration.sh" "$part"
     done
     ;;
+  api-contract)
+    # The live API contract on the fixture (generation and types: Lint)
+    # (the required "API contract gate" in ci.yml).
+    python3 "$root/tools/testing/shared_stack.py" documents tools/openapi/test.sh
+    ;;
   delivery)
     # Delivery windows, completion and deterministic booking/retirement races.
     /bin/sh "$root/tools/delivery/test-foundation.sh"

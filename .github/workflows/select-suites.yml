@@ -30,8 +30,6 @@ on:
         value: ${{ jobs.select.outputs.api }}
       pins:
         value: ${{ jobs.select.outputs.pins }}
-      heavy:
-        value: ${{ jobs.select.outputs.heavy }}
       tier:
         value: ${{ jobs.select.outputs.tier }}
 # The caller caps these; actions: read is needed for the Actions API
@@ -54,7 +52,6 @@ jobs:
       surveys: ${{ steps.select.outputs.surveys }}
       api: ${{ steps.select.outputs.api }}
       pins: ${{ steps.select.outputs.pins }}
-      heavy: ${{ steps.select.outputs.heavy }}
       tier: ${{ steps.select.outputs.tier }}
     steps:
       # The pull-request merge commit's first parent is the current base, so
@@ -85,7 +82,7 @@ jobs:
       - id: select
         env:
           EVENT: ${{ github.event_name }}
-          # A pull request into another feature branch is a stacked PR.
+          # Ignored by the selector; the gates fail a stacked PR (gate.py).
           BASE_REF: ${{ github.base_ref }}
           # full-ci runs the complete suite before the merge.
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
