@@ -727,7 +727,9 @@ describe("member pane", () => {
     fireEvent.click(
       confirmDialog().getByRole("button", { name: "Zugang reaktivieren" }),
     );
-    expect(await screen.findByText("Gesa Gesperrt ist wieder aktiv.")).toBeTruthy();
+    expect(
+      await screen.findByText("Gesa Gesperrt ist wieder aktiv."),
+    ).toBeTruthy();
     expect(
       screen.getByText(
         "Für den nächsten Zugriff ist eine neue Anmeldung erforderlich.",
