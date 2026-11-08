@@ -36,6 +36,9 @@ def inputs(root):
         name
         for name in set(names)
         if name
+        # Documentation next to the inputs (infra/**/README.md) builds nothing;
+        # a README change rebuilt the fixture (about 4 min, run 42530398039).
+        and not name.endswith(".md")
         and (
             name.startswith(
                 (
