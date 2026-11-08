@@ -27,6 +27,7 @@ export { releaseSelection, runRelease } from "./bulk-release";
 import {
   berlinDate,
   berlinDateTime,
+  capturedOffline,
   configuredWindowLabel,
   detailsMissing,
   euro,
@@ -623,6 +624,16 @@ function OrderDetail({
               label: "Erfasst",
               value: berlinDateTime.format(new Date(record.createdAt)),
             },
+            // Offline queue (specs/pwa-offline-queue §11.2): a capture that
+            // reached Core noticeably later than it was made.
+            ...(capturedOffline(record)
+              ? [
+                  {
+                    label: "Erfasst offline",
+                    value: `am ${berlinDateTime.format(new Date(record.commitment.capturedAt!))}`,
+                  },
+                ]
+              : []),
             {
               label: "Rechnung",
               value: invoice ? (

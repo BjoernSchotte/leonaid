@@ -69,6 +69,25 @@ export interface MobileShellSurfaces {
   }[];
 }
 
+/**
+ * The capture queue on the network glyph (specs/pwa-offline-queue §12.2):
+ * a count in the tone of the most urgent entry, its accessible name, and
+ * the "Warteschlange" sheet it opens.
+ */
+export interface MobileShellQueue {
+  readonly count: number;
+  readonly state:
+    | "empty"
+    | "waiting"
+    | "sending"
+    | "decision"
+    | "failed"
+    | "settled";
+  /** "3 Einträge warten auf Versand"; empty uses "Online"/"Offline". */
+  readonly label: string;
+  readonly onOpen: () => void;
+}
+
 export interface MobileShellProps {
   readonly tabs: readonly MobileShellTab[];
   /** Key of the current tab, or null when the page has no tab. */
@@ -90,6 +109,10 @@ export interface MobileShellProps {
   /** Zone hue of the surface (`data-zone`). */
   readonly zone?: string;
   readonly surfaces?: MobileShellSurfaces;
+  /** The PWA's capture queue; without it the glyph is a status image. */
+  readonly queue?: MobileShellQueue;
+  /** Replaces the offline banner text (the PWA with its queue, §12.1). */
+  readonly offlineText?: ReactNode;
 }
 
 const OFFLINE_TEXT =
@@ -233,7 +256,9 @@ function MobileShellFrame({
   menuSearch,
   notices,
   offline,
+  offlineText,
   onLogout,
+  queue,
   surfaces,
   person,
   role,
@@ -301,19 +326,63 @@ function MobileShellFrame({
             </span>
           </span>
           <span className="pwa-bar-end">
-            <span
-              aria-label={offline ? "Offline" : "Online"}
-              className={cn("pwa-net", offline && "is-offline")}
-              data-testid="network-state"
-              role="img"
-              title={offline ? "Offline" : "Online"}
-            >
-              {offline ? (
-                <CloudOff aria-hidden="true" size={18} />
-              ) : (
-                <Wifi aria-hidden="true" size={18} />
-              )}
-            </span>
+            {queue ? (
+              <button
+                aria-haspopup="dialog"
+                aria-label={
+                  queue.state === "empty"
+                    ? offline
+                      ? "Offline"
+                      : "Online"
+                    : queue.label
+                }
+                className={cn("pwa-net", "is-button", offline && "is-offline")}
+                data-queue-state={queue.state}
+                data-testid="network-state"
+                onClick={queue.onOpen}
+                title={queue.state === "empty" ? "Warteschlange" : queue.label}
+                type="button"
+              >
+                {offline ? (
+                  <CloudOff aria-hidden="true" size={18} />
+                ) : (
+                  <Wifi aria-hidden="true" size={18} />
+                )}
+                {queue.state === "sending" ? (
+                  <span
+                    aria-hidden="true"
+                    className="pwa-net-badge is-sending"
+                    data-testid="queue-badge"
+                  />
+                ) : queue.state !== "empty" ? (
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "pwa-net-badge",
+                      queue.state === "decision" && "tone-warn",
+                      queue.state === "failed" && "tone-danger",
+                    )}
+                    data-testid="queue-badge"
+                  >
+                    {queue.count}
+                  </span>
+                ) : null}
+              </button>
+            ) : (
+              <span
+                aria-label={offline ? "Offline" : "Online"}
+                className={cn("pwa-net", offline && "is-offline")}
+                data-testid="network-state"
+                role="img"
+                title={offline ? "Offline" : "Online"}
+              >
+                {offline ? (
+                  <CloudOff aria-hidden="true" size={18} />
+                ) : (
+                  <Wifi aria-hidden="true" size={18} />
+                )}
+              </span>
+            )}
             <button
               aria-expanded={menuOpen}
               aria-haspopup="dialog"
@@ -334,7 +403,7 @@ function MobileShellFrame({
           {offline ? (
             <p className="pwa-offline" data-testid="offline-banner">
               <CloudOff aria-hidden="true" size={16} />
-              {OFFLINE_TEXT}
+              <span>{offlineText ?? OFFLINE_TEXT}</span>
             </p>
           ) : null}
         </div>

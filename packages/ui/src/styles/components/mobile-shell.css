@@ -103,6 +103,59 @@ html:has(.pwa) {
 .pwa-net.is-offline {
   color: var(--lions-gold);
 }
+/* The queue indicator (offline queue §12.2): the glyph opens the sheet. */
+.pwa-net.is-button {
+  position: relative;
+  cursor: pointer;
+}
+.pwa-net.is-button:hover {
+  background: var(--rail-bg-2);
+}
+.pwa-net-badge {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--s-1);
+  border: var(--hair) solid var(--rail-bg);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1;
+}
+.pwa-net-badge.tone-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.pwa-net-badge.tone-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.pwa-net-badge.is-sending {
+  width: 12px;
+  min-width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 2px solid var(--lions-gold);
+  border-top-color: transparent;
+  background: none;
+  animation: pwa-net-spin 0.9s linear infinite;
+}
+@keyframes pwa-net-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pwa-net-badge.is-sending {
+    animation: none;
+  }
+}
 .pwa-menu-button {
   cursor: pointer;
 }

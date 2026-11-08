@@ -1,0 +1,250 @@
+/*
+ * "Warteschlange" sheet of the acquisition PWA (specs/pwa-offline-queue
+ * §12.2–§12.6): every capture kept on the device with its state in text
+ * and shape, the reason when Core refused it, and what the acquirer can do.
+ */
+import { X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+
+import {
+  Button,
+  ConfirmDialog,
+  Icon,
+  StatusIcon,
+  StatusMessage,
+} from "@leonaid/ui";
+
+import { formatDateTime } from "../shared/dates";
+import { conflictText } from "./conflicts";
+import { entryTitle, queueStateLabel, queueStateShape } from "./labels";
+import type { QueueEntry } from "./queue";
+import { useOfflineRuntime, useQueueSnapshot } from "./runtime";
+
+const IOS_HINT_KEY = "leonaid-pwa-ios-hint-shown";
+
+/** D1: the contact itself already reached Core (§11.4). */
+function isStoredAtCore(entry: QueueEntry) {
+  const code = entry.lastError?.code;
+  return code === "follow_up_not_applied" || code === "status_not_applied";
+}
+
+function isStandaloneIos(): boolean {
+  const standalone = (navigator as Navigator & { standalone?: boolean })
+    .standalone;
+  return standalone === true;
+}
+
+/** Shown once per device on an iPhone home-screen app (§12.6). */
+function useIosHint(open: boolean): boolean {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    if (!open || !isStandaloneIos()) return;
+    try {
+      if (window.localStorage.getItem(IOS_HINT_KEY)) return;
+      window.localStorage.setItem(IOS_HINT_KEY, "1");
+    } catch {
+      return;
+    }
+    setShow(true);
+  }, [open]);
+  return show;
+}
+
+export function QueueSheet({
+  actionNames,
+  loginHref,
+  onClose,
+  online,
+  open,
+}: {
+  /** Action id → name, for the copy of §10.2. */
+  readonly actionNames: ReadonlyMap<string, string>;
+  readonly loginHref: string;
+  readonly onClose: () => void;
+  readonly online: boolean;
+  readonly open: boolean;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const { queue } = useOfflineRuntime();
+  const snapshot = useQueueSnapshot();
+  const iosHint = useIosHint(open);
+  const [discarding, setDiscarding] = useState<QueueEntry | null>(null);
+
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    if (open && !dialog.open) dialog.showModal();
+    if (!open && dialog.open) dialog.close();
+  }, [open]);
+
+  const waiting = snapshot.entries.filter(
+    (entry) => entry.state === "queued" || entry.state === "sending",
+  ).length;
+
+  return (
+    <dialog
+      aria-labelledby="queue-sheet-title"
+      className="pwa-sheet"
+      data-testid="queue-sheet"
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onClick={(event) => {
+        if (event.target === ref.current) onClose();
+      }}
+      onClose={(event) => {
+        if (event.target === event.currentTarget && open) onClose();
+      }}
+      ref={ref}
+    >
+      {open ? (
+        <div className="pwa-sheet-body">
+          <header className="pwa-sheet-header">
+            <h2 id="queue-sheet-title">Warteschlange</h2>
+            <button
+              aria-label="Schließen"
+              className="pwa-sheet-close"
+              onClick={onClose}
+              title="Schließen"
+              type="button"
+            >
+              <Icon icon={X} size={20} />
+            </button>
+          </header>
+          {snapshot.paused ? (
+            <StatusMessage tone="warning">
+              <p>
+                Melde dich wieder an, damit LeonAid deine Einträge senden kann.
+                Sie bleiben bis dahin auf diesem Gerät.
+              </p>
+              <a href={loginHref}>Zur Anmeldung</a>
+            </StatusMessage>
+          ) : null}
+          {iosHint ? (
+            <StatusMessage tone="info" data-testid="queue-ios-hint">
+              Auf dem iPhone sendet LeonAid nur, solange die App geöffnet ist.
+              Öffne sie, wenn du wieder Empfang hast.
+            </StatusMessage>
+          ) : null}
+          {snapshot.evictable ? (
+            <p className="small muted" data-testid="queue-evictable">
+              Gerät kann Einträge löschen, wenn der Speicher knapp wird.
+            </p>
+          ) : null}
+          <p className="small muted" data-testid="queue-summary">
+            {snapshot.entries.length === 0
+              ? "Alles gesendet. Auf diesem Gerät wartet nichts."
+              : waiting
+                ? `${waiting} ${waiting === 1 ? "Eintrag wartet" : "Einträge warten"} auf Versand.`
+                : "Nichts wartet auf Versand."}
+          </p>
+          {waiting ? (
+            <Button
+              className="pwa-wide"
+              data-testid="queue-send-now"
+              disabled={!online || snapshot.sending}
+              loading={snapshot.sending}
+              onClick={() => void queue?.sendNow()}
+              size="lg"
+              variant="primary"
+            >
+              {online ? "Jetzt senden" : "Sendet, sobald du online bist"}
+            </Button>
+          ) : null}
+          <ul className="pwa-queue" data-testid="queue-entries">
+            {snapshot.entries.map((entry) => (
+              <li
+                className="pwa-queue-entry"
+                data-entry-id={entry.entryId}
+                data-state={entry.state}
+                data-testid="queue-entry"
+                key={entry.entryId}
+              >
+                <span className="pwa-queue-title">{entryTitle(entry)}</span>
+                <span className="pwa-queue-meta small muted">
+                  Erfasst am {formatDateTime(entry.capturedAt)}
+                </span>
+                <span className="pwa-queue-state" data-testid="queue-state">
+                  <StatusIcon
+                    label=""
+                    size={16}
+                    status={queueStateShape[entry.state]}
+                  />
+                  {queueStateLabel[entry.state]}
+                </span>
+                {entry.state === "conflict" ||
+                entry.state === "failed" ||
+                entry.state === "blocked" ||
+                entry.state === "expired" ? (
+                  <p className="small" data-testid="queue-reason">
+                    {conflictText(entry, actionNames.get(entry.actionId) ?? "")}
+                  </p>
+                ) : null}
+                <div className="pwa-queue-actions">
+                  {(entry.state === "failed" &&
+                    entry.lastError?.code !== "idempotency_conflict") ||
+                  entry.state === "blocked" ? (
+                    <Button
+                      disabled={!online}
+                      onClick={() => void queue?.retry(entry.entryId)}
+                      size="sm"
+                      variant="secondary"
+                    >
+                      Erneut versuchen
+                    </Button>
+                  ) : null}
+                  {entry.state !== "sending" ? (
+                    <Button
+                      data-testid="queue-discard"
+                      onClick={() => setDiscarding(entry)}
+                      size="sm"
+                      variant="ghost"
+                    >
+                      Verwerfen
+                    </Button>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+            {snapshot.sent.map((entry) => (
+              <li
+                className="pwa-queue-entry"
+                data-state="sent"
+                data-testid="queue-entry"
+                key={`sent-${entry.entryId}`}
+              >
+                <span className="pwa-queue-title">{entryTitle(entry)}</span>
+                <span className="pwa-queue-state" data-testid="queue-state">
+                  <StatusIcon label="" size={16} status="done" />
+                  Gesendet
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      <ConfirmDialog
+        confirmLabel="Verwerfen"
+        description={
+          discarding
+            ? isStoredAtCore(discarding)
+              ? `${entryTitle(discarding)} ist bei LeonAid gespeichert. Verwerfen löscht nur den Hinweis auf diesem Gerät; der Rest wird nicht übernommen.`
+              : `${entryTitle(discarding)} wird von diesem Gerät gelöscht und nicht gesendet.`
+            : ""
+        }
+        onConfirm={() => {
+          const entry = discarding;
+          setDiscarding(null);
+          if (entry) void queue?.discard(entry.entryId);
+        }}
+        onOpenChange={(next) => {
+          if (!next) setDiscarding(null);
+        }}
+        open={discarding !== null}
+        title="Eintrag verwerfen?"
+        tone="danger"
+      />
+    </dialog>
+  );
+}

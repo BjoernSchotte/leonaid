@@ -1,0 +1,42 @@
+/* Capture queue of the PWA (specs/pwa-offline-queue §12.2–§12.3). */
+.pwa-queue {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  list-style: none;
+  overflow: hidden;
+}
+.pwa-queue:empty {
+  display: none;
+}
+.pwa-queue > li + li {
+  border-top: var(--hair) solid var(--border);
+}
+.pwa-queue-entry {
+  display: grid;
+  gap: var(--s-1);
+  padding: var(--s-3) var(--s-4);
+}
+.pwa-queue-entry p {
+  margin: 0;
+}
+.pwa-queue-title {
+  font-weight: var(--fw-semibold);
+}
+.pwa-queue-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-sm);
+}
+.pwa-queue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.pwa-queue-actions:empty {
+  display: none;
+}

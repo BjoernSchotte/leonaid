@@ -40,6 +40,7 @@ import {
   useHotkeys,
 } from "@leonaid/ui";
 
+import { PendingCaptures } from "../offline/pending-captures";
 import { formatDateTime, relativeDay, shortDate } from "../shared/dates";
 import { navigateInPage, useLocationHref } from "../shared/location";
 import { ContactSheet, channelLabels, outcomeLabels } from "./contact-sheet";
@@ -436,6 +437,8 @@ function SponsorDetail({
           </p>
         ) : null}
       </section>
+
+      <PendingCaptures partyId={item.partyId} partyKind={item.partyKind} />
 
       <section aria-labelledby="history-title">
         <h2 className="pwa-h2" id="history-title">

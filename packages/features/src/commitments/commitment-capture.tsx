@@ -13,6 +13,7 @@ import {
   type CommitmentBuyerResponse,
   type CommitmentResponse,
   type ConfiguredOfferingResponse,
+  type CreateCommitmentRequest,
   type CurrentIdentityResponse,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
@@ -36,13 +37,17 @@ import {
   useScreenHeading,
   useSponsorBoard,
 } from "../acquisition/pwa-common";
+import type { SubmitOutcome } from "../offline/controller";
+import { acceptPrice, bookAnyway } from "../offline/resolutions";
 import { minimizeCaptureContext } from "../offline/read-cache";
 import {
   STALE_READ_CACHE_TEXT,
   StaleReadCacheError,
+  deviceCopyFetchedAt,
   readThrough,
   useOfflineRuntime,
 } from "../offline/runtime";
+import { formatDateTime } from "../shared/dates";
 import { useLocationHref } from "../shared/location";
 import { CompleteDraft } from "./complete-draft";
 import {
@@ -82,6 +87,35 @@ function formatMoney(amountMinor: number, currency: string) {
     currency,
     style: "currency",
   }).format(amountMinor / 100);
+}
+
+function isPriceChange(error: unknown) {
+  return (
+    error instanceof ApiError &&
+    error.detail.code === "commitment_price_changed"
+  );
+}
+
+/** §10.2: "Der Preis für … ist jetzt … statt …". */
+function priceChangeText(error: unknown) {
+  const details = (error instanceof ApiError ? error.detail.details : null) as {
+    readonly lines?: ReadonlyArray<{
+      readonly quotedUnitPriceMinor?: number;
+      readonly unitPriceMinor?: number;
+    }>;
+    readonly totalMinor?: number;
+    readonly currency?: string;
+  } | null;
+  const line = details?.lines?.[0];
+  const currency = details?.currency ?? "EUR";
+  if (
+    line?.unitPriceMinor === undefined ||
+    line.quotedUnitPriceMinor === undefined ||
+    details?.totalMinor === undefined
+  ) {
+    return "Der Preis hat sich inzwischen geändert.";
+  }
+  return `Der Preis ist jetzt ${formatMoney(line.unitPriceMinor, currency)} statt ${formatMoney(line.quotedUnitPriceMinor, currency)}. Die Bestellung kostet ${formatMoney(details.totalMinor, currency)}.`;
 }
 
 function captureError(error: unknown) {
@@ -209,6 +243,83 @@ function StepList({ step }: { readonly step: number }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+/** An order kept on the device: not yet (or not cleanly) at Core. */
+interface QueuedOrder {
+  readonly queued: Exclude<SubmitOutcome["state"], "accepted">;
+  /** Why a queued order still waits (offline, sign-in, retry). */
+  readonly reason?: "offline" | "paused" | "retry";
+  readonly readyForReview: boolean;
+  readonly totalMinor: number;
+  readonly currency: string;
+}
+
+/** §12.3: "Bestellung gespeichert. Wird gesendet, …" (prototype copy). */
+function QueuedConfirmation({
+  actionId,
+  buyer,
+  order,
+  sponsor,
+}: {
+  readonly actionId: string;
+  readonly buyer: CommitmentBuyerResponse;
+  readonly order: QueuedOrder;
+  readonly sponsor: AcquisitionActivityWorkItemResponse | undefined;
+}) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+    heading.current?.focus({ preventScroll: true });
+  }, []);
+  const decision = order.queued !== "queued" && order.queued !== "sent";
+  const later =
+    order.reason === "paused"
+      ? "Wird gesendet, sobald du dich wieder angemeldet hast."
+      : order.reason === "retry"
+        ? "LeonAid ist gerade nicht erreichbar; die App versucht es gleich noch einmal."
+        : "Wird gesendet, sobald du wieder online bist.";
+  return (
+    <section
+      aria-labelledby="commitment-queued-heading"
+      className="pwa-done"
+      data-testid="commitment-queued"
+    >
+      <span aria-hidden="true" className="pwa-done-icon">
+        <Icon icon={Check} size={20} />
+      </span>
+      <h1
+        className="pwa-h1"
+        id="commitment-queued-heading"
+        ref={heading}
+        tabIndex={-1}
+      >
+        Bestellung gespeichert
+      </h1>
+      <p className="muted">
+        Für {buyer.displayName}, {formatMoney(order.totalMinor, order.currency)}
+        .
+      </p>
+      <p className="small muted" data-testid="commitment-queued-text">
+        {order.queued === "sent"
+          ? "Die Bestellung ist bei LeonAid angekommen."
+          : decision
+            ? "Sie liegt auf diesem Gerät und braucht deine Entscheidung. Öffne die Warteschlange über das Netz-Symbol oben."
+            : order.readyForReview
+              ? `${later} Die Aktionsleitung prüft die Bestellung und stellt danach die Rechnung aus.`
+              : `${later} Sie geht als Entwurf an LeonAid.`}
+      </p>
+      {sponsor ? (
+        <a
+          className={`${buttonClassName({ size: "lg", variant: "primary" })} pwa-wide`}
+          href={sponsorHref(actionId, sponsor.assignmentId)}
+          onClick={followInPage}
+        >
+          Zurück zu {sponsor.partyDisplayName}
+        </a>
+      ) : null}
+    </section>
   );
 }
 
@@ -349,7 +460,16 @@ export function CommitmentCapturePage({
     stepHeading.current?.focus({ preventScroll: false });
   }, [step]);
   const [savedOrder, setSavedOrder] = useState<CommitmentResponse | null>(null);
+  const [queuedOrder, setQueuedOrder] = useState<QueuedOrder | null>(null);
   const [confirmFull, setConfirmFull] = useState(false);
+  // A queued order waiting for this screen's answer (full window, price).
+  // `choice` is the question on screen; a form change drops it, and the
+  // next save gives the queued order the body the screen shows (#131 N1).
+  const pendingEntry = useRef<{
+    readonly entryId: string;
+    readonly choice: "window" | "price" | null;
+    readonly readyForReview: boolean;
+  } | null>(null);
   const appliedBuyer = useRef("");
   const commandId = useRef(crypto.randomUUID());
   const queries = useQueryClient();
@@ -369,7 +489,10 @@ export function CommitmentCapturePage({
       ),
     queryKey: ["commitment-capture-context", actionId],
     refetchOnWindowFocus: false,
+    // deviceCopyFetchedAt needs the object readThrough returned.
+    structuralSharing: false,
   });
+  const priceFrom = deviceCopyFetchedAt(context.data);
   const existing = useQuery({
     enabled: Boolean(actionId && existingId),
     queryKey: ["commitment", actionId, existingId],
@@ -414,46 +537,137 @@ export function CommitmentCapturePage({
   }, [buyerKey]);
 
   const create = useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       allowFullWindow = false,
+      answer = false,
       readyForReview,
       selected,
       selectedOffering,
     }: {
       readonly allowFullWindow?: boolean;
+      /** The answer to the question on screen, for the queued order as is. */
+      readonly answer?: boolean;
       readonly readyForReview: boolean;
       readonly selected: CommitmentBuyerResponse;
       readonly selectedOffering: ConfiguredOfferingResponse;
-    }) =>
-      client.createCommitment(
-        actionId,
-        {
-          allowFullWindow,
-          buyer: selected,
-          ...(deliveryEnabled ? deliveryPayload(delivery) : {}),
-          invoiceRecipient: {
-            city: recipient.city.trim(),
-            countryCode: "DE",
-            email: recipient.email.trim() || null,
-            postalCode: recipient.postalCode.trim(),
-            recipientName: recipient.recipientName.trim(),
-            streetLine1: recipient.streetLine1.trim(),
-          },
-          lines: [
-            {
-              offeringId: selectedOffering.id,
-              quantity,
-              quotedUnitPriceMinor: selectedOffering.unitPriceMinor,
-              unit: selectedOffering.unit,
-            },
-          ],
-          readyForReview,
-          source: "acquisition",
+    }): Promise<CommitmentResponse | QueuedOrder> => {
+      const body: CreateCommitmentRequest = {
+        allowFullWindow,
+        buyer: selected,
+        ...(deliveryEnabled ? deliveryPayload(delivery) : {}),
+        invoiceRecipient: {
+          city: recipient.city.trim(),
+          countryCode: "DE",
+          email: recipient.email.trim() || null,
+          postalCode: recipient.postalCode.trim(),
+          recipientName: recipient.recipientName.trim(),
+          streetLine1: recipient.streetLine1.trim(),
         },
-        { headers: { "Idempotency-Key": `poc081:${commandId.current}` } },
-      ),
-    onSuccess: (order) => {
+        lines: [
+          {
+            offeringId: selectedOffering.id,
+            quantity,
+            quotedUnitPriceMinor: selectedOffering.unitPriceMinor,
+            unit: selectedOffering.unit,
+          },
+        ],
+        readyForReview,
+        source: "acquisition",
+      };
+      if (!runtime.enabled || !runtime.queue || !sponsor) {
+        return client.createCommitment(actionId, body, {
+          headers: { "Idempotency-Key": `poc081:${commandId.current}` },
+        });
+      }
+      // Offline capture on: saved on the device first, sent at once when
+      // online (specs/pwa-offline-queue §9.1); the price and window it was
+      // made against are the entry's base (§9.3, §11.3).
+      const chosenWindow = configuration?.windows.find(
+        (item) => item.id === delivery.windowId,
+      );
+      const base = {
+        unitPriceMinor: selectedOffering.unitPriceMinor,
+        windowFullyBooked: chosenWindow?.fullyBooked ?? false,
+        windowId: deliveryEnabled ? delivery.windowId || null : null,
+      };
+      const pending = pendingEntry.current;
+      const question = answer ? pending?.choice : null;
+      // An order already queued for this screen is changed, never captured
+      // a second time: an answer (FullWindowConfirm, the new price) keeps
+      // its body; any other save gives it the body on screen. Core refused
+      // it, so it left no receipt, and a new body takes a new key (§9.3).
+      const changed = pending
+        ? await runtime.queue.resubmit(
+            pending.entryId,
+            (entry) =>
+              entry.kind !== "commitment"
+                ? entry
+                : question === "price"
+                  ? (acceptPrice(entry) ?? entry)
+                  : question === "window"
+                    ? bookAnyway(entry)
+                    : { ...entry, base, request: body },
+            // allowFullWindow is not in Core's hash; a new price or body is.
+            { newKey: question !== "window" },
+          )
+        : null;
+      // Gone meanwhile (discarded in the queue): this save is a new order.
+      const outcome =
+        changed ??
+        (await runtime.queue.submit({
+          actionId,
+          assignmentId: sponsor.assignmentId,
+          base,
+          kind: "commitment",
+          party: {
+            displayName: sponsor.partyDisplayName,
+            id: sponsor.partyId,
+            kind: sponsor.partyKind,
+          },
+          request: body,
+        }));
+      pendingEntry.current = null;
+      if (
+        outcome.state === "accepted" &&
+        outcome.result.kind === "commitment"
+      ) {
+        return outcome.result.response;
+      }
+      // Online, the window filled up or the price changed meanwhile: ask
+      // here, as without the queue (§10.2), with the entry kept.
+      const code = outcome.state === "conflict" ? outcome.error?.code : null;
+      if (
+        code === "delivery_window_full" ||
+        code === "commitment_price_changed"
+      ) {
+        pendingEntry.current = {
+          choice: code === "commitment_price_changed" ? "price" : "window",
+          entryId: outcome.entryId,
+          readyForReview,
+        };
+        throw new ApiError(409, {
+          code,
+          details: outcome.state === "conflict" ? outcome.error?.details : null,
+          message:
+            outcome.state === "conflict" ? (outcome.error?.message ?? "") : "",
+          requestId: "",
+        });
+      }
+      return {
+        currency: selectedOffering.currency,
+        queued: outcome.state === "accepted" ? "sent" : outcome.state,
+        reason: outcome.state === "queued" ? outcome.reason : undefined,
+        readyForReview,
+        totalMinor: quantity * selectedOffering.unitPriceMinor,
+      };
+    },
+    onSuccess: (saved) => {
       setConfirmFull(false);
+      if ("queued" in saved) {
+        setQueuedOrder(saved);
+        return;
+      }
+      const order = saved;
       setSavedOrder(order);
       // The sponsor's status and the pipeline move with the order.
       void queries.invalidateQueries({
@@ -466,9 +680,12 @@ export function CommitmentCapturePage({
       window.history.replaceState({}, "", `${url.pathname}${url.search}`);
     },
     onError: (error) => {
+      // The form shows the current windows and price, so a save after an
+      // edit sends what is on screen.
       if (
         error instanceof ApiError &&
-        error.detail.code.startsWith("delivery_")
+        (error.detail.code.startsWith("delivery_") ||
+          error.detail.code === "commitment_price_changed")
       ) {
         void context.refetch();
       }
@@ -477,6 +694,36 @@ export function CommitmentCapturePage({
     },
   });
   const fullWindow = fullWindowSelected(configuration, delivery.windowId);
+
+  // Any change to the order or a step change ends the question on screen;
+  // only its own buttons answer it (#131 N1).
+  const formKey = JSON.stringify([
+    offeringId,
+    quantity,
+    delivery,
+    recipient,
+    step,
+  ]);
+  const resetCreate = create.reset;
+  useEffect(() => {
+    const pending = pendingEntry.current;
+    if (pending?.choice) pendingEntry.current = { ...pending, choice: null };
+    setConfirmFull(false);
+    resetCreate();
+  }, [formKey, resetCreate]);
+
+  /** "Neuen Preis übernehmen" or "Trotzdem eintragen" for the queued order. */
+  function answerPending() {
+    const pending = pendingEntry.current;
+    if (!buyer || !offering || !pending?.choice) return;
+    create.mutate({
+      allowFullWindow: pending.choice === "window",
+      answer: true,
+      readyForReview: pending.readyForReview,
+      selected: buyer,
+      selectedOffering: offering,
+    });
+  }
 
   function save(readyForReview: boolean, allowFullWindow = false) {
     if (!buyer || !offering) return;
@@ -509,6 +756,16 @@ export function CommitmentCapturePage({
     goToStep(3);
   }
 
+  if (queuedOrder && buyer) {
+    return (
+      <QueuedConfirmation
+        actionId={actionId}
+        buyer={buyer}
+        order={queuedOrder}
+        sponsor={sponsor}
+      />
+    );
+  }
   const result = savedOrder ?? existing.data;
   const showDelivery = (order: CommitmentResponse) =>
     Boolean(
@@ -702,6 +959,11 @@ export function CommitmentCapturePage({
               >
                 Summe {offering ? formatMoney(total, offering.currency) : "–"}
               </p>
+              {priceFrom ? (
+                <p className="small muted" data-testid="commitment-price-from">
+                  {`Preis vom ${formatDateTime(priceFrom)}. Ändert er sich, fragt LeonAid dich vor dem Senden.`}
+                </p>
+              ) : null}
               <Button
                 className="pwa-wide"
                 disabled={!offering}
@@ -921,7 +1183,24 @@ export function CommitmentCapturePage({
               als Entwurf speichern.
             </StatusMessage>
           ) : null}
-          {create.isError && !isFullWindowError(create.error) ? (
+          {create.isError && isPriceChange(create.error) ? (
+            <StatusMessage tone="warning">
+              <div className="stack" data-testid="commitment-price-changed">
+                <p>{priceChangeText(create.error)}</p>
+                <Button
+                  data-testid="commitment-accept-price"
+                  loading={create.isPending}
+                  onClick={answerPending}
+                  variant="primary"
+                >
+                  Neuen Preis übernehmen
+                </Button>
+                <p className="small muted">
+                  Oder lass sie in der Warteschlange und entscheide später.
+                </p>
+              </div>
+            </StatusMessage>
+          ) : create.isError && !isFullWindowError(create.error) ? (
             <StatusMessage tone="error">
               {captureError(create.error)}
             </StatusMessage>
@@ -949,7 +1228,7 @@ export function CommitmentCapturePage({
           <Button
             className="pwa-wide"
             data-testid="commitment-save-draft"
-            disabled={create.isPending}
+            disabled={create.isPending || context.isFetching}
             onClick={() => save(false)}
             variant="ghost"
           >
@@ -960,10 +1239,25 @@ export function CommitmentCapturePage({
 
       <FullWindowConfirm
         onCancel={() => {
+          // The order stays in the queue as a decision (§10.2).
           setConfirmFull(false);
+          const pending = pendingEntry.current;
+          if (pending) {
+            setQueuedOrder({
+              currency: offering?.currency ?? "EUR",
+              queued: "conflict",
+              readyForReview: pending.readyForReview,
+              totalMinor: total,
+            });
+            pendingEntry.current = null;
+          }
           create.reset();
         }}
-        onConfirm={() => save(true, true)}
+        onConfirm={() =>
+          pendingEntry.current?.choice === "window"
+            ? answerPending()
+            : save(true, true)
+        }
         pending={create.isPending}
         window={
           confirmFull

@@ -114,17 +114,28 @@ async function offlineQueueEnabled(client: LeonAidApiClient) {
 }
 
 /**
+ * The device after an online start: `on` keeps the read cache and queues
+ * captures; `drain` (flag switched off, or no acquirer role any more, with
+ * entries still on the device) only sends what is queued and then clears
+ * the device.
+ */
+export interface PreparedDevice {
+  readonly store: DeviceStore;
+  readonly mode: "on" | "drain";
+}
+
+/**
  * Online start: with the flag on and an acquirer role, the user's device
  * storage is opened (or the open one reused) and the identity summary
- * written; otherwise nothing of this user stays on the device. Undefined
- * without a decision (the flag could not be read): the device stays as it
- * is.
+ * written; otherwise nothing of this user stays on the device, except
+ * queued entries until they are sent. Undefined without a decision (the
+ * flag could not be read): the device stays as it is.
  */
 export async function prepareDevice(
   client: LeonAidApiClient,
   identity: CurrentIdentityResponse,
   existing?: DeviceStore | null,
-): Promise<DeviceStore | null | undefined> {
+): Promise<PreparedDevice | null | undefined> {
   if (!deviceStorageAvailable()) return null;
   let enabled: boolean;
   try {
@@ -136,6 +147,13 @@ export async function prepareDevice(
     (membership) => membership.role === "acquirer",
   );
   if (!enabled || !acquirer) {
+    const queued = await openIfQueued(identity.userId, existing);
+    if (queued) {
+      // Captures already saved are still sent; nothing new is kept.
+      await setOfflineStart(false);
+      await queued.clearCache();
+      return { mode: "drain", store: queued };
+    }
     await forgetDevice(identity.userId);
     return null;
   }
@@ -148,7 +166,23 @@ export async function prepareDevice(
   await store.putMeta(ENABLED_META, true);
   await store.deleteMeta(SESSION_ENDED_META);
   await setOfflineStart(true);
-  return store;
+  return { mode: "on", store };
+}
+
+/** The user's database, only when it holds queued entries. */
+async function openIfQueued(
+  userId: string,
+  existing?: DeviceStore | null,
+): Promise<DeviceStore | null> {
+  if (activeDeviceUser()?.toLowerCase() !== userId.toLowerCase()) return null;
+  const reuse = existing?.open && existing.userId === userId ? existing : null;
+  const store = reuse ?? (await DeviceStore.open(userId));
+  if ((await store.queueCount()) > 0) {
+    await store.putMeta(ENABLED_META, false);
+    return store;
+  }
+  if (!reuse) store.close();
+  return null;
 }
 
 /** How the refresh loads Core's data; the PWA shares its page queries. */

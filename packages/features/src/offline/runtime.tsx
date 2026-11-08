@@ -4,10 +4,11 @@
  * the runtime while the flag `pwa.offline_queue` is on
  * (specs/pwa-offline-queue §16).
  */
-import { createContext, useContext } from "react";
+import { createContext, useContext, useSyncExternalStore } from "react";
 
 import { ApiError } from "@leonaid/api-client";
 
+import type { QueueController, QueueSnapshot } from "./controller";
 import type { CacheKind, DeviceStore } from "./device-store";
 import { cacheFreshness } from "./read-cache";
 
@@ -15,10 +16,13 @@ export interface OfflineRuntime {
   /** The flag is on and the device storage is open. */
   readonly enabled: boolean;
   readonly store: DeviceStore | null;
+  /** The capture queue (stage 3); null while the flag is off. */
+  readonly queue: QueueController | null;
 }
 
 export const DISABLED_OFFLINE_RUNTIME: OfflineRuntime = {
   enabled: false,
+  queue: null,
   store: null,
 };
 
@@ -28,6 +32,23 @@ export const OfflineRuntimeContext = createContext<OfflineRuntime>(
 
 export function useOfflineRuntime(): OfflineRuntime {
   return useContext(OfflineRuntimeContext);
+}
+
+const EMPTY_SNAPSHOT: QueueSnapshot = {
+  entries: [],
+  evictable: false,
+  paused: false,
+  sending: false,
+  sent: [],
+};
+
+/** The queue's current state; empty without a queue. */
+export function useQueueSnapshot(): QueueSnapshot {
+  const { queue } = useOfflineRuntime();
+  return useSyncExternalStore(
+    (listener) => queue?.subscribe(listener) ?? (() => undefined),
+    () => queue?.snapshot ?? EMPTY_SNAPSHOT,
+  );
 }
 
 /** The cached document is older than 7 days: offline capture is blocked (D3). */
@@ -73,8 +94,9 @@ export function isNetworkFailure(error: unknown): boolean {
 const deviceCopies = new WeakMap<object, string>();
 
 /**
- * When the value came from the device copy: its fetch time; null for
- * Core's own answer.
+ * When the value came from the device copy: its fetch time (§12.4, "Preis
+ * vom …"); null for Core's own answer. Needs `structuralSharing: false` on
+ * the query, so the page keeps the very object this module returned.
  */
 export function deviceCopyFetchedAt(value: unknown): string | null {
   return typeof value === "object" && value !== null

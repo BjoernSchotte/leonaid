@@ -1,5 +1,5 @@
 import { Download, RefreshCw } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
   ApiError,
@@ -26,11 +26,20 @@ import {
   StatusMessage,
 } from "@leonaid/ui";
 
-import { OfflineRuntimeContext } from "@leonaid/features/offline";
+import {
+  OfflineRuntimeContext,
+  QueueSheet,
+  OPEN_QUEUE_EVENT,
+  SignOutWarning,
+  pendingDeviceEntries,
+  useOfflineRuntime,
+  useQueueSnapshot,
+} from "@leonaid/features/offline";
 
 import { forgetDevice, forgetSession } from "./device";
 import { pwaModuleNavigationKeys, pwaModules, pwaPath } from "./modules";
 import { mobileNavigation } from "./navigation";
+import { QUEUE_OFFLINE_TEXT, queueIndicator } from "./queue-indicator";
 import { useDevice } from "./use-device";
 import {
   ADMIN_BASE,
@@ -252,9 +261,11 @@ const implementedPwaNavigation = new Set([
  * themselves.
  */
 function PwaShell({
+  identity,
   navigation,
   ...props
 }: Omit<MobileShellProps, "active" | "menuItems" | "tabs"> & {
+  readonly identity: CurrentIdentityResponse;
   readonly navigation: CurrentIdentityResponse["navigation"];
 }) {
   useLocationHref();
@@ -263,9 +274,78 @@ function PwaShell({
     implementedPwaNavigation,
     window.location,
   );
+  const { sheet, ...queue } = useQueueShell(identity, !props.offline);
   return (
-    <MobileShell active={active} menuItems={menu} tabs={tabs} {...props} />
+    <>
+      <MobileShell
+        active={active}
+        menuItems={menu}
+        tabs={tabs}
+        {...props}
+        {...queue}
+      />
+      {sheet}
+    </>
   );
+}
+
+/**
+ * The capture queue in the shell (specs/pwa-offline-queue §12.1–§12.2):
+ * the counter on the network glyph, the banner copy and the sheet. Without
+ * a queue (flag off) the shell stays exactly as before.
+ */
+function useQueueShell(
+  identity: CurrentIdentityResponse,
+  online: boolean,
+): Pick<MobileShellProps, "offlineText" | "queue"> & {
+  readonly sheet: ReactNode;
+} {
+  const { queue } = useOfflineRuntime();
+  const snapshot = useQueueSnapshot();
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const show = () => setOpen(true);
+    window.addEventListener(OPEN_QUEUE_EVENT, show);
+    return () => window.removeEventListener(OPEN_QUEUE_EVENT, show);
+  }, []);
+  const actionNames = useMemo(
+    () =>
+      new Map(
+        identity.actionMemberships.map(
+          (membership) => [membership.actionId, membership.actionName] as const,
+        ),
+      ),
+    [identity.actionMemberships],
+  );
+  if (!queue) return { sheet: null };
+  const indicator = queueIndicator(snapshot);
+  return {
+    offlineText: (
+      <>
+        {QUEUE_OFFLINE_TEXT}
+        {indicator.waiting ? (
+          <strong data-testid="offline-waiting">
+            {` ${indicator.waiting} ${indicator.waiting === 1 ? "wartet" : "warten"} auf Versand.`}
+          </strong>
+        ) : null}
+      </>
+    ),
+    queue: {
+      count: indicator.count,
+      label: indicator.label,
+      onOpen: () => setOpen(true),
+      state: indicator.state,
+    },
+    sheet: (
+      <QueueSheet
+        actionNames={actionNames}
+        loginHref={loginHref(window.location)}
+        onClose={() => setOpen(false)}
+        online={online}
+        open={open}
+      />
+    ),
+  };
 }
 
 export function App({ client }: AppProps) {
@@ -275,6 +355,17 @@ export function App({ client }: AppProps) {
   const lifecycle = usePwaLifecycle();
   const device = useDevice(client, lifecycle.online);
   const identity = device.identity;
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  const [signOutCount, setSignOutCount] = useState<number | null>(0);
+  function signOut() {
+    // Sign-out deletes everything the PWA kept on this device (§8.5).
+    void forgetDevice(identity.data?.userId ?? null)
+      .catch(() => undefined)
+      .then(() => client.logout())
+      .finally(() => {
+        window.location.assign("/login");
+      });
+  }
 
   // Without a session: the deep link survives the login (specs/multi-domain
   // §6.7). An ended session shows the notice below first. The read cache
@@ -389,6 +480,7 @@ export function App({ client }: AppProps) {
     <OfflineRuntimeContext.Provider value={device.runtime}>
       <PwaShell
         campaign={currentAction}
+        identity={identity.data}
         navigation={identity.data.navigation}
         surfaces={surfaces}
         menuSearch={
@@ -402,13 +494,19 @@ export function App({ client }: AppProps) {
         notices={<PwaNotices lifecycle={lifecycle} />}
         offline={!lifecycle.online}
         onLogout={() => {
-          // Sign-out deletes everything the PWA kept on this device (§8.5).
-          void forgetDevice(identity.data.userId)
-            .catch(() => undefined)
-            .then(() => client.logout())
-            .finally(() => {
-              window.location.assign("/login");
-            });
+          // §12.5: captures still on the device would be deleted; ask
+          // first. The store counts, not a view that may still be loading.
+          // An unreadable queue asks too (count null).
+          void pendingDeviceEntries(identity.data?.userId ?? null).then(
+            (count) => {
+              if (count === 0) {
+                signOut();
+              } else {
+                setSignOutCount(count);
+                setSignOutOpen(true);
+              }
+            },
+          );
         }}
         person={identity.data.displayName}
         role={identity.data.roleLabels.join(" · ")}
@@ -439,6 +537,22 @@ export function App({ client }: AppProps) {
           />
         )}
       </PwaShell>
+      <SignOutWarning
+        count={signOutCount}
+        onCancel={() => setSignOutOpen(false)}
+        onSendFirst={() => {
+          // Send, and show what still needs a decision (L2 of #132).
+          setSignOutOpen(false);
+          void device.runtime.queue?.sendNow();
+          window.dispatchEvent(new Event(OPEN_QUEUE_EVENT));
+        }}
+        onSignOut={() => {
+          setSignOutOpen(false);
+          signOut();
+        }}
+        online={lifecycle.online}
+        open={signOutOpen}
+      />
     </OfflineRuntimeContext.Provider>
   );
 }

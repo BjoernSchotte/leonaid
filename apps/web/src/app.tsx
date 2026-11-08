@@ -1,5 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { claimDevice, forgetDevice } from "@leonaid/features/offline";
+import {
+  SignOutWarning,
+  claimDevice,
+  forgetDevice,
+  pendingDeviceEntries,
+} from "@leonaid/features/offline";
 import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
@@ -195,6 +200,9 @@ function route(available: readonly UiModule[]) {
 
 export function App({ client }: AppProps) {
   const selectedActionId = useCurrentActionId();
+  // Unsent captures of the acquisition app on this device (§12.5).
+  // `null`: the device's queue could not be read; the warning asks anyway.
+  const [signOutCount, setSignOutCount] = useState<number | null>(0);
   const [storedCampaign, setStoredCampaign] = useState(readStoredCampaign);
   // The campaign the page was opened with; an explicit link counts as choice.
   const [openedWithCampaign] = useState(urlCampaign);
@@ -368,6 +376,17 @@ export function App({ client }: AppProps) {
     },
   }));
 
+  const userId = identity.data.userId;
+  function signOut() {
+    // Sign-out deletes what the PWA kept on this device (§8.5).
+    void forgetDevice(userId)
+      .catch(() => undefined)
+      .then(() => client.logout())
+      .finally(() => {
+        window.location.assign("/login");
+      });
+  }
+
   return (
     <FeatureFlagProvider client={client} identity={identity.data} surface="web">
       <RailShell
@@ -398,13 +417,14 @@ export function App({ client }: AppProps) {
           />
         }
         onLogout={() => {
-          // Sign-out deletes what the PWA kept on this device (§8.5).
-          void forgetDevice(identity.data.userId)
-            .catch(() => undefined)
-            .then(() => client.logout())
-            .finally(() => {
-              window.location.assign("/login");
-            });
+          // Sign-out deletes what the PWA kept on this device (§8.5);
+          // unsent captures make it ask first (§12.5).
+          void pendingDeviceEntries(identity.data?.userId ?? null).then(
+            (count) => {
+              if (count === 0) signOut();
+              else setSignOutCount(count);
+            },
+          );
         }}
         user={{
           name: identity.data.displayName,
@@ -464,6 +484,22 @@ export function App({ client }: AppProps) {
           </CampaignUrlGate>
         </div>
       </RailShell>
+      <SignOutWarning
+        address="Sie"
+        count={signOutCount}
+        onCancel={() => setSignOutCount(0)}
+        onSendFirst={() => {
+          // The acquisition app sends them; this page cannot.
+          setSignOutCount(0);
+          window.location.assign(PWA_BASE);
+        }}
+        onSignOut={() => {
+          setSignOutCount(0);
+          signOut();
+        }}
+        online={navigator.onLine !== false}
+        open={signOutCount !== 0}
+      />
     </FeatureFlagProvider>
   );
 }
