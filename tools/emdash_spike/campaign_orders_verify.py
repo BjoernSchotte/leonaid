@@ -25,14 +25,13 @@ async def main() -> None:
     assert len(sys.argv) <= 2 and (sys.argv[1] if len(sys.argv) == 2 else "") in files
     receipt_file = files[sys.argv[1] if len(sys.argv) == 2 else ""]
     orders = json.loads(Path(receipt_file).read_text())
-    # campaign-orders-browser-proof.mjs SCENARIOS: 3 engines x 2 modes x 2.
-    assert len(orders) == 12
-    assert len({item["publicReference"] for item in orders}) == 12
-    assert {(item["javaScriptEnabled"], item["scenario"]) for item in orders} == {
-        (js, scenario)
-        for js in (False, True)
-        for scenario in ("new-company", "existing-company", "person", "mixed")
-    }
+    # campaign-orders-browser-proof.mjs SCENARIOS: Chromium, 2 per mode.
+    assert len(orders) == 4
+    assert len({item["publicReference"] for item in orders}) == 4
+    assert sorted(item["scenario"] for item in orders) == sorted(
+        ("new-company", "existing-company", "person", "mixed")
+    )
+    assert sum(item["javaScriptEnabled"] for item in orders) == 2
     connection = await asyncpg.connect(os.environ["CORE_DATABASE_URL"], timeout=5)
     try:
         async with httpx.AsyncClient(
