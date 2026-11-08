@@ -1,7 +1,7 @@
 """Parallel test stacks: memory gate, override, slot locks and leaf scheduling.
 
 Real files, flock and processes; the stacks are minimal in-process stand-ins
-for the scheduling test (their reset is covered by shared_stack_live.py).
+for the scheduling test (every CI shard exercises the real reset).
 """
 
 import contextlib

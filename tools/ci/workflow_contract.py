@@ -21,6 +21,7 @@ from tools.ci import gate as gate_script  # noqa: E402
 from tools.ci import select_suites  # noqa: E402
 
 REQUIRED_JOBS = {
+    "backup-recovery",
     "build",
     "e2e",
     "emdash-cases",
@@ -31,16 +32,19 @@ REQUIRED_JOBS = {
     "lint",
     "security",
     "select",
+    "surveys",
+    "survey-gate",
     "unit",
     "vulnerability",
 }
-# Jobs without own test output: selector, gate, Golden comparison.
-NO_EVIDENCE = {"select", "gate", "golden-journey"}
+# Jobs without own test output: selector, gates, Golden comparison.
+NO_EVIDENCE = {"select", "gate", "survey-gate", "golden-journey"}
 # Removed pure summary jobs: tools/ci/gate.py already requires every selected
 # matrix leg, and each summary cost a runner slot per run.
 REMOVED_SUMMARIES = ("integration", "e2e-summary", "emdash-proofs")
-# Not part of the CI gate: the gates themselves.
-OUTSIDE_GATE = {"gate", "api-gate"}
+# Not part of the CI gate: the gates themselves (survey-gate mirrors the
+# CI gate).
+OUTSIDE_GATE = {"gate", "api-gate", "survey-gate"}
 
 # Editor load race (PR #37) and Caddy body drain (PR #38) were only visible here.
 EMDASH_GROUPS = (
@@ -69,13 +73,15 @@ HEAVY_JOBS = ("security", "vulnerability", "build")
 # paths changed since the last green run there (select-suites.yml
 # post-merge), a newer push cancels an older run, the watchdog reports a red
 # one, and adding the full-ci label runs the complete suite before the merge.
-POST_MERGE = ("ci.yml", "surveys.yml")
+POST_MERGE = ("ci.yml",)
+# The ruleset still requires "Survey gate" (decision E-027): ci.yml's job
+# survey-gate mirrors the CI gate, which requires the survey shards.
+SURVEY_GATE = "survey-gate"
 
 # Workflows whose gate is a required check. Each must run on pull_request
 # (never merge_group), must not use path filters and must end in its gate.
 GATED_WORKFLOWS = {
     "ci.yml": "CI gate",
-    "surveys.yml": "Survey gate",
     "pins.yml": "Dependency pins gate",
 }
 # Required without a gate: a single always-running job.
@@ -109,7 +115,7 @@ RETRYABLE = re.compile(
 # the nightly recovery proofs build without the cache.
 FREE_DISK_LIGHT = {("pins.yml", "sbom")}
 FREE_DISK_EXTRA = {
-    ("surveys.yml", "backup-recovery"),
+    ("ci.yml", "backup-recovery"),
 }
 # Composite-action steps whose failure is retried once by the next steps.
 FIRST_ATTEMPTS = {
@@ -409,6 +415,8 @@ def check_drafts(text: str, name: str) -> list[str]:
     labelled = name in POST_MERGE
     for job in jobs_of(text):
         block = job_block(text, job)
+        if job == SURVEY_GATE:
+            continue
         if gated and job == "gate":
             context = GATE_CONTEXT + (('FULL_CI_GATE: "true"',) if labelled else ())
             if "permissions:" not in block or not all(
@@ -486,6 +494,18 @@ def check_gate(text: str, name: str) -> list[str]:
         problems.append(
             f"{name}: the gate does not require: {', '.join(sorted(missing))}"
         )
+    if name == "ci.yml":
+        alias = job_block(text, SURVEY_GATE)
+        if (
+            "    name: Survey gate\n" not in alias
+            or "    needs: gate\n" not in alias
+            or "    if: ${{ always()" not in alias
+            or 'run: test "$RESULT" = success' not in alias
+        ):
+            problems.append(
+                "ci.yml: the required 'Survey gate' must mirror the CI gate "
+                "(job survey-gate, needs: gate)."
+            )
     return problems
 
 

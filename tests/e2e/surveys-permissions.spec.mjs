@@ -3,24 +3,17 @@ import { readFileSync, writeFileSync } from "node:fs";
 test.describe.configure({ mode: "parallel" });
 const base = process.env.LEONAID_E2E_BASE_URL;
 const proof = process.env.LEONAID_E2E_ARTIFACT_DIR;
+// Visible controls only (decision E-026). The complete persona x resource
+// matrix runs against the API in tools/surveys/permissions_live.py.
 const names = [
   "admin",
   "design",
-  "publish",
-  "archive",
   "view_aggregates",
   "read_responses",
-  "export_raw",
-  "export_reports",
-  "manage_invitations",
-  "delete",
-  "owner",
-  "manager",
-  "member",
   "outsider",
 ];
 
-for (const mobile of [false, true]) {
+for (const mobile of [false]) {
   for (const name of names) {
     test(`${name} has scoped active-survey controls on ${mobile ? "mobile" : "desktop"}`, async ({
       browser,

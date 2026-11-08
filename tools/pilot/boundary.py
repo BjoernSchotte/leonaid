@@ -12,8 +12,6 @@ PRIVATE_PREFIXES = (
     ".local/test-logins.md",
 )
 ALLOWED_PUBLIC_UPLOADS = (
-    # Fixed scalar-only build timing reports; no Docker logs or environment dumps.
-    ".artifacts/cache-measurement/*.json",
     ".artifacts/sbom/*.cdx.json",
     # Browser evidence contains only the public documentation site.
     ".artifacts/docs",

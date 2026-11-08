@@ -296,7 +296,6 @@ RULES: tuple[Rule, ...] = (
         NONE,
         "workflow without stack suites",
     ),
-    Rule((".github/workflows/surveys.yml",), frozenset({"surveys"}), "Survey workflow"),
     Rule((".github/workflows/pins.yml",), frozenset({"pins"}), "pins workflow"),
     # Shared infrastructure: wins over every narrower rule below.
     Rule(

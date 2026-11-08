@@ -16,6 +16,16 @@ from tools.ci import workflow_contract as contract  # noqa: E402
 
 CI_MUTATIONS = (
     (
+        "      - surveys\n      - backup-recovery\n",
+        "      - backup-recovery\n",
+        "the gate does not require: surveys",
+    ),
+    (
+        "    name: Survey gate\n    needs: gate\n",
+        "    name: Survey gate\n    needs: select\n",
+        "the required 'Survey gate' must mirror the CI gate",
+    ),
+    (
         "github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && 'true' || 'false'",
         "github.event_name != 'pull_request' && 'true' || 'false'",
         "only the Build job of runs on main may write the shared cache",
@@ -188,8 +198,8 @@ CI_MUTATIONS = (
         "golden-parts must not run when the suite selector failed",
     ),
     (
-        "      - golden-journey\n    if: ${{ always()",
-        "    if: ${{ always()",
+        "      - golden-journey\n      - surveys\n",
+        "      - surveys\n",
         "gate does not require: golden-journey",
     ),
     (
@@ -231,24 +241,6 @@ OTHER_MUTATIONS = (
         "          BASE_REF: ${{ github.base_ref }}\n",
         "",
         "pins.yml: the gate must hand the draft context to gate.py",
-    ),
-    (
-        "nightly-watchdog.yml",
-        " surveys.yml:30:nightly",
-        "",
-        "scheduled workflow surveys.yml is not watched",
-    ),
-    (
-        "surveys.yml",
-        "  push:\n    branches:\n      - main\n",
-        "",
-        "surveys.yml: every push to main must run the post-merge tier",
-    ),
-    (
-        "surveys.yml",
-        "    with:\n      post-merge: true\n",
-        "",
-        "surveys.yml: the selector must diff a push since the last green run",
     ),
     (
         "select-suites.yml",
@@ -293,27 +285,6 @@ OTHER_MUTATIONS = (
         "pins.yml: the gate must hand the draft context to gate.py",
     ),
     (
-        "surveys.yml",
-        "run: sh tools/ci/free-runner-disk.sh wait",
-        "run: true",
-        "job surveys must free runner disk",
-    ),
-    (
-        "surveys.yml",
-        "      - name: Finish freeing runner disk\n"
-        "        run: sh tools/ci/free-runner-disk.sh wait\n"
-        "      - name: Run isolated backup and recovery proof\n",
-        "      - name: Run isolated backup and recovery proof\n",
-        "job backup-recovery must free runner disk",
-    ),
-    ("surveys.yml", "  pull_request:\n", "  push:\n", "must run on pull_request"),
-    (
-        "surveys.yml",
-        "inventory, surveys, backup-recovery]",
-        "inventory, backup-recovery]",
-        "gate does not require: surveys",
-    ),
-    (
         "pins.yml",
         "    needs: [select, policy, reproducibility, sbom]",
         "    needs: [select, policy]",
@@ -333,7 +304,7 @@ OTHER_MUTATIONS = (
     ),
     (
         "pin-drift.yml",
-        "for workflow in ci.yml surveys.yml pins.yml docs.yml; do",
+        "for workflow in ci.yml pins.yml docs.yml; do",
         "for workflow in ci.yml pins.yml; do",
         "must dispatch exactly the required workflows",
     ),
@@ -348,24 +319,6 @@ OTHER_MUTATIONS = (
         "GH_TOKEN: ${{ github.token }}",
         "GH_TOKEN: ${{ secrets.REPIN_TOKEN }}",
         "must use GITHUB_TOKEN",
-    ),
-    (
-        "surveys.yml",
-        "  workflow_dispatch:\n",
-        "",
-        "surveys.yml: needs workflow_dispatch for the re-pin PR",
-    ),
-    (
-        "nightly-watchdog.yml",
-        'WATCHED: "ci.yml:push ci.yml:30:nightly surveys.yml:push surveys.yml:30:nightly',
-        'WATCHED: "ci.yml:push ci.yml:30:nightly surveys.yml:push',
-        "scheduled workflow surveys.yml is not watched",
-    ),
-    (
-        "nightly-watchdog.yml",
-        " Survey acceptance,",
-        "",
-        "does not react to completed runs of surveys.yml",
     ),
     (
         "nightly-watchdog.yml",

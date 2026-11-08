@@ -16,17 +16,17 @@ once across all workflows.
 | `push` to `main` (**post-merge tier**) | The suites of the paths changed since the newest green run of the same workflow on `main` (`select-suites.yml` `post-merge`): the mapping below, E2E leaves by module paths, specs and the import graph, every non-E2E suite plus the smoke leg for shared or unmapped paths. Post-merge runs are never cancelled (E-019): the running one finishes, GitHub keeps only the newest pending run per group, and that one diffs since the last green run, so the dropped pending runs lose nothing; a red run's paths stay in the next diff. Base lookup: `tools/ci/post_merge.py base` (tested in `post_merge_test.py`). No green run found, or its commit not fetchable: the complete suite. `nightly-watchdog.yml` opens an issue when the newest post-merge run is red. `pins.yml` and `docs.yml` run completely on every push to `main`. |
 | other `pull_request` events | None. Only `opened`, `reopened`, `synchronize` and `ready_for_review` start CI; a title, body, base or label change leaves the last gate as it is. A pull request into another branch runs like one into `main`, but its gates fail (stacked: a retarget to `main` starts no run, so push or close and reopen after it). |
 | draft `pull_request` | No suite. The gates (and `Bilingual site artifact`) **fail** with "draft: no CI ran", so a stale result can never pass between `ready_for_review` and the new run's gate. `ready_for_review` starts the normal run; Agents open PRs as drafts and mark them ready when done. Expect red checks (and GitHub's failure notifications) on every draft push; `gh pr checks` reports a draft as failed; |
-| nightly `schedule` (`7 3 * * *`), `workflow_dispatch` | Everything, including every E2E leaf. The former 3-hourly runs on `main` (`ci.yml`, `surveys.yml`) are gone: the post-merge runs cover every change, and a schedule would take runners from pull requests. |
+| nightly `schedule` (`7 3 * * *`), `workflow_dispatch` | Everything, including every E2E leaf. The former 3-hourly runs on `main` are gone: the post-merge runs cover every change, and a schedule would take runners from pull requests. |
 
 `nightly-watchdog.yml` runs after every completed scheduled and post-merge
 run (`workflow_run`) and daily. It opens one issue per watched entry when
 its latest run on `main` is red (or a schedule is overdue), and closes it on
-green. Post-merge entries (`ci.yml:push`, `surveys.yml:push`) ignore
+green. The post-merge entry (`ci.yml:push`) ignores
 cancelled runs (a run cancelled by hand is not judged; its commits are in
 the next post-merge run's diff, or the nightly run) and have no age limit
-(`tools/ci/post_merge.py latest`). The nightly runs keep
-their own entries (30 hours, matched by run name: `LeonAid CI nightly (every
-E2E leaf)`, `Survey acceptance nightly (recovery and backup)`). The contract
+(`tools/ci/post_merge.py latest`). The nightly run keeps
+its own entry (30 hours, matched by run name: `LeonAid CI nightly (every
+E2E leaf)`). The contract
 requires a post-merge entry for every post-merge workflow and a scheduled
 entry for every scheduled workflow. The nightly run on `main` is never
 cancelled.
@@ -35,7 +35,7 @@ cancelled.
 of its post-merge run (about 20 minutes, longer when merges queue: E-019 lets
 every post-merge run finish), and a failure then affects every open pull
 request until it is fixed. Pilot proofs (backup, deployment, install,
-import, release) stay nightly (`surveys.yml` `backup-recovery`, 7 runners
+import, release) stay nightly (`ci.yml` `backup-recovery`, 7 runners
 of up to two hours); after a merge only the Contract job (pilot plan,
 decisions, readiness) runs when its inputs changed. A red post-merge run opens the watchdog
 issue; fixing it has priority. To revert, select the heavy suites in
@@ -103,8 +103,8 @@ selects, the tier decides when it runs):
   (`conflict_markers.py`, `legacy_ui.py`, `no_test_doubles.py`, ...) and
   `reviewed_network_faults.json`; and for workflows that run no `ci.yml` suite
   (`docs.yml`, `docs-watchdog.yml`, `nightly-watchdog.yml`, `pin-drift.yml`,
-  `release.yml`). `surveys.yml`
-  and `pins.yml` select only their own workflow. Gate data such as
+  `release.yml`).
+  `pins.yml` selects only its own workflow. Gate data such as
   `infra/security/vulnerability-allowlist.json` selects only the pins
   workflow; Security judges it on every run anyway.
 - **Only its suites** for a CI entry point: `tools/ci/e2e.sh` all E2E leaves,
@@ -172,13 +172,16 @@ follow-up retry.
 
 ### Nightly run
 
-`ci.yml` runs completely every night at 03:07 UTC. `surveys.yml` runs its nightly selection with the backup proofs at 01:17 UTC. Both also run after every push to `main` (post-merge tier). A red run opens the watchdog issue; reruns are visible in the Actions run history.
+`ci.yml` runs completely every night at 03:07 UTC, survey recovery shards
+and backup proofs included. It also runs after every push to `main`
+(post-merge tier). A red run opens the watchdog issue; reruns are visible
+in the Actions run history.
 
 ### Nightly watchdog
 
 A red scheduled or post-merge run has no pull request that shows it.
 `nightly-watchdog.yml` runs after every scheduled and post-merge run of
-`ci.yml`, `surveys.yml`, `pins.yml` and `pin-drift.yml`
+`ci.yml`, `pins.yml` and `pin-drift.yml`
 on `main`, and once a day on its own schedule. For each entry it reads the
 latest completed run on `main` (post-merge: the latest that was not
 cancelled):
@@ -188,9 +191,9 @@ cancelled):
   `[nightly-watchdog] <workflow> (post-merge) post-merge run needs
   attention`) with the run link and the failed jobs, or adds one comment per
   new failed run;
-- a schedule older than its limit (30 hours for the nightly `ci.yml` and
-  `surveys.yml` runs and `pin-drift.yml`, 8 days for the weekly `pins.yml`):
-  the same issue reports a stopped schedule;
+- a schedule older than its limit (30 hours for the nightly `ci.yml`
+  run and `pin-drift.yml`, 8 days for the weekly `pins.yml`): the same
+  issue reports a stopped schedule;
 - green and current: it closes the issue.
 
 It uses only `GITHUB_TOKEN` with `actions: read` and `issues: write`.
@@ -271,15 +274,10 @@ Inside a leg every shard keeps its own isolation:
   (`timeout-container-logs.txt`), sanitizes and uploads. A job killed by
   GitHub's own timeout would lose all of that.
 
-On a fixture cache miss, `surveys.yml` waits up to 10 minutes for the
-identical fixture key that `ci.yml`'s fixture job uploads for the same ref
-(`test-fixture.yml` input `peer-wait-minutes`, polled through the Actions
-cache API with `actions: read`) instead of building it a second time. If none
-appears, it builds the fixture itself.
-
-`surveys.yml` packs its 26 PR checks into 7 shards of about 8 minutes
-(`tools/surveys/gate.json` `ciShards`); each check still gets fresh service
-state.
+Survey shards run in `ci.yml` (job `surveys`), one `./leonaid test-surveys
+SHARD` per job, the same command as locally (decision E-027). The checks of a
+shard share one stack; the reset between them restores and verifies every
+volume except Twenty's, which survey checks never use.
 
 Fast tier measured on PR #140 (wall time from the runs' creation to the last
 of the five required checks; queue at most 3 s per job):
@@ -307,24 +305,7 @@ runner pool is free: a post-merge run of a shared change takes up to about
 Measured on PR #103 (run 42368175283, complete selection, busy runner pool):
 19 jobs, 132 runner minutes, 112 queue minutes, longest job 12.8 min, legs of
 7.6–11.6 min; Security 6.5 min (was 10.6). Before: 56 jobs, 177–214 runner
-minutes, 385–461 queue minutes. `surveys.yml`: 11 jobs and 50 runner minutes
-(was 26 jobs, 82 runner minutes).
-
-A failed survey check prints a sanitized excerpt (failure lines, log tail
-without Compose progress, foundation harness log) to the job log and uploads
-it as `failure-excerpts.json` (`tools/surveys/ci_failure_excerpt.py`). The
-repository is public, so redaction runs on the full text before any line is
-cut: known secrets (`.env.local`, the run's `*.env` files, the prepared
-fixture's Twenty key), then generic shapes (Authorization/Bearer,
-Cookie/Set-Cookie and Playwright `{name, value}` cookie objects,
-token/code/key/signature/X-Amz-* parameters, URL passwords, credential
-assignments, login/invitation/verification codes, OTPs and PINs (de/en), JWTs,
-and every base64url/hex run of 32+ characters except lower-case words joined
-by `-`, `_` or `/`; a test proves 20 000 generated `token_urlsafe` values are
-redacted).
-Then `tools/ci/sanitize_artifacts.py` withholds the excerpt on personal data,
-and a credential keyword still followed by a value withholds it too. Its
-self-test runs in Lint and types.
+minutes, 385–461 queue minutes.
 
 The heaviest EmDash half, `krapfentaxi-orders` (about 7 minutes of tests),
 sets the wall time of a complete run. The seconds tables in
@@ -337,8 +318,7 @@ Cache write discipline: the shared BuildKit cache is written only by the
 Build job of runs on `main` (post-merge, nightly, dispatch); pull requests
 import it read-only, so after every merge they import a current cache. The synthetic fixture is still saved by the run that misses
 it (its key covers its inputs, so a pull request with a new migration needs
-its own), and `surveys.yml` waits for `ci.yml`'s upload instead of building
-it twice. Measured on run 42401453286: `./leonaid bootstrap` takes 20 s and
+its own). Measured on run 42401453286: `./leonaid bootstrap` takes 20 s and
 the build-layer import 24–67 s per leg; caching the installed `.venv` and
 `node_modules` (830 MB together) would restore no faster than bootstrap
 installs them, so there is no dependency cache.
@@ -382,32 +362,19 @@ policy (on the prepared fixture). Pilot import includes a
 real backup/restore and runs nightly instead. `bash tools/ci/integration.sh`
 also excludes pilot import by default; that shard remains explicitly selectable.
 
-Survey acceptance defines 31 stack checks in `tools/surveys/gate.json` (decision
-E-022). Survey checks without a stack run elsewhere under their own names: the
-`survey-core`, `survey-validation-candidate` and `survey-dependencies` lanes of
+Survey checks without a stack run under their own names: the `survey-core`,
+`survey-validation-candidate` and `survey-dependencies` lanes of
 `tools/ci/unit.sh`, and the restore receipts in `tools/ci/security.sh`.
-PR checks occupy 6 shards (`foundation`, `runner-permissions`, `editor-authoring`,
-`analysis-exports`, `lifecycle-contracts`, `journeys-responses`), with compatible
-checks sharing one stack; the five nightly shards contain 12 checks, with no
-overlap or missing checks. Nightly-only shards are:
+The stack checks run in the shards of `./leonaid test-surveys` (`./leonaid
+help` lists them): nine after the merge and with `full-ci`, four more
+(recovery, exports-recovery, restic, pilot) nightly and on dispatch, beside
+the nightly backup proofs (job `backup-recovery`: test-backup, test-upgrade,
+test-pilot-backup, test-pilot-deployment, test-pilot-install,
+test-pilot-import, test-pilot-release).
 
-- recovery-deletion, recovery-retention, recovery-restic and recovery-pilot;
-- exports-recovery, including its state/limit checks.
-
-`.github/workflows/surveys.yml` runs the nightly selection daily at 01:17 UTC
-(02:17 CET / 03:17 CEST). GitHub schedules start only after the workflow is on
-`main`. PRs and ordinary main pushes never select these nightly shards, even
-when backup code changes. Manual dispatch offers `pr`, `nightly` and `all`.
-The nightly workflow also runs test-backup, test-upgrade, test-pilot-backup,
-test-pilot-deployment, test-pilot-install, test-pilot-import and
-test-pilot-release on separate runners. These cover full restore, upgrade
-rollback, the backup target, the first install on an empty host and pilot
-restore/release paths. Each selected test runs once.
-
-`Survey gate` requires every shard selected for that event to succeed. It
-does not claim that nightly-only checks executed in a PR. A selected shard's
-failure, cancellation or skipping cannot produce a green gate. The entire
-nightly workflow fails if either a survey shard or a standalone backup job fails.
+The CI gate requires every selected survey shard. `Survey gate` is still a
+required check of the ruleset; ci.yml's job `survey-gate` mirrors the CI
+gate.
 
 Normal domain/unit tests, seed reset, migration checks and individual
 retry/restart assertions within feature tests stay in PR CI. They are not
@@ -415,8 +382,8 @@ full backup/restore rehearsals. Explicit local commands still run the full
 requested selection, independent of the CI schedule.
 
 ```sh
-./leonaid test-surveys --shard lifecycle-contracts
-./leonaid test-surveys --group recovery
+./leonaid test-surveys lifecycle
+./leonaid test-surveys recovery
 ```
 
 ## EmDash proofs
@@ -546,15 +513,14 @@ Validation commands:
 
 ```sh
 python3 tools/testing/shared_stack_test.py
-python3 tools/testing/shared_stack_live.py
 python3 tools/testing/owned_teardown_live.py
 sh tools/ci/e2e.sh acquisition
-./leonaid test-surveys --shard lifecycle-contracts
+./leonaid test-surveys lifecycle
 ```
 
-The live reset proof deliberately contaminates both databases, Valkey, versioned
-storage and mail, rejects a reset while a leaf lease is held, and verifies the
-clean state with the same containers and volumes afterward. Group logs separate
+Every reset compares a content digest of each restored volume with the first
+restore and refuses the next leaf on a difference; a survey stack keeps Twenty
+running and untouched. Group logs separate
 initial setup, data reset and each leaf's runtime. Compare new GitHub runtimes
 on the same runner class; local warm/cold-cache measurements are not CI forecasts.
 
@@ -613,13 +579,8 @@ instead of resetting running tests. Different worktrees remain independent.
 ./leonaid test-env-stop            # remove only this checkout's test fixture
 LEONAID_TEST_FRESH=1 ./leonaid test-actions  # isolated fresh setup and teardown
 ./leonaid test-recovery            # explicitly run backup/recovery acceptance
-./leonaid test-surveys --suite nightly
+./leonaid test-surveys permissions # one survey shard, as in CI
 ```
-
-Survey defaults select the 26 PR checks; `--suite all`, `--suite nightly`,
-`--group recovery` or an explicit nightly shard opt into recovery. Compatible
-local survey checks use the same locked fixture. CI always uses ephemeral
-job-local writable fixtures. Only their synthetic initialization template is cached.
 
 ## Parallel test stacks
 
@@ -717,8 +678,8 @@ Buildx builder from GitHub cache v2, then selects that same builder for subseque
 Compose builds. Normal jobs materialize imported layers through an OCI export discarded at
 `/dev/null`, then load images once when the test harness builds its runtime tags.
 A cache-only export leaves lazy imported records that the subsequent Compose
-build did not reuse in our GitHub measurement; it must not replace this export. Only the explicit cache
-benchmark enables `load: "true"` to retain its warm-tag runtime probe. Project-specific image names remain independent; initialized
+build did not reuse in our GitHub measurement; it must not replace this export.
+Project-specific image names remain independent; initialized
 volumes, secrets and runtime state are never exported.
 
 Scopes are stable per image family and `linux/amd64`; BuildKit invalidates layers
@@ -726,16 +687,6 @@ from Dockerfile and source inputs. API and worker share the Core cache. Only the
 normal Build job exports the production cache. Other image-consuming jobs import
 it without concurrent writes.
 Survey sudo invocations preserve CI and the selected Docker builder/configuration.
-
-The opt-in Build cache benchmark (manual dispatch or the
-`benchmark-build-cache` pull-request label) uses fresh GitHub runners for
-proxy-only and full-image scenarios, in three sequential rounds: cold without
-imports, unchanged with imports, and a comment-only Public source change with
-imports. Its cache namespace includes the workflow run ID and cannot alter the
-normal cache. Reports include builder preparation/import/build/export/load time
-and a subsequent project-renamed Compose build. The latter must cache every
-Dockerfile RUN step. Full-image cases also start the real Public Node image and
-verify its HTTP readiness. No database or test stack is needed for this benchmark.
 
 ## Runner disk budget
 

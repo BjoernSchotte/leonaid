@@ -286,8 +286,10 @@ Commands:
   test-recovery     Explicitly run all backup/recovery acceptance
   test-backup       Prove encrypted backup and full fresh-volume recovery
   test-upgrade      Prove pinned Twenty/RustFS upgrade and backup rollback
-  test-surveys [--suite pr|nightly|all] [--group GROUP | --shard SHARD | --check ID] [--repeat N] [--list]
-                    Run the manifest-defined survey checks (tools/surveys/gate.json)
+  test-surveys SHARD
+                    One survey shard, as CI runs it: permissions, limits,
+                    runner, editor, analysis, exports, lifecycle, invitations,
+                    journey; nightly: recovery, exports-recovery, restic, pilot
   test-surveys-migrations
                     Prove survey upgrades and constraints on a private PostgreSQL
   test-surveys-core Survey parity, Bun tests, solver profiles (no stack; CI unit job)
@@ -1146,6 +1148,7 @@ check_host_tests() {
     python3 "$root/tools/testing/image_tags_test.py" &&
     python3 "$root/tools/testing/phase_test.py" &&
     python3 "$root/tools/testing/fixture_cache_test.py" &&
+    python3 "$root/tools/ci/run_job_test.py" &&
     python3 "$root/tools/dx/pre_push_test.py"
 }
 
@@ -1234,6 +1237,56 @@ check_infra() {
     /bin/sh /workspace/tools/traceability/test.sh /workspace &&
     /bin/sh "$root/tools/proxy/validate-caddyfiles.sh" "$root" &&
     /bin/sh "$root/tools/proxy/routing-test.sh" "$root"
+}
+
+# One survey shard (decision E-027): the same command locally and in CI.
+# Checks of a shard share one stack with a verified reset in between
+# (tools/testing/shared_stack.py); the others own a fresh stack each.
+test_surveys() {
+  require_docker
+  survey_leaf=tools/surveys/infrastructure.sh
+  case "$1" in
+    # About three minutes of checks each (CI run 42514794269).
+    permissions) set -- survey "$survey_leaf permissions" ;;
+    limits) set -- survey "$survey_leaf responses" "$survey_leaf request-limits" \
+      "$survey_leaf payload-limits" ;;
+    runner) set -- survey "$survey_leaf runner" ;;
+    editor) set -- survey "$survey_leaf editor" "$survey_leaf preview" ;;
+    analysis) set -- survey "$survey_leaf analysis" ;;
+    exports) set -- survey "$survey_leaf exports" "$survey_leaf export-permissions" ;;
+    lifecycle) set -- survey "$survey_leaf contracts" "$survey_leaf lifecycle" \
+      tools/surveys/lifecycle_concurrency.sh ;;
+    invitations) set -- survey "$survey_leaf invitations" "$survey_leaf branding" ;;
+    journey)
+      /bin/sh "$root/tools/surveys/migrations.sh" "$root"
+      /bin/sh "$root/tools/surveys/aggregate-engine.sh" "$root"
+      set -- golden "$survey_leaf journeys"
+      ;;
+    recovery)
+      for mode in deletion deletion-races deletion-ui retention recovery; do
+        /bin/sh "$root/$survey_leaf" "$root" "$mode"
+      done
+      return
+      ;;
+    exports-recovery)
+      for mode in export-states export-recovery export-limits; do
+        /bin/sh "$root/$survey_leaf" "$root" "$mode"
+      done
+      return
+      ;;
+    restic)
+      for mode in manual archive durable; do
+        /bin/sh "$root/tools/surveys/restic_recovery.sh" "$root" "$mode"
+      done
+      return
+      ;;
+    pilot) /bin/sh "$root/tools/pilot_deployment/test.sh" "$root" surveys; return ;;
+    *)
+      echo "test-surveys: ERROR: unknown shard '$1' (see ./leonaid help)" >&2
+      exit 64
+      ;;
+  esac
+  python3 "$root/tools/testing/shared_stack.py" --keep-going "$@"
 }
 
 check_all() {
@@ -4510,12 +4563,12 @@ case "$command" in
     /bin/sh "$root/tools/pilot_install/test.sh" "$root"
     /bin/sh "$root/tools/pilot_import/test.sh" "$root"
     /bin/sh "$root/tools/pilot_release/test.sh" "$root"
-    python3 "$root/tools/surveys/gate.py" --root "$root" --suite nightly
+    for shard in recovery exports-recovery restic pilot; do test_surveys "$shard"; done
     ;;
   test-api-contract) run_feature_tests tools/openapi/test.sh ;;
   test-twenty-gateway) run_feature_tests tools/twenty/gateway_test.sh ;;
   test-crm-import) run_feature_tests tools/twenty/import_test.sh ;;
-  test-surveys) shift; python3 "$root/tools/surveys/gate.py" --root "$root" "$@" ;;
+  test-surveys) test_surveys "${2:-}" ;;
   test-surveys-migrations) /bin/sh "$root/tools/surveys/migrations.sh" "$root" ;;
   test-surveys-core)
     mkdir -p "$root/.artifacts/surveys"
