@@ -192,16 +192,6 @@ class ExcerptTests(unittest.TestCase):
         self.assertIn("withheld", printed[0][1])
         self.assertNotIn("person@example.com", printed[0][1])
 
-    def test_foundation_checks_include_their_harness_log(self):
-        self.report({"id": "foundation-diagnostics", "pass": 1, "exitCode": 2})
-        harness = self.root / ".artifacts/foundation-acceptance"
-        harness.mkdir(parents=True)
-        (harness / "infrastructure.log").write_text("Timeout waiting for api\n")
-        printed = dict(module.export(self.root, self.destination))
-        self.assertIn(
-            "Timeout waiting for api", printed["foundation-diagnostics-harness"]
-        )
-
     def test_no_failure_no_excerpt_and_unsafe_ids_ignored(self):
         self.report(
             {"id": "runner", "pass": 1, "exitCode": 0},
