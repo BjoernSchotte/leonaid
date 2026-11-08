@@ -15,7 +15,7 @@ once across all workflows.
 | `pull_request` with the `full-ci` label | The complete suite before the merge, every E2E leaf and survey shard included. The lead sets it on migrations, security changes and large rewrites. Adding the label starts that run at once (`labeled`), and its first job (`hold`, `tools/ci/hold_gate.py`) posts a failed `CI gate` / `Survey gate` check on the head commit right away, so a green fast gate cannot be merged meanwhile; only the complete run's gate (or a later push's, which with the label is complete too) replaces it, and title edits mirror it as red. The label also applies to every later push. |
 | `pull_request` `labeled`/`unlabeled` (any other label, or removing one) | No suite: the gates mirror like a title edit (below), so an unrelated label neither replaces nor cancels the real result. |
 | `push` to `main` (**post-merge tier**) | The suites of the paths changed since the newest green run of the same workflow on `main` (`select-suites.yml` `post-merge`): the mapping below, E2E leaves by module paths, specs and the import graph, every non-E2E suite plus the smoke leg for shared or unmapped paths. Post-merge runs are never cancelled (E-019): the running one finishes, GitHub keeps only the newest pending run per group, and that one diffs since the last green run, so the dropped pending runs lose nothing; a red run's paths stay in the next diff. Base lookup: `tools/ci/post_merge.py base` (tested in `post_merge_test.py`). No green run found, or its commit not fetchable: the complete suite. `nightly-watchdog.yml` opens an issue when the newest post-merge run is red. `api-contract.yml`, `pins.yml` and `docs.yml` run completely on every push to `main`. |
-| draft `pull_request` | No suite. The gates (and `Bilingual site artifact`) **fail** with "draft: no CI ran", so a stale result can never pass between `ready_for_review` and the new run's gate. `ready_for_review` starts the normal run; `converted_to_draft` cancels a running one through the shared concurrency group. Agents open PRs as drafts and mark them ready when done. Expect red checks (and GitHub's failure notifications) on every draft push; `gh pr checks` reports a draft as failed; `flake_summary.py` ignores such runs. |
+| draft `pull_request` | No suite. The gates (and `Bilingual site artifact`) **fail** with "draft: no CI ran", so a stale result can never pass between `ready_for_review` and the new run's gate. `ready_for_review` starts the normal run; `converted_to_draft` cancels a running one through the shared concurrency group. Agents open PRs as drafts and mark them ready when done. Expect red checks (and GitHub's failure notifications) on every draft push; `gh pr checks` reports a draft as failed; |
 | `pull_request` `edited` | A base change (a stacked PR retargeted to `main`) runs the normal selection against the new base. A title or body edit runs no suite, in its own concurrency group (it never cancels the real run); its gate mirrors this commit's newest **completed** gate of a **real** run (draft, title-edit and label-mirror runs are skipped, so mirrors never copy each other) and fails fast when there is none yet. GitHub creates a gate's check run only when its jobs finish. It keeps the check runs of a *failed* gate-only run blocking the pull request after the real gates passed (seen on #130); a *cancelled* one does not block (#134). So `refresh-gates.yml` (on `workflow_run` of every required workflow, from `main`, `actions: write`) runs `tools/ci/rerun_stale_gates.py` when a real pull-request run completes and its commit is still the head: it re-runs every completed, failed gate-only run of the same workflow and commit (a skipped selector `select` and a failed gate, or a refused docs draft). The re-run mirrors the completed real gate: a red real gate stays red, and a pull request that is still a draft fails again (the gate and docs' "Refuse a draft" read the current draft state from the API). Title-edit, label and draft runs (except `converted_to_draft`, which must cancel the running CI) have their own concurrency group, so their re-runs never cancel another run. A fork's read-only token cannot re-run; the refresh job then fails with a notice to re-run by hand. A gate-only run that is still finishing when the real run completes is not re-run (small window: re-run it by hand). `docs.yml` simply rebuilds. |
 | stacked `pull_request` (base is another branch) | Lint and types; Unit; Documentation; the fast tier of the suites that module-local paths select. Shared infrastructure, unmapped paths and the API/pins path filters select nothing; Security, the vulnerability gate and Build are skipped (`heavy=false`). The gates of a stacked run never pass ("retarget to main for the real gate"): GitHub creates a later run's gate only when its jobs finish, so a stacked green would stay the newest result for minutes after a retarget. The ruleset applies only to `main`, so merging into the parent branch is not blocked. |
 | nightly `schedule` (`7 3 * * *`), `workflow_dispatch` | Everything, including every E2E leaf. The former 3-hourly runs on `main` (`ci.yml`, `surveys.yml`) are gone: the post-merge runs cover every change, and a schedule would take runners from pull requests. |
@@ -101,11 +101,11 @@ selects, the tier decides when it runs):
   OpenAPI approvals, EmDash route inventory and pilot plan files), `tests/unit/**`.
 - **No stack suite** for the scripts and checkers of always-running jobs:
   `tools/ci/*_test.py`, `gate.py`, `workflow_contract.py`, `lint-types.sh`,
-  `security.sh`, `build.sh`, `flake_summary.py`, the static gates
+  `security.sh`, `build.sh`, the static gates
   (`conflict_markers.py`, `legacy_ui.py`, `no_test_doubles.py`, ...) and
   `reviewed_network_faults.json`; and for workflows that run no `ci.yml` suite
   (`docs.yml`, `docs-watchdog.yml`, `nightly-watchdog.yml`, `pin-drift.yml`,
-  `release.yml`, `cache-benchmark.yml`). `surveys.yml`, `api-contract.yml`
+  `release.yml`). `surveys.yml`, `api-contract.yml`
   and `pins.yml` select only their own workflow. Gate data such as
   `infra/security/vulnerability-allowlist.json` selects only the pins
   workflow; Security judges it on every run anyway.
@@ -172,13 +172,9 @@ Every retry writes an `Infrastructure retry` warning annotation.
 "retry", and any first-attempt `continue-on-error` in the two actions without a
 follow-up retry.
 
-### Nightly run and flake summary
+### Nightly run
 
-`ci.yml` runs completely every night at 03:07 UTC; only that run has the `Flake summary`. `surveys.yml` runs its nightly selection with the backup proofs at 01:17 UTC. Both also run after every push to `main` (post-merge tier). The nightly `Flake summary`
-job runs `tools/ci/flake_summary.py` over the last 50 completed runs of `ci.yml`
-and `surveys.yml` (all events) and writes a table to the workflow summary:
-failures in the final attempt and failures that were followed by a rerun
-(the flake signal). Cancelled (superseded) jobs are ignored.
+`ci.yml` runs completely every night at 03:07 UTC. `surveys.yml` runs its nightly selection with the backup proofs at 01:17 UTC. Both also run after every push to `main` (post-merge tier). A red run opens the watchdog issue; reruns are visible in the Actions run history.
 
 ### Nightly watchdog
 
@@ -245,7 +241,7 @@ into at most `MAX_BINS` legs per kind, using the measured seconds in
 `INTEGRATION_SECONDS` / `E2E_SECONDS`, and opens a further leg only per
 `TARGET_SECONDS` (600 s) of tests. A pull request that touches two small leaves
 gets one E2E leg. Legs have stable names (`Integration 1/4`, `E2E 2/4`,
-`EmDash proof 1/2`) so the flake history stays comparable; the shard list is
+`EmDash proof 1/2`) so run histories stay comparable; the shard list is
 in the job summary. The leg id names the artifact (`ci-integration-1`, ...).
 The select job warns (`CI leg near timeout`) when a leg's estimate (shard
 seconds, `LEG_SETUP_SECONDS` per leg and `SHARD_SETUP_SECONDS` per
@@ -276,8 +272,6 @@ Inside a leg every shard keeps its own isolation:
   124. `run-job.sh` then adds the last lines of every running container
   (`timeout-container-logs.txt`), sanitizes and uploads. A job killed by
   GitHub's own timeout would lose all of that.
-- `tools/ci/disk-peak.sh` logs start, peak and end disk use of each leg, the
-  data for the 40 GB skip threshold below.
 
 On a fixture cache miss, `surveys.yml` waits up to 10 minutes for the
 identical fixture key that `ci.yml`'s fixture job uploads for the same ref
@@ -364,7 +358,7 @@ bound by CPU and I/O contention on the 4-vCPU runner, not by downloads
 | Split EmDash `krapfentaxi-orders` per browser | 3 legs ≈ 20 runner-min instead of 11, +2 jobs; wall −1 min (E2E legs are as long) | not done: every E2E leaf runs only nightly now |
 | Concurrent light shards per leg | see the peaks below | not now: CPU-bound (4 vCPU, timing-sensitive browser proofs), gain ≤ ~1 min setup per merged leg |
 
-Peaks per leg on a GitHub-hosted runner (4 vCPU, 15.6 GB; `disk-peak.sh`,
+Peaks per leg on a GitHub-hosted runner (4 vCPU, 15.6 GB; measured with the former disk sampler,
 run 42414052641, complete selection):
 
 | Leg | Memory in use, peak | Disk growth, peak |
@@ -732,7 +726,7 @@ volumes, secrets and runtime state are never exported.
 Scopes are stable per image family and `linux/amd64`; BuildKit invalidates layers
 from Dockerfile and source inputs. API and worker share the Core cache. Only the
 normal Build job exports the production cache. Other image-consuming jobs import
-it without concurrent writes. Explicit `cold_run` jobs bypass this action.
+it without concurrent writes.
 Survey sudo invocations preserve CI and the selected Docker builder/configuration.
 
 The opt-in Build cache benchmark (manual dispatch or the
@@ -769,9 +763,6 @@ runner ran out while building the own images.
 - `tools/security/pulled-images.sh` removes a pinned image right after its use
   only when that exact digest was absent before. Locally present images,
   including any other tags of the same image, stay untouched.
-- `LEONAID_CI_DISK_REPORT=1` makes the scan log `tools/ci/disk-report.sh`
-  output after every phase (start, advisory databases, own images built, all
-  targets scanned). The per-target reports cost about 45 s per run.
 - In CI, `tools/ci/security.sh` runs the vulnerability gate beside the policy
   checks and the security stack test (`LEONAID_SCAN_KEEP_PULLED=1`: the
   third-party images stay until the job ends, because the stack may use them).

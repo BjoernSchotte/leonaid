@@ -122,7 +122,6 @@ PRECISE: tuple[tuple[str, dict[str, Any]], ...] = (
     ("tools/ci/workflow_contract.py", {}),
     ("tools/ci/security.sh", {}),
     ("tools/ci/lint-types.sh", {}),
-    ("tools/ci/flake_summary.py", {}),
     ("tools/ci/build.sh", {}),
     ("specs/leonaid-poc/KNOWN-LIMITS.md", {}),
     ("apps/docs/src/content/docs/de/index.mdx", {}),
