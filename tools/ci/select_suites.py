@@ -184,7 +184,8 @@ FAST_MAX_BINS = 2
 # paths. Integration / policy is the authorization negative contract
 # (sessions and foreign-action access against real PostgreSQL and Twenty),
 # including the inputs it reads: the Golden fixtures, the seed and Twenty
-# provisioning, and the Compose stack it starts.
+# provisioning, the Compose stack and proxy it starts, and the Golden PDF
+# renderer its seed calls.
 FAST_REQUIRED: dict[str, tuple[str, ...]] = {
     "policy": (
         "src/leonaid/**",
@@ -196,6 +197,8 @@ FAST_REQUIRED: dict[str, tuple[str, ...]] = {
         "tools/twenty/**",
         "tools/seed/**",
         "infra/compose/**",
+        "infra/proxy/**",
+        "tools/typst/render_golden.sh",
     ),
 }
 # Never in the fast tier: browser suites and multi-minute acceptance runs.
