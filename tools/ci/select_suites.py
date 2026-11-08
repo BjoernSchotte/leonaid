@@ -161,11 +161,10 @@ EMDASH_BINS = (
 EMDASH_SECONDS = {
     # Run 42521057525: orders 420 s, deadlines 364 s, campaign-edge 377 s,
     # static 106 s. Orders and deadlines minus about 85 s: Twenty's cold
-    # start now overlaps the editor phases. campaign-edge minus 30 s: the
-    # lapse proof runs in one host round only.
+    # start now overlaps the editor phases.
     "krapfentaxi-orders": 335,
     "krapfentaxi-deadlines": 280,
-    "campaign-edge": 347,
+    "campaign-edge": 377,
     "static": 106,
 }
 TARGET_SECONDS = 600
