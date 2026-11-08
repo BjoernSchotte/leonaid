@@ -4,23 +4,10 @@ test.describe.configure({ mode: "parallel" });
 const base = process.env.LEONAID_E2E_BASE_URL;
 const proof = process.env.LEONAID_E2E_ARTIFACT_DIR;
 
-for (const mobile of [false, true])
-  for (const name of [
-    "admin",
-    "design",
-    "publish",
-    "archive",
-    "view_aggregates",
-    "read_responses",
-    "export_raw",
-    "export_reports",
-    "manage_invitations",
-    "delete",
-    "owner",
-    "manager",
-    "member",
-    "outsider",
-  ])
+// Visible controls only (decision E-026); invitation_roles_live.py and
+// special_permissions_verify.py prove the rights against the API.
+for (const mobile of [false])
+  for (const name of ["admin", "manage_invitations", "design", "outsider"])
     test(`${name} invitation controls and recipient data are scoped on ${mobile ? "mobile" : "desktop"}`, async ({
       browser,
     }) => {

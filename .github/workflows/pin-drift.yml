@@ -106,6 +106,6 @@ jobs:
               --body-file "$RUNNER_TEMP/body.md"
           fi
 
-          for workflow in ci.yml surveys.yml api-contract.yml pins.yml docs.yml; do
+          for workflow in ci.yml pins.yml docs.yml; do
             gh workflow run "$workflow" --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
           done

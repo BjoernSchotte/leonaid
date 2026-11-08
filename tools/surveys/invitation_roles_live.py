@@ -94,6 +94,18 @@ async def prepare_invitation_roles(conn, call, actors, resources, actions, finge
                 else:
                     denied += 1
             if not allowed:
+                # Privacy: a persona that may open the survey but not manage
+                # invitations never receives a recipient address in it.
+                can_open = name not in {"member", "outsider"} and (
+                    name != "manager" or resource["kind"] == "member-action"
+                )
+                detail = await call(
+                    "GET",
+                    resource["path"],
+                    actor=name,
+                    expected=200 if can_open else 404,
+                )
+                assert "matrix-recipient@example.com" not in json.dumps(detail)
                 await call(
                     "POST",
                     resource["path"] + "/invitations/" + invitation["id"] + "/revoke",

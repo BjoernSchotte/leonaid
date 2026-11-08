@@ -10,8 +10,10 @@ policies() {
   python3 "$root/tools/testing/ci_fixture_test.py"
   python3 "$root/tools/testing/image_tags_test.py"
   python3 "$root/tools/testing/phase_test.py"
-  # Survey restore receipts (former survey check restore-receipts).
+  echo "security: survey-restore-receipts"
   python3 "$root/tools/backup/restore_state_test.py"
+  # tools/ci/run-job.sh wraps every CI job (needs Docker for the sanitizer).
+  python3 "$root/tools/ci/run_job_test.py"
 
   docker run --rm \
     --volume "$root:/workspace:ro" \

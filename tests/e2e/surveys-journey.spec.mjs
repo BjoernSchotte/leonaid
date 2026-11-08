@@ -79,8 +79,9 @@ async function invite(page, request, sid, suffix) {
   );
   return `${base}${url.pathname}${url.hash}`;
 }
-for (const template of ["krapfentaxi", "golf"])
-  for (const width of [1440, 390]) {
+// One author-to-erasure browser journey (decision E-026).
+for (const template of ["krapfentaxi"])
+  for (const width of [1440]) {
     test(`${template} complete author-to-erasure journey at ${width}`, async ({
       browser,
       request,
