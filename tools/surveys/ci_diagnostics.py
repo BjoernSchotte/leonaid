@@ -120,10 +120,6 @@ def collect(root: Path) -> dict:
     for path in sorted((root / ".artifacts/surveys-gate").glob("private-*/*.log")):
         if path.name in allowed_logs:
             logs.append(("gate/" + path.name, path))
-    for name in ("infrastructure", "infrastructure-failure"):
-        path = root / f".artifacts/foundation-acceptance/{name}.log"
-        if path.exists():
-            logs.append(("foundation/" + name, path))
     diagnostics = []
     for label, path in logs:
         if path.is_symlink() or any(

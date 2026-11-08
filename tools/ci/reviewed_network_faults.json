@@ -60,11 +60,6 @@
     "reason": "Hold one real survey GET after a settings save until other settings forms are edited; the request then reaches the server unchanged."
   },
   {
-    "path": "tests/e2e/surveys-package-faults.spec.mjs",
-    "sha256": "5b8d1c4d353b3345f2f9af2a81ca2fbb2dc62ca55cfa30cea424f0b0e9f64a57",
-    "reason": "Drop a real independent-backend export acknowledgement and verify identical retry plus real download."
-  },
-  {
     "path": "tests/e2e/surveys-publisher-faults.spec.mjs",
     "sha256": "f0b525dcd1960411d9fac057f705b164e03ba6e78887b24806088aed3f80e9a2",
     "reason": "Drop the first committed publication acknowledgement and forward the unmodified real retry response."
