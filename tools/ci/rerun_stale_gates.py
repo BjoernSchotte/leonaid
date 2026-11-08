@@ -193,9 +193,10 @@ def main() -> int:
     if not repository or not run_id.isdigit():
         print("rerun-stale-gates: ERROR: missing run context", file=sys.stderr)
         return 1
-    return refresh(
-        request, lambda path: request(path, "POST") and None, repository, int(run_id)
-    )
+    def post(path: str) -> None:
+        request(path, "POST")
+
+    return refresh(request, post, repository, int(run_id))
 
 
 if __name__ == "__main__":
