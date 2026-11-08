@@ -16,6 +16,7 @@ import {
   backoffDelay,
   capturedAtNow,
   classifyFailure,
+  conflictText,
   drainQueue,
   nextSendable,
   retention,
@@ -66,8 +67,16 @@ function activity(
   } as QueueEntry;
 }
 
-function apiError(status: number, code: string) {
-  return new ApiError(status, { code, message: code, requestId: "r" });
+function apiError(
+  status: number,
+  code: string,
+  retryAfter: number | null = null,
+) {
+  return new ApiError(
+    status,
+    { code, message: code, requestId: "r" },
+    retryAfter,
+  );
 }
 
 function accepted(
@@ -161,14 +170,18 @@ describe("classification (§9.4)", () => {
     expect(classifyFailure(apiError(409, "idempotency_incomplete")).type).toBe(
       "transient",
     );
-    expect(classifyFailure(apiError(429, "rate_limited"), 30)).toEqual({
+    expect(classifyFailure(apiError(429, "rate_limited", 30))).toEqual({
       retryAfterMs: 30_000,
       type: "transient",
     });
     expect(classifyFailure(apiError(401, "session_required")).type).toBe(
       "paused",
     );
-    expect(classifyFailure(apiError(403, "forbidden")).type).toBe("blocked");
+    // 503 maintenance with Retry-After waits at least that long (§9.4).
+    expect(classifyFailure(apiError(503, "maintenance_mode", 60))).toEqual({
+      retryAfterMs: 60_000,
+      type: "transient",
+    });
     const missing = classifyFailure(apiError(404, "resource_not_found"));
     expect(missing.type === "conflict" && missing.error.code).toBe(
       "sponsor_not_assigned",
@@ -214,9 +227,17 @@ describe("retention (D5)", () => {
     expect(
       retention(activity(1, "a", { state: "expired", settledAt: at(1) }), NOW),
     ).toBe("keep");
+    // "Nicht mehr möglich" waits for the acquirer; nothing is deleted unseen.
     expect(
-      retention(activity(1, "a", { state: "blocked", settledAt: at(3) }), NOW),
-    ).toBe("delete");
+      retention(activity(1, "a", { state: "blocked", settledAt: at(30) }), NOW),
+    ).toBe("keep");
+    // An entry that may be at Core keeps trying 2 more days (replay).
+    expect(
+      retention(activity(1, "a", { capturedAt: at(15), everSent: true }), NOW),
+    ).toBe("keep");
+    expect(
+      retention(activity(1, "a", { capturedAt: at(17), everSent: true }), NOW),
+    ).toBe("expire");
   });
 });
 
@@ -320,7 +341,7 @@ describe("drain", () => {
     await drainQueue({
       now: () => NOW,
       send: async () => {
-        throw apiError(403, "action_membership_required");
+        throw apiError(403, "acquirer_required");
       },
       store,
     });
@@ -435,5 +456,225 @@ describe("queue indicator (§12.2)", () => {
       label: "2 Einträge konnten nicht gesendet werden",
       state: "failed",
     });
+  });
+});
+
+describe("403 per code (§9.4)", () => {
+  it("blocks the action only when the acquirer role is gone", () => {
+    for (const code of [
+      "acquirer_required",
+      "commitment_capture_required",
+      "commitment_acquisition_required",
+    ]) {
+      expect(classifyFailure(apiError(403, code)).type).toBe("blocked");
+    }
+  });
+
+  it("keeps a sponsor-level refusal on that entry", () => {
+    const outcome = classifyFailure(
+      apiError(403, "commitment_party_not_assigned"),
+    );
+    expect(outcome.type === "conflict" && outcome.error.code).toBe(
+      "sponsor_not_assigned",
+    );
+    for (const code of [
+      "commitment_owner_required",
+      "commitment_source_forbidden",
+    ]) {
+      expect(classifyFailure(apiError(403, code)).type).toBe("conflict");
+    }
+  });
+
+  it("retries the transport guards and unknown codes, never blocks", () => {
+    for (const code of ["csrf_rejected", "cors_origin_rejected"]) {
+      expect(classifyFailure(apiError(403, code)).type).toBe("transient");
+    }
+    expect(classifyFailure(apiError(403, "forbidden")).type).toBe("unknown");
+  });
+
+  it("blocks only the action's entries, not another action's", async () => {
+    const store = new MemoryQueueStore();
+    await store.put(activity(1, "a"));
+    await store.put(activity(2, "b", { actionId: "other-action" }));
+    await drainQueue({
+      now: () => NOW,
+      send: async (entry) => {
+        if (entry.actionId === ACTION) throw apiError(403, "acquirer_required");
+        return accepted(entry, 8);
+      },
+      store,
+    });
+    const left = await store.list();
+    expect(left.map((entry) => [entry.sequence, entry.state])).toEqual([
+      [1, "blocked"],
+    ]);
+  });
+
+  it("does not hold a sponsor's later entries behind one sponsor-level 403", async () => {
+    const store = new MemoryQueueStore();
+    await store.put({
+      ...activity(1, "a"),
+      kind: "commitment",
+    } as QueueEntry);
+    await store.put(activity(2, "b"));
+    const sent: number[] = [];
+    await drainQueue({
+      now: () => NOW,
+      send: async (entry) => {
+        sent.push(entry.sequence);
+        if (entry.sequence === 1) {
+          throw apiError(403, "commitment_party_not_assigned");
+        }
+        return accepted(entry, 8);
+      },
+      store,
+    });
+    expect(sent).toEqual([1, 2]);
+    expect((await store.list()).map((entry) => entry.state)).toEqual([
+      "conflict",
+    ]);
+  });
+});
+
+describe("D1 without a follow-up (§11.4)", () => {
+  it("reports a status Core did not apply instead of dropping it", async () => {
+    const store = new MemoryQueueStore();
+    await store.put(
+      activity(1, "a", {
+        request: {
+          channel: "phone",
+          dueOn: null,
+          nextAction: null,
+          note: null,
+          outcome: "declined",
+          partyId: "a",
+          partyKind: "company",
+          revision: 7,
+        },
+      } as Partial<QueueEntry>),
+    );
+    await drainQueue({
+      now: () => NOW,
+      send: async (entry) => accepted(entry, 7, false),
+      store,
+    });
+    expect((await store.list())[0]).toMatchObject({
+      lastError: { code: "status_not_applied" },
+      state: "conflict",
+    });
+  });
+
+  it("deletes the entry when nothing was lost", async () => {
+    const store = new MemoryQueueStore();
+    await store.put(
+      activity(1, "a", {
+        request: {
+          channel: "phone",
+          dueOn: null,
+          nextAction: null,
+          note: null,
+          outcome: "reached",
+          partyId: "a",
+          partyKind: "company",
+          revision: 7,
+        },
+      } as Partial<QueueEntry>),
+    );
+    // The assignment is "contacted" already (accepted() answers so).
+    await drainQueue({
+      now: () => NOW,
+      send: async (entry) => accepted(entry, 7, false),
+      store,
+    });
+    expect(await store.list()).toEqual([]);
+  });
+});
+
+describe("pre-send check (§10.3)", () => {
+  it("never turns an entry that may be at Core into a decision", async () => {
+    const store = new MemoryQueueStore();
+    await store.put(activity(1, "a", { attempts: 1, everSent: true }));
+    const keys: string[] = [];
+    await drainQueue({
+      now: () => NOW,
+      preflight: async () => "delivery_window_full",
+      send: async (entry) => {
+        keys.push(entry.idempotencyKey);
+        return accepted(entry, 8);
+      },
+      store,
+    });
+    expect(keys).toEqual(["pwa-q:00000000-0000-4000-8000-000000000001"]);
+    expect(await store.list()).toEqual([]);
+  });
+
+  it("asks before the first send", async () => {
+    const store = new MemoryQueueStore();
+    await store.put(activity(1, "a"));
+    const keys: string[] = [];
+    await drainQueue({
+      now: () => NOW,
+      preflight: async () => "delivery_window_full",
+      send: async (entry) => {
+        keys.push(entry.idempotencyKey);
+        return accepted(entry, 8);
+      },
+      store,
+    });
+    expect(keys).toEqual([]);
+    expect((await store.list())[0]).toMatchObject({
+      lastError: { code: "delivery_window_full" },
+      state: "conflict",
+    });
+  });
+});
+
+describe("reasons in Du (§10)", () => {
+  it("explains a price change from Core's details (§11.3 shape)", () => {
+    const entry = {
+      ...activity(1, "a"),
+      kind: "commitment",
+      lastError: {
+        code: "commitment_price_changed",
+        details: {
+          currency: "EUR",
+          lines: [
+            {
+              lineTotalMinor: 7600,
+              offeringId: "krapfen",
+              quotedUnitPriceMinor: 3600,
+              unitPriceMinor: 3800,
+            },
+          ],
+          totalMinor: 7600,
+        },
+        message: "",
+        status: 409,
+      },
+      state: "conflict",
+    } as QueueEntry;
+    expect(conflictText(entry, "Krapfentaxi 2026")).toBe(
+      "Der Preis ist jetzt 38,00\u00a0€ statt 36,00\u00a0€. Die Bestellung kostet 76,00\u00a0€.",
+    );
+  });
+
+  it("names a status Core kept (D1 without follow-up)", () => {
+    const entry = activity(1, "a", {
+      lastError: { code: "status_not_applied", message: "", status: 201 },
+      request: {
+        channel: "phone",
+        dueOn: null,
+        nextAction: null,
+        note: null,
+        outcome: "declined",
+        partyId: "a",
+        partyKind: "company",
+        revision: 7,
+      },
+      state: "conflict",
+    } as Partial<QueueEntry>);
+    expect(conflictText(entry, "")).toContain(
+      "Der Status „Abgesagt“ wurde nicht übernommen",
+    );
   });
 });

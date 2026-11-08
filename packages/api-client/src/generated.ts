@@ -403,12 +403,19 @@ export interface RequestOptions {
 export class ApiError extends Error {
   readonly status: number;
   readonly detail: ApiErrorDetail;
+  /** Seconds from a Retry-After header (429, 503), if Core sent one. */
+  readonly retryAfterSeconds: number | null;
 
-  constructor(status: number, detail: ApiErrorDetail) {
+  constructor(
+    status: number,
+    detail: ApiErrorDetail,
+    retryAfterSeconds: number | null = null,
+  ) {
     super(detail.message);
     this.name = "ApiError";
     this.status = status;
     this.detail = detail;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -3952,14 +3959,30 @@ async function readJsonBody(response: Response): Promise<unknown> {
 
 /** Every failed response becomes an ApiError, so callers can rely on status. */
 function responseError(response: Response, body: unknown): ApiError {
+  const retryAfter = retryAfterSeconds(response.headers.get("retry-after"));
   if (isApiErrorResponse(body)) {
-    return new ApiError(response.status, body.error);
+    return new ApiError(response.status, body.error, retryAfter);
   }
-  return new ApiError(response.status, {
-    code: `http_${response.status}`,
-    message: `LeonAid API returned HTTP ${response.status}`,
-    requestId: response.headers.get("x-request-id") ?? "",
-  });
+  return new ApiError(
+    response.status,
+    {
+      code: `http_${response.status}`,
+      message: `LeonAid API returned HTTP ${response.status}`,
+      requestId: response.headers.get("x-request-id") ?? "",
+    },
+    retryAfter,
+  );
+}
+
+/** Retry-After as seconds or an HTTP date; null when absent or invalid. */
+function retryAfterSeconds(value: string | null): number | null {
+  if (!value) return null;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds);
+  const date = Date.parse(value);
+  return Number.isFinite(date)
+    ? Math.max(0, Math.ceil((date - Date.now()) / 1000))
+    : null;
 }
 
 function isApiErrorResponse(value: unknown): value is ApiErrorResponse {

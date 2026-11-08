@@ -34,6 +34,9 @@ compose() {
 
 cleanup() {
   status=$?
+  if [ -n "${offline_watcher_pid:-}" ]; then
+    kill "$offline_watcher_pid" 2>/dev/null || true
+  fi
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
     echo "pwa-test: diagnostics for the failed real services:" >&2
     compose ps >&2 || true
@@ -183,6 +186,33 @@ pwa_sessions() {
     --entrypoint python \
     api tools/pwa/contract.py --sessions-only
 }
+# The offline specs ask for server-side changes they cannot make through
+# the API (a new offering price, the flag switched off and on again) by a
+# request file in the proof directory; this watcher applies them in the
+# real database and answers with a done file.
+offline_sql() {
+  compose exec -T core-postgres sh -ec \
+    'psql -v ON_ERROR_STOP=1 -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+}
+offline_watcher() {
+  while :; do
+    for request in "$proof"/offline-request-*; do
+      [ -f "$request" ] || continue
+      name=${request##*/offline-request-}
+      case "$name" in
+        price-up) echo "UPDATE offering SET unit_price_minor = unit_price_minor + 200 WHERE action_id = '20000000-0000-4000-8000-000000000001';" | offline_sql ;;
+        price-down) echo "UPDATE offering SET unit_price_minor = unit_price_minor - 200 WHERE action_id = '20000000-0000-4000-8000-000000000001';" | offline_sql ;;
+        flag-off) offline_flag false ;;
+        flag-on) offline_flag true ;;
+      esac
+      rm -f "$request"
+      touch "$proof/offline-done-$name"
+    done
+    sleep 1
+  done
+}
+offline_watcher &
+offline_watcher_pid=$!
 offline_flag true
 for browser in chromium webkit; do
   pwa_sessions
@@ -207,10 +237,12 @@ for browser in chromium webkit; do
     --trace=retain-on-failure \
     --reporter=line
 done
+kill "$offline_watcher_pid" 2>/dev/null || true
 offline_flag false
 # Each browser run of pwa-offline-queue.spec.mjs sent one offline draft
-# order, exactly once, with the device's capture time.
-offline_orders=$(printf "SELECT count(*) FROM commitment WHERE source = 'acquisition' AND status = 'draft' AND captured_at IS NOT NULL AND captured_at < created_at;\n" |
+# order, exactly once, with the device's capture time (online drafts of
+# the price test arrive within the same second).
+offline_orders=$(printf "SELECT count(*) FROM commitment WHERE source = 'acquisition' AND status = 'draft' AND captured_at IS NOT NULL AND created_at - captured_at > interval '2 seconds';\n" |
   compose exec -T core-postgres sh -ec \
     'psql -v ON_ERROR_STOP=1 -q -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB"')
 if [ "$offline_orders" != 2 ]; then

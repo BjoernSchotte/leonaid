@@ -22,6 +22,12 @@ import { useOfflineRuntime, useQueueSnapshot } from "./runtime";
 
 const IOS_HINT_KEY = "leonaid-pwa-ios-hint-shown";
 
+/** D1: the contact itself already reached Core (§11.4). */
+function isStoredAtCore(entry: QueueEntry) {
+  const code = entry.lastError?.code;
+  return code === "follow_up_not_applied" || code === "status_not_applied";
+}
+
 function isStandaloneIos(): boolean {
   const standalone = (navigator as Navigator & { standalone?: boolean })
     .standalone;
@@ -176,7 +182,9 @@ export function QueueSheet({
                   </p>
                 ) : null}
                 <div className="pwa-queue-actions">
-                  {entry.state === "failed" ? (
+                  {(entry.state === "failed" &&
+                    entry.lastError?.code !== "idempotency_conflict") ||
+                  entry.state === "blocked" ? (
                     <Button
                       disabled={!online}
                       onClick={() => void queue?.retry(entry.entryId)}
@@ -220,7 +228,9 @@ export function QueueSheet({
         confirmLabel="Verwerfen"
         description={
           discarding
-            ? `${entryTitle(discarding)} wird von diesem Gerät gelöscht und nicht gesendet.`
+            ? isStoredAtCore(discarding)
+              ? `${entryTitle(discarding)} ist bei LeonAid gespeichert. Verwerfen löscht nur den Hinweis auf diesem Gerät; der Rest wird nicht übernommen.`
+              : `${entryTitle(discarding)} wird von diesem Gerät gelöscht und nicht gesendet.`
             : ""
         }
         onConfirm={() => {

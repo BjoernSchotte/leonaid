@@ -6,7 +6,13 @@ import type { QueueSnapshot } from "@leonaid/features/offline";
 
 export interface QueueIndicator {
   readonly count: number;
-  readonly state: "empty" | "waiting" | "sending" | "decision" | "failed";
+  readonly state:
+    | "empty"
+    | "waiting"
+    | "sending"
+    | "decision"
+    | "failed"
+    | "settled";
   readonly label: string;
   /** Entries still waiting to be sent (banner "N warten auf Versand"). */
   readonly waiting: number;
@@ -21,7 +27,8 @@ export function queueIndicator(snapshot: QueueSnapshot): QueueIndicator {
     snapshot.entries.filter((entry) => states.includes(entry.state)).length;
   const waiting = count(["queued", "sending"]);
   const failed = count(["failed"]);
-  const decision = count(["conflict", "blocked", "expired"]);
+  const decision = count(["conflict"]);
+  const settled = count(["blocked", "expired"]);
   if (failed) {
     return {
       count: failed,
@@ -51,6 +58,14 @@ export function queueIndicator(snapshot: QueueSnapshot): QueueIndicator {
       count: waiting,
       label: `${entries(waiting)} ${waiting === 1 ? "wartet" : "warten"} auf Versand`,
       state: "waiting",
+      waiting,
+    };
+  }
+  if (settled) {
+    return {
+      count: settled,
+      label: `${entries(settled)} ${settled === 1 ? "kann" : "können"} nicht mehr gesendet werden`,
+      state: "settled",
       waiting,
     };
   }

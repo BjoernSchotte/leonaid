@@ -51,9 +51,15 @@ Punkte sind keine stillschweigenden Produktzusagen.
   serverseitig widerrufene Sitzung sieht ein Gerät erst online) und legt Kontakte,
   Wiedervorlagen und Bestellungen in eine Warteschlange, die sie mit
   `Idempotency-Key` und `capturedAt` sendet, auch online. Abgelehnte
-  Einträge zeigt die Warteschlange mit Grund; die Auswahl der Lösungen
-  (PLAN §10), Sponsor-Entwürfe, die Abmelde-Warnung und die Hilfe folgen mit
-  Stufe 4. Schaltet die System-Administration das Flag aus, sendet die App
+  Einträge zeigt die Warteschlange mit Grund; Abmelden fragt in beiden Apps
+  vorher, wenn noch Einträge warten. Die Auswahl der Lösungen (PLAN §10)
+  außer „Trotzdem eintragen“ und „Neuen Preis übernehmen“ auf dem
+  Bestellformular, Sponsor-Entwürfe und die Hilfe folgen mit Stufe 4: **das
+  Flag bleibt aus, bis Stufe 4 ausgeliefert ist** und der
+  Datenschutzhinweis (D8) aktiv ist. Der Abschluss eines eigenen
+  Bestellentwurfs (`completeCommitment`) geht weiter nur online. Im
+  Ausschalt-Modus halten Einträge mit Entscheidung oder Fehler das Gerät bis
+  zu 16 Tage (Ablauf plus Warnfrist). Schaltet die System-Administration das Flag aus, sendet die App
   noch wartende Einträge und löscht danach die Daten auf dem Gerät. Die
   Startseite (Aktionsstand), Module und das Lieferboard bleiben offline
   gesperrt. Die Prüfung auf einem echten iPhone (PLAN §13, Speicher einer

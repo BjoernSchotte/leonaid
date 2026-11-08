@@ -10,5 +10,7 @@ export * from "./pending-captures";
 export * from "./queue";
 export * from "./queue-sheet";
 export * from "./read-cache";
+export * from "./resolutions";
 export * from "./runtime";
+export * from "./sign-out";
 export * from "./sync";

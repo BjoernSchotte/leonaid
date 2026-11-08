@@ -27,6 +27,12 @@ interface PriceDetails {
   readonly currency?: string;
 }
 
+const statusLabel = {
+  committed: "Zugesagt",
+  contacted: "Kontaktiert",
+  declined: "Abgesagt",
+} as const;
+
 export function conflictText(entry: QueueEntry, actionName: string): string {
   const sponsor = entry.party.displayName;
   if (entry.state === "expired") {
@@ -52,6 +58,22 @@ export function conflictText(entry: QueueEntry, actionName: string): string {
         .join(", ");
       return `Dein Kontakt mit ${sponsor} ist gespeichert. Die Wiedervorlage wurde nicht übernommen, weil inzwischen jemand anderes etwas eingetragen hat${theirs ? `: ${theirs}` : ""}.`;
     }
+    case "status_not_applied": {
+      const status =
+        entry.kind === "activity"
+          ? statusLabel[
+              entry.request.outcome === "committed"
+                ? "committed"
+                : entry.request.outcome === "declined"
+                  ? "declined"
+                  : "contacted"
+            ]
+          : "";
+      return `Dein Kontakt mit ${sponsor} ist gespeichert. Der Status „${status}“ wurde nicht übernommen, weil inzwischen jemand anderes etwas eingetragen hat.`;
+    }
+    case "commitment_owner_required":
+    case "commitment_source_forbidden":
+      return `Diese Bestellung für ${sponsor} darfst du so nicht mehr senden.`;
     case "assignment_revision_conflict":
       return `${sponsor} wurde inzwischen geändert. Der Eintrag wurde nicht gespeichert.`;
     case "contact_suppressed":

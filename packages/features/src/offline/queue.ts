@@ -65,6 +65,12 @@ interface EntryCommon {
   readonly base: QueueBase;
   readonly state: QueueState;
   readonly attempts: number;
+  /**
+   * A send of this body left the device at least once (it may be at
+   * Core). Such an entry is never rebased, never refused by a pre-send
+   * check and never expired while Core may still replay it.
+   */
+  readonly everSent?: boolean;
   readonly nextAttemptAt: string | null;
   readonly lastError: QueueError | null;
   /** When the entry became `expired` or `blocked`; deleted 2 days later. */
@@ -168,22 +174,29 @@ export const SETTLED_KEEP_DAYS = 2;
 export const MAX_UNKNOWN_ATTEMPTS = 5;
 export const SEND_TIMEOUT_MS = 15_000;
 
-/** Entries past 14 days expire; expired and blocked go 2 days later. */
+/**
+ * D5: an entry past 14 days expires, and an expired entry is deleted 2 days
+ * after the warning. An entry that may already be at Core (`everSent`)
+ * keeps trying until the end of those 2 days, so Core can replay it (the
+ * receipt comes before the 14-day bound, §11.1). Nothing else is deleted
+ * without the acquirer: "Nicht mehr möglich" waits for "Verwerfen".
+ */
 export function retention(
   entry: QueueEntry,
   now: Date,
 ): "keep" | "expire" | "delete" {
-  if (entry.state === "expired" || entry.state === "blocked") {
+  if (entry.state === "expired") {
     const settled = Date.parse(entry.settledAt ?? entry.capturedAt);
     return now.getTime() - settled > SETTLED_KEEP_DAYS * DAY_MS
       ? "delete"
       : "keep";
   }
-  if (entry.state === "sending") return "keep";
-  const captured = Date.parse(entry.capturedAt);
-  return now.getTime() - captured > QUEUE_KEEP_DAYS * DAY_MS
-    ? "expire"
-    : "keep";
+  if (entry.state === "sending" || entry.state === "blocked") return "keep";
+  const age = now.getTime() - Date.parse(entry.capturedAt);
+  const limit = entry.everSent
+    ? (QUEUE_KEEP_DAYS + SETTLED_KEEP_DAYS) * DAY_MS
+    : QUEUE_KEEP_DAYS * DAY_MS;
+  return age > limit ? "expire" : "keep";
 }
 
 /* ---------- ordering (§9.2) ---------- */
@@ -201,6 +214,30 @@ const HOLDS_SPONSOR: ReadonlySet<QueueState> = new Set([
 ]);
 
 /**
+ * Order conflicts about the delivery window concern only that order: the
+ * sponsor's later contacts and orders go on (their base does not depend
+ * on it).
+ */
+const ORDER_ONLY_CONFLICTS: ReadonlySet<string> = new Set([
+  "delivery_window_full",
+  "delivery_window_unavailable",
+  "delivery_required",
+  "delivery_address_required",
+  "delivery_window_required",
+  "commitment_price_changed",
+  "offering_not_available",
+]);
+
+function holdsSponsor(entry: QueueEntry): boolean {
+  if (!HOLDS_SPONSOR.has(entry.state)) return false;
+  return !(
+    entry.state === "conflict" &&
+    entry.kind === "commitment" &&
+    ORDER_ONLY_CONFLICTS.has(entry.lastError?.code ?? "")
+  );
+}
+
+/**
  * The next entry to send now: per sponsor in `sequence` order, one at a
  * time. An unresolved entry holds back only later entries of its own
  * sponsor; expired and blocked entries never send and hold nothing.
@@ -214,7 +251,7 @@ export function nextSendable(
   for (const entry of ordered) {
     const key = partyKey(entry);
     if (held.has(key)) continue;
-    if (HOLDS_SPONSOR.has(entry.state)) held.add(key);
+    if (holdsSponsor(entry)) held.add(key);
     if (entry.state !== "queued" && entry.state !== "sending") continue;
     if (entry.dependsOn) continue;
     if (
@@ -283,35 +320,67 @@ function queueError(error: ApiError): QueueError {
   };
 }
 
+/** 403 codes that mean "no longer allowed in this action" (§9.4). */
+export const ACTION_FORBIDDEN_CODES: ReadonlySet<string> = new Set([
+  "acquirer_required",
+  "commitment_capture_required",
+  "commitment_acquisition_required",
+]);
+
+/** 403 codes about this one sponsor or order, not the action. */
+const ENTRY_FORBIDDEN_CODES: ReadonlyMap<string, string> = new Map([
+  ["commitment_party_not_assigned", "sponsor_not_assigned"],
+  ["commitment_owner_required", "commitment_owner_required"],
+  ["commitment_source_forbidden", "commitment_source_forbidden"],
+]);
+
+/**
+ * 403 codes of the transport guards (origin, CSRF): a session or
+ * configuration problem, never a reason to give a capture up.
+ */
+const TRANSPORT_FORBIDDEN_CODES: ReadonlySet<string> = new Set([
+  "csrf_rejected",
+  "cors_origin_rejected",
+]);
+
 /** Maps a failed send to what the queue does next. */
-export function classifyFailure(
-  error: unknown,
-  retryAfterSeconds: number | null = null,
-): SendOutcome {
+export function classifyFailure(error: unknown): SendOutcome {
   if (!(error instanceof ApiError)) {
     return { type: "transient", retryAfterMs: 0 };
   }
   const status = error.status;
   const code = error.detail.code;
+  // §9.4: at least Retry-After (429, and 503 for maintenance).
+  const retryAfterMs = Math.max(0, error.retryAfterSeconds ?? 0) * 1000;
   if (
+    status === 429 ||
     status === 502 ||
     status === 503 ||
     status === 504 ||
     code === "unexpected_response_type"
   ) {
-    return { type: "transient", retryAfterMs: 0 };
-  }
-  if (status === 429) {
-    return {
-      type: "transient",
-      retryAfterMs: Math.max(0, retryAfterSeconds ?? 0) * 1000,
-    };
+    return { type: "transient", retryAfterMs };
   }
   if (status === 409 && code === "idempotency_incomplete") {
     return { type: "transient", retryAfterMs: 0 };
   }
   if (status === 401) return { type: "paused" };
-  if (status === 403) return { type: "blocked", error: queueError(error) };
+  if (status === 403) {
+    if (TRANSPORT_FORBIDDEN_CODES.has(code)) {
+      return { type: "transient", retryAfterMs: 0 };
+    }
+    if (ACTION_FORBIDDEN_CODES.has(code)) {
+      return { type: "blocked", error: queueError(error) };
+    }
+    const entryCode = ENTRY_FORBIDDEN_CODES.get(code);
+    if (entryCode) {
+      return {
+        type: "conflict",
+        error: { ...queueError(error), code: entryCode },
+      };
+    }
+    return { type: "unknown", error: queueError(error) };
+  }
   if (status === 404) {
     return {
       type: "conflict",
@@ -357,7 +426,7 @@ export function rebaseAfter(
         entry.sequence > accepted.sequence &&
         partyKey(entry) === partyKey(accepted) &&
         entry.state === "queued" &&
-        entry.attempts === 0,
+        !entry.everSent,
     )
     .map((entry) => ({
       ...entry,
