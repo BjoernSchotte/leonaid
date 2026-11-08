@@ -115,7 +115,7 @@ async def call(path: str, case: str, *, direct: bool = False) -> None:
             assert status == 408 and 3.8 <= elapsed < 7
         elif case == "exact-limit":
             # It reaches Astro validation, not the body guard. Ordinary valid
-            # form acceptance is proven by the subsequent 24-order matrix.
+            # form acceptance is proven by the subsequent 4-order matrix.
             if path.startswith("/_actions/"):
                 # Astro ActionInputError uses BAD_REQUEST (400), not Core's
                 # UNPROCESSABLE_CONTENT (422). Prove actual schema validation.
@@ -158,8 +158,10 @@ async def main() -> None:
             },
         ) as twenty:
             before = await snapshot(core, twenty)
-            # The slow-body deadline (4 s each) is the proxy's, the same on
-            # every route: one route proves it. Size limits stay on all three.
+            # The 4 s slow-body deadline is the app's (order-body.ts), wired
+            # twice: the campaign site (closed-bootstrap.ts) and the public
+            # app (middleware.ts). Each wiring gets one slow case; the size
+            # limits run on all three routes.
             slow = ("slow-length", "slow-chunked", "slow-multipart")
             sizes = ("declared-overflow", "overflow", "exact-limit")
             routes = (
@@ -169,6 +171,7 @@ async def main() -> None:
             )
             for case in slow:
                 await call(routes[0], case)
+            await call(routes[2], "slow-chunked")
             for path in routes:
                 for case in sizes:
                     await call(path, case)
@@ -176,8 +179,9 @@ async def main() -> None:
                 "Rejected or invalid order bodies mutated Core or Twenty"
             )
             print(
-                "order-body-deadline: 12 real TLS cases (slow bodies on the campaign "
-                "route, size limits on both native renderers and RPC); seven Core "
+                "order-body-deadline: 13 real TLS cases (slow bodies on the campaign "
+                "route and the public RPC route, size limits on both native "
+                "renderers and RPC); seven Core "
                 "tables and Twenty unchanged",
                 flush=True,
             )

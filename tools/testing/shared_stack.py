@@ -27,17 +27,10 @@ if __package__:
 else:
     import parallel_stacks
 
-# Survey stacks keep Twenty running across data resets (decision E-022).
-# Survey proofs never use the CRM: the stack runs without an integration
-# key, so neither API nor worker can write to Twenty, and Twenty only has to
-# stay healthy for the API readiness probe. Restarting it cost about 40 s
-# per survey check. Every other volume is restored and verified.
-PRESERVED_SERVICES = {
-    "survey": frozenset(
-        {"twenty-server", "twenty-worker", "twenty-postgres", "twenty-redis"}
-    )
-}
-PRESERVED_VOLUMES = {
+# Survey stacks run without Twenty (decision E-031): without a CRM key the
+# API does not wait for it (tools/testing/survey-runtime.yml), and its
+# volumes are never mounted, restored or digested.
+UNUSED_VOLUMES = {
     "survey": frozenset(
         {"twenty-postgres-data", "twenty-redis-data", "twenty-server-data"}
     )
@@ -47,7 +40,7 @@ PRESERVED_VOLUMES = {
 # and file contents. Modification times are not part of it.
 DIGEST_SCRIPT = (
     'for d in /state/*; do printf "%s " "${d##*/}"; '
-    '(cd "$d" && find . -print0 | sort -z | xargs -0r stat -c "%n %F %s %a %u:%g %N" '
+    '(cd "$d" && find . -mindepth 1 -print0 | sort -z | xargs -0r stat -c "%n %F %s %a %u:%g %N" '
     '&& find . -type f -print0 | sort -z | xargs -0r sha256sum) | sha256sum | cut -d " " -f 1; done'
 )
 
@@ -78,11 +71,8 @@ class SharedStack:
         # Content digests of the initialized volumes, taken after the first
         # restore; every later reset must reproduce them exactly.
         self.digests: dict[str, str] = {}
-        # Preservation starts once the initialized fixture is in place.
-        self.preserving = False
-        self.preserved_services = PRESERVED_SERVICES.get(kind, frozenset())
-        self.preserved_volumes = frozenset(
-            self.project + "_" + name for name in PRESERVED_VOLUMES.get(kind, ())
+        self.unused_volumes = frozenset(
+            self.project + "_" + name for name in UNUSED_VOLUMES.get(kind, ())
         )
         # Set by the local fixture cache after it validated the entry it holds.
         self.fixture_metadata: dict | None = None
@@ -298,7 +288,7 @@ class SharedStack:
                     if self.env.get("LEONAID_FIXTURE_BUILD") == "1"
                     else ["api"]
                 ),
-                "twenty-worker",
+                *([] if self.kind == "survey" else ["twenty-worker"]),
                 "mailpit",
                 *(["seaweedfs"] if self.kind == "documents" else []),
             ]
@@ -432,9 +422,8 @@ class SharedStack:
             if self.fixture_metadata is not None
             else validate(self.root, directory)
         )
-        # A survey stack never gets the CRM key: no survey check may talk to
-        # Twenty, whose state is not reset between checks.
-        if not self.preserved_services:
+        # A survey stack has no CRM: no key, no Twenty.
+        if self.kind != "survey":
             self.env["TWENTY_INTEGRATION_API_KEY"] = metadata["integrationKey"]
         self.compose += ["--file", str(self.root / "tools/testing/shared-runtime.yml")]
         # Volumes are cheap to create directly. Do not pull/start unused services
@@ -468,23 +457,16 @@ class SharedStack:
 
     def active_containers(self):
         # `docker ps` without -a lists running, restarting and paused containers.
-        rows = self.call(
+        return self.call(
             [
                 "docker",
                 "ps",
-                "--format",
-                '{{.ID}} {{.Label "com.docker.compose.service"}}',
+                "-q",
                 "--filter",
                 f"label=com.docker.compose.project={self.project}",
             ],
             capture=True,
-        ).splitlines()
-        active = []
-        for row in rows:
-            container, _, service = row.partition(" ")
-            if not (self.preserving and service in self.preserved_services):
-                active.append(container)
-        return active
+        ).split()
 
     def describe(self, containers):
         result = subprocess.run(
@@ -555,9 +537,11 @@ class SharedStack:
             f"{self.directory}:/fixture",
         ]
         # Indices stay those of the full inventory, so archive names never shift.
+        mounted = set()
         for index, volume in enumerate(self.volumes):
-            if self.preserving and volume in self.preserved_volumes:
+            if volume in self.unused_volumes:
                 continue
+            mounted.add(str(index))
             args += ["--mount", f"type=volume,src={volume},dst=/state/{index}"]
         # Names are numeric indices from the guarded inventory, never external paths.
         script = (
@@ -570,22 +554,24 @@ class SharedStack:
             [*args, self.alpine, "sh", "-eu", "-c", script + DIGEST_SCRIPT],
             capture=True,
         )
-        self.verify_digests(output)
+        self.verify_digests(output, mounted)
         # Fail closed if anything started while the copy ran.
         if active := self.active_containers():
             raise RuntimeError(
                 f"Fixture {mode} raced with started containers: {self.describe(active)}"
             )
 
-    def verify_digests(self, output):
+    def verify_digests(self, output, mounted):
         """Record the initialized state once; afterwards every reset must match it.
 
         A file a check left behind, or one the restore could not delete,
         changes the digest of its volume, and the next check is refused.
         """
         digests = dict(line.split(" ", 1) for line in output.splitlines())
-        if not digests:
-            raise RuntimeError("Fixture digest is empty")
+        if set(digests) != mounted:
+            raise RuntimeError(
+                f"Fixture digest covers {sorted(digests)}, not {sorted(mounted)}"
+            )
         if not self.digests:
             self.digests = digests
             return
@@ -613,10 +599,7 @@ class SharedStack:
             self.initialize()
         elif self.used:
             start = time.monotonic()
-            # With preserved services, quiesce() stops every other container.
-            self.preserving = bool(self.preserved_services)
-            if not self.preserving:
-                self.call([*self.compose, "--profile", "*", "stop", "--timeout", "5"])
+            self.call([*self.compose, "--profile", "*", "stop", "--timeout", "5"])
             self.copy_volumes("restore")
             print(
                 f"shared-stack: data reset {time.monotonic() - start:.1f}s",
@@ -742,7 +725,9 @@ class LeafRunner:
             if self.cancelled.is_set():
                 return None
             child = subprocess.Popen(
-                ["/bin/sh", str(self.root / script), str(self.root)],
+                # A leaf is a script path, optionally followed by its arguments.
+                ["/bin/sh", str(self.root / script.split()[0]), str(self.root)]
+                + script.split()[1:],
                 cwd=self.root,
                 env=env,
                 stdout=log,
@@ -908,7 +893,10 @@ def main():
         help="Run every leaf after a failure; exit with the first failure's code",
     )
     parser.add_argument(
-        "kind", nargs="?", default="documents", choices=["core", "golden", "documents"]
+        "kind",
+        nargs="?",
+        default="documents",
+        choices=["core", "golden", "documents", "survey"],
     )
     parser.add_argument("scripts", nargs="*")
     args = parser.parse_args()

@@ -138,6 +138,30 @@ def main() -> None:
             lambda: parse_resolve(["portal.leonaid.org=:70000"]),
         )
 
+        # Without the key the API no longer waits for Twenty (E-031), so a
+        # forgotten key must fail here instead of looking ready.
+        for label, missing in (
+            ("missing integration key", True),
+            ("empty integration key", False),
+        ):
+            without_key = dict(values)
+            if missing:
+                del without_key["TWENTY_INTEGRATION_API_KEY"]
+            else:
+                without_key["TWENTY_INTEGRATION_API_KEY"] = ""
+            write_environment(environment_path, without_key)
+            rejected(
+                label,
+                lambda: validate_environment(
+                    without_key,
+                    root=root,
+                    env_file=environment_path,
+                    compose_config=compose_config,
+                    expected_release_commit=expected_commit,
+                    first_install=True,
+                ),
+            )
+
         # A first install may carry the pending marker; no other gate may.
         pending_key = dict(values)
         pending_key["TWENTY_INTEGRATION_API_KEY"] = PENDING_INTEGRATION_KEY

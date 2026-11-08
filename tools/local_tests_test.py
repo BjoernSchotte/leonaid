@@ -12,7 +12,6 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tools.testing.local_stack import LocalStack, fingerprints
-from tools.surveys.gate import ci_shards, load_manifest
 
 
 class LocalTests(unittest.TestCase):
@@ -30,20 +29,20 @@ class LocalTests(unittest.TestCase):
         for part in (integration, e2e):
             self.assertNotIn("backup", part)
             self.assertNotIn("upgrade", part)
-        manifest = load_manifest(root)
-        pr = {
-            c
-            for shard in ci_shards(manifest, "pr")
-            for c in manifest["ciShards"][shard]
-        }
-        nightly = {
-            c
-            for shard in ci_shards(manifest, "nightly")
-            for c in manifest["ciShards"][shard]
-        }
-        self.assertFalse(pr & nightly)
-        self.assertEqual(len(pr), 19)
-        self.assertEqual(len(nightly), 12)
+        # Every survey check mode belongs to exactly one shard of
+        # ./leonaid test-surveys.
+        shards = cli.split("test_surveys() {\n")[1].split("\n}\n")[0]
+        assigned = re.findall(r"\$survey_leaf ([a-z-]+)", shards)
+        for loop in re.findall(
+            r"for mode in ([a-z -]+); do\n\s+/bin/sh \"\$root/\$survey_leaf\"", shards
+        ):
+            assigned += loop.split()
+        script = (root / "tools/surveys/infrastructure.sh").read_text()
+        modes = re.findall(
+            r"[a-z-]+", script.split('case "$mode" in\n')[1].split(") ;;")[0]
+        )
+        self.assertEqual(len(modes), 23)
+        self.assertEqual(sorted(assigned), sorted(modes))
 
     def test_changes_invalidate_only_required_cache(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -173,7 +173,7 @@ def prove_workflow_upload_boundary(workspace: Path) -> None:
     check_workflows(root)
 
     ci.write_text(
-        workflow_with_upload(".artifacts/cache-measurement/*.json"),
+        workflow_with_upload(".artifacts/sbom/*.cdx.json"),
         encoding="utf-8",
     )
     check_workflows(root)
@@ -204,9 +204,9 @@ def prove_workflow_upload_boundary(workspace: Path) -> None:
     other.unlink()
 
     for forbidden in (
-        ".artifacts/cache-measurement/*",
-        ".artifacts/cache-measurement/**/*.json",
-        ".artifacts/cache-measurement/*.log",
+        ".artifacts/sbom/*",
+        ".artifacts/sbom/**/*.json",
+        ".artifacts/sbom/*.log",
         "${{ runner.temp }}/surveys-ci-results/*",
         "${{ runner.temp }}/surveys-ci-results/**/*.json",
         "${{ runner.temp }}/surveys-ci-results/*.log",

@@ -88,7 +88,7 @@ uses `html:has(.survey-shell) { scroll-behavior: auto; }`: delayed focus-trigger
 scroll events otherwise dismiss SurveyJS dropdown popups during pointer selection.
 
 Tests live in `tools/surveys/saves.test.ts` and
-`tests/e2e/surveys-runner.spec.mjs`. `./leonaid test-surveys --check runner` builds a fresh
+`tests/e2e/surveys-runner.spec.mjs`. `./leonaid test-surveys runner` builds a fresh
 isolated stack and exercises actual services before the browser scenarios.
 
 The runner model maps the profile's minimum text length to a native SurveyJS

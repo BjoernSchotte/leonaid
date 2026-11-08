@@ -3,14 +3,14 @@ name: Nightly watchdog
 # Scheduled and post-merge runs on main have no pull request that shows
 # their result. This keeps one open issue per watched entry while its latest
 # run on main is not green (or a schedule is overdue), and closes it after a
-# green run. Post-merge entries (ci.yml, surveys.yml: the heavy suites after
-# every merge, decision E-018) ignore cancelled, superseded runs.
+# green run. Post-merge entries (ci.yml: the heavy suites after every
+# merge, decision E-018) ignore cancelled, superseded runs.
 # Documentation publication has its own watchdog (docs-watchdog.yml).
 # tools/ci/workflow_contract.py requires every other scheduled workflow and
 # every post-merge workflow here.
 on:
   workflow_run:
-    workflows: [LeonAid CI, Survey acceptance, Dependency pins, Image pin drift]
+    workflows: [LeonAid CI, Dependency pins, Image pin drift]
     types: [completed]
   # Also catches a schedule that stopped firing or a missed workflow_run.
   schedule:
@@ -36,11 +36,10 @@ jobs:
       # workflow file:maximum hours since its last scheduled run on main
       # [:word the run title must contain], or workflow file:push for the
       # latest post-merge run on main (no age limit: main may see no merge
-      # for days). ci.yml and surveys.yml run after every merge; their
-      # nightly runs (ci.yml: every E2E leaf; surveys.yml: recovery and
-      # backup) are tracked on their own. Runs after every completed
+      # for days). ci.yml runs after every merge; its nightly run (every
+      # E2E leaf, survey recovery and backup) is tracked on its own. Runs after every completed
       # scheduled or post-merge run (workflow_run), and daily.
-      WATCHED: "ci.yml:push ci.yml:30:nightly surveys.yml:push surveys.yml:30:nightly pin-drift.yml:30 pins.yml:192"
+      WATCHED: "ci.yml:push ci.yml:30:nightly pin-drift.yml:30 pins.yml:192"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

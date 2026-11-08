@@ -16,34 +16,34 @@ from tools.ci import workflow_contract as contract  # noqa: E402
 
 CI_MUTATIONS = (
     (
+        "      - surveys\n      - backup-recovery\n",
+        "      - backup-recovery\n",
+        "the gate does not require: surveys",
+    ),
+    (
+        "    name: Survey gate\n    needs: gate\n",
+        "    name: Survey gate\n    needs: select\n",
+        "the required 'Survey gate' must mirror the CI gate",
+    ),
+    (
         "github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && 'true' || 'false'",
         "github.event_name != 'pull_request' && 'true' || 'false'",
         "only the Build job of runs on main may write the shared cache",
     ),
     (
-        "    if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'\n",
-        "    if: github.event.pull_request.draft != true && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'\n",
-        "ci.yml: job select must not run for a draft, a title edit",
+        "  select:\n    if: github.event.pull_request.draft != true\n",
+        "  select:\n    if: true\n",
+        "ci.yml: job select must not run for a draft",
     ),
     (
-        "    if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'\n",
-        "    if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base)\n",
-        "a label change other than adding full-ci",
+        "    types: [opened, reopened, synchronize, ready_for_review]\n",
+        "    types: [opened, reopened, synchronize, ready_for_review, edited]\n",
+        "ci.yml: pull_request must list exactly opened",
     ),
     (
-        "        edited,\n        labeled,\n        unlabeled,\n",
-        "        edited,\n",
-        "ci.yml: pull_request must list labeled and unlabeled",
-    ),
-    (
-        "(github.event.action == 'labeled' && github.event.label.name != 'full-ci') || ",
-        "",
-        "title-edit, label and draft runs must not share",
-    ),
-    (
-        "          LABEL: ${{ github.event.label.name }}\n",
-        "",
-        "ci.yml: the gate must hand the draft/edit/label/stack context",
+        "          DRAFT: ${{ github.event.pull_request.draft == true }}\n          # A stacked result never passes (tools/ci/gate.py stacked).\n          BASE_REF: ${{ github.base_ref }}\n          PR_NUMBER: ${{ github.event.pull_request.number }}\n          GATE_NAME: CI gate\n",
+        "          PR_NUMBER: ${{ github.event.pull_request.number }}\n          GATE_NAME: CI gate\n",
+        "ci.yml: the gate must hand the draft context",
     ),
     (
         "    with:\n      post-merge: true\n",
@@ -53,32 +53,12 @@ CI_MUTATIONS = (
     (
         '          FULL_CI_GATE: "true"\n',
         "",
-        "ci.yml: the gate must hand the draft/edit/label/stack context",
+        "ci.yml: the gate must hand the draft context",
     ),
     (
         "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
         "  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}\n",
         "ci.yml: only pull-request runs may be cancelled",
-    ),
-    (
-        "        run: python3 tools/ci/hold_gate.py\n",
-        "        run: true\n",
-        "ci.yml: adding full-ci must hold 'CI gate' red at once",
-    ),
-    (
-        "    permissions:\n      checks: write\n",
-        "    permissions:\n      checks: read\n",
-        "ci.yml: adding full-ci must hold 'CI gate' red at once",
-    ),
-    (
-        "            --selectable vulnerability=heavy",
-        "            --may-skip vulnerability",
-        "The gate must require vulnerability unless heavy is false",
-    ),
-    (
-        "&& format('-mirror-{0}', github.run_id) || '' }}",
-        "",
-        "must not share the PR's concurrency group",
     ),
     (
         '      LEONAID_CI_STEP_SECONDS: "5100"\n',
@@ -89,11 +69,6 @@ CI_MUTATIONS = (
         '    - cron: "7 3 * * *"\n',
         '    - cron: "7 3 * * *"\n    - cron: "37 */3 * * *"\n',
         "the nightly run is the only schedule",
-    ),
-    (
-        "        converted_to_draft,\n        edited,\n",
-        "        converted_to_draft,\n",
-        "ci.yml: pull_request must list ready_for_review, converted_to_draft and edited",
     ),
     (
         "  lint:\n",
@@ -111,14 +86,9 @@ CI_MUTATIONS = (
         "Job missing: vulnerability",
     ),
     (
-        "needs.select.outputs.heavy != 'false' && needs.fixture.result",
-        "needs.fixture.result",
-        "security may be skipped only for a stacked PR",
-    ),
-    (
-        "            --selectable build=heavy",
-        "            --may-skip build",
-        "The gate must require build unless heavy is false",
+        "    needs: [select, lint, integration-shards]\n",
+        "    needs: [select, integration-shards]\n",
+        "API contract gate",
     ),
     (
         "    name: E2E ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n",
@@ -228,8 +198,8 @@ CI_MUTATIONS = (
         "golden-parts must not run when the suite selector failed",
     ),
     (
-        "      - golden-journey\n    if: ${{ always()",
-        "    if: ${{ always()",
+        "      - golden-journey\n      - surveys\n",
+        "      - surveys\n",
         "gate does not require: golden-journey",
     ),
     (
@@ -267,82 +237,10 @@ CI_MUTATIONS = (
 
 OTHER_MUTATIONS = (
     (
-        "refresh-gates.yml",
-        "          persist-credentials: false\n",
-        "",
-        "refresh-gates.yml: must run tools/ci/rerun_stale_gates.py",
-    ),
-    (
-        "refresh-gates.yml",
-        "        Documentation,\n",
-        "",
-        "refresh-gates.yml: must run on workflow_run of exactly",
-    ),
-    (
-        "refresh-gates.yml",
-        "  actions: write\n",
-        "  actions: read\n",
-        "refresh-gates.yml: permissions must be exactly",
-    ),
-    (
-        "refresh-gates.yml",
-        "    if: github.event.workflow_run.event == 'pull_request'\n",
-        "",
-        "refresh-gates.yml: must run tools/ci/rerun_stale_gates.py",
-    ),
-    (
-        "refresh-gates.yml",
-        "          sparse-checkout: tools/ci\n",
-        "          sparse-checkout: tools/ci\n          ref: ${{ github.event.workflow_run.head_sha }}\n",
-        "refresh-gates.yml: must run tools/ci/rerun_stale_gates.py",
-    ),
-    (
         "pins.yml",
-        "\n  select:\n",
-        "\n  choose:\n",
-        "pins.yml: the selector job key must be 'select'",
-    ),
-    (
-        "docs.yml",
-        "github.event.action != 'converted_to_draft'",
-        "true",
-        "docs.yml: title-edit, label and draft runs must not share",
-    ),
-    (
-        "select-suites.yml",
-        "    name: Select suites\n",
-        "    name: Choose suites\n",
-        "the select job must be named 'Select suites'",
-    ),
-    (
-        "nightly-watchdog.yml",
-        " surveys.yml:30:nightly",
+        "          BASE_REF: ${{ github.base_ref }}\n",
         "",
-        "scheduled workflow surveys.yml is not watched",
-    ),
-    (
-        "surveys.yml",
-        "  push:\n    branches:\n      - main\n",
-        "",
-        "surveys.yml: every push to main must run the post-merge tier",
-    ),
-    (
-        "surveys.yml",
-        "    with:\n      post-merge: true\n",
-        "",
-        "surveys.yml: the selector must diff a push since the last green run",
-    ),
-    (
-        "surveys.yml",
-        "        labeled,\n        unlabeled,\n",
-        "",
-        "surveys.yml: pull_request must list labeled and unlabeled",
-    ),
-    (
-        "surveys.yml",
-        "          GATE_NAME: Survey gate\n          RUN_URL:",
-        "          GATE_NAME: CI gate\n          RUN_URL:",
-        "surveys.yml: adding full-ci must hold 'Survey gate' red at once",
+        "pins.yml: the gate must hand the draft context to gate.py",
     ),
     (
         "select-suites.yml",
@@ -382,38 +280,10 @@ OTHER_MUTATIONS = (
     ),
     (
         "pins.yml",
-        "          HEAD_SHA: ${{ github.event.pull_request.head.sha }}\n",
+        "          DRAFT: ${{ github.event.pull_request.draft == true }}\n",
         "",
-        "pins.yml: the gate must hand the draft/edit/label/stack context to gate.py",
+        "pins.yml: the gate must hand the draft context to gate.py",
     ),
-    (
-        "surveys.yml",
-        "run: sh tools/ci/free-runner-disk.sh wait",
-        "run: true",
-        "job surveys must free runner disk",
-    ),
-    (
-        "surveys.yml",
-        "      - name: Finish freeing runner disk\n"
-        "        run: sh tools/ci/free-runner-disk.sh wait\n"
-        "      - name: Run isolated backup and recovery proof\n",
-        "      - name: Run isolated backup and recovery proof\n",
-        "job backup-recovery must free runner disk",
-    ),
-    ("surveys.yml", "  pull_request:\n", "  push:\n", "must run on pull_request"),
-    (
-        "surveys.yml",
-        "inventory, surveys, backup-recovery]",
-        "inventory, backup-recovery]",
-        "gate does not require: surveys",
-    ),
-    (
-        "api-contract.yml",
-        "  pull_request:\n",
-        "  pull_request:\n    paths: [src/**]\n",
-        "path filters",
-    ),
-    ("api-contract.yml", "python3 tools/ci/gate.py", "true", "tools/ci/gate.py"),
     (
         "pins.yml",
         "    needs: [select, policy, reproducibility, sbom]",
@@ -434,7 +304,7 @@ OTHER_MUTATIONS = (
     ),
     (
         "pin-drift.yml",
-        "for workflow in ci.yml surveys.yml api-contract.yml pins.yml docs.yml; do",
+        "for workflow in ci.yml pins.yml docs.yml; do",
         "for workflow in ci.yml pins.yml; do",
         "must dispatch exactly the required workflows",
     ),
@@ -449,32 +319,6 @@ OTHER_MUTATIONS = (
         "GH_TOKEN: ${{ github.token }}",
         "GH_TOKEN: ${{ secrets.REPIN_TOKEN }}",
         "must use GITHUB_TOKEN",
-    ),
-    (
-        "surveys.yml",
-        "  workflow_dispatch:\n",
-        "",
-        "surveys.yml: needs workflow_dispatch for the re-pin PR",
-    ),
-    (
-        "api-contract.yml",
-        '          "$PYTHON_IMAGE"\n',
-        "          docker.io/library/python:3.13.18-slim-trixie@sha256:"
-        + "e" * 64
-        + "\n",
-        "a digest in a workflow blocks the automatic re-pin",
-    ),
-    (
-        "nightly-watchdog.yml",
-        'WATCHED: "ci.yml:push ci.yml:30:nightly surveys.yml:push surveys.yml:30:nightly',
-        'WATCHED: "ci.yml:push ci.yml:30:nightly surveys.yml:push',
-        "scheduled workflow surveys.yml is not watched",
-    ),
-    (
-        "nightly-watchdog.yml",
-        " Survey acceptance,",
-        "",
-        "does not react to completed runs of surveys.yml",
     ),
     (
         "nightly-watchdog.yml",
