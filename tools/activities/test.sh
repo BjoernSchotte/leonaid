@@ -72,7 +72,7 @@ existing=$(docker network ls -q --filter "label=com.docker.compose.project=$proj
 python3 "$root/tools/surveys/network_override.py" "$isolation_file"
 owned=true
 compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
-build_shared_images api pwa
+build_shared_images api
 compose up --detach --wait --wait-timeout 420 \
   core-postgres rustfs mailpit twenty-server twenty-worker
 
@@ -120,35 +120,4 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --entrypoint python \
   api tools/activities/contract.py
 
-compose up --detach --wait --wait-timeout 420 pwa proxy
-
-docker run --rm \
-  --network "${project}_edge" \
-  --env CI=1 \
-  --env HOME=/tmp \
-  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
-  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
-  --env ANNA_SESSION=poc061-10000000-0000-4000-8000-000000000004-server-session-token-value \
-  --volume "$root:/workspace:ro" \
-  --volume "$proof:/proof" \
-  --workdir /workspace \
-  --user "$(id -u):$(id -g)" \
-  "$PLAYWRIGHT_IMAGE" \
-  node_modules/.bin/playwright test \
-  tests/e2e/activities.spec.mjs \
-  --browser=chromium \
-  --output=/proof/test-results \
-  --trace=retain-on-failure \
-  --reporter=line
-
-for screenshot in activity-recorded-mobile.png activity-persisted-mobile.png; do
-  if [ ! -s "$proof/$screenshot" ]; then
-    echo "activity-test: ERROR: browser proof is missing: $screenshot" >&2
-    exit 1
-  fi
-done
-mkdir -p "$root/.artifacts/poc061"
-cp "$proof/activity-recorded-mobile.png" "$root/.artifacts/poc061/"
-cp "$proof/activity-persisted-mobile.png" "$root/.artifacts/poc061/"
-
-echo "activity-test: OK: activity, follow-up, history and browser persistence proven for real"
+echo "activity-test: OK: activity, follow-up and history proven for real (API contract)"

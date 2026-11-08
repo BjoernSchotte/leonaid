@@ -366,7 +366,7 @@ async def main() -> None:
                 expected_revision=4,
                 status=status,
                 assignee_user_id=assigned.account.id,
-                closure_note="Erledigt" if status == "closed" else None,
+                closure_note="Erledigt und beantwortet" if status == "closed" else None,
             )
             for status in statuses
         ]

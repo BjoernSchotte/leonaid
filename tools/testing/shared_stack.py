@@ -27,17 +27,10 @@ if __package__:
 else:
     import parallel_stacks
 
-# Survey stacks keep Twenty running across data resets (decision E-022).
-# Survey proofs never use the CRM: the stack runs without an integration
-# key, so neither API nor worker can write to Twenty, and Twenty only has to
-# stay healthy for the API readiness probe. Restarting it cost about 40 s
-# per survey check. Every other volume is restored and verified.
-PRESERVED_SERVICES = {
-    "survey": frozenset(
-        {"twenty-server", "twenty-worker", "twenty-postgres", "twenty-redis"}
-    )
-}
-PRESERVED_VOLUMES = {
+# Survey stacks run without Twenty (decision E-031): without a CRM key the
+# API does not wait for it (tools/testing/survey-runtime.yml), and its
+# volumes are never mounted, restored or digested.
+UNUSED_VOLUMES = {
     "survey": frozenset(
         {"twenty-postgres-data", "twenty-redis-data", "twenty-server-data"}
     )
@@ -78,11 +71,8 @@ class SharedStack:
         # Content digests of the initialized volumes, taken after the first
         # restore; every later reset must reproduce them exactly.
         self.digests: dict[str, str] = {}
-        # Preservation starts once the initialized fixture is in place.
-        self.preserving = False
-        self.preserved_services = PRESERVED_SERVICES.get(kind, frozenset())
-        self.preserved_volumes = frozenset(
-            self.project + "_" + name for name in PRESERVED_VOLUMES.get(kind, ())
+        self.unused_volumes = frozenset(
+            self.project + "_" + name for name in UNUSED_VOLUMES.get(kind, ())
         )
         # Set by the local fixture cache after it validated the entry it holds.
         self.fixture_metadata: dict | None = None
@@ -298,7 +288,7 @@ class SharedStack:
                     if self.env.get("LEONAID_FIXTURE_BUILD") == "1"
                     else ["api"]
                 ),
-                "twenty-worker",
+                *([] if self.kind == "survey" else ["twenty-worker"]),
                 "mailpit",
                 *(["seaweedfs"] if self.kind == "documents" else []),
             ]
@@ -432,9 +422,8 @@ class SharedStack:
             if self.fixture_metadata is not None
             else validate(self.root, directory)
         )
-        # A survey stack never gets the CRM key: no survey check may talk to
-        # Twenty, whose state is not reset between checks.
-        if not self.preserved_services:
+        # A survey stack has no CRM: no key, no Twenty.
+        if self.kind != "survey":
             self.env["TWENTY_INTEGRATION_API_KEY"] = metadata["integrationKey"]
         self.compose += ["--file", str(self.root / "tools/testing/shared-runtime.yml")]
         # Volumes are cheap to create directly. Do not pull/start unused services
@@ -468,23 +457,16 @@ class SharedStack:
 
     def active_containers(self):
         # `docker ps` without -a lists running, restarting and paused containers.
-        rows = self.call(
+        return self.call(
             [
                 "docker",
                 "ps",
-                "--format",
-                '{{.ID}} {{.Label "com.docker.compose.service"}}',
+                "-q",
                 "--filter",
                 f"label=com.docker.compose.project={self.project}",
             ],
             capture=True,
-        ).splitlines()
-        active = []
-        for row in rows:
-            container, _, service = row.partition(" ")
-            if not (self.preserving and service in self.preserved_services):
-                active.append(container)
-        return active
+        ).split()
 
     def describe(self, containers):
         result = subprocess.run(
@@ -557,7 +539,7 @@ class SharedStack:
         # Indices stay those of the full inventory, so archive names never shift.
         mounted = set()
         for index, volume in enumerate(self.volumes):
-            if self.preserving and volume in self.preserved_volumes:
+            if volume in self.unused_volumes:
                 continue
             mounted.add(str(index))
             args += ["--mount", f"type=volume,src={volume},dst=/state/{index}"]
@@ -617,10 +599,7 @@ class SharedStack:
             self.initialize()
         elif self.used:
             start = time.monotonic()
-            # With preserved services, quiesce() stops every other container.
-            self.preserving = bool(self.preserved_services)
-            if not self.preserving:
-                self.call([*self.compose, "--profile", "*", "stop", "--timeout", "5"])
+            self.call([*self.compose, "--profile", "*", "stop", "--timeout", "5"])
             self.copy_volumes("restore")
             print(
                 f"shared-stack: data reset {time.monotonic() - start:.1f}s",

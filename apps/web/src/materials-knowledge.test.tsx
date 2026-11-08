@@ -308,6 +308,29 @@ describe("materials page", () => {
     ).toBeTruthy();
   });
 
+  it("says so when a linked material is gone or access was revoked", async () => {
+    const client = materialsClient();
+    client.getMaterial.mockRejectedValue(
+      new ApiError(404, { message: "not found" } as never),
+    );
+    wrap(
+      <MaterialsPage
+        basePath="/app/materials"
+        client={client as unknown as LeonAidApiClient}
+        identity={identity}
+        materialId="m-foreign"
+        surface="pwa"
+      />,
+      "/app/materials/m-foreign",
+    );
+    expect(
+      await screen.findByText(
+        "Das Material ist nicht verfügbar oder dein Zugriff wurde geändert.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText("m-foreign")).toBeNull();
+  });
+
   it("speaks with du in the app", async () => {
     const client = materialsClient();
     client.listMaterials.mockResolvedValue({ items: [], nextOffset: null });
