@@ -383,8 +383,7 @@ def main() -> int:
     )
     core = pr("tools/core/smoke.py")
     expect(
-        core.integration_units() == []
-        and "integration:seed-reset" in core.deferred,
+        core.integration_units() == [] and "integration:seed-reset" in core.deferred,
         f"a long shard runs after the merge: {core.integration_bins()}",
     )
     # E-019: the authorization negative contract stays before the merge for
