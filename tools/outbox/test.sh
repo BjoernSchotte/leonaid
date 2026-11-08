@@ -130,4 +130,26 @@ case "$retention_output" in
 esac
 api_probe verify-retention-cli
 
+echo "poc022-test: the platform worker stops on SIGTERM without the kill timeout"
+compose up --no-deps --detach worker
+worker_container=$(compose ps --quiet worker)
+# The health server answers once the process runs; its loops (and the
+# SIGTERM handler) start right after it.
+attempt=0
+until compose exec -T worker python -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8010/health/live")' >/dev/null 2>&1; do
+  attempt=$((attempt + 1))
+  [ "$attempt" -lt 60 ] || { echo "poc022-test: ERROR: worker never started" >&2; exit 1; }
+  sleep 1
+done
+sleep 2
+started=$(date +%s)
+compose stop --timeout 60 worker
+elapsed=$(($(date +%s) - started))
+if [ "$elapsed" -ge 10 ]; then
+  echo "poc022-test: ERROR: the idle worker needed ${elapsed}s to stop" >&2
+  exit 1
+fi
+[ "$(docker inspect --format '{{.State.ExitCode}}' "$worker_container")" = 0 ]
+compose logs --no-color worker | grep -q '"event": *"worker.stopped"'
+
 echo "poc022-test: OK: UoW, crash recovery, worker fencing, retry, dead letter, idempotency, retention, handler timeout and parked jobs proven"

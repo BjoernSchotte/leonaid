@@ -271,6 +271,12 @@ services:
       context: ../..
       dockerfile: infra/compose/Dockerfile.core
     logging: *default-logging
+    # SIGTERM stops claiming and lets the job in hand finish; the grace
+    # period covers the longest bounded handler (0.8 of the 300 s claim
+    # lease, bootstrap/worker.py effective_timeouts). The init forwards the
+    # signal and reaps Typst children.
+    init: true
+    stop_grace_period: 250s
     restart: unless-stopped
     <<: *hardened-runtime
     user: *core-user
