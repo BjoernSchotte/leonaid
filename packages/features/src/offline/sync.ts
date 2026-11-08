@@ -17,6 +17,7 @@ import {
   classifyFailure,
   nextSendable,
   rebaseAfter,
+  draftCheckOutlived,
   retention,
   type QueueEntry,
   type QueueStore,
@@ -62,7 +63,15 @@ export async function drainQueue(
   const { store } = dependencies;
   const accepted: { entry: QueueEntry; result: SendResult }[] = [];
 
-  for (const entry of await store.list()) {
+  for (const stored of await store.list()) {
+    let entry = stored;
+    // E-017: a draft's CRM check (its body may carry a street added during
+    // the check) leaves the device 14 days after the capture, whatever the
+    // state: a blocked draft stays until "Verwerfen", the street does not.
+    if (entry.kind === "sponsor-draft" && draftCheckOutlived(entry, now())) {
+      entry = { ...entry, resolution: null, resolveRequest: null };
+      await store.put(entry);
+    }
     const rule = retention(entry, now());
     if (rule === "delete") await store.delete(entry.entryId);
     if (rule === "expire") {

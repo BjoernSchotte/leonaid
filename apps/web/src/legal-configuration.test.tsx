@@ -541,6 +541,15 @@ describe("LegalConfigurationPage four-eyes flow", () => {
     );
     expect(notice.value).toContain("nur auf diesem Gerät, verschlüsselt");
     expect(notice.value).toContain("Endet deine Mitarbeit in einer Aktion");
+    // E-017: a street added during the CRM check, and how long it stays.
+    expect(notice.value).toContain(
+      "Ergänzt du bei der Prüfung eines Entwurfs im CRM die Straße, bleibt sie verschlüsselt auf dem Gerät, bis die Prüfung abgeschlossen ist, längstens 14 Tage.",
+    );
+    // Entries that cannot be sent any more wait for "Verwerfen".
+    expect(notice.value).toContain(
+      "Du kannst sie noch lesen und verwerfen; bis dahin bleiben sie auf dem Gerät.",
+    );
+    expect(notice.value).not.toContain("nach zwei Tagen löscht die App sie");
     // The device section describes the offline queue: the club must decide
     // consciously whether it applies yet.
     expect(notice.value).toContain(
