@@ -311,6 +311,10 @@ if [ "$recovery:$orders:$mode" = false:true:migration ]; then
   # Not the worker: it depends on a healthy server, so Compose would wait.
   compose up --detach twenty-server
 fi
+# One parallel build of the images the stack cases start. The later
+# `up --build` calls become cache hits: in CI each of them loaded its image
+# on its own, about 25 s apiece, one after the other.
+compose build api campaign-site proxy public worker web
 if [ "$mode" = emdash-upgrade ]; then
   . "$root/tools/emdash_spike/emdash-upgrade-legacy.sh"
 fi
