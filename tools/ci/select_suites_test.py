@@ -365,12 +365,12 @@ def main() -> int:
     )
     # Fast Integration legs: only specifically mapped shards that fit; a
     # long or overflowing shard waits for the merge.
-    for shard, seconds in s.INTEGRATION_SECONDS.items():
+    for shard, shard_seconds in s.INTEGRATION_SECONDS.items():
         legs, deferred = s.fast_pack([shard], s.INTEGRATION_SECONDS)
-        fits = seconds <= s.FAST_LEG_SECONDS
+        fits = shard_seconds <= s.FAST_LEG_SECONDS
         expect(
             (legs == [[shard]]) == fits and (deferred == [shard]) == (not fits),
-            f"fast leg for {shard} ({seconds} s)",
+            f"fast leg for {shard} ({shard_seconds} s)",
         )
     every = [*s.INTEGRATION_SHARDS, "contract"]
     legs, deferred = s.fast_pack(every, s.INTEGRATION_SECONDS)
@@ -511,10 +511,14 @@ def main() -> int:
         & s.e2e(*s.E2E_SHARDS),
         "the label does not widen a stacked PR",
     )
-    for labels, want in (("full-ci", "full"), ("x,full-e2e", "full"), ("x", "fast")):
+    for labels, want_tier in (
+        ("full-ci", "full"),
+        ("x,full-e2e", "full"),
+        ("x", "fast"),
+    ):
         expect(
-            label_tier(labels) == want,
-            f"--labels {labels!r} must give the {want} tier",
+            label_tier(labels) == want_tier,
+            f"--labels {labels!r} must give the {want_tier} tier",
         )
     # The nightly run (and dispatch) runs every leaf; it is the only schedule.
     for event, cron in (("schedule", s.NIGHTLY_SCHEDULE), ("workflow_dispatch", "")):
