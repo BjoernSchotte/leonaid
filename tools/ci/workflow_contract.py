@@ -553,10 +553,12 @@ def check_refresh(root: Path) -> list[str]:
         or "github.event.workflow_run.event == 'pull_request'" not in text
         or "ref:" in text
         or "secrets." in text
+        or "persist-credentials: false" not in text
     ):
         problems.append(
             f"{REFRESH}: must run tools/ci/rerun_stale_gates.py for pull-request runs "
-            "only, from main (no ref:), with GITHUB_TOKEN."
+            "only, from main (no ref:), with GITHUB_TOKEN and without persisted "
+            "git credentials."
         )
     return problems
 
