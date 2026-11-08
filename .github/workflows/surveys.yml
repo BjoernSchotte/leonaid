@@ -148,7 +148,7 @@ jobs:
       # tools/ci/sanitize_artifacts.py; a check with personal data is withheld.
       - name: Print sanitized failure excerpts
         if: failure()
-        # Its self-test runs in "Lint, types and unit" (tools/ci/lint-types.sh).
+        # Its self-test runs in "Lint and types" (tools/ci/lint-types.sh).
         run: sudo --preserve-env=LEONAID_CI_FIXTURE python3 tools/surveys/ci_failure_excerpt.py . "$RUNNER_TEMP/surveys-ci-results/failure-excerpts.json"
       - name: Publish structured results and sanitized excerpts
         if: always()
