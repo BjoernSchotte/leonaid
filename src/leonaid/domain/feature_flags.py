@@ -66,8 +66,8 @@ FEATURE_FLAG_CATALOG = (
             "Gerät und sendet offline erfasste Kontakte, Wiedervorlagen, "
             "Bestellungen und neue Sponsoren, sobald wieder Verbindung "
             "besteht. Vor dem Einschalten muss der aktive "
-            "Mitglieder-Datenschutzhinweis den Abschnitt „Speicherung auf "
-            "deinem Gerät“ enthalten (Rechtliche Angaben)."
+            "Mitglieder-Datenschutzhinweis den Abschnitt zur Speicherung "
+            "auf dem Gerät enthalten (Rechtliche Angaben)."
         ),
         effect=(
             "Akquisiteure in der PWA speichern Daten auf ihren Geräten. "
