@@ -27,6 +27,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable, Mapping, Sequence
+from typing import Any
 
 Fetch = Callable[[str], object]
 Post = Callable[[str], None]
@@ -53,7 +54,7 @@ def request(path: str, method: str = "GET") -> object:
     return json.loads(body) if body else {}
 
 
-def as_dict(value: object, what: str) -> dict:
+def as_dict(value: object, what: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise RuntimeError(f"unexpected API answer for {what}")
     return value
@@ -70,7 +71,8 @@ def selector_jobs(jobs: Sequence[Mapping[str, object]]) -> list[Mapping[str, obj
 
 def draft_refused(jobs: Sequence[Mapping[str, object]]) -> bool:
     for job in jobs:
-        for step in job.get("steps") or []:  # type: ignore[union-attr]
+        steps = job.get("steps")
+        for step in steps if isinstance(steps, list) else []:
             if (
                 isinstance(step, Mapping)
                 and step.get("name") == DRAFT_STEP
@@ -104,9 +106,9 @@ def real(jobs: Sequence[Mapping[str, object]]) -> bool:
     )
 
 
-def paged(fetch: Fetch, path: str, key: str) -> list[dict]:
+def paged(fetch: Fetch, path: str, key: str) -> list[dict[str, Any]]:
     """Every item of a paged listing; fails when the listing is short."""
-    items: list[dict] = []
+    items: list[dict[str, Any]] = []
     page = 1
     while True:
         data = as_dict(fetch(f"{path}&per_page={PAGE}&page={page}"), path)
@@ -122,7 +124,7 @@ def paged(fetch: Fetch, path: str, key: str) -> list[dict]:
         page += 1
 
 
-def jobs_of(fetch: Fetch, repository: str, run: int) -> list[dict]:
+def jobs_of(fetch: Fetch, repository: str, run: int) -> list[dict[str, Any]]:
     return paged(
         fetch, f"repos/{repository}/actions/runs/{run}/jobs?filter=latest", "jobs"
     )

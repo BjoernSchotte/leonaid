@@ -404,7 +404,8 @@ FIXTURES = HERE / "fixtures/rerun_stale_gates"
 
 def fixture(name: str) -> dict[str, Any]:
     """Trimmed real GitHub API payloads (see each file's "source")."""
-    return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+    data: dict[str, Any] = json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+    return data
 
 
 def test_rerun_selection() -> None:
