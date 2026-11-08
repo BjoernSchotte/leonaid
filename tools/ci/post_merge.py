@@ -115,8 +115,8 @@ def main(
             print(base)
         return 0
     data = json.load(sys.stdin)
-    runs = data.get("workflow_runs") if isinstance(data, dict) else None
-    run = pick_latest(runs if isinstance(runs, list) else [], args.event, args.word)
+    listed = data.get("workflow_runs") if isinstance(data, dict) else None
+    run = pick_latest(listed if isinstance(listed, list) else [], args.event, args.word)
     if run is not None:
         print(
             "\t".join(

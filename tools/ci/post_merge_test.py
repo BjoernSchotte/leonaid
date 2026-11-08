@@ -93,7 +93,7 @@ def test_base() -> None:
         ):
             status = post_merge.main(["base"], {"WORKFLOW_REF": "x/ci.yml@m"})
     finally:
-        post_merge.fetch_runs = original  # type: ignore[assignment]
+        post_merge.fetch_runs = original
     expect(
         status == 0 and printed.getvalue() == "",
         "an unreadable API prints no base (complete suite) and never fails",
