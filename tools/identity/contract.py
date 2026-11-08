@@ -1687,11 +1687,11 @@ async def run(arguments: argparse.Namespace) -> None:
                 if name
                 in {
                     "SYSTEM_SESSION",
-                    "SYSTEM_STALE_SESSION",
-                    "SYSTEM_ROLE_STALE_SESSION",
                     "KLARA_SESSION",
                     "ANNA_SESSION",
-                    "FINN_SESSION",
+                    # Ended by the suspension above: the browser proof of
+                    # the sign-in notice (z-account-status.spec.mjs).
+                    "ANNA_OLD_SESSION",
                 }
             )
             + "\n",

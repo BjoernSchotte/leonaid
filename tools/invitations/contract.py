@@ -36,9 +36,6 @@ REVOKED_EMAIL = "revoked-pilot@leonaid.invalid"
 BRUTE_FORCE_EMAIL = "code-limit-pilot@leonaid.invalid"
 REISSUE_EMAIL = "reissue-pilot@leonaid.invalid"
 CORRECTED_EMAIL = "reissue-corrected-pilot@leonaid.invalid"
-UI_RESEND_EMAIL = "ui-resend-pilot@leonaid.invalid"
-UI_CORRECT_EMAIL = "ui-correct-pilot@leonaid.invalid"
-UI_REVOKE_EMAIL = "ui-revoke-pilot@leonaid.invalid"
 FOREIGN_EMAIL = "foreign-lifecycle-pilot@leonaid.invalid"
 EMAIL_CHANGE_OLD = "email-change-old@leonaid.invalid"
 EMAIL_CHANGE_NEW = "email-change-new@leonaid.invalid"
@@ -815,37 +812,8 @@ async def run(arguments: argparse.Namespace) -> None:
             "link before address correction",
         )
 
-        ui_resend_id, _ = await create_invitation(
-            client,
-            klara_session,
-            action_id=ACTION_ID,
-            email=UI_RESEND_EMAIL,
-            display_name="UI Neuversand",
-            role="acquirer",
-        )
-        ui_correct_id, _ = await create_invitation(
-            client,
-            klara_session,
-            action_id=ACTION_ID,
-            email=UI_CORRECT_EMAIL,
-            display_name="UI Adresskorrektur",
-            role="driver",
-        )
-        ui_revoke_id, _ = await create_invitation(
-            client,
-            klara_session,
-            action_id=ACTION_ID,
-            email=UI_REVOKE_EMAIL,
-            display_name="UI Widerruf",
-            role="finance_reader",
-        )
         connection = await asyncpg.connect(database_url, timeout=10)
         try:
-            await connection.execute(
-                "UPDATE action_invitation SET created_at = $2 WHERE id = $1",
-                ui_resend_id,
-                now - timedelta(minutes=2),
-            )
             replacement_rows = await connection.fetch(
                 """
                 SELECT
@@ -1130,11 +1098,6 @@ async def run(arguments: argparse.Namespace) -> None:
     output.write_text(
         "\n".join(
             (
-                f"SYSTEM_SESSION={system_session}",
-                f"KLARA_SESSION={klara_session}",
-                f"UI_RESEND_INVITATION_ID={ui_resend_id}",
-                f"UI_CORRECT_INVITATION_ID={ui_correct_id}",
-                f"UI_REVOKE_INVITATION_ID={ui_revoke_id}",
                 f"UI_EMAIL_CONFIRM_TOKEN={ui_email_confirm_token}",
                 "",
             )
