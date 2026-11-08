@@ -93,7 +93,12 @@ E2E_SHARDS = (
 # Short browser smoke leg (tools/ci/e2e.sh smoke): real login, one list view,
 # one public order. Runs alone in its leg.
 SMOKE = "smoke"
-EMDASH_GROUPS = ("krapfentaxi-orders", "campaign-edge", "static")
+EMDASH_GROUPS = (
+    "krapfentaxi-orders",
+    "krapfentaxi-deadlines",
+    "static",
+    "campaign-edge",
+)
 # Whole-workflow or whole-job suites.
 FLAGS = ("contract", "golden", "surveys", "api", "pins")
 
@@ -146,10 +151,16 @@ E2E_SECONDS = {
     SMOKE: 240,
 }
 # EmDash bins are fixed: the order proof alone is the longest job of the run.
-EMDASH_BINS = (("krapfentaxi-orders",), ("campaign-edge", "static"))
+EMDASH_BINS = (
+    ("krapfentaxi-orders",),
+    ("krapfentaxi-deadlines", "static"),
+    ("campaign-edge",),
+)
 EMDASH_SECONDS = {
-    # Twenty starts beside the import (run 42508593075: 719 s before).
-    "krapfentaxi-orders": 640,
+    # Estimates from run 42508593075 (krapfentaxi-orders 719 s as one case):
+    # Twenty starts beside the import, 12 instead of 24 orders, two halves.
+    "krapfentaxi-orders": 420,
+    "krapfentaxi-deadlines": 340,
     # redirect-aliases 140 + campaign-hosts 168 + admin-only 175.
     "campaign-edge": 483,
     "static": 107,

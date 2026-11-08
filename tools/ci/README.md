@@ -232,7 +232,7 @@ bootstrap, fixture restore and image pulls before its first test. Most of the
 | Vulnerability gate | 1 | Own images built and scanned with the checkout, both lockfiles and every pinned third-party image; four Trivy lanes on one read-only advisory snapshot |
 | `Integration / <shards>` | 4 | All Integration shards and Contract |
 | `E2E / <leaves>` | 4 | All E2E leaves |
-| `EmDash proof / <groups>` | 2 | `krapfentaxi-orders`; `campaign-edge` + `static` |
+| `EmDash proof / <groups>` | 3 | `krapfentaxi-orders`; `krapfentaxi-deadlines` + `static`; `campaign-edge` |
 | Golden installation | 2 | Prepared and fresh installation (must stay separate runners) |
 | Golden journey, CI gate | 1 + 1 | Result comparison; the required check |
 
@@ -334,7 +334,7 @@ Then `tools/ci/sanitize_artifacts.py` withholds the excerpt on personal data,
 and a credential keyword still followed by a value withholds it too. Its
 self-test runs in Lint and types.
 
-The heaviest single case, `krapfentaxi-orders` (about 12 minutes of tests),
+The heaviest EmDash half, `krapfentaxi-orders` (about 7 minutes of tests),
 sets the wall time of a complete run. `refit-timings.yml` (weekly, Monday 05:29 UTC) keeps the seconds tables
 current: `tools/ci/refit_timings.py` reads the job logs of the last 7
 successful nightly runs, takes per shard the median after dropping values
@@ -437,12 +437,14 @@ The optional campaign site (Compose profile `emdash`) has its own proof cases
 (`./leonaid test-emdash-spike --case <name>`). Two regressions were only visible
 in them: an EmDash editor load race (PR #37) and a Caddy body-drain regression
 (PR #38). PR and main CI therefore run `tools/ci/emdash.sh` in the
-`EmDash proof / <groups>` matrix, gated by `CI gate`. Two legs
-(`EMDASH_BINS`): `krapfentaxi-orders` alone, `campaign-edge` with `static`.
+`EmDash proof / <groups>` matrix, gated by `CI gate`. Three legs
+(`EMDASH_BINS`): `krapfentaxi-orders` alone, `krapfentaxi-deadlines` with
+`static`, `campaign-edge` alone.
 
 | Group | Cases |
 |---|---|
-| `krapfentaxi-orders` | `krapfentaxi-orders`: the whole `krapfentaxi-migration` case first (Krapfentaxi import with original media, three-browser editor and renderer proof, published redirects), then Chromium/Firefox/WebKit commerce and order journeys, Core/Twenty order ingress, native order deadlines. `krapfentaxi-migration` therefore does not run on its own. Twenty starts beside the import, not after it. |
+| `krapfentaxi-orders` | `krapfentaxi-orders-commerce`, the commerce half of `krapfentaxi-orders`: the whole `krapfentaxi-migration` case first (Krapfentaxi import with original media, three-browser editor and renderer proof, published redirects), then Chromium/Firefox/WebKit commerce phases, twelve order journeys (every scenario at least once per mode, every engine twice per mode) with Core/Twenty verification, valid order ingress. `krapfentaxi-migration` therefore does not run on its own. |
+| `krapfentaxi-deadlines` | `krapfentaxi-orders-deadlines`, the deadline half on its own stack: import, WebKit editor publication (the state the order proofs read), native and script order deadlines, partial CRM write, Caddy body deadlines. |
 | `campaign-edge` | `campaign-hosts`, `campaign-hosts-admin-only`: a campaign on its own host through the real edge, with and without a general public host; `redirect-aliases`: Chromium/Firefox/WebKit redirect alias editor (create, disable/enable, collision, move, remove) under the strict CSP |
 | `static` | stack-free `dependencies`, `krapfentaxi-source`, `authorization-inventory`, `release-manifest-compatibility`, `release-legacy-boundary`, `release-image-identity`, `closed-runtime`; plus `proxy-routing` (Caddy, public and CMS only, no database) |
 
@@ -459,9 +461,9 @@ Observed GitHub runtimes (post-merge run 42508593075, before the
 `campaign-edge` regrouping): `krapfentaxi-orders` 719 s, the former
 `krapfentaxi-migration` group 687 s (its own `krapfentaxi-migration` case
 204 s of it), `static` 105 s.
-`krapfentaxi-orders` is one stateful case (import, three-browser commerce
-phases, Twenty start, order journeys) and remains the longest job of the run;
-the other legs are packed to finish before it.
+Both halves start Twenty beside the import (`compose up --detach`) and wait
+for it only before the order phases. Locally `--case krapfentaxi-orders`
+still runs both halves on one stack.
 
 The jobs import the `emdash` BuildKit group; the Build job also exports the
 `campaign-site` cache. On failure the harness stores `compose ps` and the

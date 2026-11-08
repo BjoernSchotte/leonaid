@@ -15,11 +15,17 @@ group=${1:-}
 
 case "$group" in
   krapfentaxi-orders)
-    # Also the Krapfentaxi migration proof: it runs the krapfentaxi-migration
-    # case (import, three-browser editor, published redirects) unchanged
-    # before its order phases (auth-runtime-test.sh mode migration), so that
-    # case does not run on its own in CI.
-    cases=$group
+    # The commerce half of krapfentaxi-orders. It is also the Krapfentaxi
+    # migration proof: it runs the krapfentaxi-migration case (import,
+    # three-browser editor, published redirects) unchanged before its order
+    # phases (auth-runtime-test.sh mode migration), so that case does not run
+    # on its own in CI.
+    cases=krapfentaxi-orders-commerce
+    ;;
+  krapfentaxi-deadlines)
+    # The deadline half of krapfentaxi-orders, on its own stack: native and
+    # script order deadlines, partial CRM write, Caddy body deadlines.
+    cases=krapfentaxi-orders-deadlines
     ;;
   campaign-edge)
     # redirect-aliases: three-browser alias editor on /admin/actions/<id>
@@ -35,7 +41,7 @@ case "$group" in
     cases="dependencies krapfentaxi-source authorization-inventory release-manifest-compatibility release-legacy-boundary release-image-identity closed-runtime proxy-routing"
     ;;
   *)
-    echo "ci-emdash: ERROR: group krapfentaxi-orders|campaign-edge|static required" >&2
+    echo "ci-emdash: ERROR: group krapfentaxi-orders|krapfentaxi-deadlines|campaign-edge|static required" >&2
     exit 64
     ;;
 esac

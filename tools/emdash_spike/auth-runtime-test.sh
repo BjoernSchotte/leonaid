@@ -7,6 +7,11 @@ orders=${3:-false}
 recovery=${4:-false}
 recovery_import=${5:-false}
 cutover_rollback=${6:-false}
+# krapfentaxi-orders phases after the import: all (default), or one half for
+# a CI leg of its own (tools/ci/emdash.sh): commerce = commerce phases and the
+# order journeys, deadlines = native/script deadlines and body deadlines.
+order_phases=${EMDASH_ORDER_PHASES:-all}
+case "$order_phases:$orders:$mode:$recovery" in all:*|commerce:true:migration:false|deadlines:true:migration:false) ;; *) exit 2 ;; esac
 case "$cutover_rollback:$recovery:$orders:$recovery_import:$mode" in false:*|true:true:true:false:migration) ;; *) exit 2 ;; esac
 case "$recovery_import:$recovery:$mode:$orders" in false:*|true:true:migration:false) ;; *) exit 2 ;; esac
 case "$recovery:$mode:$orders" in false:*|true:migration:false|true:migration:true) ;; *) exit 2 ;; esac
@@ -420,7 +425,11 @@ if [ "$mode" != auth ]; then
     fi
     compose run --rm --no-deps --volume "$proof:/proof:ro" krapfentaxi-import-probe
     compose up --no-deps --build --detach --wait public mailpit worker
-    compose run --rm --no-deps admin-browser \
+    # The deadline half needs only the published state the order proofs
+    # read (WebKit's marker); the commerce half runs all three engines.
+    editor_engines=chromium,firefox,webkit
+    if [ "$order_phases" = deadlines ]; then editor_engines=webkit; fi
+    compose run --rm --no-deps --env EMDASH_EDITOR_ENGINES="$editor_engines" admin-browser \
       node tools/emdash_spike/krapfentaxi-import-browser-proof.mjs
     fixture /repo/tools/emdash_spike/redirect_http_proof.py --published
     if [ "$recovery" = true ]; then
@@ -430,14 +439,16 @@ if [ "$mode" != auth ]; then
     if [ "$orders" = true ]; then
       # Only real Core rows change between ordinary anonymous browser reads.
       # A dedicated directory excludes operator keys from the editorial witness.
-      mkdir "$proof/core-commerce"
-      compose run --rm --no-deps --volume "$proof/core-commerce:/proof" admin-browser \
-        node tools/emdash_spike/core-commerce-browser-proof.mjs baseline
-      for commerce_phase in price closed restored; do
-        LEONAID_ENV=test fixture /repo/tools/emdash_spike/core_auth_fixture.py "commerce-$commerce_phase"
+      if [ "$order_phases" != deadlines ]; then
+        mkdir "$proof/core-commerce"
         compose run --rm --no-deps --volume "$proof/core-commerce:/proof" admin-browser \
-          node tools/emdash_spike/core-commerce-browser-proof.mjs "$commerce_phase"
-      done
+          node tools/emdash_spike/core-commerce-browser-proof.mjs baseline
+        for commerce_phase in price closed restored; do
+          LEONAID_ENV=test fixture /repo/tools/emdash_spike/core_auth_fixture.py "commerce-$commerce_phase"
+          compose run --rm --no-deps --volume "$proof/core-commerce:/proof" admin-browser \
+            node tools/emdash_spike/core-commerce-browser-proof.mjs "$commerce_phase"
+        done
+      fi
       fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-mixed-offerings
       compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
       compose run --rm --no-deps --user "$(id -u):$(id -g)" --volume "$proof:/proof" orders-operator
@@ -449,13 +460,17 @@ if [ "$mode" != auth ]; then
       fi
       compose up --no-deps --detach --wait api
       visual_proof=$(mktemp -d)
-      . "$root/tools/emdash_spike/native-order-deadline-phase.sh"
-      LEONAID_ENV=test fixture /repo/tools/emdash_spike/order_body_deadline.py
-      compose run --rm --no-deps --volume "$proof:/proof" --volume "$visual_proof:/visual-proof" admin-browser \
-        node tools/emdash_spike/campaign-orders-browser-proof.mjs --imported
-      fixture /repo/tools/emdash_spike/campaign_orders_verify.py
-      LEONAID_ENV=test fixture /repo/tools/emdash_spike/valid_order_ingress_proof.py
-      echo "krapfentaxi-orders: synthetic screenshots retained in $visual_proof"
+      if [ "$order_phases" != commerce ]; then
+        . "$root/tools/emdash_spike/native-order-deadline-phase.sh"
+        LEONAID_ENV=test fixture /repo/tools/emdash_spike/order_body_deadline.py
+      fi
+      if [ "$order_phases" != deadlines ]; then
+        compose run --rm --no-deps --volume "$proof:/proof" --volume "$visual_proof:/visual-proof" admin-browser \
+          node tools/emdash_spike/campaign-orders-browser-proof.mjs --imported
+        fixture /repo/tools/emdash_spike/campaign_orders_verify.py
+        LEONAID_ENV=test fixture /repo/tools/emdash_spike/valid_order_ingress_proof.py
+      fi
+      echo "krapfentaxi-orders: phases $order_phases passed; synthetic screenshots retained in $visual_proof"
     fi
     exit 0
   fi

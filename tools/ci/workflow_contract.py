@@ -54,7 +54,12 @@ OUTSIDE_GATE = {
 }
 
 # Editor load race (PR #37) and Caddy body drain (PR #38) were only visible here.
-EMDASH_GROUPS = ("krapfentaxi-orders", "campaign-edge", "static")
+EMDASH_GROUPS = (
+    "krapfentaxi-orders",
+    "krapfentaxi-deadlines",
+    "static",
+    "campaign-edge",
+)
 
 # Proofs that run nowhere else; dropping a shard silently stops the proof.
 INTEGRATION_SHARDS = ("delivery",)

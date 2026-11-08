@@ -19,7 +19,7 @@ case "$test_case" in
   release-legacy-boundary) ;;
   release-manifest-compatibility) ;;
   release-image-identity) ;;
-  krapfentaxi-source|krapfentaxi-migration|krapfentaxi-orders|alias-namespaces|alias-persistence|alias-commands|alias-http|redirect-aliases|recovery-sql|recovery-local|recovery-app|recovery-orders|recovery-import) ;;
+  krapfentaxi-source|krapfentaxi-migration|krapfentaxi-orders|krapfentaxi-orders-commerce|krapfentaxi-orders-deadlines|alias-namespaces|alias-persistence|alias-commands|alias-http|redirect-aliases|recovery-sql|recovery-local|recovery-app|recovery-orders|recovery-import) ;;
   campaign-public-content|campaign-public-http|campaign-hosts|campaign-hosts-admin-only|campaign-public-media|postgres-pool|public-order-component|order-ingress-pilot|campaign-orders) ;;
   all|dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime|admin-browser|authorization-inventory|authorization-surface|campaign-content|campaign-runtime|schema-runtime|schema-migration|campaign-auth-race|campaign-editorial-isolation|campaign-media-binding|campaign-media-upload|campaign-media-http|campaign-editor-pointer|campaign-core-public) ;;
   *) echo "emdash-spike: case not implemented: $test_case" >&2; exit 2 ;;
@@ -99,6 +99,13 @@ if [ "$test_case" = alias-namespaces ] || [ "$test_case" = all ]; then
 fi
 if [ "$test_case" = krapfentaxi-orders ]; then
   /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" migration true
+fi
+# The two halves of krapfentaxi-orders, each on its own stack (CI legs).
+if [ "$test_case" = krapfentaxi-orders-commerce ]; then
+  EMDASH_ORDER_PHASES=commerce /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" migration true
+fi
+if [ "$test_case" = krapfentaxi-orders-deadlines ]; then
+  EMDASH_ORDER_PHASES=deadlines /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" migration true
 fi
 if [ "$test_case" = krapfentaxi-migration ] || [ "$test_case" = all ]; then
   /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" migration
