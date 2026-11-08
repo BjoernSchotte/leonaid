@@ -5,6 +5,8 @@
  * flag `pwa.offline_queue`; with it off nothing is kept on the device.
  */
 import type {
+  AcquisitionActivityBoardResponse,
+  CommitmentCaptureContextResponse,
   CurrentIdentityResponse,
   LeonAidApiClient,
 } from "@leonaid/api-client";
@@ -167,8 +169,18 @@ async function openIfQueued(userId: string): Promise<DeviceStore | null> {
  * acquirer may no longer see: actions without an acquirer role and
  * documents past 14 days.
  */
+/** How the refresh loads Core's data; the PWA shares its page queries. */
+export interface ReadCacheLoaders {
+  readonly board: (
+    actionId: string,
+  ) => Promise<AcquisitionActivityBoardResponse>;
+  readonly capture: (
+    actionId: string,
+  ) => Promise<CommitmentCaptureContextResponse>;
+}
+
 export async function refreshReadCache(
-  client: LeonAidApiClient,
+  loaders: ReadCacheLoaders,
   store: DeviceStore,
   identity: CurrentIdentityResponse,
 ): Promise<void> {
@@ -188,8 +200,8 @@ export async function refreshReadCache(
   for (const actionId of actions) {
     const fetchedAt = new Date().toISOString();
     const [board, context] = await Promise.allSettled([
-      client.getAcquisitionActivityBoard(actionId, { limit: 100 }),
-      client.getCommitmentCaptureContext(actionId),
+      loaders.board(actionId),
+      loaders.capture(actionId),
     ]);
     if (board.status === "fulfilled") {
       await store.putCache(

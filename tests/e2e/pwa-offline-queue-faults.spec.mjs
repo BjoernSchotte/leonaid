@@ -21,6 +21,9 @@ test.use({
     process.env.LEONAID_E2E_BROWSER === "chromium"
       ? { args: ["--ignore-certificate-errors"] }
       : {},
+  // Requests of a page under a service worker bypass page.route; this
+  // spec needs no offline start, so the worker stays out.
+  serviceWorkers: "block",
   viewport: { width: 390, height: 844 },
 });
 
@@ -51,13 +54,17 @@ test("a lost answer is resent with the same key and stored once", async ({
       if (dropped) return route.continue();
       // The real request reaches Core and commits; its answer is lost.
       const response = await route.fetch();
-      expect(response.status()).toBe(201);
-      dropped = true;
+      dropped = response.status() === 201;
       return route.abort("connectionreset");
     },
   );
 
   await page.goto(`${baseUrl}/app/sponsors`);
+  // The capture queue is ready (the glyph opens it).
+  await expect(page.getByTestId("network-state")).toHaveAttribute(
+    "data-queue-state",
+    "empty",
+  );
   await page
     .getByTestId("sponsor-row")
     .filter({ hasText: "Musterwerk GmbH" })
@@ -72,8 +79,12 @@ test("a lost answer is resent with the same key and stored once", async ({
   await page.getByTestId("activity-submit").click();
 
   // The backoff resend replays: the queue empties without a tap.
-  await expect(page.getByTestId("network-state")).toHaveAccessibleName(
-    "Online",
+  await expect
+    .poll(() => keys.length, { timeout: 30_000 })
+    .toBeGreaterThanOrEqual(2);
+  await expect(page.getByTestId("network-state")).toHaveAttribute(
+    "data-queue-state",
+    "empty",
     { timeout: 30_000 },
   );
   expect(dropped).toBe(true);

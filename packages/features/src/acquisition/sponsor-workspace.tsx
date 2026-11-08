@@ -778,6 +778,7 @@ function NewSponsor({
   useEffect(() => {
     if (!draftEntry || started.current) return;
     started.current = true;
+    setMode(draftEntry.mode);
     preview.mutate({ ...draftEntry.request, streetLine1: null });
   }, [draftEntry]);
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -1069,7 +1070,9 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
             client={client}
             draftEntry={draftEntry}
             identity={identity}
-            key={`${actionId}:${draftEntry?.entryId ?? ""}`}
+            // The URL's draft keeps the form mounted when the resolved
+            // draft leaves the queue.
+            key={`${actionId}:${draftId ?? ""}`}
             onAssigned={() => board.refetch()}
           />
         )}

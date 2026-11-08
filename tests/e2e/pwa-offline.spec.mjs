@@ -5,7 +5,9 @@
 // sign-out. Runs against the real stack (tools/pwa/test.sh switches the
 // flag on before and off after this spec); no request is intercepted.
 import { analyzeAccessibility } from "./axe.mjs";
-import { expect, test } from "./csp-guard.mjs";
+import { expect as baseExpect, test } from "./csp-guard.mjs";
+
+const expect = baseExpect.configure({ timeout: 60_000 });
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
@@ -28,6 +30,10 @@ const SECOND_ACQUIRER = {
 function sessionFor(userId) {
   return `poc062-${userId}-server-session-token-value`;
 }
+
+// The board reads the CRM, which Core limits to 100 requests a minute for
+// the whole installation; after the heavier specs a first load can wait.
+test.describe.configure({ timeout: 240_000 });
 
 test.use({
   ignoreHTTPSErrors: true,
@@ -141,7 +147,6 @@ test("the PWA starts offline from the encrypted device copy", async ({
   context,
   page,
 }) => {
-  test.setTimeout(120_000);
   await authenticate(context, annaSession);
   await page.goto(`${baseUrl}/app/sponsors`);
   await expect(
@@ -286,7 +291,6 @@ test("account switch and sign-out delete the device copy (D6, §8.5)", async ({
   context,
   page,
 }) => {
-  test.setTimeout(120_000);
   const second = SECOND_ACQUIRER[browserName];
   test.skip(!second, "No second acquirer persona for this browser.");
   await authenticate(context, annaSession);
@@ -331,10 +335,11 @@ test("account switch and sign-out delete the device copy (D6, §8.5)", async ({
   await expect(warning.getByTestId("sign-out-send-first")).toBeDisabled();
   await warning.getByRole("button", { name: "Abbrechen" }).click();
   await expect(warning).toBeHidden();
+  // The "Mehr" sheet is still open; online, "Erst senden" sends.
   await context.setOffline(false);
-  await page.getByTestId("pwa-menu").click();
   await page.getByTestId("logout").click();
   await page.getByTestId("sign-out-send-first").click();
+  await page.keyboard.press("Escape");
   await expect(page.getByTestId("network-state")).toHaveAccessibleName(
     "Online",
     { timeout: 30_000 },

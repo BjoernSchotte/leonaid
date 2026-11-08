@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ApiError,
+  type AcquisitionActivityBoardResponse,
   type CommitmentCaptureContextResponse,
   type CurrentIdentityResponse,
   type LeonAidApiClient,
@@ -20,6 +21,7 @@ import {
 import {
   DeviceQueueStore,
   QueueController,
+  deviceCopyFetchedAt,
   isNetworkFailure,
   preflightConflict,
   sendEntry,
@@ -38,6 +40,7 @@ import {
 
 /** The read cache refreshes at most this often on focus (§8.2). */
 const REFRESH_INTERVAL_MS = 60_000;
+const START_REFRESH_DELAY_MS = 2_000;
 
 export interface DeviceState {
   readonly identity: UseQueryResult<CurrentIdentityResponse>;
@@ -134,7 +137,29 @@ export function useDevice(
       if (!force && Date.now() - last < REFRESH_INTERVAL_MS) return;
       running = true;
       last = Date.now();
-      void refreshReadCache(client, store, data)
+      // A page that just loaded the same data from Core lends it: the
+      // board reads the CRM, which is rate-limited. A device copy shown
+      // offline is never written back as fresh.
+      function recent<T>(key: readonly unknown[]): T | null {
+        const state = queries.getQueryState(key);
+        const value = queries.getQueryData<T>(key);
+        if (!state || value === undefined) return null;
+        if (Date.now() - state.dataUpdatedAt > 15_000) return null;
+        return deviceCopyFetchedAt(value) ? null : value;
+      }
+      const loaders = {
+        board: async (actionId: string) =>
+          recent<AcquisitionActivityBoardResponse>([
+            "acquisition-activity-board",
+            actionId,
+          ]) ?? client.getAcquisitionActivityBoard(actionId, { limit: 100 }),
+        capture: async (actionId: string) =>
+          recent<CommitmentCaptureContextResponse>([
+            "commitment-capture-context",
+            actionId,
+          ]) ?? client.getCommitmentCaptureContext(actionId),
+      };
+      void refreshReadCache(loaders, store, data)
         .catch(() => undefined)
         .finally(() => {
           running = false;
@@ -142,19 +167,25 @@ export function useDevice(
     };
     const onOnline = () => refresh(true);
     const onVisible = () => refresh(false);
-    const onSent = () => refresh(true);
-    refresh(true);
+    // Pages showing the board refetch it after a send (and update the copy
+    // through readThrough); the full refresh keeps its pace, so a burst of
+    // sends does not hammer Core and the CRM behind it.
+    const onSent = () => refresh(false);
+    // The pages load the same data at start; a moment later the refresh
+    // can reuse their answers instead of asking the CRM again.
+    const first = setTimeout(() => refresh(true), START_REFRESH_DELAY_MS);
     window.addEventListener("online", onOnline);
     window.addEventListener("focus", onVisible);
     window.addEventListener("leonaid:queue-sent", onSent);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
+      clearTimeout(first);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("focus", onVisible);
       window.removeEventListener("leonaid:queue-sent", onSent);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [client, identity.data, mode, store]);
+  }, [client, identity.data, mode, queries, store]);
 
   // The capture queue (§9): one controller per open device storage.
   const [queue, setQueue] = useState<QueueController | null>(null);

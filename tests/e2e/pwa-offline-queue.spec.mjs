@@ -4,7 +4,9 @@
 // the network returns. Real stack, no interception (tools/pwa/test.sh
 // switches the flag on for the offline specs only).
 import { analyzeAccessibility } from "./axe.mjs";
-import { expect, test } from "./csp-guard.mjs";
+import { expect as baseExpect, test } from "./csp-guard.mjs";
+
+const expect = baseExpect.configure({ timeout: 60_000 });
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
@@ -17,6 +19,10 @@ if (!baseUrl || !artifactDirectory || !annaSession) {
 }
 
 const ACTION_ID = "20000000-0000-4000-8000-000000000001";
+
+// The board reads the CRM, which Core limits to 100 requests a minute for
+// the whole installation; after the heavier specs a first load can wait.
+test.describe.configure({ timeout: 240_000 });
 
 test.use({
   ignoreHTTPSErrors: true,
@@ -121,7 +127,9 @@ function rawQueue(page) {
 }
 
 async function apiJson(page, path) {
-  const response = await page.request.get(`${baseUrl}${path}`);
+  const response = await page.request.get(`${baseUrl}${path}`, {
+    timeout: 60_000,
+  });
   expect(response.ok()).toBe(true);
   return response.json();
 }
@@ -131,7 +139,6 @@ test("captures made offline are kept on the device and sent once online", async 
   context,
   page,
 }) => {
-  test.setTimeout(180_000);
   await authenticate(context);
   await page.goto(`${baseUrl}/app/sponsors`);
   const row = page

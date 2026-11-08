@@ -4,7 +4,9 @@
 // sponsor saved offline is checked online with the match step, after which
 // its contact is sent. Real stack, no interception.
 import { analyzeAccessibility } from "./axe.mjs";
-import { expect, test } from "./csp-guard.mjs";
+import { expect as baseExpect, test } from "./csp-guard.mjs";
+
+const expect = baseExpect.configure({ timeout: 60_000 });
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
@@ -17,6 +19,10 @@ if (!baseUrl || !artifactDirectory || !annaSession) {
 }
 
 const ACTION_ID = "20000000-0000-4000-8000-000000000001";
+
+// The board reads the CRM, which Core limits to 100 requests a minute for
+// the whole installation; after the heavier specs a first load can wait.
+test.describe.configure({ timeout: 240_000 });
 
 test.use({
   ignoreHTTPSErrors: true,
@@ -96,6 +102,7 @@ async function controlled(page) {
 async function board(page) {
   const response = await page.request.get(
     `${baseUrl}/api/v1/actions/${ACTION_ID}/acquisition/activity-board?limit=100`,
+    { timeout: 60_000 },
   );
   expect(response.ok()).toBe(true);
   return response.json();
@@ -116,7 +123,6 @@ test("a follow-up that met a newer one is the acquirer's decision (D1)", async (
   context,
   page,
 }) => {
-  test.setTimeout(180_000);
   await signIn(context);
   await page.goto(`${baseUrl}/app/sponsors`);
   const row = page
@@ -128,6 +134,7 @@ test("a follow-up that met a newer one is the acquirer's decision (D1)", async (
 
   // Offline on this phone: a contact with a follow-up.
   await context.setOffline(true);
+  await page.reload();
   await row.click();
   const mine = `Meine Wiedervorlage ${browserName}`;
   const note = `Offline mit Wiedervorlage ${browserName} ${Date.now()}`;
@@ -172,7 +179,9 @@ test("a follow-up that met a newer one is the acquirer's decision (D1)", async (
     (await board(page)).activities.filter((item) => item.note === note),
   ).toHaveLength(1);
   await indicator.click();
-  const entry = page.getByTestId("queue-sheet").getByTestId("queue-entry");
+  const entry = page
+    .getByTestId("queue-sheet")
+    .locator('[data-testid="queue-entry"][data-state="conflict"]');
   await expect(entry.getByTestId("queue-state")).toHaveText(
     "Braucht deine Entscheidung",
   );
@@ -204,7 +213,6 @@ test("a sponsor saved offline is checked online, then its contact goes out (D10)
   context,
   page,
 }) => {
-  test.setTimeout(180_000);
   await signIn(context);
   await page.goto(`${baseUrl}/app/sponsors?view=new`);
   await expect(page.getByTestId("sponsor-preview")).toBeVisible();
