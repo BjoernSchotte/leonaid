@@ -101,23 +101,17 @@ class VerifiedResetTests(unittest.TestCase):
         ]
         return stack
 
-    ALL = {"0", "1", "2"}
     CORE = {"0", "1"}
+    CLEAN = "0 " + "a" * 64 + "\n1 " + "b" * 64
 
     def test_first_restore_records_and_a_clean_reset_matches(self):
         stack = self.stack()
-        stack.verify_digests(
-            "0 " + "a" * 64 + "\n1 " + "b" * 64 + "\n2 " + "c" * 64, self.ALL
-        )
-        stack.preserving = True
-        stack.verify_digests("0 " + "a" * 64 + "\n1 " + "b" * 64, self.CORE)
+        stack.verify_digests(self.CLEAN, self.CORE)
+        stack.verify_digests(self.CLEAN, self.CORE)
 
     def test_leftover_state_refuses_the_next_check(self):
         stack = self.stack()
-        stack.verify_digests(
-            "0 " + "a" * 64 + "\n1 " + "b" * 64 + "\n2 " + "c" * 64, self.ALL
-        )
-        stack.preserving = True
+        stack.verify_digests(self.CLEAN, self.CORE)
         with self.assertRaisesRegex(RuntimeError, "left state behind.*rustfs-data"):
             stack.verify_digests("0 " + "a" * 64 + "\n1 " + "d" * 64, self.CORE)
 
@@ -126,9 +120,14 @@ class VerifiedResetTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "digest covers"):
             stack.verify_digests("0 " + "a" * 64, self.CORE)
 
+    def test_only_survey_stacks_leave_twenty_volumes_out(self):
+        survey, golden = self.stack(), self.stack("golden")
+        self.assertIn(survey.project + "_twenty-postgres-data", survey.unused_volumes)
+        self.assertEqual(golden.unused_volumes, frozenset())
+
 
 class SurveyTwentyIsolationTests(unittest.TestCase):
-    """Twenty is not reset between survey checks, so no survey check may use it."""
+    """Survey stacks have no Twenty, so no survey check may use it."""
 
     PATTERN = re.compile(r"twenty|crm|:3000|/rest/|/graphql", re.IGNORECASE)
     # Subnet allocation names every Compose network, crm-data included.

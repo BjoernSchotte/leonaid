@@ -1,6 +1,18 @@
 # Surveys use the admin and public frontends. The PWA is covered by its own E2E
-# jobs. API readiness still checks its real database, storage and CRM dependencies.
+# jobs. Survey stacks have no CRM key, so the API does not wait for Twenty and
+# Twenty never starts (decision E-031); readiness still checks the database
+# and storage.
 services:
+  api:
+    depends_on: !override
+      core-volume-init:
+        condition: service_completed_successfully
+      survey-validator:
+        condition: service_healthy
+      core-postgres:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
   proxy:
     depends_on: !override
       api:
