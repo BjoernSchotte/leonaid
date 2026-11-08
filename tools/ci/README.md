@@ -289,6 +289,27 @@ appears, it builds the fixture itself.
 (`tools/surveys/gate.json` `ciShards`); each check still gets fresh service
 state.
 
+Fast tier measured on PR #140 (wall time from the runs' creation to the last
+of the five required checks; queue at most 3 s per job):
+
+| Run | Commit | Wall | Longest job |
+|---|---|---|---|
+| 42501232631 | e8312808 | 4.3 min | Security 220 s |
+| 42502162600 | d5cb5a64 | 3.8 min | Unit 205 s |
+| 42503744647 | 3c8bbe74 | 4.0 min | Security 221 s; Integration / policy leg 209 s |
+
+p50 4.0 min. Baseline PR #132 (run 42468977036): 19.2 min. Job times on
+42503744647: Lint and types 194 s, Unit 182 s, Build 95 s, Vulnerability
+gate 176 s, Security 221 s, API contract job 3.3 min, pins 3.6 min, docs
+1.5 min. What it took: the tier split, `cleanup: false` on the Buildx builder
+(its removal cost 30-110 s in every image job's post step), lint lanes,
+balanced solver shards (`tests/unit/test_survey_disclosure_solver.weights.json`;
+the slowest of six modulo shards took 182 s), the vulnerability gate as its
+own job with parallel Trivy lanes (5.4 min inside Security before), the
+Twenty prefetch in the API contract job. The budget holds only while the
+runner pool is free: a post-merge run of a shared change takes up to about
+14 runners for 15-20 minutes, and pull requests pushed meanwhile queue.
+
 Measured on PR #103 (run 42368175283, complete selection, busy runner pool):
 19 jobs, 132 runner minutes, 112 queue minutes, longest job 12.8 min, legs of
 7.6–11.6 min; Security 6.5 min (was 10.6). Before: 56 jobs, 177–214 runner
