@@ -89,7 +89,6 @@ fi
 
 run_python tools/seed/golden.py seed-core \
   /repo/tests/fixtures/golden/v1
-run_python tools/actions/contract.py \
-  --session-output /proof/sessions.env
+run_python tools/actions/contract.py
 
 echo "action-test: OK: neutral action core proven (API contract)"

@@ -36,7 +36,7 @@ cleanup() {
     echo "activity-feed-test: diagnostics for the failed real services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=180 \
-      api core-postgres twenty-server twenty-worker pwa web proxy >&2 || true
+      api core-postgres twenty-server twenty-worker >&2 || true
     /bin/sh "$root/tools/ci/capture-failure.sh" \
       "$root" "$proof" "$project" || true
   fi
@@ -72,7 +72,7 @@ existing=$(docker network ls -q --filter "label=com.docker.compose.project=$proj
 python3 "$root/tools/surveys/network_override.py" "$isolation_file"
 owned=true
 compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
-build_shared_images api public pwa web
+build_shared_images api
 compose up --detach --wait --wait-timeout 420 \
   core-postgres rustfs mailpit twenty-server twenty-worker
 

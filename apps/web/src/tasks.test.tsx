@@ -10,11 +10,12 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import type {
-  CurrentIdentityResponse,
-  LeonAidApiClient,
-  PlannedTask,
-  TaskSummary,
+import {
+  ApiError,
+  type CurrentIdentityResponse,
+  type LeonAidApiClient,
+  type PlannedTask,
+  type TaskSummary,
 } from "@leonaid/api-client";
 import { resetCommandPaletteState } from "@leonaid/features";
 import { HotkeyProvider, ToastProvider } from "@leonaid/ui";
@@ -259,6 +260,12 @@ describe("task model", () => {
         userId: me,
       }),
     ).toBe("?view=plan&f.plan=week&f.plan=later");
+    expect(
+      migrateLegacyTaskQuery("?scope=mine&view=plan-today", { userId: me }),
+    ).toBe("?view=plan&f.plan=today&f.plan=due");
+    expect(
+      migrateLegacyTaskQuery("?scope=mine&view=plan-someday", { userId: me }),
+    ).toBe("?view=plan&f.plan=someday");
     expect(
       migrateLegacyTaskQuery("?task=t1", { listId: listA, userId: me }),
     ).toBe("?view=all&open=t1");
@@ -639,6 +646,64 @@ describe("tasks page", () => {
     await act(async () => {});
     expect(screen.queryByRole("complementary", { name: /Stände/ })).toBeNull();
     expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("saves a step at once and keeps the priority draft on a conflict", async () => {
+    const client = {
+      ...harness({ open: [task("a", "Stände aufbauen")] }),
+      setTaskStructure: vi.fn(
+        async (
+          id: string,
+          body: {
+            expectedRevision: number;
+            checklist: TaskSummary["checklist"];
+          },
+        ) => ({
+          ...task(id, "Stände aufbauen"),
+          checklist: body.checklist,
+          revision: body.expectedRevision + 1,
+        }),
+      ),
+    };
+    renderPage(client, { path: `/admin/tasks/${listA}`, listId: listA });
+    fireEvent.click(
+      await screen.findByRole("link", { name: /Stände aufbauen/ }),
+    );
+    const pane = await screen.findByRole("complementary", { name: /Stände/ });
+    fireEvent.change(within(pane).getByLabelText("Neuer Schritt"), {
+      target: { value: "Tische holen" },
+    });
+    fireEvent.click(
+      within(pane).getByRole("button", { name: "Schritt hinzufügen" }),
+    );
+    await waitFor(() => expect(client.setTaskStructure).toHaveBeenCalled());
+    expect(client.setTaskStructure.mock.calls[0]![1]).toMatchObject({
+      expectedRevision: 1,
+      checklist: [{ text: "Tische holen", done: false }],
+      priority: "none",
+      tagIds: [],
+    });
+
+    client.setTaskStructure.mockRejectedValueOnce(
+      new ApiError(409, { message: "conflict" } as never),
+    );
+    const structure = within(pane).getByRole("form", {
+      name: "Priorität und Schlagworte",
+    });
+    const high = within(structure).getByLabelText(
+      "Hohe Priorität",
+    ) as HTMLInputElement;
+    fireEvent.click(high);
+    fireEvent.click(
+      within(structure).getByRole("button", { name: "Speichern" }),
+    );
+    expect(
+      await within(structure).findByText(/inzwischen geändert/),
+    ).toBeTruthy();
+    expect(high.checked).toBe(true);
+    expect(client.setTaskStructure.mock.calls.at(-1)![1]).toMatchObject({
+      priority: "high",
+    });
   });
 
   it("speaks with Du in the app and maps old links", async () => {

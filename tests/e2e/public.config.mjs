@@ -5,9 +5,11 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   expect: { timeout: 15_000 },
   fullyParallel: false,
-  // Several engines only in Golden, the PWA and the EmDash editor (E-026).
-  projects: ["chromium"].map((browserName) => ({
+  // Several engines only in Golden, the PWA and the EmDash editor (E-026);
+  // WebKit runs the tests tagged @webkit (session cookie, no-JS autofocus).
+  projects: ["chromium", "webkit"].map((browserName) => ({
     name: browserName,
+    grep: browserName === "webkit" ? /@webkit/ : undefined,
     use: {
       browserName,
       ignoreHTTPSErrors: true,
