@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""Prove the PR-tier suite selection against real repository paths."""
+"""Prove the suite selection (fast, post-merge, full) against real paths."""
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
+import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -27,8 +31,13 @@ def pr(*paths: str) -> s.Selection:
     return s.select("pull_request", list(paths))
 
 
+def post(*paths: str) -> s.Selection:
+    """The post-merge run on main: what the paths select since the last green."""
+    return s.select("push", list(paths))
+
+
 def broad(selection: s.Selection, *owners: str) -> bool:
-    """Unknown/shared: every non-E2E suite, the smoke leg, mapped leaves only."""
+    """Post-merge, unknown/shared: every non-E2E suite, smoke, mapped leaves."""
     if set(owners) >= set(s.E2E_SHARDS):
         return full(selection)
     return not selection.full and selection.suites == s.everything_but_e2e() | {
@@ -43,12 +52,55 @@ def full(selection: s.Selection) -> bool:
 BINNED = ("integration", "e2e", "emdash")
 
 
-def outputs(*paths: str) -> dict[str, Any]:
+def flat(selection: s.Selection) -> dict[str, Any]:
     """Selector outputs; matrix bins flattened to their shard names."""
-    raw = {k: json.loads(v) for k, v in pr(*paths).outputs().items() if k != "reason"}
+    raw = {
+        k: json.loads(v)
+        for k, v in selection.outputs().items()
+        if k not in ("reason", "tier")
+    }
     for key in BINNED:
         raw[key] = [shard for leg in raw[key] for shard in leg["shards"].split()]
     return raw
+
+
+def outputs(*paths: str) -> dict[str, Any]:
+    """Post-merge outputs: the mapping of the paths, before the tier split."""
+    return flat(post(*paths))
+
+
+def fast(*paths: str) -> dict[str, Any]:
+    """Pull-request (fast tier) outputs."""
+    return flat(pr(*paths))
+
+
+def label_tier(labels: str) -> str:
+    """The tier the command line gives a pull request with these labels."""
+    with tempfile.TemporaryDirectory() as directory:
+        paths = Path(directory) / "paths"
+        paths.write_text("apps/web/src/app.tsx\n", encoding="utf-8")
+        printed = io.StringIO()
+        saved = {
+            key: os.environ.pop(key, None)
+            for key in ("GITHUB_OUTPUT", "GITHUB_STEP_SUMMARY")
+        }
+        try:
+            with contextlib.redirect_stdout(printed):
+                s.main(
+                    [
+                        "--event",
+                        "pull_request",
+                        "--paths-file",
+                        str(paths),
+                        "--labels",
+                        labels,
+                    ]
+                )
+        finally:
+            for key, value in saved.items():
+                if value is not None:
+                    os.environ[key] = value
+    return str(json.loads(printed.getvalue().splitlines()[-1])["tier"])
 
 
 def stack_suites(result: dict[str, Any]) -> dict[str, Any]:
@@ -108,20 +160,38 @@ def case_labels(script: Path) -> set[str]:
     return labels
 
 
+def fast_of(selection: s.Selection) -> bool:
+    """A fast-tier selection: no browser, acceptance or unmapped stack suite."""
+    return selection.tier in ("fast", "stacked") and not any(
+        s.is_heavy(suite) for suite in selection.suites
+    )
+
+
 def main() -> int:
-    # Every event except pull_request runs everything.
+    # Schedules, dispatch and a push without a diff run everything.
     for event in ("push", "schedule", "workflow_dispatch"):
-        selection = s.select(event, ["README.md"])
-        expect(full(selection), f"{event} must select the complete suite")
+        selection = s.select(event, [])
+        expect(full(selection), f"{event} without a diff must select everything")
+    for event in ("schedule", "workflow_dispatch"):
+        expect(full(s.select(event, ["README.md"])), f"{event} ignores paths")
     # No readable diff is never an excuse to skip.
     expect(full(pr()), "an empty PR diff must select everything")
-    # Unknown paths select everything.
+    # Post-merge: unknown paths select every non-E2E suite plus smoke.
     for path in (
         "brand-new/thing.py",
         "tools/new_module/test.sh",
         "apps/web/src/app.tsx",
     ):
-        expect(broad(pr(path)), f"unmapped {path}: all non-E2E suites plus smoke")
+        expect(broad(post(path)), f"unmapped {path}: all non-E2E suites plus smoke")
+        quick = pr(path)
+        expect(
+            fast_of(quick)
+            and quick.heavy
+            and quick.integration_units() == []
+            and quick.deferred >= s.everything_but_e2e() - {"api", "pins"},
+            f"unmapped {path}: the PR runs the fast tier only, "
+            f"the rest after the merge: {sorted(quick.suites)}",
+        )
     # Shared infrastructure: every non-E2E suite plus smoke, E2E only mapped.
     for path in (
         ".github/workflows/ci.yml",
@@ -152,24 +222,26 @@ def main() -> int:
     ):
         owners = s.e2e_owners(path, ROOT) or set()
         expect(
-            broad(pr(path), *owners),
+            broad(post(path), *owners),
             f"shared {path}: all non-E2E suites, smoke, mapped leaves {owners}",
         )
+        expect(fast_of(pr(path)), f"shared {path}: fast tier only before the merge")
     # Documentation-only PRs run no stack suite at all.
-    docs = outputs(
+    docs_paths = (
         "apps/docs/src/content/docs/en/user/how-to/plan-tasks.md",
         "apps/docs/product-contracts.json",
         "specs/modular-platform/README.md",
         "tools/delivery/README.md",
         "README.md",
     )
-    expect(
-        docs["integration"] == []
-        and docs["e2e"] == []
-        and docs["emdash"] == []
-        and not any(docs[flag] for flag in s.FLAGS),
-        f"docs-only PR selected stack suites: {docs}",
-    )
+    for docs in (outputs(*docs_paths), fast(*docs_paths)):
+        expect(
+            docs["integration"] == []
+            and docs["e2e"] == []
+            and docs["emdash"] == []
+            and not any(docs[flag] for flag in s.FLAGS),
+            f"docs-only change selected stack suites: {docs}",
+        )
     # Module-local changes stay local.
     tasks = outputs(
         "src/leonaid/modules/tasks/api.py", "tests/e2e/tasks-views.spec.mjs"
@@ -179,10 +251,21 @@ def main() -> int:
         tasks["integration"] == [] and tasks["emdash"] == [], f"tasks module: {tasks}"
     )
     expect(tasks["api"] is True and tasks["surveys"] is False, f"tasks module: {tasks}")
+    quick_tasks = fast(
+        "src/leonaid/modules/tasks/api.py", "tests/e2e/tasks-views.spec.mjs"
+    )
+    expect(
+        quick_tasks["e2e"] == [] and quick_tasks["api"] is True,
+        f"tasks module, fast tier: API contract yes, E2E after the merge: {quick_tasks}",
+    )
     delivery = outputs("tools/delivery/foundation.py")
     expect(
         delivery["integration"] == ["delivery"] and delivery["e2e"] == [],
         f"delivery: {delivery}",
+    )
+    expect(
+        fast("tools/delivery/foundation.py")["integration"] == ["delivery"],
+        "a specifically mapped short Integration shard runs before the merge",
     )
     campaign = outputs(
         "apps/campaign-site/emdash-editor-patch.mjs",
@@ -195,10 +278,18 @@ def main() -> int:
         and campaign["api"] is False,
         f"campaign site must not start Core suites: {campaign}",
     )
+    expect(
+        fast("apps/campaign-site/emdash-editor-patch.mjs")["emdash"] == [],
+        "EmDash proofs run after the merge",
+    )
     surveys = outputs(
         "packages/surveys/src/index.ts", "tests/e2e/surveys-editor.spec.mjs"
     )
     expect(surveys["surveys"] is True and surveys["e2e"] == [], f"surveys: {surveys}")
+    expect(
+        fast("packages/surveys/src/index.ts")["surveys"] is False,
+        "survey shards run after the merge",
+    )
     # Cross-suite helpers select every suite that imports them.
     orders = outputs("tools/public_orders/contract.py")
     expect(
@@ -212,16 +303,17 @@ def main() -> int:
         f"identity: {identity}",
     )
     # Formerly path-filtered workflows keep their historical filters.
-    expect(
-        outputs("infra/security/vulnerability-allowlist.json")["pins"] is True,
-        "pins filter",
-    )
-    expect(outputs("tools/openapi/generate.py")["api"] is True, "API filter")
-    expect(
-        outputs("tests/unit/test_x.py")["api"] is True, "API filter keeps tests/unit"
-    )
-    expect(outputs("tests/unit/test_x.py")["e2e"] == [], "unit tests run no stack")
-    # Stacked pull requests (base is not main): module-local suites only.
+    for view in (outputs, fast):
+        expect(
+            view("infra/security/vulnerability-allowlist.json")["pins"] is True,
+            "pins filter",
+        )
+        expect(view("tools/openapi/generate.py")["api"] is True, "API filter")
+        expect(
+            view("tests/unit/test_x.py")["api"] is True, "API filter keeps tests/unit"
+        )
+        expect(view("tests/unit/test_x.py")["e2e"] == [], "unit tests run no stack")
+    # Stacked pull requests (base is not main): module-local fast suites only.
     stack_paths = [
         "migrations/versions/0052_x.py",
         "infra/compose/compose.yml",
@@ -232,39 +324,80 @@ def main() -> int:
         "tools/delivery/foundation.py",
     ]
     stacked_run = s.select("pull_request", stack_paths, "md/stage2c")
-    raw = {k: json.loads(v) for k, v in stacked_run.outputs().items() if k != "reason"}
+    raw = flat(stacked_run)
     expect(raw["heavy"] is False, "a stacked PR skips Security and Build")
     expect(
-        [leg["shards"] for leg in raw["e2e"]] == ["tasks"]
-        and [leg["shards"] for leg in raw["integration"]] == ["delivery"]
+        raw["e2e"] == []
+        and raw["integration"] == ["delivery"]
         and raw["emdash"] == []
         and not any(raw[flag] for flag in s.FLAGS),
-        f"a stacked PR runs only module-local suites: {raw}",
+        f"a stacked PR runs only module-local fast suites: {raw}",
     )
     expect(
-        not stacked_run.full and "stacked" in stacked_run.reason,
+        not stacked_run.full
+        and "stacked" in stacked_run.reason
+        and stacked_run.tier == "stacked",
         f"stacked reason: {stacked_run.reason}",
     )
-    # The same diff into main keeps the complete, heavy selection.
+    # The same diff into main: the fast tier, everything else deferred.
     for base in ("main", ""):
         into_main = s.select("pull_request", stack_paths, base)
         expect(
             into_main.heavy
-            and s.everything_but_e2e() <= into_main.suites
-            and s.SMOKE in into_main.suites,
-            f"base {base!r} must run every non-E2E suite: {into_main.reason}",
+            and into_main.tier == "fast"
+            and fast_of(into_main)
+            and into_main.deferred | into_main.suites
+            >= s.everything_but_e2e() | {s.SMOKE, *s.e2e("tasks")},
+            f"base {base!r}: fast tier, the rest deferred: {into_main.reason}",
         )
-    # Every other event ignores the base branch and runs everything.
+    # The post-merge run on main ignores the base branch; no diff: complete.
     expect(
-        full(s.select("push", stack_paths, "md/stage2c"))
-        and s.select("push", [], "x").heavy,
-        "push stays complete",
+        broad(s.select("push", ["brand-new/thing.py"], "md/stage2c"))
+        and s.select("push", [], "x").heavy
+        and s.select("push", ["README.md"]).tier == "post-merge",
+        "push diffs since the last green run",
     )
     # A stacked PR without a readable diff stays fail-safe.
     expect(full(s.select("pull_request", [], "md/stage2c")), "stacked empty diff")
     expect(
         json.loads(pr("README.md").outputs()["heavy"]) is True,
         "a PR into main always runs Security and Build",
+    )
+    # Fast Integration legs: only specifically mapped shards that fit; a
+    # long or overflowing shard waits for the merge.
+    for shard, seconds in s.INTEGRATION_SECONDS.items():
+        legs, deferred = s.fast_pack([shard], s.INTEGRATION_SECONDS)
+        fits = seconds <= s.FAST_LEG_SECONDS
+        expect(
+            (legs == [[shard]]) == fits and (deferred == [shard]) == (not fits),
+            f"fast leg for {shard} ({seconds} s)",
+        )
+    every = [*s.INTEGRATION_SHARDS, "contract"]
+    legs, deferred = s.fast_pack(every, s.INTEGRATION_SECONDS)
+    expect(
+        len(legs) <= s.FAST_MAX_BINS
+        and all(
+            sum(s.INTEGRATION_SECONDS[x] for x in leg) <= s.FAST_LEG_SECONDS
+            for leg in legs
+        )
+        and sorted([x for leg in legs for x in leg] + deferred) == sorted(every),
+        f"fast legs keep the budget and lose nothing: {legs} {deferred}",
+    )
+    compose = pr("tools/compose/test.sh")
+    expect(
+        compose.integration_units() == ["profiles"]
+        and "integration:compose" in compose.deferred,
+        f"a long shard runs after the merge: {compose.integration_bins()}",
+    )
+    openapi = pr("tools/openapi/generate.py")
+    expect(
+        openapi.integration_units() == ["contract"]
+        and json.loads(openapi.outputs()["contract"]) is True,
+        "Contract runs before the merge when its inputs changed",
+    )
+    expect(
+        json.loads(pr("tools/ci/contract.sh").outputs()["contract"]) is True,
+        "the Contract entry point runs Contract",
     )
 
     # E2E policy (2026-11-07): import graph, smoke leg, label, schedules.
@@ -338,42 +471,52 @@ def main() -> int:
             bool(mapped) or neutral,
             f"{relative} maps to no E2E leaf and is not in E2E_NEUTRAL",
         )
-    # A graph hit adds exactly its leaves; the smoke leg runs alone.
-    invoice_pr = s.select(
-        "pull_request", ["src/leonaid/application/invoices.py"], "main", root=ROOT
+    # A graph hit adds exactly its leaves after the merge; the smoke leg
+    # runs alone.
+    invoice_push = s.select(
+        "push", ["src/leonaid/application/invoices.py"], "main", root=ROOT
     )
-    legs = json.loads(invoice_pr.outputs()["e2e"])
+    legs = json.loads(invoice_push.outputs()["e2e"])
     expect(legs[-1]["shards"] == s.SMOKE, f"smoke leg last and alone: {legs}")
     expect(
         all(s.SMOKE not in leg["shards"].split() for leg in legs[:-1]),
         f"the smoke leg is never packed with leaves: {legs}",
     )
-    # The full-e2e label adds every leaf and drops the redundant smoke leg.
-    labelled = s.select("pull_request", ["apps/web/src/app.tsx"], "main", full_e2e=True)
+    invoice_pr = s.select(
+        "pull_request", ["src/leonaid/application/invoices.py"], "main", root=ROOT
+    )
+    expect(
+        json.loads(invoice_pr.outputs()["e2e"]) == []
+        and {"e2e:invoices", s.SMOKE} <= invoice_pr.deferred,
+        f"a pull request defers its E2E leaves: {sorted(invoice_pr.deferred)}",
+    )
+    # The full-ci label (alias full-e2e) runs the complete suite before the
+    # merge: every leaf, no smoke leg, every heavy suite.
+    labelled = s.select("pull_request", ["apps/web/src/app.tsx"], "main", full_ci=True)
     labelled_legs = json.loads(labelled.outputs()["e2e"])
     expect(
-        labelled.full
+        full(labelled)
+        and labelled.tier == "full"
+        and labelled.heavy
         and sorted(x for leg in labelled_legs for x in leg["shards"].split())
         == sorted(s.E2E_SHARDS),
-        f"full-e2e label: every leaf, no smoke: {labelled_legs}",
+        f"full-ci label: complete suite, no smoke: {labelled_legs}",
     )
     expect(
-        not s.select(
-            "pull_request", ["tools/pwa/test.sh"], "md/x", full_e2e=True
-        ).suites
-        & s.e2e(*[x for x in s.E2E_SHARDS if x != "pwa"]),
+        full(s.select("pull_request", ["README.md"], "main", full_ci=True)),
+        "full-ci runs the complete suite even for a docs-only change",
+    )
+    expect(
+        not s.select("pull_request", ["tools/pwa/test.sh"], "md/x", full_ci=True).suites
+        & s.e2e(*s.E2E_SHARDS),
         "the label does not widen a stacked PR",
     )
-    # The 3-hourly main run: everything except the E2E leaves, plus smoke.
-    every3h = s.select("schedule", [], schedule=s.MAIN_SCHEDULE)
-    every3h_legs = json.loads(every3h.outputs()["e2e"])
-    expect(
-        every3h.suites == s.everything_but_e2e() | {s.SMOKE}
-        and [leg["shards"] for leg in every3h_legs] == [s.SMOKE]
-        and every3h.heavy,
-        f"3-hourly main run: {every3h.reason} {every3h_legs}",
-    )
-    # The nightly run (and any other schedule or dispatch) runs every leaf.
+    for labels, want in (("full-ci", "full"), ("x,full-e2e", "full"), ("x", "fast")):
+        expect(
+            label_tier(labels) == want,
+            f"--labels {labels!r} must give the {want} tier",
+        )
+    # The nightly run (and dispatch) runs every leaf; it is the only schedule.
     for event, cron in (("schedule", s.NIGHTLY_SCHEDULE), ("workflow_dispatch", "")):
         nightly = s.select(event, [], schedule=cron)
         expect(full(nightly), f"{event} {cron!r} must run every E2E leaf")
@@ -384,11 +527,12 @@ def main() -> int:
             ),
             "a complete run needs no smoke leg",
         )
-    # Docs-only pull requests still start no stack suite, not even smoke.
-    expect(
-        json.loads(pr("README.md").outputs()["e2e"]) == [],
-        "docs-only PR runs no smoke leg",
-    )
+    # Docs-only changes still start no stack suite, not even smoke.
+    for selection in (pr("README.md"), post("README.md")):
+        expect(
+            json.loads(selection.outputs()["e2e"]) == [],
+            "docs-only change runs no smoke leg",
+        )
     # The smoke leg is defined in the CI entry point.
     expect(s.SMOKE in case_labels(ROOT / "tools/ci/e2e.sh"), "tools/ci/e2e.sh smoke")
 
@@ -468,14 +612,14 @@ def main() -> int:
     total = sum(len(json.loads(complete[key])) for key in BINNED)
     expect(total <= 10, f"a complete run must stay at 10 stack legs or fewer: {total}")
     # A small PR packs into one leg; packing is deterministic.
-    small = pr("tools/pwa/test.sh", "tools/tasks/test.sh")
+    small = post("tools/pwa/test.sh", "tools/tasks/test.sh")
     legs = json.loads(small.outputs()["e2e"])
     expect(
         len(legs) == 1 and set(legs[0]["shards"].split()) == {"pwa", "tasks"},
         f"two small leaves must share one leg: {legs}",
     )
     expect(
-        small.outputs() == pr("tools/tasks/test.sh", "tools/pwa/test.sh").outputs(),
+        small.outputs() == post("tools/tasks/test.sh", "tools/pwa/test.sh").outputs(),
         "packing must not depend on path order",
     )
     expect(s.pack([], s.E2E_SECONDS, 4) == [], "nothing selected packs to no leg")

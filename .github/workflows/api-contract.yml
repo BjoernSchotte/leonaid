@@ -45,13 +45,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # The toolchain bootstrap runs beside the layer import.
       - name: Reuse persistent Core build layers
         uses: ./.github/actions/build-cache
         with:
           targets: api
-
-      - name: Bootstrap locked Docker toolchains
-        run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
+          bootstrap: toolchains
 
       - name: Generate, typecheck and run real contract
         run: ./tools/openapi/test.sh "$PWD"

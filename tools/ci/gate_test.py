@@ -20,6 +20,7 @@ sys.path.insert(0, str(HERE.parents[1]))
 from tools.ci import flake_summary  # noqa: E402
 from tools.ci import gate  # noqa: E402
 from tools.ci import rerun_stale_gates  # noqa: E402
+from tools.ci import select_suites  # noqa: E402
 
 FAILURES: list[str] = []
 
@@ -386,6 +387,36 @@ def test_pull_request_context() -> None:
         expect(decision is expected, f"mirror {runs} real={real}: {decision}")
         if not expected:
             expect("supersedes" in message, f"fail-fast message: {message}")
+    # Label changes: adding full-ci is a real (complete) run; any other label
+    # change, and every removal, mirrors the commit's real gate.
+    expect(
+        gate.pull_request_context(
+            {**base_env, "EVENT_ACTION": "labeled", "LABEL": "full-ci"}, {}, never
+        )
+        == (None, ""),
+        "adding full-ci evaluates the complete run normally",
+    )
+    for action, label in (
+        ("labeled", "documentation"),
+        ("labeled", ""),
+        ("unlabeled", "full-ci"),
+        ("unlabeled", "x"),
+    ):
+        label_env = {**edit, "EVENT_ACTION": action, "LABEL": label}
+        for conclusion, expected in (("success", True), ("failure", False)):
+            decision, message = gate.pull_request_context(
+                label_env, {}, api([check_run(5, "completed", conclusion, "t")], {5})
+            )
+            expect(
+                decision is expected and "label change" in message,
+                f"{action} {label!r} mirrors the real {conclusion}: {decision} {message}",
+            )
+        decision, _ = gate.pull_request_context(label_env, {}, api([], set()))
+        expect(decision is False, f"{action} {label!r} without a real gate fails fast")
+    expect(
+        gate.FULL_CI_LABEL == select_suites.FULL_CI_LABEL,
+        "gate.py and select_suites.py agree on the full-ci label",
+    )
     # A stacked selection never passes; a selection into main does.
     expect(
         gate.stacked_result(base_env, {"heavy": "false"}),

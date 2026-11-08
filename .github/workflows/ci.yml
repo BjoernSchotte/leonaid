@@ -1,15 +1,18 @@
 name: LeonAid CI
-# The nightly run is the only scheduled run with every E2E leaf; its own
-# name lets nightly-watchdog.yml track it apart from the 3-hourly runs.
-run-name: ${{ github.event.schedule == '7 3 * * *' && 'LeonAid CI nightly (every E2E leaf)' || github.event.schedule == '37 */3 * * *' && 'LeonAid CI main every 3 hours' || github.event.pull_request.title || github.workflow }}
+# The nightly run has every E2E leaf; its own name lets nightly-watchdog.yml
+# track it apart from the post-merge runs.
+run-name: ${{ github.event.schedule == '7 3 * * *' && 'LeonAid CI nightly (every E2E leaf)' || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'LeonAid CI post-merge' || github.event.pull_request.title || github.workflow }}
 
 on:
-  # PR tier: cheap gates plus only the stack suites whose inputs changed.
+  # Fast tier (decision E-018): the required gate in about five minutes;
+  # browser and acceptance suites run after the merge.
   pull_request:
     # Drafts run nothing (their gate fails); ready_for_review starts CI,
     # converted_to_draft cancels the running one. edited: a base change (a
     # stacked PR retargeted to main) runs the normal selection; a title or
     # body edit runs no job and its gate mirrors the commit's real result.
+    # labeled: adding full-ci runs the complete suite now; any other label
+    # change mirrors like a title edit.
     types:
       [
         opened,
@@ -18,18 +21,20 @@ on:
         ready_for_review,
         converted_to_draft,
         edited,
+        labeled,
+        unlabeled,
       ]
-  # No full run per push to main (decision 2026-11-07): main is proven by
-  # the scheduled complete runs below; nightly-watchdog.yml opens an issue
-  # when one is red. Only the artifact probe branch still runs on push.
+  # Post-merge tier: every push to main runs the suites of the paths changed
+  # since the last green run there (a newer push cancels an older run);
+  # nightly-watchdog.yml opens an issue when one is red. The artifact probe
+  # branch runs its probe.
   push:
     branches:
+      - main
       - ci-artifact-probe
-  # Nightly complete run with the flake summary (7 3), and a complete run
-  # on main every 3 hours (37 */3).
+  # Nightly complete run with the flake summary.
   schedule:
     - cron: "7 3 * * *"
-    - cron: "37 */3 * * *"
   workflow_dispatch:
     inputs:
       cold_run:
@@ -47,27 +52,35 @@ permissions:
   contents: read
 
 concurrency:
-  group: leonaid-ci-${{ github.event_name }}-${{ github.ref }}-${{ github.event.schedule }}${{ ((github.event.action == 'edited' && !github.event.changes.base) || (github.event.pull_request.draft && github.event.action != 'converted_to_draft')) && format('-mirror-{0}', github.run_id) || '' }}
-  # A new push supersedes a pull request's run; scheduled runs on main are
-  # never cancelled by the next one.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: leonaid-ci-${{ github.event_name }}-${{ github.ref }}-${{ github.event.schedule }}${{ ((github.event.action == 'edited' && !github.event.changes.base) || (github.event.action == 'labeled' && github.event.label.name != 'full-ci') || github.event.action == 'unlabeled' || (github.event.pull_request.draft && github.event.action != 'converted_to_draft')) && format('-mirror-{0}', github.run_id) || '' }}
+  # A new push supersedes a pull request's run and an older post-merge run
+  # (the next one diffs since the last green run, so nothing is lost); the
+  # nightly run is never cancelled.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
 jobs:
   select:
-    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base)
+    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
     uses: ./.github/workflows/select-suites.yml
+    # actions: read finds the last green run on main for the post-merge diff.
+    permissions:
+      actions: read
+      contents: read
+    with:
+      post-merge: true
 
   fixture:
-    if: inputs.cold_run != true && inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base)
+    if: inputs.cold_run != true && inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
     uses: ./.github/workflows/test-fixture.yml
 
-  lint-unit:
-    # One runner for the two stack-free gates: both need only the locked
-    # toolchains, and a second job would repeat checkout and bootstrap.
-    if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base)
-    name: Lint, types and unit
+  lint:
+    # Stack-free: three parallel lanes inside tools/ci/lint-types.sh.
+    if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
+    name: Lint and types
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 30
+    env:
+      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/lint
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -77,21 +90,41 @@ jobs:
       - name: Bootstrap locked Docker toolchains
         run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
       - name: Run lint, type and contract-generation checks
-        env:
-          LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/lint-unit/lint-types
         run: bash tools/ci/run-job.sh lint-types bash tools/ci/lint-types.sh
-      # Runs after a lint failure too, so one run reports both gates.
-      - name: Run unit tests with real domain objects
-        if: ${{ !cancelled() }}
-        env:
-          LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/lint-unit/unit
-        run: bash tools/ci/run-job.sh unit ./leonaid test-unit
-      - name: Publish lint, type and unit evidence
+      - name: Publish lint and type evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ci-lint-unit
-          path: .artifacts/ci/lint-unit
+          name: ci-lint
+          path: .artifacts/ci/lint
+          if-no-files-found: error
+          retention-days: 14
+
+  unit:
+    # Stack-free: the exhaustive disclosure solver proof is spread over
+    # parallel pytest processes beside the other unit tests (tools/ci/unit.sh).
+    if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
+    name: Unit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/unit
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Prepare empty-cache runner
+        if: inputs.cold_run == true
+        run: docker builder prune --all --force
+      - name: Bootstrap locked Docker toolchains
+        run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
+      - name: Run unit tests with real domain objects
+        run: bash tools/ci/run-job.sh unit sh tools/ci/unit.sh
+      - name: Publish unit evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-unit
+          path: .artifacts/ci/unit
           if-no-files-found: error
           retention-days: 14
 
@@ -298,16 +331,64 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  vulnerability:
+    # Skipped only in a stacked pull request (selector output heavy=false).
+    # Builds every own image and scans it, the checkout, both lockfiles and
+    # every pinned third-party image (tools/security/vulnerability-scan.sh).
+    needs: select
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.heavy != 'false' && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
+    name: Vulnerability gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/vulnerability
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Report runner disk at job start
+        run: sh tools/ci/disk-report.sh "job start"
+      - name: Start freeing runner disk from unused toolchains
+        run: sh tools/ci/free-runner-disk.sh start
+      - name: Prepare empty-cache runner
+        if: inputs.cold_run == true
+        run: docker builder prune --all --force
+      - name: Reuse persistent Docker build layers
+        if: inputs.cold_run != true
+        uses: ./.github/actions/build-cache
+        with:
+          bootstrap: toolchains
+          # Every own image, the campaign site included.
+          targets: build
+      - name: Bootstrap locked Docker toolchains
+        if: inputs.cold_run == true
+        run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
+      - name: Finish freeing runner disk
+        run: sh tools/ci/free-runner-disk.sh wait
+      - name: Run the HIGH/CRITICAL vulnerability gate
+        run: bash tools/ci/run-job.sh vulnerability sh tools/security/vulnerability-scan.sh
+      - name: Report runner disk at job end
+        if: always()
+        run: sh tools/ci/disk-report.sh "job end"
+      - name: Publish vulnerability evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-vulnerability
+          path: .artifacts/ci/vulnerability
+          if-no-files-found: error
+          retention-days: 14
+
   security:
     # Skipped only in a stacked pull request (selector output heavy=false).
+    # Policy self-tests and the secret scan beside the security stack test;
+    # the image gate is the vulnerability job.
     needs: [select, fixture]
     if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.heavy != 'false' && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
     name: Security
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 45
     env:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/security
-      LEONAID_CI_DISK_REPORT: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -337,7 +418,7 @@ jobs:
         run: sh tools/ci/free-runner-disk.sh wait
       - name: Report runner disk after preparation
         run: sh tools/ci/disk-report.sh "prepared"
-      - name: Run policies, secret scan and critical vulnerability gates
+      - name: Run policies, secret scan and the security stack test
         run: bash tools/ci/run-job.sh security bash tools/ci/security.sh
       - name: Report runner disk at job end
         if: always()
@@ -453,7 +534,7 @@ jobs:
   golden-journey:
     name: Golden journey
     needs: [select, golden-parts]
-    if: ${{ !cancelled() && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled' && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -486,11 +567,13 @@ jobs:
     needs:
       - select
       - fixture
-      - lint-unit
+      - lint
+      - unit
       - integration-shards
       - e2e
       - emdash-cases
       - security
+      - vulnerability
       - build
       - golden-parts
       - golden-journey
@@ -515,6 +598,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           EVENT_ACTION: ${{ github.event.action }}
           BASE_CHANGED: ${{ toJSON(github.event.changes.base) != 'null' }}
+          LABEL: ${{ github.event.label.name }}
           DRAFT: ${{ github.event.pull_request.draft == true }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -529,6 +613,7 @@ jobs:
             --selectable emdash-cases=emdash \
             --selectable golden-parts=golden \
             --selectable security=heavy \
+            --selectable vulnerability=heavy \
             --selectable build=heavy
           if [ "$COLD_RUN" = true ]; then set -- "$@" --may-skip fixture; fi
           python3 tools/ci/gate.py "$@"

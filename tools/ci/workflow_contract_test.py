@@ -21,14 +21,49 @@ CI_MUTATIONS = (
         "only the Build job of runs on main may write the shared cache",
     ),
     (
+        "    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'\n",
+        "    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'\n",
+        "ci.yml: job select must not run for a draft, a title edit",
+    ),
+    (
+        "    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'\n",
         "    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base)\n",
-        "    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true\n",
-        "ci.yml: job select must not run for a draft or a title edit",
+        "a label change other than adding full-ci",
+    ),
+    (
+        "        edited,\n        labeled,\n        unlabeled,\n",
+        "        edited,\n",
+        "ci.yml: pull_request must list labeled and unlabeled",
+    ),
+    (
+        "(github.event.action == 'labeled' && github.event.label.name != 'full-ci') || ",
+        "",
+        "title-edit, label and draft runs must not share",
+    ),
+    (
+        "          LABEL: ${{ github.event.label.name }}\n",
+        "",
+        "ci.yml: the gate must hand the draft/edit/label/stack context",
+    ),
+    (
+        "    with:\n      post-merge: true\n",
+        "",
+        "ci.yml: the selector must diff a push since the last green run",
+    ),
+    (
+        "  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}\n",
+        "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
+        "ci.yml: a newer push to main must cancel an older post-merge run",
+    ),
+    (
+        "            --selectable vulnerability=heavy",
+        "            --may-skip vulnerability",
+        "The gate must require vulnerability unless heavy is false",
     ),
     (
         "&& format('-mirror-{0}', github.run_id) || '' }}",
         "",
-        "title-edit and draft runs must not share the PR's concurrency group",
+        "must not share the PR's concurrency group",
     ),
     (
         '      LEONAID_CI_STEP_SECONDS: "5100"\n',
@@ -36,14 +71,14 @@ CI_MUTATIONS = (
         "e2e: LEONAID_CI_STEP_SECONDS must stop the suite",
     ),
     (
-        '    - cron: "37 */3 * * *"\n',
-        "",
-        "the 3-hourly complete run on main is missing",
+        '    - cron: "7 3 * * *"\n',
+        '    - cron: "7 3 * * *"\n    - cron: "37 */3 * * *"\n',
+        "the nightly run is the only schedule",
     ),
     (
+        "      - main\n      - ci-artifact-probe\n",
         "      - ci-artifact-probe\n",
-        "      - ci-artifact-probe\n      - main\n",
-        "no complete run per push to main",
+        "every push to main must run the post-merge tier",
     ),
     (
         "        converted_to_draft,\n        edited,\n",
@@ -51,9 +86,19 @@ CI_MUTATIONS = (
         "ci.yml: pull_request must list ready_for_review, converted_to_draft and edited",
     ),
     (
-        "  lint-unit:\n",
-        "  lint-unit:\n    if: true\n  lint-unit-copy:\n",
-        "ci.yml: job lint-unit must not run for a draft",
+        "  lint:\n",
+        "  lint:\n    if: true\n  lint-copy:\n",
+        "ci.yml: job lint must not run for a draft",
+    ),
+    (
+        "  unit:\n",
+        "  unit-removed:\n",
+        "Job missing: unit",
+    ),
+    (
+        "  vulnerability:\n",
+        "  vulnerability-removed:\n",
+        "Job missing: vulnerability",
     ),
     (
         "needs.select.outputs.heavy != 'false' && (needs.fixture.result",
@@ -208,8 +253,8 @@ CI_MUTATIONS = (
         "aggregate gate 'CI gate' missing",
     ),
     (
-        "bash tools/ci/run-job.sh unit ./leonaid test-unit",
-        "sh tools/ci/retry-infra.sh bash tools/ci/run-job.sh unit ./leonaid test-unit",
+        "bash tools/ci/run-job.sh unit sh tools/ci/unit.sh",
+        "sh tools/ci/retry-infra.sh bash tools/ci/run-job.sh unit sh tools/ci/unit.sh",
         "only infrastructure commands may be retried",
     ),
     (
@@ -276,7 +321,7 @@ OTHER_MUTATIONS = (
         "docs.yml",
         "github.event.action != 'converted_to_draft'",
         "true",
-        "docs.yml: title-edit and draft runs must not share",
+        "docs.yml: title-edit, label and draft runs must not share",
     ),
     (
         "select-suites.yml",
@@ -288,19 +333,43 @@ OTHER_MUTATIONS = (
         "nightly-watchdog.yml",
         " surveys.yml:30:nightly",
         "",
-        "must track surveys.yml's nightly run",
+        "scheduled workflow surveys.yml is not watched",
     ),
     (
         "surveys.yml",
-        "run-name: ",
-        "x-run-name: ",
-        "surveys.yml: several schedules need a run-name",
+        "  push:\n    branches:\n      - main\n",
+        "",
+        "surveys.yml: every push to main must run the post-merge tier",
+    ),
+    (
+        "surveys.yml",
+        "    with:\n      post-merge: true\n",
+        "",
+        "surveys.yml: the selector must diff a push since the last green run",
+    ),
+    (
+        "surveys.yml",
+        "        labeled,\n        unlabeled,\n",
+        "",
+        "surveys.yml: pull_request must list labeled and unlabeled",
     ),
     (
         "nightly-watchdog.yml",
         " ci.yml:30:nightly",
         "",
-        "must track ci.yml's nightly run",
+        "scheduled workflow ci.yml is not watched",
+    ),
+    (
+        "nightly-watchdog.yml",
+        "ci.yml:push ",
+        "",
+        "must report a red post-merge run of ci.yml",
+    ),
+    (
+        "nightly-watchdog.yml",
+        " || github.event.workflow_run.event == 'push'",
+        "",
+        "must react to completed post-merge runs",
     ),
     (
         "docs.yml",
@@ -312,7 +381,7 @@ OTHER_MUTATIONS = (
         "pins.yml",
         "          HEAD_SHA: ${{ github.event.pull_request.head.sha }}\n",
         "",
-        "pins.yml: the gate must hand the draft/edit/stack context to gate.py",
+        "pins.yml: the gate must hand the draft/edit/label/stack context to gate.py",
     ),
     (
         "surveys.yml",
@@ -394,8 +463,8 @@ OTHER_MUTATIONS = (
     ),
     (
         "nightly-watchdog.yml",
-        'WATCHED: "ci.yml:8 ci.yml:30:nightly surveys.yml:8 surveys.yml:30:nightly',
-        'WATCHED: "ci.yml:8 ci.yml:30:nightly',
+        'WATCHED: "ci.yml:push ci.yml:30:nightly surveys.yml:push surveys.yml:30:nightly',
+        'WATCHED: "ci.yml:push ci.yml:30:nightly surveys.yml:push',
         "scheduled workflow surveys.yml is not watched",
     ),
     (

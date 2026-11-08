@@ -1,21 +1,29 @@
 #!/usr/bin/env python3
 """Select the expensive CI suites a run has to execute.
 
-Tiers (there is no merge queue: GitHub offers none for a personal-account
-repository, so ``main`` is proven by scheduled runs):
+Two tiers (decision E-018; there is no merge queue: GitHub offers none for a
+personal-account repository):
 
-* ``pull_request`` into main: cheap gates always run (lint/types, unit,
-  build, security, docs). Stack suites run only when their inputs changed.
-  Browser E2E leaves run only when mapped: module paths, their specs, and
-  for ``src/leonaid/**`` the reverse import graph (``e2e_owners``). Shared
-  infrastructure and unmapped paths select every non-E2E suite plus the
-  short ``smoke`` leg (login, one list view, one public order). The
-  ``full-e2e`` label adds every E2E leaf.
-* stacked ``pull_request`` (base is not main): module-local suites only.
-* ``schedule`` every 3 hours on main: everything except the E2E leaves,
-  plus the smoke leg.
-* nightly ``schedule``, ``workflow_dispatch``, ``push`` (probe branch):
-  everything, including every E2E leaf.
+* ``pull_request`` into main, the **fast tier** (the required gates, about
+  five minutes): the always-on jobs (lint/types, unit, build, security,
+  vulnerability gate, docs) plus the API contract and pins workflows when
+  their path filters match, plus the Integration shards and the Contract
+  job that a *specific* rule maps and that fit ``FAST_LEG_SECONDS`` in at
+  most ``FAST_MAX_BINS`` legs. E2E leaves, the smoke leg, EmDash proofs, the
+  Golden Journey and the survey shards never run here (``deferred``).
+* ``pull_request`` with the ``full-ci`` label: the complete suite, every
+  E2E leaf included, before the merge (migrations, security, large rewrites).
+* stacked ``pull_request`` (base is not main): the fast tier of the
+  module-local suites only; its gates never pass.
+* ``push`` to main, the **post-merge tier**: the suites the changed paths
+  select since the last green run on main (``--base``), as the pull request
+  tier selected them before E-018: stack suites by their inputs, E2E leaves
+  by module paths, specs and the reverse import graph (``e2e_owners``), and
+  for shared infrastructure and unmapped paths every non-E2E suite plus the
+  short ``smoke`` leg (login, one list view, one public order). Without a
+  readable diff: the complete suite.
+* nightly ``schedule``, ``workflow_dispatch``, ``push`` without a diff
+  (probe branch): everything, including every E2E leaf.
 
 Each changed path is matched against ``RULES``; the first matching rule wins.
 A path that no rule matches selects every non-E2E suite, so a new directory
@@ -159,13 +167,26 @@ MAX_BINS = {"integration": 4, "e2e": 4}
 # Integration shards that need the Twenty image prefetched (seed bootstrap).
 SEED_BOOTSTRAP = frozenset({"compose", "seed-cold", "seed-reset", "twenty-install"})
 
+# Fast tier (pull requests): Integration shards and Contract that a specific
+# rule selects run before the merge only when each fits FAST_LEG_SECONDS of
+# INTEGRATION_SECONDS and all of them fit FAST_MAX_BINS legs of that size.
+# A leg also pays about two minutes of image and fixture preparation, so
+# 180 s of tests keep it near the five-minute budget. Everything else the
+# change selects runs after the merge on main (post-merge tier).
+FAST_LEG_SECONDS = 180
+FAST_MAX_BINS = 2
+# Never in the fast tier: browser suites and multi-minute acceptance runs.
+HEAVY_FLAGS = frozenset({"golden", "surveys"})
+
 ALL = "*"
 MAIN_BRANCH = "main"
-# ci.yml schedules: the nightly run executes every E2E leaf, the 3-hourly
-# main run every suite except the E2E leaves (smoke only).
+# ci.yml's only schedule: the nightly run executes every E2E leaf.
 NIGHTLY_SCHEDULE = "7 3 * * *"
-MAIN_SCHEDULE = "37 */3 * * *"
+# The lead sets it on risky pull requests: the complete suite before merge.
+FULL_CI_LABEL = "full-ci"
+# Former label (every E2E leaf); kept as an alias of full-ci.
 FULL_E2E_LABEL = "full-e2e"
+FULL_LABELS = frozenset({FULL_CI_LABEL, FULL_E2E_LABEL})
 
 
 def integration(*shards: str) -> frozenset[str]:
@@ -935,6 +956,54 @@ def pack(
     return [bins[i] for i in order]
 
 
+def fast_pack(
+    names: Sequence[str], seconds: Mapping[str, int]
+) -> tuple[list[list[str]], list[str]]:
+    """Fast-tier legs: first-fit decreasing, deterministic.
+
+    At most FAST_MAX_BINS legs of at most FAST_LEG_SECONDS each. Returns the
+    legs (longest first) and the names that did not fit; those run after the
+    merge (post-merge tier) instead.
+    """
+    bins: list[list[str]] = []
+    loads: list[int] = []
+    deferred: list[str] = []
+    for name in sorted(names, key=lambda name: (-seconds[name], name)):
+        cost = seconds[name]
+        if cost > FAST_LEG_SECONDS:
+            deferred.append(name)
+            continue
+        for index, load in enumerate(loads):
+            if load + cost <= FAST_LEG_SECONDS:
+                bins[index].append(name)
+                loads[index] += cost
+                break
+        else:
+            if len(bins) < FAST_MAX_BINS:
+                bins.append([name])
+                loads.append(cost)
+            else:
+                deferred.append(name)
+    order = sorted(range(len(bins)), key=lambda i: (-loads[i], i))
+    return [bins[i] for i in order], sorted(deferred)
+
+
+def integration_unit(suite: str) -> str | None:
+    """The Integration leg unit of a suite key (a shard or Contract)."""
+    if suite == "contract":
+        return suite
+    if suite.startswith("integration:"):
+        return suite.split(":", 1)[1]
+    return None
+
+
+def is_heavy(suite: str) -> bool:
+    """Suites the fast tier never runs (browser and acceptance suites)."""
+    return (
+        suite.startswith("e2e:") or suite in (SMOKE, "emdash") or suite in HEAVY_FLAGS
+    )
+
+
 def matrix(
     bins: Sequence[Sequence[str]], bootstrap: Callable[[Sequence[str]], str]
 ) -> list[dict[str, str]]:
@@ -965,8 +1034,14 @@ class Selection:
     reason: str
     suites: frozenset[str]
     explanation: tuple[tuple[str, str, tuple[str, ...]], ...] = ()
-    # Security and Build: always, except in a stacked pull request.
+    # Security, vulnerability gate and Build: always, except in a stacked
+    # pull request.
     heavy: bool = True
+    # "fast" (pull request), "stacked", "full" (full-ci label), "post-merge"
+    # (push to main) or "complete" (schedule, dispatch, push without a diff).
+    tier: str = "complete"
+    # What the change selects but the fast tier leaves to the post-merge run.
+    deferred: frozenset[str] = frozenset()
 
     def shards(self, prefix: str, names: Sequence[str]) -> list[str]:
         return [n for n in names if f"{prefix}:{n}" in self.suites]
@@ -976,6 +1051,9 @@ class Selection:
         return units + (["contract"] if "contract" in self.suites else [])
 
     def integration_bins(self) -> list[list[str]]:
+        if self.tier in FAST_TIERS:
+            # select() kept only units that fit, so nothing is dropped here.
+            return fast_pack(self.integration_units(), INTEGRATION_SECONDS)[0]
         return pack(
             self.integration_units(), INTEGRATION_SECONDS, MAX_BINS["integration"]
         )
@@ -1001,6 +1079,7 @@ class Selection:
             "e2e": json.dumps(matrix(self.e2e_bins(), lambda _: "browser")),
             "emdash": json.dumps(matrix(self.emdash_bins(), emdash_bootstrap)),
             "heavy": json.dumps(self.heavy),
+            "tier": self.tier,
         }
         for flag in FLAGS:
             result[flag] = json.dumps(flag in self.suites)
@@ -1012,39 +1091,28 @@ def stacked(base_ref: str) -> bool:
     return bool(base_ref) and base_ref != MAIN_BRANCH
 
 
-def select(
-    event: str,
-    paths: Sequence[str],
-    base_ref: str = "",
-    schedule: str = "",
-    full_e2e: bool = False,
-    root: Path | None = None,
-) -> Selection:
-    """Suites for an event (see the module docstring for the tiers).
+FAST_TIERS = frozenset({"fast", "stacked"})
 
-    A stacked pull request (``base_ref`` is not main) runs only Lint, types
-    and unit plus the suites its module-local paths select; shared
-    infrastructure, unmapped paths and the former API/pins path filters
-    select nothing there, and Security/Build are skipped (``heavy``). The
-    stack's pull request into main runs the normal selection on the combined
-    diff, and the scheduled runs on main cover the rest.
+
+@dataclass(frozen=True)
+class Mapped:
+    """What the changed paths select, before the tier decides when it runs."""
+
+    suites: frozenset[str]
+    # Suites selected by a specific rule (not shared infrastructure, an
+    # unmapped path or the import graph): candidates for the fast tier.
+    specific: frozenset[str]
+    explanation: tuple[tuple[str, str, tuple[str, ...]], ...]
+
+
+def map_paths(changed: Sequence[str], is_stacked: bool, root: Path | None) -> Mapped:
+    """Suites per changed path (``RULES``, import graph, API/pins filters).
+
+    In a stacked pull request shared infrastructure, unmapped paths and the
+    former API/pins path filters select nothing.
     """
-    if event == "schedule" and schedule == MAIN_SCHEDULE:
-        return Selection(
-            False,
-            "schedule every 3 hours: complete suite without the E2E leaves "
-            "(smoke only; every leaf runs nightly)",
-            everything_but_e2e() | {SMOKE},
-        )
-    if event != "pull_request":
-        return Selection(True, f"{event}: complete suite", everything())
-    changed = sorted({p.strip() for p in paths if p.strip()})
-    if not changed:
-        return Selection(
-            True, "pull_request without a readable diff: complete suite", everything()
-        )
-    is_stacked = stacked(base_ref)
     suites: set[str] = set()
+    specific: set[str] = set()
     explanation = []
     for path in changed:
         selected, reason = classify(path)
@@ -1060,6 +1128,8 @@ def select(
                 reason = (
                     f"{reason}; import graph: {', '.join(sorted(owners)) or 'no leaf'}"
                 )
+        else:
+            specific |= selected
         if not is_stacked:
             if matches(path, API_PATHS) and not matches(path, API_EXCLUDED):
                 selected = selected | {"api"}
@@ -1067,22 +1137,99 @@ def select(
                 selected = selected | {"pins"}
         suites |= selected
         explanation.append((path, reason, tuple(sorted(selected))))
-    if full_e2e and not is_stacked:
-        suites |= e2e(*E2E_SHARDS)
     if e2e(*E2E_SHARDS) <= suites:
         # Every leaf runs; the smoke leg would only repeat three of them.
         suites.discard(SMOKE)
-    full = frozenset(suites) >= everything()
+    return Mapped(frozenset(suites), frozenset(specific), tuple(explanation))
+
+
+def fast_tier(mapped: Mapped) -> tuple[frozenset[str], frozenset[str]]:
+    """(suites, deferred): what a pull request runs before the merge.
+
+    Browser and acceptance suites never run here. Integration shards and
+    Contract run only when a specific rule selected them and all of them fit
+    the fast legs; the rest of the selection runs after the merge.
+    """
+    kept = {
+        suite
+        for suite in mapped.suites
+        if not is_heavy(suite) and integration_unit(suite) is None
+    }
+    candidates = [
+        unit
+        for suite in sorted(mapped.suites & mapped.specific)
+        if (unit := integration_unit(suite)) is not None
+    ]
+    bins, _ = fast_pack(candidates, INTEGRATION_SECONDS)
+    for unit in (unit for leg in bins for unit in leg):
+        kept.add("contract" if unit == "contract" else f"integration:{unit}")
+    suites = frozenset(kept)
+    return suites, mapped.suites - suites
+
+
+def select(
+    event: str,
+    paths: Sequence[str],
+    base_ref: str = "",
+    schedule: str = "",
+    full_ci: bool = False,
+    root: Path | None = None,
+) -> Selection:
+    """Suites for an event (see the module docstring for the tiers).
+
+    A stacked pull request (``base_ref`` is not main) runs only the fast tier
+    of its module-local suites; Security, the vulnerability gate and Build
+    are skipped (``heavy``). The stack's pull request into main runs the fast
+    tier on the combined diff, and the post-merge run covers the rest.
+
+    ``push`` with ``paths`` is the post-merge run on main: the paths changed
+    since the last green run there. ``push`` without paths (no green run
+    found, the probe branch) runs the complete suite.
+    """
+    changed = sorted({p.strip() for p in paths if p.strip()})
+    if event == "push" and changed:
+        mapped = map_paths(changed, False, root)
+        full = mapped.suites >= everything()
+        reason = (
+            "post-merge: complete suite"
+            if full
+            else "post-merge: suites of the paths changed since the last green run"
+        )
+        return Selection(
+            full, reason, mapped.suites, mapped.explanation, tier="post-merge"
+        )
+    if event != "pull_request":
+        return Selection(True, f"{event}: complete suite", everything())
+    if not changed:
+        return Selection(
+            True, "pull_request without a readable diff: complete suite", everything()
+        )
+    is_stacked = stacked(base_ref)
+    mapped = map_paths(changed, is_stacked, root)
+    if full_ci and not is_stacked:
+        return Selection(
+            True,
+            f"pull_request with the {FULL_CI_LABEL} label: complete suite before the merge",
+            everything(),
+            mapped.explanation,
+            tier="full",
+        )
+    suites, deferred = fast_tier(mapped)
     if is_stacked:
-        reason = f"stacked pull_request into {base_ref}: module-local suites only"
-    elif full:
-        reason = "pull_request: complete suite"
-    elif full_e2e:
-        reason = f"pull_request: changed inputs and every E2E leaf ({FULL_E2E_LABEL})"
+        reason = (
+            f"stacked pull_request into {base_ref}: fast tier of the module-local "
+            "suites only"
+        )
     else:
-        reason = "pull_request: changed inputs only"
+        reason = "pull_request: fast tier; the rest runs after the merge on main"
     return Selection(
-        full, reason, frozenset(suites), tuple(explanation), heavy=not is_stacked
+        False,
+        reason,
+        suites,
+        mapped.explanation,
+        heavy=not is_stacked,
+        tier="stacked" if is_stacked else "fast",
+        deferred=deferred,
     )
 
 
@@ -1146,6 +1293,13 @@ def summary(selection: Selection) -> str:
         lines.append(f"| {key} | {jobs or '—'} |")
     for key in FLAGS:
         lines.append(f"| {key} | `{outputs[key]}` |")
+    if selection.deferred:
+        lines += [
+            "",
+            "**After the merge on main** (or now with the "
+            f"`{FULL_CI_LABEL}` label): "
+            + ", ".join(f"`{suite}`" for suite in sorted(selection.deferred)),
+        ]
     if selection.explanation and not selection.full:
         lines += ["", "| Changed path | Rule | Suites |", "|---|---|---|"]
         for path, reason, suites in selection.explanation[:200]:
@@ -1164,7 +1318,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--labels",
         default="",
-        help=f"pull request labels, comma-separated; {FULL_E2E_LABEL} runs every E2E leaf",
+        help=f"pull request labels, comma-separated; {FULL_CI_LABEL} (alias "
+        f"{FULL_E2E_LABEL}) runs the complete suite",
     )
     parser.add_argument(
         "--base-ref",
@@ -1178,7 +1333,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     paths: list[str] = []
-    if args.event == "pull_request":
+    # A push diffs only when the workflow found the last green run on main
+    # (--base); otherwise it runs the complete suite.
+    if args.event == "pull_request" or (args.event == "push" and args.base):
         if args.paths_file:
             paths = Path(args.paths_file).read_text(encoding="utf-8").splitlines()
         elif args.base:
@@ -1196,7 +1353,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         paths,
         args.base_ref,
         schedule=args.schedule,
-        full_e2e=FULL_E2E_LABEL in labels,
+        full_ci=bool(FULL_LABELS & labels),
     )
     outputs = selection.outputs()
     for warning in load_warnings(selection):

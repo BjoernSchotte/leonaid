@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Check the stable, branch-protectable GitHub Actions job contract.
 
-Pull requests run the cheap gates plus the stack suites
+Two tiers (decision E-018): pull requests run the fast tier
 tools/ci/select_suites.py selects (drafts nothing, stacks module-local
-suites only); scheduled runs on main and dispatch run everything (the
-3-hourly run without the E2E leaves). One aggregate gate per workflow is the
-required check.
+suites only, the full-ci label everything); every push to main runs the
+post-merge tier (the heavy suites of the changed paths), the nightly run and
+dispatch run everything. One aggregate gate per workflow is the required
+check.
 """
 
 from __future__ import annotations
@@ -30,10 +31,12 @@ REQUIRED_JOBS = {
     "golden-journey",
     "golden-parts",
     "integration-shards",
-    "lint-unit",
+    "lint",
     "pilot-cold-rehearsal",
     "security",
     "select",
+    "unit",
+    "vulnerability",
 }
 # Jobs without own test output: selector, gate, Golden comparison, nightly report.
 NO_EVIDENCE = {"select", "gate", "golden-journey", "flake-summary"}
@@ -63,6 +66,15 @@ E2E_SHARDS = (
     "operations",
     "invoice-flows",
 )
+
+# Always-on jobs of ci.yml that only a stacked pull request skips (selector
+# output heavy); the CI gate requires each unless heavy is false.
+HEAVY_JOBS = ("security", "vulnerability", "build")
+# Workflows with a post-merge tier: every push to main runs the suites of the
+# paths changed since the last green run there (select-suites.yml
+# post-merge), a newer push cancels an older run, the watchdog reports a red
+# one, and adding the full-ci label runs the complete suite before the merge.
+POST_MERGE = ("ci.yml", "surveys.yml")
 
 # Workflows whose gate is a required check. Each must run on pull_request
 # (never merge_group), must not use path filters and must end in its gate.
@@ -266,7 +278,7 @@ def check(path: Path) -> list[str]:
             problems.append(
                 f"{job}: the leg name must be stable (bin id/count), shards go to the summary."
             )
-    for job in ("security", "build"):
+    for job in HEAVY_JOBS:
         block = job_block(text, job)
         found = re.search(r"(?m)^    if: (.*)$", block)
         condition = found.group(1) if found else ""
@@ -297,6 +309,7 @@ def check(path: Path) -> list[str]:
     problems.extend(check_retries(text, "ci.yml"))
     problems.extend(check_free_disk(text, "ci.yml"))
     problems.extend(check_nightly(text))
+    problems.extend(check_post_merge(text, "ci.yml"))
     return problems
 
 
@@ -403,6 +416,22 @@ EDIT_GROUP = (
     "(github.event.pull_request.draft && github.event.action != 'converted_to_draft')) "
     "&& format('-mirror-{0}', github.run_id) || '' }}"
 )
+# Post-merge workflows also run on labels: adding full-ci is a real run (the
+# complete suite), every other label change mirrors like a title edit.
+FULL_CI = select_suites.FULL_CI_LABEL
+LABEL = (
+    f"(github.event.action != 'labeled' || github.event.label.name == '{FULL_CI}') "
+    "&& github.event.action != 'unlabeled'"
+)
+LABEL_TYPES = frozenset({"labeled", "unlabeled"})
+LABEL_GROUP = (
+    "${{ ((github.event.action == 'edited' && !github.event.changes.base) || "
+    f"(github.event.action == 'labeled' && github.event.label.name != '{FULL_CI}') || "
+    "github.event.action == 'unlabeled' || "
+    "(github.event.pull_request.draft && github.event.action != 'converted_to_draft')) "
+    "&& format('-mirror-{0}', github.run_id) || '' }}"
+)
+LABEL_CONTEXT = "LABEL: ${{ github.event.label.name }}"
 
 
 def pull_request_types(on: str) -> set[str]:
@@ -439,18 +468,28 @@ def check_drafts(text: str, name: str) -> list[str]:
             "and edited."
         )
     gated = name in GATED_WORKFLOWS
-    if EDIT_GROUP not in text[: text.find("\njobs:\n")]:
+    labelled = name in POST_MERGE
+    if labelled and not LABEL_TYPES <= pull_request_types(on):
         problems.append(
-            f"{name}: title-edit and draft runs must not share the PR's concurrency group."
+            f"{name}: pull_request must list labeled and unlabeled ({FULL_CI} runs "
+            "the complete suite)."
+        )
+    group = LABEL_GROUP if labelled else EDIT_GROUP
+    if group not in text[: text.find("\njobs:\n")]:
+        problems.append(
+            f"{name}: title-edit, label and draft runs must not share the PR's "
+            "concurrency group."
         )
     for job in jobs_of(text):
         block = job_block(text, job)
         if gated and job == "gate":
+            context = GATE_CONTEXT + ((LABEL_CONTEXT,) if labelled else ())
             if "permissions:" not in block or not all(
-                item in block for item in GATE_CONTEXT
+                item in block for item in context
             ):
                 problems.append(
-                    f"{name}: the gate must hand the draft/edit/stack context to gate.py."
+                    f"{name}: the gate must hand the draft/edit/label/stack context "
+                    "to gate.py."
                 )
             continue
         condition = re.search(r"(?m)^    if: (.*)$", block)
@@ -480,9 +519,11 @@ def check_drafts(text: str, name: str) -> list[str]:
             condition is None
             or DRAFT not in condition.group(1)
             or (gated and EDIT not in condition.group(1))
+            or (labelled and LABEL not in condition.group(1))
         ):
             problems.append(
-                f"{name}: job {job} must not run for a draft or a title edit."
+                f"{name}: job {job} must not run for a draft, a title edit or a "
+                "label change other than adding full-ci."
             )
     return problems
 
@@ -601,20 +642,22 @@ def check_retries(text: str, name: str) -> list[str]:
 
 
 NIGHTLY_CRON = '"7 3 * * *"'
-MAIN_CRON = '"37 */3 * * *"'
 
 
 def check_nightly(text: str) -> list[str]:
-    """Main is proven by scheduled complete runs, not by a run per push."""
+    """One schedule: the nightly complete run with the flake summary.
+
+    The former 3-hourly run is replaced by the post-merge runs; another
+    schedule would compete with pull requests for the 20 runners.
+    """
     problems: list[str] = []
     on = triggers(text)
     if not re.search(r"\n  schedule:\n    - cron: ", on) or NIGHTLY_CRON not in on:
         problems.append("ci.yml: nightly complete run (schedule) missing.")
-    if MAIN_CRON not in on:
-        problems.append("ci.yml: the 3-hourly complete run on main is missing.")
-    if re.search(r"(?m)^      - main$", on):
+    if len(re.findall(r"(?m)^    - cron: ", on)) != 1:
         problems.append(
-            "ci.yml: no complete run per push to main; the schedule proves main."
+            "ci.yml: the nightly run is the only schedule; main is proven by the "
+            "post-merge runs."
         )
     report = job_block(text, "flake-summary")
     if (
@@ -622,6 +665,31 @@ def check_nightly(text: str) -> list[str]:
         or "tools/ci/flake_summary.py" not in report
     ):
         problems.append("ci.yml: nightly flake summary missing.")
+    return problems
+
+
+def check_post_merge(text: str, name: str) -> list[str]:
+    """Every push to main runs the post-merge tier; a newer push cancels it."""
+    problems: list[str] = []
+    on = triggers(text)
+    push = re.search(r"\n  push:\n    branches:\n((?:      - .*\n)+)", on + "\n")
+    if not push or not re.search(r"(?m)^      - main$", push.group(1)):
+        problems.append(f"{name}: every push to main must run the post-merge tier.")
+    cancel = re.search(r"(?m)^  cancel-in-progress: (.*)$", text)
+    if not cancel or "github.event_name == 'push'" not in cancel.group(1):
+        problems.append(
+            f"{name}: a newer push to main must cancel an older post-merge run."
+        )
+    select = job_block(text, "select")
+    if (
+        "post-merge: true" not in select
+        or "actions: read" not in select
+        or "uses: ./.github/workflows/select-suites.yml" not in select
+    ):
+        problems.append(
+            f"{name}: the selector must diff a push since the last green run "
+            "(select-suites.yml post-merge: true, actions: read)."
+        )
     return problems
 
 
@@ -743,8 +811,14 @@ def check_nightly_watchdog(root: Path) -> list[str]:
         {item.strip() for item in listened.group(1).split(",")} if listened else set()
     )
     watched = re.search(r'(?m)^      WATCHED: "([^"]*)"$', text)
+    # Scheduled entries only: a post-merge entry (file:push) does not watch
+    # the workflow's schedule.
     files = (
-        {entry.split(":", 1)[0] for entry in watched.group(1).split()}
+        {
+            entry.split(":", 1)[0]
+            for entry in watched.group(1).split()
+            if not entry.endswith(":push")
+        }
         if watched
         else set()
     )
@@ -752,6 +826,17 @@ def check_nightly_watchdog(root: Path) -> list[str]:
     # green frequent run must not hide a red nightly one. Each such workflow
     # needs a run name for its nightly cron and a title-tracked entry.
     entries = watched.group(1).split() if watched else []
+    monitor = job_block(text, "monitor")
+    for name in POST_MERGE:
+        if f"{name}:push" not in entries:
+            problems.append(
+                f"{NIGHTLY_WATCHDOG}: must report a red post-merge run of {name} "
+                f"({name}:push)."
+            )
+    if "github.event.workflow_run.event == 'push'" not in monitor:
+        problems.append(
+            f"{NIGHTLY_WATCHDOG}: must react to completed post-merge runs (push)."
+        )
     for candidate in sorted(workflows.glob("*.yml")):
         candidate_text = candidate.read_text(encoding="utf-8")
         if candidate.name in OWN_WATCHDOG:
@@ -793,6 +878,8 @@ def check_repository(root: Path) -> list[str]:
         if name == "ci.yml":
             continue
         text = (workflows / name).read_text(encoding="utf-8")
+        if name in POST_MERGE:
+            problems.extend(check_post_merge(text, name))
         problems.extend(check_tiers(text, name))
         problems.extend(check_drafts(text, name))
         problems.extend(check_gate(text, name))
@@ -815,6 +902,10 @@ def check_repository(root: Path) -> list[str]:
         )
     if "tools/ci/select_suites.py --event" not in select:
         problems.append("select-suites.yml must run tools/ci/select_suites.py.")
+    if gate_script.FULL_CI_LABEL != select_suites.FULL_CI_LABEL:
+        problems.append(
+            "tools/ci/gate.py FULL_CI_LABEL must equal select_suites.FULL_CI_LABEL."
+        )
     problems.extend(check_refresh(root))
     for name in GATED_WORKFLOWS:
         text = (workflows / name).read_text(encoding="utf-8")

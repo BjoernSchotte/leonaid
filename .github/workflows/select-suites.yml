@@ -1,9 +1,16 @@
 name: Select CI suites
-# Reusable: pull requests get the suites whose inputs changed;
-# push, schedule and workflow_dispatch always get the complete suite.
+# Reusable: pull requests get the fast tier (decision E-018), the full-ci
+# label the complete suite; a post-merge push to main gets the suites of the
+# paths changed since the last green run on main; schedule, dispatch and a
+# push without such a run get the complete suite.
 # Rules and tests: tools/ci/select_suites.py and select_suites_test.py.
 on:
   workflow_call:
+    inputs:
+      post-merge:
+        description: On a push to main, select by the diff since the last green run of the calling workflow
+        type: boolean
+        default: false
     outputs:
       full:
         value: ${{ jobs.select.outputs.full }}
@@ -25,6 +32,8 @@ on:
         value: ${{ jobs.select.outputs.pins }}
       heavy:
         value: ${{ jobs.select.outputs.heavy }}
+      tier:
+        value: ${{ jobs.select.outputs.tier }}
 permissions:
   contents: read
 jobs:
@@ -43,25 +52,50 @@ jobs:
       api: ${{ steps.select.outputs.api }}
       pins: ${{ steps.select.outputs.pins }}
       heavy: ${{ steps.select.outputs.heavy }}
+      tier: ${{ steps.select.outputs.tier }}
     steps:
       # The pull-request merge commit's first parent is the current base, so
       # HEAD^1..HEAD is exactly what this PR adds to main.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 2
+          persist-credentials: false
+      # Post-merge: everything since the newest green run of this workflow on
+      # main (a cancelled or red run's changes stay in the next diff). The
+      # caller grants actions: read. Any lookup or fetch failure leaves the
+      # base empty, and the selector then runs the complete suite.
+      - id: base
+        if: inputs.post-merge && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          SHA: ${{ github.sha }}
+        run: |
+          workflow=${WORKFLOW_REF%%@*}
+          workflow=${workflow##*/}
+          base=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?branch=main&status=success&per_page=50" \
+            --jq '[.workflow_runs[] | select(.event == "push" or .event == "schedule" or .event == "workflow_dispatch") | select(.head_sha != env.SHA)][0].head_sha // empty') || base=
+          if [ -n "$base" ] && git fetch --quiet --no-tags --depth=1 origin "$base"; then
+            echo "select-suites: post-merge diff since the last green run on main: $base"
+            echo "sha=$base" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Post-merge selection::no green run of $workflow on main found (or not fetchable); running the complete suite"
+          fi
       - id: select
         env:
           EVENT: ${{ github.event_name }}
           # A pull request into another feature branch is a stacked PR.
           BASE_REF: ${{ github.base_ref }}
-          # The full-e2e label adds every E2E leaf (read at the next push).
+          # full-ci (alias full-e2e) runs the complete suite before the merge.
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
-          # The 3-hourly main run skips the E2E leaves; the nightly runs all.
           SCHEDULE: ${{ github.event.schedule }}
+          POST_MERGE_BASE: ${{ steps.base.outputs.sha }}
         run: |
           if [ "$EVENT" = pull_request ]; then
             python3 tools/ci/select_suites.py --event "$EVENT" --base HEAD^1 --head HEAD \
               --base-ref "$BASE_REF" --labels "$LABELS"
+          elif [ "$EVENT" = push ] && [ -n "$POST_MERGE_BASE" ]; then
+            python3 tools/ci/select_suites.py --event "$EVENT" --base "$POST_MERGE_BASE" --head HEAD
           else
             python3 tools/ci/select_suites.py --event "$EVENT" --schedule "$SCHEDULE"
           fi

@@ -16,11 +16,12 @@ Pull request context (environment of the gate step):
 
 * a draft fails the gate: no CI ran, and a red gate cannot be mistaken for
   a result after ``ready_for_review`` (a draft cannot be merged anyway);
-* an ``edited`` event that did not change the base (title or body edits)
-  runs no job; the gate mirrors the newest completed gate of a real run
-  for the commit and fails fast without one (the real gate, created when
-  its jobs finish, supersedes it), so an edit can neither hide a failure
-  nor cancel a run;
+* an ``edited`` event that did not change the base (title or body edits),
+  and a ``labeled``/``unlabeled`` event other than adding ``full-ci``, runs
+  no job; the gate mirrors the newest completed gate of a real run for the
+  commit and fails fast without one (the real gate, created when its jobs
+  finish, supersedes it), so an edit can neither hide a failure nor cancel
+  a run. Adding ``full-ci`` starts a real, complete run;
 * a stacked selection (``heavy`` false) never passes: it skipped the
   shared suites, and its green would stay the newest gate for 20-60
   minutes after a retarget to main.
@@ -144,6 +145,25 @@ def mirrored_result(
     return "missing"
 
 
+# Adding this label starts the complete suite (tools/ci/select_suites.py
+# FULL_CI_LABEL); every other label change only mirrors.
+FULL_CI_LABEL = "full-ci"
+
+
+def mirror_event(environ: Mapping[str, str]) -> bool:
+    """A pull-request event that runs no suite: its gate mirrors the commit.
+
+    A title or body edit (no base change), and a label change other than
+    adding ``full-ci``: it neither hides a failure nor cancels the real run.
+    """
+    action = environ.get("EVENT_ACTION")
+    if action == "edited":
+        return environ.get("BASE_CHANGED") != "true"
+    if action == "labeled":
+        return environ.get("LABEL") != FULL_CI_LABEL
+    return action == "unlabeled"
+
+
 def pull_request_context(
     environ: Mapping[str, str], outputs: Mapping[str, object], fetch: Fetch
 ) -> tuple[bool | None, str]:
@@ -160,10 +180,7 @@ def pull_request_context(
         )
         if not isinstance(pull, dict) or pull.get("draft") is not False:
             return False, "draft pull request: no CI ran; mark it ready for review"
-    if draft_run or (
-        environ.get("EVENT_ACTION") == "edited"
-        and environ.get("BASE_CHANGED") != "true"
-    ):
+    if draft_run or mirror_event(environ):
         result = mirrored_result(
             fetch,
             environ.get("GITHUB_REPOSITORY", ""),
@@ -171,7 +188,13 @@ def pull_request_context(
             environ.get("GATE_NAME", ""),
             environ.get("GITHUB_RUN_ID", ""),
         )
-        kind = "draft run, now ready" if draft_run else "title/body edit"
+        kind = (
+            "draft run, now ready"
+            if draft_run
+            else "title/body edit"
+            if environ.get("EVENT_ACTION") == "edited"
+            else "label change"
+        )
         message = f"{kind}: this commit's real gate result is {result}"
         if result != "success":
             message += (
