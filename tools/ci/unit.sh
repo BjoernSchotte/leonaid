@@ -6,15 +6,16 @@
 # LEONAID_UNIT_SOLVER_SHARDS deterministic shards (tools/dx/pytest_shard.py:
 # position modulo count, so the shards partition the file) beside one lane
 # with every other unit test. `./leonaid test-unit` runs the same tests in
-# one process. Six shards oversubscribe the 4 vCPUs on purpose: the slowest
-# test cases are unevenly spread, and the scheduler then evens the load.
+# one process. The shards are balanced by the measured seconds per test in
+# tests/unit/test_survey_disclosure_solver.weights.json (a test missing there
+# only shifts the balance, never the coverage).
 set -eu
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
 . "$root/infra/locks/images.env"
 solver=tests/unit/test_survey_disclosure_solver.py
-shards=${LEONAID_UNIT_SOLVER_SHARDS:-6}
-case "$shards" in '' | *[!0-9]* | 0) shards=6 ;; esac
+shards=${LEONAID_UNIT_SOLVER_SHARDS:-4}
+case "$shards" in '' | *[!0-9]* | 0) shards=4 ;; esac
 
 run_python() {
   docker run --rm \
@@ -49,6 +50,7 @@ index=0
 while [ "$index" -lt "$shards" ]; do
   lane "solver-$index" run_python env PYTHONPATH=/workspace:/workspace/src \
     LEONAID_PYTEST_SHARD="$index/$shards" \
+    LEONAID_PYTEST_WEIGHTS=/workspace/tests/unit/test_survey_disclosure_solver.weights.json \
     uv run --frozen --no-sync pytest -q -p no:cacheprovider -p tools.dx.pytest_shard \
     "$solver"
   index=$((index + 1))
