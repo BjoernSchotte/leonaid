@@ -184,7 +184,7 @@ failures in the final attempt and failures that were followed by a rerun
 
 A red scheduled or post-merge run has no pull request that shows it.
 `nightly-watchdog.yml` runs after every scheduled and post-merge run of
-`ci.yml`, `surveys.yml`, `pins.yml`, `pin-drift.yml` and `refit-timings.yml`
+`ci.yml`, `surveys.yml`, `pins.yml` and `pin-drift.yml`
 on `main`, and once a day on its own schedule. For each entry it reads the
 latest completed run on `main` (post-merge: the latest that was not
 cancelled):
@@ -195,8 +195,8 @@ cancelled):
   attention`) with the run link and the failed jobs, or adds one comment per
   new failed run;
 - a schedule older than its limit (30 hours for the nightly `ci.yml` and
-  `surveys.yml` runs and `pin-drift.yml`, 8 days for the weekly `pins.yml`
-  and `refit-timings.yml`): the same issue reports a stopped schedule;
+  `surveys.yml` runs and `pin-drift.yml`, 8 days for the weekly `pins.yml`):
+  the same issue reports a stopped schedule;
 - green and current: it closes the issue.
 
 It uses only `GITHUB_TOKEN` with `actions: read` and `issues: write`.
@@ -334,16 +334,12 @@ Then `tools/ci/sanitize_artifacts.py` withholds the excerpt on personal data,
 and a credential keyword still followed by a value withholds it too. Its
 self-test runs in Lint and types.
 
-The heaviest single case, `krapfentaxi-orders` (about 12 minutes of tests),
-sets the wall time of a complete run. `refit-timings.yml` (weekly, Monday 05:29 UTC) keeps the seconds tables
-current: `tools/ci/refit_timings.py` reads the job logs of the last 7
-successful nightly runs, takes per shard the median after dropping values
-outside half to double of it, and opens a pull request (`ci/refit-timings`,
-the required workflows dispatched like `pin-drift.yml`) only for entries
-that moved by more than 15 %. Integration shards come from
-`ci-integration: bin: <shard> passed (<n>s)`, E2E shards from the
-`shared-stack:` / `ci-e2e: own leaf:` lines of their leaf scripts plus 30 s
-of stack preparation, EmDash groups from `ci-emdash: OK: <case> (<n>s)`.
+The heaviest EmDash half, `krapfentaxi-orders` (about 7 minutes of tests),
+sets the wall time of a complete run. The seconds tables in
+`select_suites.py` are measured test-step seconds; the pull request that
+changes a shard updates its entry from the job log
+(`ci-integration: bin: <shard> passed (<n>s)`, `shared-stack:` leaf lines,
+`ci-emdash: OK: <case> (<n>s)`).
 
 Cache write discipline: the shared BuildKit cache is written only by the
 Build job of runs on `main` (post-merge, nightly, dispatch); pull requests
@@ -382,17 +378,15 @@ skip threshold is about eight times the largest growth. CPU is the limit and
 is not measured. If concurrency is revisited: Integration shards only, two at
 a time, first on the nightly run with a load-average sampler.
 
-Refit guards: a shard value changes only with at least 3 observations, never
-below 1 s; no nightly run, no timing line or an unreadable log fails the
-workflow, so the watchdog reports it. The shared cache is written only by
-runs on `main` (schedule or dispatch there); bot dispatches on
-`ci/refit-timings` or `pins/repin-images` only read it.
+The shared cache is written only by runs on `main` (schedule or dispatch
+there); bot dispatches on `pins/repin-images` only read it.
 
 ## Integration and survey shards
 
-Normal PR/main-push CI runs separate Integration shards for Compose cold start,
-seed cold/idempotency, seed mutation/reset, Core, schema, outbox, storage, documents,
-Typst, Twenty installation, CRM gateway, CRM import and policy. Pilot import includes a
+Normal PR/main-push CI runs separate Integration shards for the one cold start
+(Compose, with the Core API smoke on it), seed idempotency/mutation/reset, schema,
+outbox, storage, documents, Typst, Twenty installation, CRM gateway, CRM import and
+policy (on the prepared fixture). Pilot import includes a
 real backup/restore and runs nightly instead. `bash tools/ci/integration.sh`
 also excludes pilot import by default; that shard remains explicitly selectable.
 

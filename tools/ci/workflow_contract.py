@@ -91,7 +91,7 @@ UNGATED_REQUIRED = {"docs.yml": "Bilingual site artifact"}
 # Scheduled re-pin of moved image tags (tools/pins/image_digests.py).
 PIN_DRIFT = "pin-drift.yml"
 # Scheduled workflows that open a pull request with GITHUB_TOKEN.
-PR_BOTS = ("pin-drift.yml", "refit-timings.yml")
+PR_BOTS = ("pin-drift.yml",)
 PIN_DRIFT_PERMISSIONS = {
     ("actions", "write"),
     ("contents", "write"),

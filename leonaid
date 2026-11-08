@@ -4488,7 +4488,6 @@ case "$command" in
     require_docker
     /bin/sh "$root/tools/compose/test.sh" "$root"
     /bin/sh "$root/tools/seed/test.sh" "$root"
-    /bin/sh "$root/tools/core/test.sh" "$root"
     /bin/sh "$root/tools/schema/test.sh" "$root"
     /bin/sh "$root/tools/outbox/test.sh" "$root"
     /bin/sh "$root/tools/twenty/test.sh" "$root"
