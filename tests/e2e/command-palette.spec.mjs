@@ -8,12 +8,13 @@ import { expect, test } from "./csp-guard.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const klaraSession = process.env.KLARA_SESSION;
+const simoneSession = process.env.SIMONE_SESSION;
 const disabledModules = (process.env.LEONAID_PALETTE_DISABLED_MODULES ?? "")
   .split(",")
   .filter(Boolean);
 const actionId = "20000000-0000-4000-8000-000000000001";
 
-if (!baseUrl || !klaraSession) {
+if (!baseUrl || !klaraSession || !simoneSession) {
   throw new Error("Command palette browser environment is incomplete");
 }
 
@@ -244,6 +245,43 @@ test.describe("enabled modules", () => {
       await expect(close).toBeFocused();
       await page.keyboard.press("Escape");
       await expect(help).toBeHidden();
+    } finally {
+      await context.close();
+    }
+  });
+
+  // Layout and client routing only; who finds which hit is
+  // tests/integration/test_search_api.py.
+  test("on a phone, a hit opens its record in its action without overflow", async ({
+    browser,
+  }) => {
+    const context = await signedIn(browser, simoneSession, {
+      width: 390,
+      height: 844,
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(`${baseUrl}/admin/actions`);
+      await shellReady(page);
+      await openPalette(page);
+      const invoiceSearch = searchResponse(page, "KT26-0001");
+      await paletteInput(page).fill("KT26-0001");
+      await invoiceSearch;
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+      expect(overflow).toBeLessThanOrEqual(1);
+      await palette(page)
+        .getByRole("group", { name: "Rechnungen" })
+        .getByRole("option", { name: /KT26-0001/ })
+        .click();
+      await expect(page).toHaveURL(
+        new RegExp(`/admin/invoices\\?action=${actionId}`),
+      );
+      await expect(page).toHaveURL(/[?&]open=[0-9a-f-]{36}/);
+      await expect(page.getByTestId("invoice-detail")).toContainText(
+        "KT26-0001",
+      );
     } finally {
       await context.close();
     }
