@@ -227,6 +227,11 @@ Punkte sind keine stillschweigenden Produktzusagen.
   fehlen.
 - RustFS ist der PoC-Default. SeaweedFS beweist nur den neutralen S3-Vertrag
   und ist kein zweiter produktiver Cluster.
+- Der Restore nur des CMS (`LEONAID_RESTORE_SCOPE=cms` in
+  `tools/backup/restore-body.sh`) läuft in keinem Stack-Test mehr; nur seine
+  Eingangsprüfung (`tools/backup/restore_scope_test.py`) läuft in
+  `./leonaid check`. Der nightly Pilot-Install-Drill stellt mit `full` wieder
+  her (E-028).
 
 ## Einordnung
 
