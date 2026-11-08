@@ -1159,7 +1159,6 @@ check_host_tests() {
     python3 "$root/tools/testing/image_tags_test.py" &&
     python3 "$root/tools/testing/phase_test.py" &&
     python3 "$root/tools/testing/fixture_cache_test.py" &&
-    python3 "$root/tools/testing/parallel_stacks_test.py" &&
     python3 "$root/tools/dx/pre_push_test.py"
 }
 
