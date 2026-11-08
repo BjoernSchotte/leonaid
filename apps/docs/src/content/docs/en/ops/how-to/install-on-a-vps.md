@@ -181,7 +181,10 @@ must allow `letsencrypt.org`. Every `A`/`AAAA` record of the domain must
 name an address of this server; LeonAid takes the addresses of the admin host
 or `LEONAID_SITE_HOST_EDGE_ADDRESSES`. LeonAid also asks public DNS
 servers (default `1.1.1.1` and `9.9.9.9`, `LEONAID_SITE_HOST_PUBLIC_RESOLVERS`);
-outgoing port 53 must be open for this. A domain whose certificate has less
+outgoing port 53 (UDP and TCP) must be open for this. If it is blocked, the
+check of every domain fails and reports that the public DNS server does not
+answer; after 72 hours all verified domains are disabled. Set
+`LEONAID_SITE_HOST_PUBLIC_RESOLVERS=none` to skip this query. A domain whose certificate has less
 than 20 days left fails the check. The outside proof:
 
 ```sh
