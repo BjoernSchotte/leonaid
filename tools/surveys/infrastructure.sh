@@ -514,7 +514,7 @@ import sys
 from pathlib import Path
 proof, artifact = map(Path, sys.argv[1:])
 rows = [json.loads(path.read_text()) for path in sorted(proof.glob("permission-browser-*-*.json"))]
-assert len(rows) == 3 and sum(row["resourcePairs"] for row in rows) == 12
+assert len(rows) == 5 and sum(row["resourcePairs"] for row in rows) == 20
 (artifact / "permissions-browser-proof.json").write_text(json.dumps({"syntheticOnly": True, "cases": rows}, indent=2) + "\n")
 PYMATRIX
 fi

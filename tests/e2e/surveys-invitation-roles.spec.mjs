@@ -7,7 +7,7 @@ const proof = process.env.LEONAID_E2E_ARTIFACT_DIR;
 // Visible controls only (decision E-026); invitation_roles_live.py and
 // special_permissions_verify.py prove the rights against the API.
 for (const mobile of [false])
-  for (const name of ["admin", "manage_invitations", "outsider"])
+  for (const name of ["admin", "manage_invitations", "design", "outsider"])
     test(`${name} invitation controls and recipient data are scoped on ${mobile ? "mobile" : "desktop"}`, async ({
       browser,
     }) => {

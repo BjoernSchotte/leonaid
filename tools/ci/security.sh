@@ -10,7 +10,7 @@ policies() {
   python3 "$root/tools/testing/ci_fixture_test.py"
   python3 "$root/tools/testing/image_tags_test.py"
   python3 "$root/tools/testing/phase_test.py"
-  # Survey restore receipts (former survey check restore-receipts).
+  echo "security: survey-restore-receipts"
   python3 "$root/tools/backup/restore_state_test.py"
 
   docker run --rm \

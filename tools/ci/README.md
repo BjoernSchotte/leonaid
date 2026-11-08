@@ -517,16 +517,14 @@ Validation commands:
 
 ```sh
 python3 tools/testing/shared_stack_test.py
-python3 tools/testing/shared_stack_live.py
 python3 tools/testing/owned_teardown_live.py
 sh tools/ci/e2e.sh acquisition
 ./leonaid test-surveys lifecycle
 ```
 
-The live reset proof deliberately contaminates both databases, Valkey, versioned
-storage and mail, rejects a reset while a leaf lease is held, and verifies the
-clean core state with the same containers and volumes afterward; a survey stack
-keeps Twenty running and untouched (its probe survives). Group logs separate
+Every reset compares a content digest of each restored volume with the first
+restore and refuses the next leaf on a difference; a survey stack keeps Twenty
+running and untouched. Group logs separate
 initial setup, data reset and each leaf's runtime. Compare new GitHub runtimes
 on the same runner class; local warm/cold-cache measurements are not CI forecasts.
 

@@ -1,4 +1,4 @@
-"""Process/lease checks; actual data reset semantics use shared_stack_live.py."""
+"""Process/lease and reset-digest checks; every survey shard exercises the real reset."""
 
 import importlib.util
 import re
@@ -101,18 +101,30 @@ class VerifiedResetTests(unittest.TestCase):
         ]
         return stack
 
+    ALL = {"0", "1", "2"}
+    CORE = {"0", "1"}
+
     def test_first_restore_records_and_a_clean_reset_matches(self):
         stack = self.stack()
-        stack.verify_digests("0 " + "a" * 64 + "\n1 " + "b" * 64 + "\n2 " + "c" * 64)
+        stack.verify_digests(
+            "0 " + "a" * 64 + "\n1 " + "b" * 64 + "\n2 " + "c" * 64, self.ALL
+        )
         stack.preserving = True
-        stack.verify_digests("0 " + "a" * 64 + "\n1 " + "b" * 64)
+        stack.verify_digests("0 " + "a" * 64 + "\n1 " + "b" * 64, self.CORE)
 
     def test_leftover_state_refuses_the_next_check(self):
         stack = self.stack()
-        stack.verify_digests("0 " + "a" * 64 + "\n1 " + "b" * 64 + "\n2 " + "c" * 64)
+        stack.verify_digests(
+            "0 " + "a" * 64 + "\n1 " + "b" * 64 + "\n2 " + "c" * 64, self.ALL
+        )
         stack.preserving = True
         with self.assertRaisesRegex(RuntimeError, "left state behind.*rustfs-data"):
-            stack.verify_digests("0 " + "a" * 64 + "\n1 " + "d" * 64)
+            stack.verify_digests("0 " + "a" * 64 + "\n1 " + "d" * 64, self.CORE)
+
+    def test_a_missing_volume_digest_is_refused(self):
+        stack = self.stack()
+        with self.assertRaisesRegex(RuntimeError, "digest covers"):
+            stack.verify_digests("0 " + "a" * 64, self.CORE)
 
 
 class SurveyTwentyIsolationTests(unittest.TestCase):

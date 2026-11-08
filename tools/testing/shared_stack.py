@@ -47,7 +47,7 @@ PRESERVED_VOLUMES = {
 # and file contents. Modification times are not part of it.
 DIGEST_SCRIPT = (
     'for d in /state/*; do printf "%s " "${d##*/}"; '
-    '(cd "$d" && find . -print0 | sort -z | xargs -0r stat -c "%n %F %s %a %u:%g %N" '
+    '(cd "$d" && find . -mindepth 1 -print0 | sort -z | xargs -0r stat -c "%n %F %s %a %u:%g %N" '
     '&& find . -type f -print0 | sort -z | xargs -0r sha256sum) | sha256sum | cut -d " " -f 1; done'
 )
 
@@ -555,9 +555,11 @@ class SharedStack:
             f"{self.directory}:/fixture",
         ]
         # Indices stay those of the full inventory, so archive names never shift.
+        mounted = set()
         for index, volume in enumerate(self.volumes):
             if self.preserving and volume in self.preserved_volumes:
                 continue
+            mounted.add(str(index))
             args += ["--mount", f"type=volume,src={volume},dst=/state/{index}"]
         # Names are numeric indices from the guarded inventory, never external paths.
         script = (
@@ -570,22 +572,24 @@ class SharedStack:
             [*args, self.alpine, "sh", "-eu", "-c", script + DIGEST_SCRIPT],
             capture=True,
         )
-        self.verify_digests(output)
+        self.verify_digests(output, mounted)
         # Fail closed if anything started while the copy ran.
         if active := self.active_containers():
             raise RuntimeError(
                 f"Fixture {mode} raced with started containers: {self.describe(active)}"
             )
 
-    def verify_digests(self, output):
+    def verify_digests(self, output, mounted):
         """Record the initialized state once; afterwards every reset must match it.
 
         A file a check left behind, or one the restore could not delete,
         changes the digest of its volume, and the next check is refused.
         """
         digests = dict(line.split(" ", 1) for line in output.splitlines())
-        if not digests:
-            raise RuntimeError("Fixture digest is empty")
+        if set(digests) != mounted:
+            raise RuntimeError(
+                f"Fixture digest covers {sorted(digests)}, not {sorted(mounted)}"
+            )
         if not self.digests:
             self.digests = digests
             return
