@@ -127,5 +127,5 @@ fixture /repo/tools/emdash_spike/campaign_orders_verify.py --before-recovery
 fixture /repo/tools/emdash_spike/campaign_orders_verify.py --after-cutover
 LEONAID_ENV=test fixture /repo/tools/emdash_spike/valid_order_ingress_proof.py
 [ "$(source_runtime_identity)" = "$source_runtime_before" ] || exit 1
-echo "cutover-rollback: backup then published-CMS primary cutover; newer orders preserved across CMS-only SQL/media restore and audited legacy selection; 24 additional legacy orders and current source Core authority passed"
+echo "cutover-rollback: backup then published-CMS primary cutover; newer orders preserved across CMS-only SQL/media restore and audited legacy selection; additional legacy orders and current source Core authority passed"
 echo "cutover-rollback: synthetic screenshots retained in $recovery_visual_proof; no production activation"

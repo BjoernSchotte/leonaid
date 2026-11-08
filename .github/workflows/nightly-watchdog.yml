@@ -16,7 +16,6 @@ on:
         Survey acceptance,
         Dependency pins,
         Image pin drift,
-        Refit CI timings,
       ]
     types: [completed]
   # Also catches a schedule that stopped firing or a missed workflow_run.

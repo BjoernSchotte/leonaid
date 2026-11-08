@@ -232,7 +232,7 @@ bootstrap, fixture restore and image pulls before its first test. Most of the
 | Vulnerability gate | 1 | Own images built and scanned with the checkout, both lockfiles and every pinned third-party image; four Trivy lanes on one read-only advisory snapshot |
 | `Integration / <shards>` | 4 | All Integration shards and Contract |
 | `E2E / <leaves>` | 4 | All E2E leaves |
-| `EmDash proof / <groups>` | 3 | `krapfentaxi-orders`; `krapfentaxi-deadlines` + `static`; `campaign-edge` |
+| `EmDash proof / <groups>` | 3 | `krapfentaxi-orders`; `krapfentaxi-deadlines`; `campaign-edge` + `static` |
 | Golden installation | 2 | Prepared and fresh installation (must stay separate runners) |
 | Golden journey, CI gate | 1 + 1 | Result comparison; the required check |
 
@@ -431,14 +431,14 @@ The optional campaign site (Compose profile `emdash`) has its own proof cases
 in them: an EmDash editor load race (PR #37) and a Caddy body-drain regression
 (PR #38). PR and main CI therefore run `tools/ci/emdash.sh` in the
 `EmDash proof / <groups>` matrix, gated by `CI gate`. Three legs
-(`EMDASH_BINS`): `krapfentaxi-orders` alone, `krapfentaxi-deadlines` with
-`static`, `campaign-edge` alone.
+(`EMDASH_BINS`): `krapfentaxi-orders` alone, `krapfentaxi-deadlines` alone,
+`campaign-edge` with `static`.
 
 | Group | Cases |
 |---|---|
 | `krapfentaxi-orders` | `krapfentaxi-orders-commerce`, the commerce half of `krapfentaxi-orders`: the whole `krapfentaxi-migration` case first (Krapfentaxi import with original media, three-browser editor and renderer proof, published redirects), then Chromium/Firefox/WebKit commerce phases, twelve order journeys (every scenario at least once per mode, every engine twice per mode) with Core/Twenty verification, valid order ingress. `krapfentaxi-migration` therefore does not run on its own. |
 | `krapfentaxi-deadlines` | `krapfentaxi-orders-deadlines`, the deadline half on its own stack: import, WebKit editor publication (the state the order proofs read), native and script order deadlines, partial CRM write, Caddy body deadlines. |
-| `campaign-edge` | `campaign-hosts`, `campaign-hosts-admin-only`: a campaign on its own host through the real edge, with and without a general public host; `redirect-aliases`: Chromium/Firefox/WebKit redirect alias editor (create, disable/enable, collision, move, remove) under the strict CSP |
+| `campaign-edge` | `campaign-hosts`: a campaign on its own host through the real edge, with and then (same stack, apps recreated) without a general public host; `redirect-aliases`: Chromium/Firefox/WebKit redirect alias editor (create, disable/enable, collision, move, remove) under the strict CSP |
 | `static` | stack-free `dependencies`, `krapfentaxi-source`, `authorization-inventory`, `release-manifest-compatibility`, `release-legacy-boundary`, `release-image-identity`, `closed-runtime`; plus `proxy-routing` (Caddy, public and CMS only, no database) |
 
 The jobs need no prepared fixture: every case builds its own isolated stack and

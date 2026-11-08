@@ -30,9 +30,9 @@ case "$group" in
   campaign-edge)
     # redirect-aliases: three-browser alias editor on /admin/actions/<id>
     # under the strict CSP. campaign-hosts: a campaign on its own host
-    # through the real edge (specs/multi-domain §7, §14), with and without
-    # a general public host.
-    cases="redirect-aliases campaign-hosts campaign-hosts-admin-only"
+    # through the real edge (specs/multi-domain §7, §14), with and then
+    # without a general public host, on one stack.
+    cases="redirect-aliases campaign-hosts"
     ;;
   static)
     # Stack-free proofs (dependency pins, source fixtures, authorization

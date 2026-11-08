@@ -22,7 +22,7 @@ if [ "$recovery:$orders" = true:true ]; then
   EMDASH_RECOVERY_TWENTY_SKIP_MIGRATIONS=false
   export EMDASH_RECOVERY_TWENTY_SKIP_MIGRATIONS
 fi
-case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|campaign-hosts|campaign-hosts-admin-only|public-media|order-component|migration|migration-operator|alias-http|alias-browser|emdash-upgrade) ;; *) exit 2 ;; esac
+case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|campaign-hosts|public-media|order-component|migration|migration-operator|alias-http|alias-browser|emdash-upgrade) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
 if [ "$recovery" = false ]; then
   docker run --rm --network none --volume "$root:/workspace:ro" "$NODE_IMAGE" \
@@ -49,7 +49,7 @@ LEONAID_ORDER_SUBMISSION_KEY=$(docker run --rm --network none "$NODE_IMAGE" \
   node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')
 export LEONAID_ORDER_SUBMISSION_KEY
 order_submission_key=$LEONAID_ORDER_SUBMISSION_KEY
-case "$mode" in campaign-hosts*) campaign_hosts=true ;; *) campaign_hosts=false ;; esac
+case "$mode" in campaign-hosts) campaign_hosts=true ;; *) campaign_hosts=false ;; esac
 if [ "$mode" = order-component ] || [ "$mode" = public-http ] || [ "$campaign_hosts" = true ] || [ "$mode" = public-media ]; then
   docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
     "$BUN_IMAGE" bun tools/emdash_spike/order-redisplay-proof.ts
@@ -493,36 +493,40 @@ if [ "$mode" != auth ]; then
       # specs/multi-domain §7 and §14, review of #107 I1: the published
       # campaign on its own host through the real Caddy (on-demand TLS with
       # Core's ask), campaign site, public app and Core.
-      fixture /repo/tools/emdash_spike/site_host_fixture.py activate
-      host_variant=
-      if [ "$mode" = campaign-hosts-admin-only ]; then
-        # The same stack without a general public host (§6.6): proxy is the
-        # admin host only, every app runs the admin-only configuration.
-        LEONAID_PROXY_CADDYFILE=Caddyfile.admin-only
-        LEONAID_ADMIN_DOMAIN=proxy
-        LEONAID_PUBLIC_DOMAIN=
-        LEONAID_ADMIN_BASE_URL=https://proxy:8443
-        LEONAID_SITE_BASE_URL=https://proxy:8443
-        LEONAID_PUBLIC_HOST_ENABLED=false
-        export LEONAID_PROXY_CADDYFILE LEONAID_ADMIN_DOMAIN LEONAID_PUBLIC_DOMAIN \
-          LEONAID_ADMIN_BASE_URL LEONAID_SITE_BASE_URL LEONAID_PUBLIC_HOST_ENABLED
-        compose up --no-deps --detach --wait api public campaign-site proxy
-        # The recreated proxy may hold a new internal CA.
-        compose cp proxy:/data/caddy/pki/authorities/local/root.crt "$proof/root.crt"
-        host_variant=admin-only
-      fi
       host_probe() {
         compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
           node tools/emdash_spike/campaign-host-http-proof.mjs "$@" $host_variant
       }
-      host_probe active || {
-        compose logs --no-color --tail=80 proxy api >&2
-        exit 1
+      host_round() {
+        host_probe active || {
+          compose logs --no-color --tail=80 proxy api >&2
+          exit 1
+        }
+        fixture /repo/tools/emdash_spike/site_host_fixture.py disable
+        # Ask snapshot 10 s; host caches of both apps and Core origins 30 s:
+        # the lapsed state must show within that bound (the probe polls).
+        host_probe disabled
       }
-      fixture /repo/tools/emdash_spike/site_host_fixture.py disable
-      # Ask snapshot 10 s; host caches of both apps and Core origins 30 s:
-      # the lapsed state must show within that bound (the probe polls).
-      host_probe disabled
+      fixture /repo/tools/emdash_spike/site_host_fixture.py activate
+      host_variant=
+      host_round
+      # The same stack without a general public host (§6.6): proxy is the
+      # admin host only, every app runs the admin-only configuration. The
+      # recreated processes start with empty host caches.
+      fixture /repo/tools/emdash_spike/site_host_fixture.py reactivate
+      LEONAID_PROXY_CADDYFILE=Caddyfile.admin-only
+      LEONAID_ADMIN_DOMAIN=proxy
+      LEONAID_PUBLIC_DOMAIN=
+      LEONAID_ADMIN_BASE_URL=https://proxy:8443
+      LEONAID_SITE_BASE_URL=https://proxy:8443
+      LEONAID_PUBLIC_HOST_ENABLED=false
+      export LEONAID_PROXY_CADDYFILE LEONAID_ADMIN_DOMAIN LEONAID_PUBLIC_DOMAIN \
+        LEONAID_ADMIN_BASE_URL LEONAID_SITE_BASE_URL LEONAID_PUBLIC_HOST_ENABLED
+      compose up --no-deps --detach --wait api public campaign-site proxy
+      # The recreated proxy may hold a new internal CA.
+      compose cp proxy:/data/caddy/pki/authorities/local/root.crt "$proof/root.crt"
+      host_variant=admin-only
+      host_round
       exit 0
     fi
     if [ "$mode" = public-media ]; then

@@ -57,8 +57,8 @@ OUTSIDE_GATE = {
 EMDASH_GROUPS = (
     "krapfentaxi-orders",
     "krapfentaxi-deadlines",
-    "static",
     "campaign-edge",
+    "static",
 )
 
 # Proofs that run nowhere else; dropping a shard silently stops the proof.
