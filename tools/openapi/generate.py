@@ -508,7 +508,7 @@ def generate_typescript(document: dict[str, Any]) -> str:
         "",
         "/** Every failed response becomes an ApiError, so callers can rely on status. */",
         "function responseError(response: Response, body: unknown): ApiError {",
-        "  const retryAfter = retryAfterSeconds(response.headers.get(\"retry-after\"));",
+        '  const retryAfter = retryAfterSeconds(response.headers.get("retry-after"));',
         "  if (isApiErrorResponse(body)) {",
         "    return new ApiError(response.status, body.error, retryAfter);",
         "  }",
