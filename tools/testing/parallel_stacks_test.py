@@ -159,11 +159,15 @@ class SchedulingTests(unittest.TestCase):
             scripts = self.leaves(6, body="sleep 5\n")
             runner = self.runner(stacks, scripts, keep_going=True)
             # Cancel while every worker is still inside prepare().
-            threading.Timer(0.2, runner.cancel).start()
+            timer = threading.Timer(0.2, runner.cancel)
+            timer.start()
             begin = time.monotonic()
             runner.run()
             self.assertLess(time.monotonic() - begin, 3)
             self.assertEqual(list(self.marks.iterdir()), [])
+            # The Timer thread itself may still be returning from cancel();
+            # only the runner's workers must be gone.
+            timer.join(timeout=5)
             self.assertEqual(threading.active_count(), 1)
 
     def test_cancel_terminates_running_leaves(self):

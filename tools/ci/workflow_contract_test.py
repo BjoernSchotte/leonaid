@@ -238,6 +238,12 @@ CI_MUTATIONS = (
 OTHER_MUTATIONS = (
     (
         "refresh-gates.yml",
+        "          persist-credentials: false\n",
+        "",
+        "refresh-gates.yml: must run tools/ci/rerun_stale_gates.py",
+    ),
+    (
+        "refresh-gates.yml",
         "        Documentation,\n",
         "",
         "refresh-gates.yml: must run on workflow_run of exactly",
