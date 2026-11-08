@@ -367,7 +367,6 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             production=settings.environment == "production",
         )
         application.state.site_host_check_secret = settings.site_host_check_secret
-        application.state.host_check_settings = settings.host_check_settings
         site_host_verification = AsyncpgSiteHostVerification(pool)
         application.state.site_host_verification = site_host_verification
         application.state.site_host_service = SiteHostService(

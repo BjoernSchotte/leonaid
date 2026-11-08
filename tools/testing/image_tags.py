@@ -39,6 +39,7 @@ import re
 import shlex
 import subprocess
 import sys
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 # Tests use their own repository so they never touch the shared tags.
@@ -305,7 +306,7 @@ def docker_platform() -> str:
     return result.stdout.strip()
 
 
-def normalize(root: Path, build: dict) -> dict:
+def normalize(root: Path, build: dict[str, Any]) -> dict[str, Any]:
     """A Compose build section with the context relative to the repository."""
     unsupported = UNSUPPORTED_BUILD_KEYS & set(build)
     if unsupported:
@@ -320,7 +321,7 @@ def normalize(root: Path, build: dict) -> dict:
     return spec
 
 
-def spec_hash(root: Path, build: dict, platform: str | None = None) -> str:
+def spec_hash(root: Path, build: dict[str, Any], platform: str | None = None) -> str:
     spec = normalize(root, build)
     context = (root / spec["context"]).resolve()
     dockerfile = context / spec["dockerfile"]
@@ -368,7 +369,7 @@ def build_hash(root: Path, context_name: str, dockerfile_name: str) -> str:
     return spec_hash(root, {"context": context_name, "dockerfile": dockerfile_name})
 
 
-def effective_builds(config: dict) -> dict[str, dict]:
+def effective_builds(config: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """Build sections of a rendered `docker compose config --format json`.
 
     A service with its own `image:` name is not tagged PROJECT-SERVICE by
@@ -412,7 +413,7 @@ def touch(service: str, content: str) -> None:
 
 
 def adopt(
-    root: Path, project: str, builds: dict[str, dict], services: list[str]
+    root: Path, project: str, builds: dict[str, dict[str, Any]], services: list[str]
 ) -> dict[str, str | None]:
     """Tag shared images for PROJECT; return {service: pre-build hash or None}
     for every service that still has to be built."""
@@ -443,7 +444,10 @@ def adopt(
 
 
 def record(
-    root: Path, project: str, builds: dict[str, dict], before: dict[str, str | None]
+    root: Path,
+    project: str,
+    builds: dict[str, dict[str, Any]],
+    before: dict[str, str | None],
 ) -> list[str]:
     """Tag freshly built images under the hash their inputs had before the
     build, only if the inputs still hash the same now."""

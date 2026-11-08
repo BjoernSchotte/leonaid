@@ -92,7 +92,12 @@ E2E_SHARDS = (
 # Short browser smoke leg (tools/ci/e2e.sh smoke): real login, one list view,
 # one public order. Runs alone in its leg.
 SMOKE = "smoke"
-EMDASH_GROUPS = ("krapfentaxi-orders", "krapfentaxi-migration", "static")
+EMDASH_GROUPS = (
+    "krapfentaxi-orders",
+    "krapfentaxi-deadlines",
+    "campaign-edge",
+    "static",
+)
 # Whole-workflow or whole-job suites.
 FLAGS = ("contract", "golden", "surveys", "api", "pins")
 
@@ -144,10 +149,18 @@ E2E_SECONDS = {
     SMOKE: 240,
 }
 # EmDash bins are fixed: the order proof alone is the longest job of the run.
-EMDASH_BINS = (("krapfentaxi-orders",), ("krapfentaxi-migration", "static"))
+EMDASH_BINS = (
+    ("krapfentaxi-orders",),
+    ("krapfentaxi-deadlines",),
+    ("campaign-edge", "static"),
+)
 EMDASH_SECONDS = {
-    "krapfentaxi-orders": 736,
-    "krapfentaxi-migration": 328,
+    # Measured on PR #145 run 42511933095: commerce half 458 s, deadline
+    # half 413 s, redirect-aliases 147 s; campaign-hosts 160 s plus its
+    # admin-only round on the same stack (about 60 s, estimate).
+    "krapfentaxi-orders": 458,
+    "krapfentaxi-deadlines": 413,
+    "campaign-edge": 370,
     "static": 107,
 }
 TARGET_SECONDS = 600
@@ -254,7 +267,6 @@ RULES: tuple[Rule, ...] = (
     Rule(
         (
             "tools/ci/*_test.py",
-            "tools/ci/refit_timings.py",
             "tools/ci/axe_helper.py",
             "tools/ci/build.sh",
             "tools/ci/conflict_markers.py",

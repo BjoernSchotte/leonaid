@@ -312,7 +312,6 @@ digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     "LEONAID_PUBLIC_DOMAIN=portal.leonaid.org" \
     "LEONAID_PUBLIC_BASE_URL=https://portal.leonaid.org" \
     "LEONAID_ALLOWED_ORIGINS=https://portal.leonaid.org" \
-    "LEONAID_SITE_HOST_PUBLIC_RESOLVERS=none" \
     "TWENTY_ADMIN_PORT=$admin_port" \
     "CADDY_ACME_EMAIL=operations@leonaid.org" \
     "RUSTFS_BUCKET=leonaid-production-club-111" \

@@ -1461,7 +1461,7 @@ CMS; after lifting maintenance the corrected release goes through.
 | Slice | Where |
 | --- | --- |
 | a: data model, commands, Domains tab | migration `0056_site_hosts`, `domain/site_hosts.py`, `application/site_hosts.py`, `adapters/postgres/site_hosts.py`, `/api/v1/admin/site-hosts`, `packages/features/src/system-admin/site-hosts-admin.tsx` |
-| b: host check, ask, re-check | `adapters/site_host_checks.py`, `adapters/postgres/site_host_verification.py`, `/.well-known/leonaid-host-check/{token}`, `/internal/tls/ask`, `/api/health/site-host-dns`, Caddy role `site` (on-demand TLS), `tools/site_hosts/acme_probe.py` |
+| b: host check, ask, re-check | `adapters/site_host_checks.py`, `adapters/postgres/site_host_verification.py`, `/.well-known/leonaid-host-check/{token}`, `/internal/tls/ask`, Caddy role `site` (on-demand TLS), `tools/site_hosts/acme_probe.py` |
 | c: serving | `/api/v1/public/sites/{host}`, `campaignHostUrl`, `adapters/postgres/site_directory.py`, campaign site `site-host*.ts` + `/site-editions`, public app `lib/site-hosts.ts`, EmDash case `campaign-hosts` |
 | d: no public host, action URLs | `pilot-secrets --no-public-host`, deployment contract for `Caddyfile.admin-only`, N4 in `[...path].astro`, `/api/v1/actions/{id}/public-urls` |
 
