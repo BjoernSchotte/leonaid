@@ -193,6 +193,7 @@ def main() -> int:
     if not repository or not run_id.isdigit():
         print("rerun-stale-gates: ERROR: missing run context", file=sys.stderr)
         return 1
+
     def post(path: str) -> None:
         request(path, "POST")
 
