@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { claimDevice, forgetDevice } from "@leonaid/features/offline";
 import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
@@ -198,7 +199,13 @@ export function App({ client }: AppProps) {
   // The campaign the page was opened with; an explicit link counts as choice.
   const [openedWithCampaign] = useState(urlCampaign);
   const identity = useQuery({
-    queryFn: () => client.getCurrentIdentity(),
+    queryFn: async () => {
+      const value = await client.getCurrentIdentity();
+      // The PWA's device copy belongs to one person (offline queue D6):
+      // another person signed in here removes it before work renders.
+      await claimDevice(value.userId).catch(() => undefined);
+      return value;
+    },
     queryKey: ["identity"],
     retry: (failureCount, error) =>
       !(error instanceof ApiError) && failureCount < 2,
@@ -391,9 +398,13 @@ export function App({ client }: AppProps) {
           />
         }
         onLogout={() => {
-          void client.logout().finally(() => {
-            window.location.assign("/login");
-          });
+          // Sign-out deletes what the PWA kept on this device (§8.5).
+          void forgetDevice(identity.data.userId)
+            .catch(() => undefined)
+            .then(() => client.logout())
+            .finally(() => {
+              window.location.assign("/login");
+            });
         }}
         user={{
           name: identity.data.displayName,

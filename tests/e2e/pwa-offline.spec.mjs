@@ -324,3 +324,62 @@ test("account switch and sign-out delete the device copy (D6, §8.5)", async ({
   await expect(page).toHaveTitle("LeonAid ist offline");
   await context.setOffline(false);
 });
+
+test("the admin web app clears the device copy too (D6, §8.5)", async ({
+  context,
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const KLARA_ID = "10000000-0000-4000-8000-000000000002";
+  const openPwa = async () => {
+    await authenticate(context, annaSession);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${baseUrl}/app/sponsors`);
+    await expect(page.getByTestId("sponsor-row").first()).toBeVisible();
+    await controlled(page);
+    await expect
+      .poll(async () => (await rawDatabase(page, ANNA_ID))?.cacheIds.length, {
+        timeout: 30_000,
+      })
+      .toBe(2);
+  };
+
+  // Another person signs in and lands in the admin web app.
+  await openPwa();
+  await authenticate(context, sessionFor(KLARA_ID));
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(`${baseUrl}/admin/`);
+  await expect(page.getByTestId("display-name")).toHaveText(/Klara/);
+  await expect.poll(() => databaseNames(page)).toEqual([]);
+  expect(
+    await page.evaluate(() => localStorage.getItem("leonaid-pwa-active-user")),
+  ).toBeNull();
+  await context.setOffline(true);
+  await page.goto(`${baseUrl}/app/sponsors`);
+  await expect(page).toHaveTitle("LeonAid ist offline");
+  await context.setOffline(false);
+
+  // Sign-out in the admin web app deletes the copy as well. Klara has no
+  // acquirer role, so a copy of hers is planted the way the PWA names it.
+  await page.goto(`${baseUrl}/admin/`);
+  await expect(page.getByTestId("display-name")).toHaveText(/Klara/);
+  await page.evaluate(async (id) => {
+    localStorage.setItem("leonaid-pwa-active-user", id);
+    await new Promise((resolve, reject) => {
+      const request = indexedDB.open(`leonaid-pwa-v1-${id}`);
+      request.onsuccess = () => {
+        request.result.close();
+        resolve(undefined);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }, KLARA_ID);
+  expect(await databaseNames(page)).toEqual([`leonaid-pwa-v1-${KLARA_ID}`]);
+  await page.getByTestId("logout").click();
+  await expect(page).toHaveURL(/\/login/);
+  await expect.poll(() => databaseNames(page)).toEqual([]);
+  await context.setOffline(true);
+  await page.goto(`${baseUrl}/app/sponsors`);
+  await expect(page).toHaveTitle("LeonAid ist offline");
+  await context.setOffline(false);
+});

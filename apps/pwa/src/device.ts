@@ -1,74 +1,88 @@
 /*
- * The PWA's side of the device storage (specs/pwa-offline-queue §8): which
- * user owns the device, the identity for an offline start, the read-cache
- * refresh and the clearing rules of §8.5. Everything here is behind the
- * flag `pwa.offline_queue`; with it off nothing is kept on the device.
+ * The PWA's side of the device storage (specs/pwa-offline-queue §8): the
+ * identity for an offline start, the online preparation, the read-cache
+ * refresh and the clearing rules of §8.5. Ownership and clearing that the
+ * admin web app shares live in @leonaid/features/offline (device-session).
+ * Everything here is behind the flag `pwa.offline_queue`; with it off
+ * nothing is kept on the device.
  */
-import type {
-  CurrentIdentityResponse,
-  LeonAidApiClient,
+import {
+  ApiError,
+  type AcquisitionActivityBoardResponse,
+  type CommitmentCaptureContextResponse,
+  type CurrentIdentityResponse,
+  type LeonAidApiClient,
 } from "@leonaid/api-client";
 import {
   DeviceStore,
+  IDENTITY_META,
+  SESSION_ENDED_META,
   activeDeviceUser,
   cacheFreshness,
-  clearActiveDeviceUser,
-  deleteDeviceStore,
-  deleteOtherDeviceUsers,
   deviceStorageAvailable,
+  forgetDevice,
+  forgetSession,
   identityFromSummary,
   minimizeBoard,
   minimizeCaptureContext,
   sessionEnded,
   setActiveDeviceUser,
+  setOfflineStart,
   summarizeIdentity,
   type IdentitySummary,
 } from "@leonaid/features/offline";
 
-export const OFFLINE_QUEUE_FLAG = "pwa.offline_queue";
-const IDENTITY_META = "identity";
-const ENABLED_META = "offlineEnabled";
-const CLAIM_WAIT_MS = 3_000;
+export {
+  claimDevice,
+  forgetDevice,
+  forgetSession,
+} from "@leonaid/features/offline";
 
-/** Tells the service worker whether `/app/` may start from the cache. */
-export function tellServiceWorker(enabled: boolean) {
-  if (!("serviceWorker" in navigator)) return;
-  void navigator.serviceWorker.ready
-    .then((registration) =>
-      registration.active?.postMessage({ type: "OFFLINE_START", enabled }),
-    )
-    .catch(() => undefined);
+export const OFFLINE_QUEUE_FLAG = "pwa.offline_queue";
+const ENABLED_META = "offlineEnabled";
+
+/** What an offline start returns when the session behind the copy ended. */
+function sessionEndedError() {
+  return new ApiError(401, {
+    code: "session_required",
+    message: "Deine Sitzung ist abgelaufen. Melde dich wieder an.",
+    requestId: "",
+  });
 }
 
-/**
- * D6, before the signed-in user's shell renders: every other person's
- * database on this device is deleted without asking.
- */
-export async function claimDevice(userId: string): Promise<void> {
-  if (!deviceStorageAvailable()) return;
-  const active = activeDeviceUser();
-  // The deletion waits while another open tab of the other person still
-  // holds the database. The shell never opens another user's database, so
-  // after a short wait it renders and the deletion finishes in the
-  // background as soon as that tab lets go.
-  await Promise.race([
-    deleteOtherDeviceUsers(userId),
-    new Promise((resolve) => setTimeout(resolve, CLAIM_WAIT_MS)),
-  ]);
-  if (active && active.toLowerCase() !== userId.toLowerCase()) {
-    clearActiveDeviceUser();
+/** Removes read-cache documents past 14 days (§8.5), online or not. */
+async function purgeExpired(store: DeviceStore, keep?: ReadonlySet<string>) {
+  for (const entry of await store.listCache()) {
+    if (
+      (keep && !keep.has(entry.actionId)) ||
+      cacheFreshness(entry.fetchedAt) === "expired"
+    ) {
+      await store.deleteCache(entry.kind, entry.actionId);
+    }
   }
 }
 
-/** Offline start (§8.1): the last identity of the device's user, if any. */
-export async function cachedDevice(): Promise<{
+/**
+ * Offline start (§8.1): the last identity of the device's user, if any.
+ * An open store of the same user is reused. A session that ended (401 or
+ * past its lifetime) does not start offline: it asks for a sign-in.
+ */
+export async function cachedDevice(existing?: DeviceStore | null): Promise<{
   readonly identity: CurrentIdentityResponse;
   readonly store: DeviceStore;
 } | null> {
   const userId = activeDeviceUser();
   if (!userId || !deviceStorageAvailable()) return null;
-  const store = await DeviceStore.open(userId);
+  const reuse = existing?.open && existing.userId === userId ? existing : null;
+  const store = reuse ?? (await DeviceStore.open(userId));
+  const drop = () => {
+    if (!reuse) store.close();
+  };
   try {
+    if ((await store.getMeta<boolean>(SESSION_ENDED_META)) === true) {
+      drop();
+      throw sessionEndedError();
+    }
     const enabled = await store.getMeta<boolean>(ENABLED_META);
     const summary = await store.getMeta<IdentitySummary>(IDENTITY_META);
     if (
@@ -76,18 +90,18 @@ export async function cachedDevice(): Promise<{
       !summary ||
       summary.userId.toLowerCase() !== userId.toLowerCase()
     ) {
-      store.close();
+      drop();
       return null;
     }
     if (sessionEnded(summary)) {
-      // The session ended: the read cache goes, the queue stays (§8.5).
-      await store.clearCache();
-      store.close();
-      return null;
+      await forgetSession(store);
+      drop();
+      throw sessionEndedError();
     }
+    await purgeExpired(store);
     return { identity: identityFromSummary(summary), store };
   } catch (error) {
-    store.close();
+    drop();
     throw error;
   }
 }
@@ -101,20 +115,22 @@ async function offlineQueueEnabled(client: LeonAidApiClient) {
 
 /**
  * Online start: with the flag on and an acquirer role, the user's device
- * storage is opened and the identity summary written; otherwise nothing of
- * this user stays on the device. Null without a decision (the flag could
- * not be read), which keeps the device as it is.
+ * storage is opened (or the open one reused) and the identity summary
+ * written; otherwise nothing of this user stays on the device. Undefined
+ * without a decision (the flag could not be read): the device stays as it
+ * is.
  */
 export async function prepareDevice(
   client: LeonAidApiClient,
   identity: CurrentIdentityResponse,
-): Promise<DeviceStore | null> {
+  existing?: DeviceStore | null,
+): Promise<DeviceStore | null | undefined> {
   if (!deviceStorageAvailable()) return null;
   let enabled: boolean;
   try {
     enabled = await offlineQueueEnabled(client);
   } catch {
-    return null;
+    return undefined;
   }
   const acquirer = identity.actionMemberships.some(
     (membership) => membership.role === "acquirer",
@@ -124,11 +140,25 @@ export async function prepareDevice(
     return null;
   }
   setActiveDeviceUser(identity.userId);
-  const store = await DeviceStore.open(identity.userId);
+  const store =
+    existing?.open && existing.userId === identity.userId
+      ? existing
+      : await DeviceStore.open(identity.userId);
   await store.putMeta(IDENTITY_META, summarizeIdentity(identity));
   await store.putMeta(ENABLED_META, true);
-  tellServiceWorker(true);
+  await store.deleteMeta(SESSION_ENDED_META);
+  await setOfflineStart(true);
   return store;
+}
+
+/** How the refresh loads Core's data; the PWA shares its page queries. */
+export interface ReadCacheLoaders {
+  readonly board: (
+    actionId: string,
+  ) => Promise<AcquisitionActivityBoardResponse>;
+  readonly capture: (
+    actionId: string,
+  ) => Promise<CommitmentCaptureContextResponse>;
 }
 
 /**
@@ -137,7 +167,7 @@ export async function prepareDevice(
  * documents past 14 days.
  */
 export async function refreshReadCache(
-  client: LeonAidApiClient,
+  loaders: ReadCacheLoaders,
   store: DeviceStore,
   identity: CurrentIdentityResponse,
 ): Promise<void> {
@@ -146,19 +176,12 @@ export async function refreshReadCache(
       .filter((membership) => membership.role === "acquirer")
       .map((membership) => membership.actionId),
   );
-  for (const entry of await store.listCache()) {
-    if (
-      !actions.has(entry.actionId) ||
-      cacheFreshness(entry.fetchedAt) === "expired"
-    ) {
-      await store.deleteCache(entry.kind, entry.actionId);
-    }
-  }
+  await purgeExpired(store, actions);
   for (const actionId of actions) {
     const fetchedAt = new Date().toISOString();
     const [board, context] = await Promise.allSettled([
-      client.getAcquisitionActivityBoard(actionId, { limit: 100 }),
-      client.getCommitmentCaptureContext(actionId),
+      loaders.board(actionId),
+      loaders.capture(actionId),
     ]);
     if (board.status === "fulfilled") {
       await store.putCache(
@@ -177,29 +200,4 @@ export async function refreshReadCache(
       );
     }
   }
-}
-
-/** Session ended (401): the read cache goes, the queue stays (§8.5). */
-export async function forgetReadCache(): Promise<void> {
-  const userId = activeDeviceUser();
-  if (!userId || !deviceStorageAvailable()) return;
-  const store = await DeviceStore.open(userId);
-  try {
-    await store.clearCache();
-  } finally {
-    store.close();
-  }
-}
-
-/** Sign-out or flag off: the user's database and the active-user record. */
-export async function forgetDevice(userId: string | null): Promise<void> {
-  tellServiceWorker(false);
-  if (!deviceStorageAvailable()) return;
-  const users = new Set(
-    [userId, activeDeviceUser()].filter((value): value is string =>
-      Boolean(value),
-    ),
-  );
-  clearActiveDeviceUser();
-  await Promise.all([...users].map((user) => deleteDeviceStore(user)));
 }

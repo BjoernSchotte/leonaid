@@ -170,8 +170,22 @@ offline_flag() {
     compose exec -T core-postgres sh -ec \
       'psql -v ON_ERROR_STOP=1 -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 }
+# The offline specs sign personas out; each browser run and the specs
+# after them start with fresh sessions.
+pwa_sessions() {
+  compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+    --env-from-file "$env_file" \
+    --env-from-file "$proof/integration.env" \
+    --env API_BASE_URL=http://api:8000 \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --workdir /repo \
+    --entrypoint python \
+    api tools/pwa/contract.py --sessions-only
+}
 offline_flag true
 for browser in chromium webkit; do
+  pwa_sessions
   docker run --rm \
     --network "${project}_edge" \
     --env CI=1 \
@@ -193,6 +207,7 @@ for browser in chromium webkit; do
     --reporter=line
 done
 offline_flag false
+pwa_sessions
 
 compose stop twenty-server
 

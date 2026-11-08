@@ -50,13 +50,36 @@ export const STALE_READ_CACHE_TEXT =
  * an answer and is shown as such.
  */
 export function isNetworkFailure(error: unknown): boolean {
-  if (!(error instanceof ApiError)) return true;
+  // fetch() rejects with a TypeError without network; an aborted or timed
+  // out request is a DOMException. A parse or programming error is not.
+  if (error instanceof TypeError) return true;
+  if (
+    typeof DOMException !== "undefined" &&
+    error instanceof DOMException &&
+    (error.name === "AbortError" || error.name === "TimeoutError")
+  ) {
+    return true;
+  }
+  if (!(error instanceof ApiError)) return false;
   return (
     error.status === 502 ||
     error.status === 503 ||
     error.status === 504 ||
     error.detail.code === "unexpected_response_type"
   );
+}
+
+/** Values a page got from the device copy, with their fetch time. */
+const deviceCopies = new WeakMap<object, string>();
+
+/**
+ * When the value came from the device copy: its fetch time; null for
+ * Core's own answer.
+ */
+export function deviceCopyFetchedAt(value: unknown): string | null {
+  return typeof value === "object" && value !== null
+    ? (deviceCopies.get(value) ?? null)
+    : null;
 }
 
 /**
@@ -91,8 +114,16 @@ export async function readThrough<T>(
   if (!cached) {
     throw failure ?? new TypeError("LeonAid is offline");
   }
-  if (cacheFreshness(cached.fetchedAt) !== "fresh") {
+  const freshness = cacheFreshness(cached.fetchedAt);
+  if (freshness === "expired") {
+    // Past 14 days the copy goes, also on a device that stays offline.
+    await store!.deleteCache(kind, actionId).catch(() => undefined);
+  }
+  if (freshness !== "fresh") {
     throw new StaleReadCacheError(cached.fetchedAt);
+  }
+  if (typeof cached.value === "object" && cached.value !== null) {
+    deviceCopies.set(cached.value, cached.fetchedAt);
   }
   return cached.value;
 }

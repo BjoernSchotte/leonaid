@@ -28,7 +28,7 @@ import {
 
 import { OfflineRuntimeContext } from "@leonaid/features/offline";
 
-import { forgetDevice, forgetReadCache } from "./device";
+import { forgetDevice, forgetSession } from "./device";
 import { pwaModuleNavigationKeys, pwaModules, pwaPath } from "./modules";
 import { mobileNavigation } from "./navigation";
 import { useDevice } from "./use-device";
@@ -284,7 +284,7 @@ export function App({ client }: AppProps) {
       identity.error instanceof ApiError &&
       redirectsToLogin(identity.error)
     ) {
-      void forgetReadCache()
+      void forgetSession(device.runtime.store)
         .catch(() => undefined)
         .finally(() => window.location.replace(loginHref(window.location)));
     }

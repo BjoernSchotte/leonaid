@@ -62,14 +62,17 @@ FEATURE_FLAG_CATALOG = (
         title="Offline-Erfassung in der Akquise-App",
         description=(
             "Die Akquise-App startet ohne Verbindung, hält die eigene "
-            "Sponsorenliste verschlüsselt auf dem Gerät und sendet offline "
-            "erfasste Kontakte und Bestellungen, sobald wieder Verbindung "
-            "besteht."
+            "Sponsorenliste und die Bestellangaben verschlüsselt auf dem "
+            "Gerät und sendet offline erfasste Kontakte, Wiedervorlagen, "
+            "Bestellungen und neue Sponsoren, sobald wieder Verbindung "
+            "besteht. Vor dem Einschalten muss der aktive "
+            "Mitglieder-Datenschutzhinweis den Abschnitt „Speicherung auf "
+            "deinem Gerät“ enthalten (Rechtliche Angaben)."
         ),
         effect=(
-            "Akquisiteure in der PWA; Gerätespeicher gemäß "
-            "Datenschutzhinweis. Ausschalten löscht nach dem Senden der "
-            "Warteschlange die Daten auf den Geräten."
+            "Akquisiteure in der PWA speichern Daten auf ihren Geräten. "
+            "Ausschalten sendet noch wartende Einträge und löscht danach "
+            "die Daten auf den Geräten."
         ),
         default_enabled=False,
         client_safe=True,

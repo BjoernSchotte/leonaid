@@ -165,13 +165,23 @@ describe("service worker", () => {
       `${BASE}sponsors`,
       `${BASE}activities/`,
       `${BASE}commitments`,
-      `${BASE}commitments/new`,
+      // Every route of an offline screen, by the app's own prefix rule.
+      `${BASE}commitments/new?action=a&assignment=b`,
+      `${BASE}sponsors?view=new`,
+      `${BASE}sponsors/anything/below`,
+      `${BASE}activities?view=contacts`,
     ]) {
       const answer = await worker.navigate(path);
       expect(await answer?.text()).toBe(`cached ${BASE}`);
     }
     // Modules, the delivery board and unknown paths stay online-only.
-    for (const path of [`${BASE}delivery`, `${BASE}tasks`, `${BASE}x/y`]) {
+    for (const path of [
+      `${BASE}delivery`,
+      `${BASE}tasks`,
+      `${BASE}x/y`,
+      `${BASE}sponsorsx`,
+      `${BASE}commitmentsnew`,
+    ]) {
       const answer = await worker.navigate(path);
       expect(await answer?.text()).toBe(`cached ${BASE}offline.html`);
     }
@@ -181,6 +191,18 @@ describe("service worker", () => {
     });
     const answer = await worker.navigate(`${BASE}sponsors`);
     expect(await answer?.text()).toBe(`cached ${BASE}offline.html`);
+  });
+
+  it("covers every screen the PWA routes from the device copy", () => {
+    // app.tsx routes these screens by path prefix (currentRoute), and
+    // each works from the device copy; sw.js must list every one.
+    const app = readFileSync(resolve(__dirname, "app.tsx"), "utf8");
+    const worker = readFileSync(resolve(__dirname, "../public/sw.js"), "utf8");
+    const listed = worker.match(/OFFLINE_SCREENS = \[([^\]]*)\]/)?.[1] ?? "";
+    for (const screen of ["sponsors", "activities", "commitments"]) {
+      expect(app).toContain(`pathname.startsWith(pwaHref("${screen}"))`);
+      expect(listed).toContain(`"${screen}"`);
+    }
   });
 
   it("keeps the offline start setting across a new build's activation", async () => {
