@@ -201,7 +201,8 @@ function route(available: readonly UiModule[]) {
 export function App({ client }: AppProps) {
   const selectedActionId = useCurrentActionId();
   // Unsent captures of the acquisition app on this device (§12.5).
-  const [signOutCount, setSignOutCount] = useState(0);
+  // `null`: the device's queue could not be read; the warning asks anyway.
+  const [signOutCount, setSignOutCount] = useState<number | null>(0);
   const [storedCampaign, setStoredCampaign] = useState(readStoredCampaign);
   // The campaign the page was opened with; an explicit link counts as choice.
   const [openedWithCampaign] = useState(urlCampaign);
@@ -418,10 +419,12 @@ export function App({ client }: AppProps) {
         onLogout={() => {
           // Sign-out deletes what the PWA kept on this device (§8.5);
           // unsent captures make it ask first (§12.5).
-          void pendingDeviceEntries().then((count) => {
-            if (count > 0) setSignOutCount(count);
-            else signOut();
-          });
+          void pendingDeviceEntries(identity.data?.userId ?? null).then(
+            (count) => {
+              if (count === 0) signOut();
+              else setSignOutCount(count);
+            },
+          );
         }}
         user={{
           name: identity.data.displayName,
@@ -495,7 +498,7 @@ export function App({ client }: AppProps) {
           signOut();
         }}
         online={navigator.onLine !== false}
-        open={signOutCount > 0}
+        open={signOutCount !== 0}
       />
     </FeatureFlagProvider>
   );

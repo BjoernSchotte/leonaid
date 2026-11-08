@@ -8,25 +8,45 @@ import { Button, Modal } from "@leonaid/ui";
 import {
   DeviceStore,
   activeDeviceUser,
+  databaseName,
   deviceStorageAvailable,
 } from "./device-store";
 
 /**
- * Entries of the device's user still in the queue, read from the store
- * (not from a view that may not have loaded yet).
+ * Entries still in the queue of every user sign-out deletes (the signed-in
+ * user and the device's active user, as forgetDevice), read from the store,
+ * not from a view that may not have loaded yet. `null`: the store could not
+ * be read; the caller asks anyway (fails closed).
  */
-export async function pendingDeviceEntries(): Promise<number> {
-  const userId = activeDeviceUser();
-  if (!userId || !deviceStorageAvailable()) return 0;
+export async function pendingDeviceEntries(
+  userId: string | null,
+): Promise<number | null> {
+  if (!deviceStorageAvailable()) return 0;
+  const users = new Set(
+    [userId, activeDeviceUser()].filter((value): value is string =>
+      Boolean(value),
+    ),
+  );
+  if (!users.size) return 0;
   try {
-    const store = await DeviceStore.open(userId);
-    try {
-      return await store.queueCount();
-    } finally {
-      store.close();
+    // A user without a database has nothing queued; opening would create one.
+    const existing =
+      typeof indexedDB.databases === "function"
+        ? new Set((await indexedDB.databases()).map((item) => item.name))
+        : null;
+    let total = 0;
+    for (const user of users) {
+      if (existing && !existing.has(databaseName(user))) continue;
+      const store = await DeviceStore.open(user);
+      try {
+        total += await store.queueCount();
+      } finally {
+        store.close();
+      }
     }
+    return total;
   } catch {
-    return 0;
+    return null;
   }
 }
 
@@ -48,7 +68,8 @@ export function SignOutWarning({
 }: {
   /** "du" in the PWA, "Sie" in the admin web app. */
   readonly address?: "du" | "Sie";
-  readonly count: number;
+  /** `null`: the device's queue could not be read. */
+  readonly count: number | null;
   readonly online: boolean;
   readonly onCancel: () => void;
   readonly onSendFirst: () => void;
@@ -56,9 +77,13 @@ export function SignOutWarning({
   readonly open: boolean;
 }) {
   const description =
-    address === "du"
-      ? `Noch ${entries(count)} nicht gesendet. Wenn du dich jetzt abmeldest, ${count === 1 ? "wird er" : "werden sie"} von diesem Gerät gelöscht.`
-      : `In der Akquise-App auf diesem Gerät ${count === 1 ? "ist" : "sind"} noch ${entries(count)} nicht gesendet. Wenn Sie sich jetzt abmelden, ${count === 1 ? "wird er" : "werden sie"} von diesem Gerät gelöscht.`;
+    count === null
+      ? address === "du"
+        ? "LeonAid kann gerade nicht prüfen, ob auf diesem Gerät noch Einträge warten. Wenn du dich jetzt abmeldest, wird alles, was noch wartet, von diesem Gerät gelöscht."
+        : "LeonAid kann gerade nicht prüfen, ob in der Akquise-App auf diesem Gerät noch Einträge warten. Wenn Sie sich jetzt abmelden, wird alles, was noch wartet, von diesem Gerät gelöscht."
+      : address === "du"
+        ? `Noch ${entries(count)} nicht gesendet. Wenn du dich jetzt abmeldest, ${count === 1 ? "wird er" : "werden sie"} von diesem Gerät gelöscht.`
+        : `In der Akquise-App auf diesem Gerät ${count === 1 ? "ist" : "sind"} noch ${entries(count)} nicht gesendet. Wenn Sie sich jetzt abmelden, ${count === 1 ? "wird er" : "werden sie"} von diesem Gerät gelöscht.`;
   return (
     <Modal
       description={description}

@@ -356,7 +356,7 @@ export function App({ client }: AppProps) {
   const device = useDevice(client, lifecycle.online);
   const identity = device.identity;
   const [signOutOpen, setSignOutOpen] = useState(false);
-  const [signOutCount, setSignOutCount] = useState(0);
+  const [signOutCount, setSignOutCount] = useState<number | null>(0);
   function signOut() {
     // Sign-out deletes everything the PWA kept on this device (§8.5).
     void forgetDevice(identity.data?.userId ?? null)
@@ -496,14 +496,17 @@ export function App({ client }: AppProps) {
         onLogout={() => {
           // §12.5: captures still on the device would be deleted; ask
           // first. The store counts, not a view that may still be loading.
-          void pendingDeviceEntries().then((count) => {
-            if (count > 0) {
-              setSignOutCount(count);
-              setSignOutOpen(true);
-            } else {
-              signOut();
-            }
-          });
+          // An unreadable queue asks too (count null).
+          void pendingDeviceEntries(identity.data?.userId ?? null).then(
+            (count) => {
+              if (count === 0) {
+                signOut();
+              } else {
+                setSignOutCount(count);
+                setSignOutOpen(true);
+              }
+            },
+          );
         }}
         person={identity.data.displayName}
         role={identity.data.roleLabels.join(" · ")}
