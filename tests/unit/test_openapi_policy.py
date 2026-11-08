@@ -66,6 +66,59 @@ def test_breaking_policy_detects_tightened_constraints_only() -> None:
     assert breaking_changes(old, note(maxLength=8000)) == []
 
 
+def test_breaking_policy_compares_query_and_path_parameters() -> None:
+    def operation(*parameters: dict[str, Any]) -> dict[str, Any]:
+        contract = document()
+        contract["paths"]["/api/v1/example"]["get"]["parameters"] = list(parameters)
+        return contract
+
+    def limit(**schema: object) -> dict[str, Any]:
+        return {"in": "query", "name": "limit", "schema": {"type": "integer", **schema}}
+
+    view = {"in": "path", "name": "view", "required": True}
+    old = operation(
+        limit(maximum=100), {**view, "schema": {"enum": ["a", "b"], "type": "string"}}
+    )
+    where = "GET /api/v1/example"
+    for new, change in (
+        (
+            operation(
+                limit(maximum=50),
+                {**view, "schema": {"enum": ["a", "b"], "type": "string"}},
+            ),
+            f"parameter-constraint-tightened:{where} query:limit",
+        ),
+        (
+            operation(
+                limit(maximum=100),
+                {**view, "schema": {"enum": ["a"], "type": "string"}},
+            ),
+            f"parameter-type-changed:{where} path:view",
+        ),
+        (
+            operation(
+                {**limit(maximum=100), "required": True},
+                {**view, "schema": {"enum": ["a", "b"], "type": "string"}},
+            ),
+            f"parameter-newly-required:{where} query:limit",
+        ),
+        (
+            operation(
+                *old["paths"]["/api/v1/example"]["get"]["parameters"],
+                {"in": "query", "name": "q", "required": True, "schema": {}},
+            ),
+            f"parameter-newly-required:{where} query:q",
+        ),
+    ):
+        assert breaking_changes(old, new) == [change]
+    relaxed = operation(
+        limit(maximum=200),
+        {**view, "schema": {"enum": ["a", "b"], "type": "string"}},
+        {"in": "query", "name": "q", "schema": {"type": "string"}},
+    )
+    assert breaking_changes(old, relaxed) == []
+
+
 def test_breaking_policy_requires_exact_hash_changes_and_rationale() -> None:
     old = document()
     new = document(include_name=False)

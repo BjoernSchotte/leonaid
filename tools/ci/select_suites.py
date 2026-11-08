@@ -216,6 +216,13 @@ FAST_REQUIRED: dict[str, tuple[str, ...]] = {
         "infra/proxy/**",
         "tools/typst/render_golden.sh",
     ),
+    # The campaign renderer switch is system-admin only (cutover and
+    # rollback, tests/integration/test_campaign_renderer_api.py, E-028).
+    "schema-outbox": (
+        "tests/integration/test_campaign_renderer_api.py",
+        "src/leonaid/adapters/postgres/campaign_aliases.py",
+        "src/leonaid/application/campaign_renderer.py",
+    ),
 }
 # Never in the fast tier: browser suites and multi-minute acceptance runs.
 HEAVY_FLAGS = frozenset({"golden", "surveys"})
@@ -501,6 +508,7 @@ RULES: tuple[Rule, ...] = (
             "tools/outbox/**",
             "tests/integration/test_order_cancellation_api.py",
             "tests/integration/test_offline_capture_api.py",
+            "tests/integration/test_campaign_renderer_api.py",
         ),
         integration("schema-outbox"),
         "schema/outbox proofs",

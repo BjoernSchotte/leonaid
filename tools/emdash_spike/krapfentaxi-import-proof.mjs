@@ -13,7 +13,6 @@ import { installCampaignBindings } from "../../apps/campaign-site/src/auth/campa
 import { installCampaignMedia } from "../../apps/campaign-site/src/auth/campaign-media.mjs";
 import { krapfentaxiImportContext } from "./krapfentaxi-import-context.mjs";
 import { importKrapfentaxi } from "./krapfentaxi-import.mjs";
-import { importRecoveryState } from "./import-recovery-state.mjs";
 
 const sessions = JSON.parse(await readFile("/proof/sessions.json", "utf8"));
 const context = krapfentaxiImportContext(sessions.system, "krapfentaxi-2026");
@@ -232,21 +231,6 @@ async function prove() {
       "ready",
     );
     assert.equal((await keys()).length, 1);
-
-    if (process.argv.includes("--prepare-recovery")) {
-      const state = await importRecoveryState(database, storage);
-      assert.equal(state.tables.ec_campaign_pages.length, 0);
-      assert.equal(state.tables.revisions.length, 0);
-      assert.equal(state.tables.leonaid_krapfentaxi_import.length, 1);
-      assert.equal(state.tables.leonaid_krapfentaxi_import[0].content_id, null);
-      await writeFile("/proof/import-recovery.json", JSON.stringify(state), {
-        mode: 0o600,
-      });
-      console.log(
-        "import-recovery: actual killed import left one ready original asset and an incomplete journal for backup; no page or publication",
-      );
-      return;
-    }
 
     // Real PostgreSQL failure at final page creation: all three ready assets and
     // the resumable journal survive, but no partial content/revision is committed.

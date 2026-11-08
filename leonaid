@@ -152,12 +152,6 @@ Commands:
   test-emdash-spike --case alias-renderer
   test-emdash-spike --case alias-http
   test-emdash-spike --case redirect-aliases
-  test-emdash-spike --case recovery-sql
-  test-emdash-spike --case recovery-local
-  test-emdash-spike --case recovery-app
-  test-emdash-spike --case recovery-orders
-  test-emdash-spike --case cutover-rollback
-  test-emdash-spike --case recovery-import
   test-emdash-spike --case release-legacy-boundary
   test-emdash-spike --case release-manifest-compatibility
   test-emdash-spike --case release-image-identity
