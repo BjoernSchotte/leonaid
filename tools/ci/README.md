@@ -229,7 +229,7 @@ bootstrap, fixture restore and image pulls before its first test. Most of the
 | Vulnerability gate | 1 | Own images built and scanned with the checkout, both lockfiles and every pinned third-party image; four Trivy lanes on one read-only advisory snapshot |
 | `Integration / <shards>` | 4 | All Integration shards and Contract |
 | `E2E / <leaves>` | 4 | All E2E leaves |
-| `EmDash proof / <groups>` | 3 | `krapfentaxi-orders`; `krapfentaxi-deadlines`; `campaign-edge` + `static` |
+| `EmDash proof / <groups>` | 3 | `krapfentaxi-orders`; `krapfentaxi-deadlines` + `static`; `campaign-edge` |
 | Golden installation | 2 | Prepared and fresh installation (must stay separate runners) |
 | Golden journey, CI gate | 1 + 1 | Result comparison; the required check |
 
@@ -393,8 +393,8 @@ The optional campaign site (Compose profile `emdash`) has its own proof cases
 in them: an EmDash editor load race (PR #37) and a Caddy body-drain regression
 (PR #38). PR and main CI therefore run `tools/ci/emdash.sh` in the
 `EmDash proof / <groups>` matrix, gated by `CI gate`. Three legs
-(`EMDASH_BINS`): `krapfentaxi-orders` alone, `krapfentaxi-deadlines` alone,
-`campaign-edge` with `static`.
+(`EMDASH_BINS`): `krapfentaxi-orders` alone, `krapfentaxi-deadlines` with `static`,
+`campaign-edge` alone.
 
 | Group | Cases |
 |---|---|
