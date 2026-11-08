@@ -1,0 +1,105 @@
+{
+  "source": "GitHub API, run 42453175981 attempt 1 (trimmed)",
+  "run": {
+    "id": 42453175981,
+    "workflow_id": 320995852,
+    "head_sha": "f397e67e31bdb8a477673fb7b004a7429c3b2aa5",
+    "event": "pull_request",
+    "status": "completed",
+    "conclusion": "failure",
+    "display_title": "fix: main repair - smoke order-mail window, survey club-day proofs, includes #127"
+  },
+  "jobs": [
+    {
+      "name": "CI gate",
+      "conclusion": "failure",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Require every selected job",
+          "conclusion": "failure"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "Artifact probe",
+      "conclusion": "skipped",
+      "steps": []
+    },
+    {
+      "name": "Security",
+      "conclusion": "skipped",
+      "steps": []
+    },
+    {
+      "name": "Golden installation / ${{ matrix.part }}",
+      "conclusion": "skipped",
+      "steps": []
+    },
+    {
+      "name": "Pilot cold rehearsal",
+      "conclusion": "skipped",
+      "steps": []
+    },
+    {
+      "name": "E2E ${{ matrix.bin.id }}/${{ matrix.bin.count }}",
+      "conclusion": "skipped",
+      "steps": []
+    },
+    {
+      "name": "Golden journey",
+      "conclusion": "skipped",
+      "steps": []
+    },
+    {
+      "name": "Integration ${{ matrix.bin.id }}/${{ matrix.bin.count }}",
+      "conclusion": "skipped",
+      "steps": []
+    },
+    {
+      "name": "EmDash proof ${{ matrix.bin.id }}/${{ matrix.bin.count }}",
+      "conclusion": "skipped",
+      "steps": []
+    },
+    {
+      "name": "Flake summary",
+      "conclusion": "skipped",
+      "steps": []
+    },
+    {
+      "name": "fixture",
+      "conclusion": "skipped",
+      "steps": []
+    },
+    {
+      "name": "select",
+      "conclusion": "skipped",
+      "steps": []
+    },
+    {
+      "name": "Lint, types and unit",
+      "conclusion": "skipped",
+      "steps": []
+    },
+    {
+      "name": "Build",
+      "conclusion": "skipped",
+      "steps": []
+    }
+  ]
+}

@@ -47,7 +47,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: leonaid-ci-${{ github.event_name }}-${{ github.ref }}-${{ github.event.schedule }}${{ github.event.action == 'edited' && !github.event.changes.base && format('-edit-{0}', github.run_id) || '' }}
+  group: leonaid-ci-${{ github.event_name }}-${{ github.ref }}-${{ github.event.schedule }}${{ ((github.event.action == 'edited' && !github.event.changes.base) || (github.event.pull_request.draft && github.event.action != 'converted_to_draft')) && format('-mirror-{0}', github.run_id) || '' }}
   # A new push supersedes a pull request's run; scheduled runs on main are
   # never cancelled by the next one.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

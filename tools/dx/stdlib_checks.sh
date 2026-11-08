@@ -39,6 +39,18 @@ check systemd python "$w/tools/pilot_install/systemd_test.py" "$w"
 check production-secrets env PYTHONPATH="$w" python "$w/tools/pilot_install/production_secrets_test.py" "$w"
 check handoff python "$w/tools/handoff/check.py" "$w"
 check fast-plan python "$w/tools/dx/fast_plan_test.py" "$w"
+# The same tools/ci self-tests as CI (lint-types.sh, security.sh);
+# tools/dx/check_parity_test.py keeps the lists in step.
+check capture-command python "$w/tools/ci/capture_command_test.py" "$w"
+check refit-timings python "$w/tools/ci/refit_timings_test.py" "$w"
+check leak-check python "$w/tools/ci/leak_check_test.py"
+check base-path-literals-test python "$w/tools/ci/base_path_literals_test.py"
+check base-path-literals python "$w/tools/ci/base_path_literals.py" "$w"
+check failure-excerpt python "$w/tools/surveys/ci_failure_excerpt_test.py"
+check migrations python "$w/tools/schema/check_migrations.py" "$w/migrations/versions"
+check shared-stack env PYTHONPATH="$w" python "$w/tools/testing/shared_stack_test.py"
+check parallel-stacks env PYTHONPATH="$w" python "$w/tools/testing/parallel_stacks_test.py"
+check check-parity python "$w/tools/dx/check_parity_test.py" "$w"
 if [ -n "$failed" ]; then
   echo "stdlib-checks: FAILED:$failed" >&2
   exit 1

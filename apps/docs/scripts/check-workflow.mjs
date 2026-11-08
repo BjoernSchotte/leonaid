@@ -27,7 +27,12 @@ if (workflow.permissions?.contents !== "read") {
   errors.push("workflow permissions must keep repository contents read-only");
 }
 if (
-  workflow.concurrency?.group !== "documentation-${{ github.ref }}" ||
+  // Title-edit and draft runs get their own group (refresh-gates.yml
+  // re-runs them without cancelling another run); every other run of a ref
+  // shares "documentation-<ref>" and cancels the stale one.
+  !String(workflow.concurrency?.group ?? "").startsWith(
+    "documentation-${{ github.ref }}${{ ((github.event.action == 'edited'",
+  ) ||
   workflow.concurrency?.["cancel-in-progress"] !== true
 ) {
   errors.push("workflow must cancel stale runs for the same ref");

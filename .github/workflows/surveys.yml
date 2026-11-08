@@ -36,7 +36,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: survey-acceptance-${{ github.event_name }}-${{ github.ref }}-${{ github.event.schedule }}${{ github.event.action == 'edited' && !github.event.changes.base && format('-edit-{0}', github.run_id) || '' }}
+  group: survey-acceptance-${{ github.event_name }}-${{ github.ref }}-${{ github.event.schedule }}${{ ((github.event.action == 'edited' && !github.event.changes.base) || (github.event.pull_request.draft && github.event.action != 'converted_to_draft')) && format('-mirror-{0}', github.run_id) || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
