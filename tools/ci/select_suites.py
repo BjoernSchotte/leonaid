@@ -165,9 +165,7 @@ LOAD_WARNING = 0.75
 MAX_BINS = {"integration": 4, "e2e": 4}
 # Integration shards that start Twenty: its image (about 40 s of pulls in
 # the policy leg of run 42504505501) is prefetched beside the layer import.
-SEED_BOOTSTRAP = frozenset(
-    {"compose", "seed-reset", "twenty-install", "policy"}
-)
+SEED_BOOTSTRAP = frozenset({"compose", "seed-reset", "twenty-install", "policy"})
 
 # Fast tier (pull requests): Integration shards and Contract that a specific
 # rule selects run before the merge only when each fits FAST_LEG_SECONDS of
