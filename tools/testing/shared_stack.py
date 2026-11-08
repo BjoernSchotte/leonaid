@@ -632,6 +632,7 @@ class LeafRunner:
         self.healthy = len(stacks)
         self.busy = 0
         self.kill_timer = None
+        self.finished = False
         self.state_lock = threading.Lock()
 
     def say(self, text):
@@ -645,11 +646,14 @@ class LeafRunner:
             for child in list(self.children):
                 if child.poll() is None:
                     child.terminate()
-        if first:
-            # A leaf that ignores SIGTERM is killed after the grace period.
-            self.kill_timer = threading.Timer(KILL_AFTER_SECONDS, self.kill_remaining)
-            self.kill_timer.daemon = True
-            self.kill_timer.start()
+            if first:
+                # A leaf that ignores SIGTERM is killed after the grace period.
+                # Created under the lock, so run() always sees it to stop it.
+                self.kill_timer = threading.Timer(
+                    KILL_AFTER_SECONDS, self.kill_remaining
+                )
+                self.kill_timer.daemon = True
+                self.kill_timer.start()
 
     def kill_remaining(self):
         with self.children_lock:
@@ -777,7 +781,7 @@ class LeafRunner:
                 self.busy -= 1
 
     def run(self):
-        threads = [
+        threads = self.threads = [
             threading.Thread(target=self.worker, args=(stack,), daemon=True)
             for stack in self.stacks
         ]
@@ -785,9 +789,13 @@ class LeafRunner:
             thread.start()
         for thread in threads:
             thread.join()
-        if self.kill_timer is not None:
-            # Every leaf ended; nothing left to kill.
-            self.kill_timer.cancel()
+        with self.children_lock:
+            kill_timer = self.kill_timer
+        if kill_timer is not None:
+            # Every leaf ended; nothing left to kill. Joined, so run() leaves
+            # no thread of its own behind.
+            kill_timer.cancel()
+            kill_timer.join()
         if not (self.cancelled.is_set() or self.stopped.is_set()):
             # Leaves no healthy stack could take.
             while True:
@@ -797,6 +805,7 @@ class LeafRunner:
                     break
                 self.results.append((script, 1))
                 self.problems.append(f"{script}: no healthy stack left")
+        self.finished = True
         return self.results
 
 
@@ -919,7 +928,7 @@ def main():
         # A retired stack or a reporting problem fails the suite as well.
         return 1 if runner.problems else 0
     finally:
-        if runners:
+        if runners and not runners[0].finished:
             runners[0].cancel()
         for sig, handler in previous.items():
             signal.signal(sig, handler)
