@@ -403,6 +403,8 @@ def main() -> int:
         "tools/twenty/provision.py",
         "tools/seed/seed_core.py",
         "infra/compose/compose.yml",
+        "infra/proxy/Caddyfile",
+        "tools/typst/render_golden.sh",
     ):
         guarded = pr(path)
         expect(

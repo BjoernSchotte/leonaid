@@ -290,6 +290,12 @@ for line in path.read_text(encoding="utf-8").splitlines():
   key = line.split("=", 1)[0]
   lines.append(f"{key}={values.pop(key)}" if key in values and "=" in line else line)
 assert not values, values
+# Hermetic like tools/pilot_deployment/test.sh: the doctor probe of outbound
+# DNS to the public resolvers (/api/health/site-host-dns) reports "off"
+# instead of depending on the runner reaching 1.1.1.1 and 9.9.9.9, which
+# failed every nightly run since the probe exists (#137).
+assert not any(l.startswith("LEONAID_SITE_HOST_PUBLIC_RESOLVERS=") for l in lines)
+lines.append("LEONAID_SITE_HOST_PUBLIC_RESOLVERS=none")
 path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 alphabet = string.ascii_letters + string.digits
 (pathlib.Path(w) / "twenty-bootstrap.env").write_text(
