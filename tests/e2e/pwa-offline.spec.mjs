@@ -335,14 +335,12 @@ test("account switch and sign-out delete the device copy (D6, §8.5)", async ({
   await expect(warning.getByTestId("sign-out-send-first")).toBeDisabled();
   await warning.getByRole("button", { name: "Abbrechen" }).click();
   await expect(warning).toBeHidden();
-  // The "Mehr" sheet is still open; online, "Erst senden" sends.
-  await context.setOffline(false);
-  await page.getByTestId("logout").click();
-  await page.getByTestId("sign-out-send-first").click();
+  // Back online the queue sends by itself; then sign-out asks nothing.
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId("network-state")).toHaveAccessibleName(
-    "Online",
-    { timeout: 30_000 },
+  await context.setOffline(false);
+  await expect(page.getByTestId("network-state")).toHaveAttribute(
+    "data-queue-state",
+    "empty",
   );
 
   // Sign-out deletes everything the PWA kept.
