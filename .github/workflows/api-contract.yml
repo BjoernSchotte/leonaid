@@ -49,17 +49,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      # The toolchain bootstrap and the Twenty image pull (the contract stack
-      # starts Twenty; about 50 s of pulls otherwise) run beside the import.
-      - name: Reuse persistent Core build layers
-        uses: ./.github/actions/build-cache
         with:
-          targets: api
-          bootstrap: seed
-
-      - name: Generate, typecheck and run real contract
-        run: ./tools/openapi/test.sh "$PWD"
+          persist-credentials: false
 
       - name: Checkout pull-request base
         if: github.event_name == 'pull_request'
@@ -67,6 +58,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           path: .ci-base
+          persist-credentials: false
 
       - name: Reject unapproved breaking changes
         if: github.event_name == 'pull_request'
@@ -74,16 +66,29 @@ jobs:
         # GITHUB_TOKEN of pin-drift.yml can re-pin without workflow scope.
         run: >-
           . infra/locks/images.env &&
-          docker run --rm
-          -e PYTHONPATH=/workspace/src
+          docker run --rm --network none
           -v "$PWD:/workspace:ro"
           -w /workspace
-          "$UV_IMAGE"
-          uv run --frozen --no-sync
+          "$PYTHON_IMAGE"
           python tools/openapi/breaking.py
           .ci-base/packages/api-client/openapi.json
           packages/api-client/openapi.json
           specs/leonaid-poc/openapi-breaking-approvals.json
+
+      # The contract needs no toolchains (generation, types and formatting
+      # are Lint job checks): only generated secrets, the API's stack images
+      # (pulled beside the layer import) and the API images.
+      - name: Generate the local secrets
+        run: python3 -I tools/dx/generate_secrets.py .env.example .env.local
+
+      - name: Reuse persistent Core build layers
+        uses: ./.github/actions/build-cache
+        with:
+          targets: survey-foundation
+          bootstrap: api-stack
+
+      - name: Run the generated client against the real API
+        run: ./tools/openapi/test.sh "$PWD"
 
   gate:
     # The one required check of this workflow: tools/ci/gate.py.

@@ -7,7 +7,9 @@ case ${1:-} in
   toolchains) images="" ;;
   seed) images="$TWENTY_IMAGE" ;;
   browser) images="$TWENTY_IMAGE $PLAYWRIGHT_IMAGE" ;;
-  *) echo 'Expected toolchains, seed or browser prefetch profile' >&2; exit 64 ;;
+  # API contract: the images of the API's stack, without the toolchains.
+  api-stack) images="$TWENTY_IMAGE $POSTGRES_IMAGE $VALKEY_IMAGE $RUSTFS_IMAGE $ALPINE_IMAGE" ;;
+  *) echo 'Expected toolchains, seed, browser or api-stack prefetch profile' >&2; exit 64 ;;
 esac
 proof=$(mktemp -d)
 pids=""
@@ -24,7 +26,9 @@ for reference in $images; do
   phase image-prefetch docker pull "$reference" > "$proof/$index.log" 2>&1 &
   pids="$pids $!"
 done
-phase bootstrap "$root/leonaid" bootstrap
+if [ "$1" != api-stack ]; then
+  phase bootstrap "$root/leonaid" bootstrap
+fi
 index=0
 for pid in $pids; do
   index=$((index + 1))
