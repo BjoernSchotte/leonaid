@@ -163,6 +163,52 @@ docker run --rm \
   --trace=retain-on-failure \
   --reporter=line
 
+# Offline queue (specs/pwa-offline-queue §16): the flag is switched on only
+# for its own specs; every other PWA spec proves the copy without it.
+offline_flag() {
+  printf "UPDATE feature_flag SET enabled = %s, revision = revision + 1 WHERE key = 'pwa.offline_queue';\n" "$1" |
+    compose exec -T core-postgres sh -ec \
+      'psql -v ON_ERROR_STOP=1 -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+}
+# The offline specs sign personas out; each browser run and the specs
+# after them start with fresh sessions.
+pwa_sessions() {
+  compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+    --env-from-file "$env_file" \
+    --env-from-file "$proof/integration.env" \
+    --env API_BASE_URL=http://api:8000 \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --workdir /repo \
+    --entrypoint python \
+    api tools/pwa/contract.py --sessions-only
+}
+offline_flag true
+for browser in chromium webkit; do
+  pwa_sessions
+  docker run --rm \
+    --network "${project}_edge" \
+    --env CI=1 \
+    --env HOME=/tmp \
+    --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+    --env LEONAID_E2E_ARTIFACT_DIR=/proof \
+    --env ANNA_SESSION="$anna_session" \
+    --env LEONAID_E2E_BROWSER="$browser" \
+    --volume "$root:/workspace:ro" \
+    --volume "$proof:/proof" \
+    --workdir /workspace \
+    --user "$(id -u):$(id -g)" \
+    "$PLAYWRIGHT_IMAGE" \
+    node_modules/.bin/playwright test \
+    tests/e2e/pwa-offline.spec.mjs \
+    --browser="$browser" \
+    --output="/proof/test-results-offline-$browser" \
+    --trace=retain-on-failure \
+    --reporter=line
+done
+offline_flag false
+pwa_sessions
+
 compose stop twenty-server
 
 docker run --rm \
@@ -197,6 +243,8 @@ for screenshot in \
   pwa-empty-chromium-390.png \
   pwa-update-chromium.png \
   pwa-offline-chromium.png \
+  pwa-offline-start-chromium.png \
+  pwa-offline-start-webkit.png \
   pwa-error-chromium-390.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "pwa-test: ERROR: browser evidence is missing: $screenshot" >&2

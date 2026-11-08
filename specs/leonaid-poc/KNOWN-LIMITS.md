@@ -41,7 +41,16 @@ Punkte sind keine stillschweigenden Produktzusagen.
   (`src/leonaid/application/delivery.py`), keine Überbuchungswarnung.
 - Offline-Erfassung fehlt: die PWA zeigt offline nur bereits geladene Inhalte
   und speichert keine Änderungen (`packages/ui/src/components/mobile-shell.tsx`;
-  Spezifikation `specs/pwa-offline-queue/PLAN.md`). Der Core nimmt
+  Spezifikation `specs/pwa-offline-queue/PLAN.md`). Stufe 1 ist gebaut, aber
+  hinter dem Feature-Flag `pwa.offline_queue` (Standard aus): mit Flag startet
+  die PWA offline aus dem Cache des Service Workers und zeigt die eigene
+  Sponsorenliste und die Bestellangaben aus einer verschlüsselten Kopie auf
+  dem Gerät (IndexedDB je Nutzer, AES-GCM mit nicht exportierbarem Schlüssel;
+  7 Tage anzeigen, 14 Tage behalten, auch offline; Löschen bei Abmelden und
+  Kontowechsel in Akquise-App und Verwaltungsbereich und bei Flag aus). Eine
+  serverseitig widerrufene Sitzung sieht ein Gerät erst online. Die Startseite (Aktionsstand), Module und das Lieferboard bleiben
+  offline gesperrt. Die Prüfung auf einem echten iPhone (PLAN §13, Speicher
+  einer Home-Screen-App) steht aus; bewiesen ist WebKit in Playwright. Der Core nimmt
   nachgereichte Erfassungen schon an (Stufe 2, PLAN §11): `Idempotency-Key`
   für Kontakte (noch optional), `capturedAt` für Kontakte und Bestellungen
   (höchstens 14 Tage zurück, 5 Minuten voraus), Preisprüfung
@@ -112,8 +121,14 @@ Punkte sind keine stillschweigenden Produktzusagen.
   (`packages/features/src/system-admin/legal-templates.ts`), einschließlich des
   Abschnitts zur Gerätespeicherung der Akquise-App (PWA-Offline-Queue, D8),
   sind noch nicht von Björn Schotte geprüft. Der Gerätespeicher-Abschnitt
-  beschreibt die geplante Offline-Erfassung; die Akquise-App speichert diese
-  Daten erst mit deren Stufe 3. Ein `[[ … ]]`-Hinweis im Abschnitt blockiert
+  beschreibt die Offline-Erfassung; die Akquise-App speichert diese Daten nur
+  mit eingeschaltetem Flag `pwa.offline_queue`. Er nennt auch die Kurzform der
+  eigenen Anmeldung (Name, Aktionen, Rollen) für den Offline-Start und die
+  Rechnungsadresse einer noch nicht gesendeten Bestellung; Claude Code hat
+  diesen Text vorgeschlagen, die Prüfung durch Björn Schotte und die
+  Freigabe im Vier-Augen-Ablauf stehen aus. Das Flag darf erst eingeschaltet
+  werden, wenn ein Hinweis mit diesem Abschnitt aktiv ist; LeonAid prüft das
+  nicht selbst. Ein `[[ … ]]`-Hinweis im Abschnitt blockiert
   die produktive Aktivierung, bis der Club ihn bewusst behält oder löscht.
 - Es gibt ein Impressum und eine Datenschutzerklärung je Installation, auf
   allen Hosts unter denselben Pfaden (Multi-Domain D4). Eigene Inhalte je Host
