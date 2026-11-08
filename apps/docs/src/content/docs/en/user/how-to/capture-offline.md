@@ -14,7 +14,9 @@ reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 available only while the system administration has switched on the feature
 flag **Offline-Erfassung in der Akquise-App** (offline capture in the
 acquisition app). Without the flag the app shows only what is already open
-when the network is gone, and keeps nothing.
+when the network is gone, and keeps nothing. The flag is switched on only once
+the active members' privacy notice contains the section "Speicherung auf
+deinem Gerät" (see [Maintain the Impressum and the privacy policy](../maintain-legal-pages/)).
 
 ## Prepare
 
@@ -89,7 +91,8 @@ while the app is open.
 
 ## Sign out and switch devices
 
-Signing out deletes everything the app kept on the device. If entries are
+Signing out, in the acquisition app or in the admin area, deletes everything
+the app kept on the device. If entries are
 still waiting, the app asks first: **Erst senden** (send first),
 **Trotzdem abmelden** (sign out anyway) or **Abbrechen** (cancel). If
 another person signs in on the device, the app deletes your data without

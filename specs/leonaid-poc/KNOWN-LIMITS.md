@@ -45,7 +45,8 @@ Punkte sind keine stillschweigenden Produktzusagen.
   Inhalte und speichert nichts (`packages/ui/src/components/mobile-shell.tsx`).
   Mit Flag startet die PWA offline, zeigt die eigene Sponsorenliste und die
   Bestellangaben aus einer verschlüsselten Kopie auf dem Gerät (7 Tage
-  anzeigen, 14 Tage behalten) und legt Kontakte, Wiedervorlagen,
+  anzeigen, 14 Tage behalten, auch offline; gelöscht bei Abmelden und
+  Kontowechsel in Akquise-App und Verwaltungsbereich) und legt Kontakte, Wiedervorlagen,
   Bestellungen und Sponsor-Entwürfe in eine Warteschlange, die mit
   `Idempotency-Key` und `capturedAt` sendet. Konflikte entscheidet der
   Akquisiteur in der Warteschlange (PLAN §10). Grenzen:
@@ -61,10 +62,10 @@ Punkte sind keine stillschweigenden Produktzusagen.
     Erfassungen gehen dann wieder nur online.
   - Der Core verlangt den `Idempotency-Key` für Kontakte noch nicht (PLAN
     §11.1, eine Version Übergang).
-  - Der Datenschutzhinweis (D8) nennt die gespeicherte Kurzform der eigenen
-    Identität (Name, Aktionen, Rollen) und die Rechnungsadresse einer noch
-    nicht gesendeten Bestellung noch nicht; Textänderung durch Björn
-    Schotte offen.
+  - Eine serverseitig widerrufene Sitzung sieht ein Gerät erst online.
+  - Das Flag darf erst eingeschaltet werden, wenn ein Mitglieder-
+    Datenschutzhinweis mit dem Abschnitt zur Speicherung auf dem Gerät aktiv
+    ist; LeonAid prüft das nicht selbst.
 - Push-Nachrichten, Etikettendruck, Druck-/Packliste, Herstellerabrechnung
   und Materialbestand fehlen.
 - Dokumentverwaltung umfasst erzeugte und fachlich zugeordnete Belege sowie
@@ -130,10 +131,11 @@ Punkte sind keine stillschweigenden Produktzusagen.
   Abschnitts zur Gerätespeicherung der Akquise-App (PWA-Offline-Queue, D8),
   sind noch nicht von Björn Schotte geprüft. Der Gerätespeicher-Abschnitt
   beschreibt die Offline-Erfassung; die Akquise-App speichert diese Daten nur
-  mit eingeschaltetem Flag `pwa.offline_queue`. Der Abschnitt nennt die auf
-  dem Gerät gespeicherte Kurzform der eigenen Identität (Name, Aktionen,
-  Rollen) und die Rechnungsadresse einer noch nicht gesendeten Bestellung
-  noch nicht. Ein `[[ … ]]`-Hinweis im Abschnitt blockiert
+  mit eingeschaltetem Flag `pwa.offline_queue`. Er nennt auch die Kurzform der
+  eigenen Anmeldung (Name, Aktionen, Rollen) für den Offline-Start und die
+  Rechnungsadresse einer noch nicht gesendeten Bestellung; Claude Code hat
+  diesen Text vorgeschlagen, die Prüfung durch Björn Schotte und die
+  Freigabe im Vier-Augen-Ablauf stehen aus. Ein `[[ … ]]`-Hinweis im Abschnitt blockiert
   die produktive Aktivierung, bis der Club ihn bewusst behält oder löscht.
 - Es gibt ein Impressum und eine Datenschutzerklärung je Installation, auf
   allen Hosts unter denselben Pfaden (Multi-Domain D4). Eigene Inhalte je Host

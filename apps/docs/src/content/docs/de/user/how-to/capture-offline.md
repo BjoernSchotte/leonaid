@@ -13,7 +13,10 @@ reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 **Rolle:** Akquisiteur einer Aktion in der Akquise-App. Die Offline-Erfassung
 gibt es nur, wenn die System-Administration das Feature-Flag
 **Offline-Erfassung in der Akquise-App** eingeschaltet hat. Ohne Flag zeigt die
-App offline nur, was schon geöffnet ist, und speichert nichts.
+App offline nur, was schon geöffnet ist, und speichert nichts. Das Flag kommt
+erst an, wenn der aktive Datenschutzhinweis für Mitglieder den Abschnitt
+„Speicherung auf deinem Gerät“ enthält (siehe
+[Impressum und Datenschutzerklärung pflegen](../maintain-legal-pages/)).
 
 ## Vorbereiten
 
@@ -87,7 +90,8 @@ die App geöffnet ist.
 
 ## Abmelden und Gerät wechseln
 
-Beim Abmelden löscht die App alles, was sie auf dem Gerät gespeichert hat.
+Beim Abmelden, in der Akquise-App oder im Verwaltungsbereich, löscht die App
+alles, was sie auf dem Gerät gespeichert hat.
 Warten noch Einträge, fragt sie vorher: **Erst senden**, **Trotzdem
 abmelden** oder **Abbrechen**. Meldet sich auf dem Gerät eine andere Person
 an, löscht die App deine Daten ohne Rückfrage, bevor sie deren Arbeitsbereich

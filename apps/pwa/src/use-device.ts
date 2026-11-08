@@ -1,8 +1,10 @@
 /*
- * Identity, device storage and capture queue of the PWA in one place: the
- * identity comes from Core, or offline from the device (specs/pwa-offline-
- * queue §8.1); the device storage and the queue open only while the flag
- * `pwa.offline_queue` is on, or while queued entries still wait to be sent.
+ * Identity and device storage of the PWA in one place: the identity comes
+ * from Core, or offline from the device (specs/pwa-offline-queue §8.1); the
+ * device storage and the capture queue open only while the flag
+ * `pwa.offline_queue` is on, or while queued entries still wait. One
+ * store per page life and user: offline starts, refetches and the switch
+ * back online reuse it.
  */
 import {
   useQuery,
@@ -22,6 +24,7 @@ import {
   DeviceQueueStore,
   QueueController,
   deviceCopyFetchedAt,
+  forgetDevice,
   isNetworkFailure,
   preflightConflict,
   sendEntry,
@@ -32,7 +35,6 @@ import {
 import {
   cachedDevice,
   claimDevice,
-  forgetDevice,
   prepareDevice,
   refreshReadCache,
   type PreparedDevice,
@@ -40,7 +42,10 @@ import {
 
 /** The read cache refreshes at most this often on focus (§8.2). */
 const REFRESH_INTERVAL_MS = 60_000;
+/** The pages load the same data at start; the refresh reuses it. */
 const START_REFRESH_DELAY_MS = 2_000;
+/** A page answer younger than this is reused instead of asking again. */
+const REUSE_MS = 15_000;
 
 export interface DeviceState {
   readonly identity: UseQueryResult<CurrentIdentityResponse>;
@@ -54,7 +59,9 @@ export function useDevice(
   online: boolean,
 ): DeviceState {
   const queries = useQueryClient();
-  const cachedStore = useRef<DeviceStore | null>(null);
+  // The one open store of this page; offline start and online preparation
+  // hand it to each other instead of opening new connections.
+  const openStore = useRef<DeviceStore | null>(null);
   const fromCache = useRef(false);
   const identity = useQuery({
     queryFn: async () => {
@@ -66,10 +73,15 @@ export function useDevice(
         return value;
       } catch (error) {
         if (!isNetworkFailure(error)) throw error;
-        const device = await cachedDevice().catch(() => null);
+        // A session that ended is an ApiError 401 here: go to sign-in.
+        const device = await cachedDevice(openStore.current).catch(
+          (failure: unknown) => {
+            if (failure instanceof ApiError) throw failure;
+            return null;
+          },
+        );
         if (!device) throw error;
-        if (cachedStore.current !== device.store) cachedStore.current?.close();
-        cachedStore.current = device.store;
+        openStore.current = device.store;
         fromCache.current = true;
         return device.identity;
       }
@@ -83,82 +95,84 @@ export function useDevice(
   // undefined until the online start decided; null keeps nothing.
   const [prepared, setPrepared] = useState<PreparedDevice | null>();
   const startedOffline = Boolean(identity.data) && fromCache.current;
+  const userId = identity.data?.userId ?? "";
+  const acquirerActions = (identity.data?.actionMemberships ?? [])
+    .filter((membership) => membership.role === "acquirer")
+    .map((membership) => membership.actionId)
+    .sort()
+    .join(",");
+  const latestIdentity = useRef(identity.data);
+  latestIdentity.current = identity.data;
 
-  // Online: the flag decides whether the device keeps anything.
+  // Online: the flag decides whether the device keeps anything. Runs per
+  // user and campaign set, not on every identity refetch.
   useEffect(() => {
-    const data = identity.data;
+    const data = latestIdentity.current;
     if (!data || fromCache.current) return;
     let cancelled = false;
-    void prepareDevice(client, data)
+    void prepareDevice(client, data, openStore.current)
       .then((next) => {
-        if (next === undefined) return;
-        if (cancelled) {
-          next?.store.close();
-          return;
+        if (next === undefined || cancelled) return;
+        if (openStore.current && openStore.current !== next?.store) {
+          openStore.current.close();
         }
-        setPrepared((previous) => {
-          if (previous && previous.store !== next?.store) {
-            previous.store.close();
-          }
-          return next;
-        });
+        openStore.current = next?.store ?? null;
+        setPrepared(next);
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [client, identity.data]);
+  }, [client, userId, acquirerActions, startedOffline]);
 
   // Started from the device: back online, Core answers again.
   useEffect(() => {
     if (startedOffline && online) void identity.refetch();
   }, [startedOffline, online]);
 
-  // Back online after an offline start, the device copy stays in use
-  // until the flag has been read again, so the queue never disappears.
+  // Until the online start decided, an offline-started store stays in use.
   const undecided = startedOffline || prepared === undefined;
-  const store = undecided ? cachedStore.current : (prepared?.store ?? null);
+  const store = undecided ? openStore.current : (prepared?.store ?? null);
   const mode = undecided
-    ? cachedStore.current
+    ? openStore.current
       ? "on"
       : null
     : (prepared?.mode ?? null);
-  const userId = identity.data?.userId ?? "";
 
   // The read cache follows Core while online and visible (§8.2).
   useEffect(() => {
-    const data = identity.data;
-    if (!store || mode !== "on" || !data || fromCache.current) return;
+    if (!store || mode !== "on" || startedOffline || !userId) return;
     let last = 0;
     let running = false;
+    // A page that just loaded the same data from Core lends it: the board
+    // reads the CRM, which is rate-limited. A device copy shown offline is
+    // never written back as fresh.
+    function recent<T>(key: readonly unknown[]): T | null {
+      const state = queries.getQueryState(key);
+      const value = queries.getQueryData<T>(key);
+      if (!state || value === undefined) return null;
+      if (Date.now() - state.dataUpdatedAt > REUSE_MS) return null;
+      return deviceCopyFetchedAt(value) ? null : value;
+    }
+    const loaders = {
+      board: async (actionId: string) =>
+        recent<AcquisitionActivityBoardResponse>([
+          "acquisition-activity-board",
+          actionId,
+        ]) ?? client.getAcquisitionActivityBoard(actionId, { limit: 100 }),
+      capture: async (actionId: string) =>
+        recent<CommitmentCaptureContextResponse>([
+          "commitment-capture-context",
+          actionId,
+        ]) ?? client.getCommitmentCaptureContext(actionId),
+    };
     const refresh = (force: boolean) => {
-      if (running || navigator.onLine === false) return;
+      const data = latestIdentity.current;
+      if (!data || running || navigator.onLine === false) return;
       if (document.visibilityState !== "visible") return;
       if (!force && Date.now() - last < REFRESH_INTERVAL_MS) return;
       running = true;
       last = Date.now();
-      // A page that just loaded the same data from Core lends it: the
-      // board reads the CRM, which is rate-limited. A device copy shown
-      // offline is never written back as fresh.
-      function recent<T>(key: readonly unknown[]): T | null {
-        const state = queries.getQueryState(key);
-        const value = queries.getQueryData<T>(key);
-        if (!state || value === undefined) return null;
-        if (Date.now() - state.dataUpdatedAt > 15_000) return null;
-        return deviceCopyFetchedAt(value) ? null : value;
-      }
-      const loaders = {
-        board: async (actionId: string) =>
-          recent<AcquisitionActivityBoardResponse>([
-            "acquisition-activity-board",
-            actionId,
-          ]) ?? client.getAcquisitionActivityBoard(actionId, { limit: 100 }),
-        capture: async (actionId: string) =>
-          recent<CommitmentCaptureContextResponse>([
-            "commitment-capture-context",
-            actionId,
-          ]) ?? client.getCommitmentCaptureContext(actionId),
-      };
       void refreshReadCache(loaders, store, data)
         .catch(() => undefined)
         .finally(() => {
@@ -171,8 +185,6 @@ export function useDevice(
     // through readThrough); the full refresh keeps its pace, so a burst of
     // sends does not hammer Core and the CRM behind it.
     const onSent = () => refresh(false);
-    // The pages load the same data at start; a moment later the refresh
-    // can reuse their answers instead of asking the CRM again.
     const first = setTimeout(() => refresh(true), START_REFRESH_DELAY_MS);
     window.addEventListener("online", onOnline);
     window.addEventListener("focus", onVisible);
@@ -185,7 +197,7 @@ export function useDevice(
       window.removeEventListener("leonaid:queue-sent", onSent);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [client, identity.data, mode, queries, store]);
+  }, [client, queries, mode, startedOffline, store, userId, acquirerActions]);
 
   // The capture queue (§9): one controller per open device storage.
   const [queue, setQueue] = useState<QueueController | null>(null);
@@ -225,7 +237,10 @@ export function useDevice(
     if (!queue || mode !== "drain") return;
     return queue.subscribe((snapshot) => {
       if (!snapshot.sending && snapshot.entries.length === 0) {
-        void forgetDevice(userId).then(() => setPrepared(null));
+        void forgetDevice(userId).then(() => {
+          openStore.current = null;
+          setPrepared(null);
+        });
       }
     });
   }, [mode, queue, userId]);

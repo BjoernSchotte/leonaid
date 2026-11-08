@@ -60,7 +60,9 @@ Sie haben nach der Datenschutz-Grundverordnung das Recht auf Auskunft (Art. 15),
  * Members' privacy notice, addressed in "Du" like the PWA and member pages.
  * The section "Speicherung auf deinem Gerät" is decision D8 of
  * specs/pwa-offline-queue/PLAN.md (§8.2–§8.5, §14): it describes the
- * offline queue and read cache of the acquisition app.
+ * offline queue, read cache and identity summary of the acquisition app.
+ * Text proposed by Claude Code for Björn Schotte's review; the legal
+ * configuration's four-eyes flow activates it.
  */
 export const MEMBER_PRIVACY_NOTICE_TEMPLATE = `## Mitgliederbereich und Akquise-App
 
@@ -74,13 +76,14 @@ Als Mitglied meldest du dich mit deiner E-Mail-Adresse an. LeonAid verarbeitet d
 
 Damit du Kontaktversuche und Bestellungen auch ohne Netz erfassen kannst, speichert die Akquise-App Daten auf deinem Gerät:
 
+- eine Kurzform deiner eigenen Anmeldung, damit die App auch ohne Netz startet: dein Name, deine Aktionen und deine Rollen (nicht deine E-Mail-Adresse);
 - die Liste deiner eigenen zugewiesenen Sponsoren mit Name, Ort, Status und nächstem Schritt sowie den Kontaktdaten Ansprechperson, Telefonnummer und E-Mail-Adresse;
-- Einträge, die noch nicht gesendet sind, zum Beispiel Notizen, Kontaktversuche und Bestellungen mit Lieferadresse und Kontakt.
+- Einträge, die noch nicht gesendet sind, zum Beispiel Notizen, Kontaktversuche, neue Sponsoren (ohne Straße) und Bestellungen mit Rechnungsadresse, Lieferadresse und Kontakt.
 
-Nicht auf deinem Gerät gespeichert werden die Straßenadressen der Sponsoren (außer der Lieferadresse einer Bestellung, die noch nicht gesendet ist), Rechnungsdaten, Bestellungen anderer Mitglieder und Daten der Auslieferung.
+Nicht auf deinem Gerät gespeichert werden die Straßenadressen der Sponsoren (außer der Rechnungs- und Lieferadresse einer Bestellung, die noch nicht gesendet ist), Rechnungen, Bestellungen anderer Mitglieder und Daten der Auslieferung.
 
-Die Daten liegen verschlüsselt im Speicher des Browsers. Der Schlüssel kann das Gerät nicht verlassen. Zusätzlich schützt die Gerätesperre deines Telefons.
+Die Daten liegen nur auf diesem Gerät, verschlüsselt im Speicher des Browsers. Der Schlüssel kann das Gerät nicht verlassen. Zusätzlich schützt die Gerätesperre deines Telefons.
 
-Die App sendet Einträge, sobald du wieder online bist, und löscht sie danach sofort vom Gerät. Ein Eintrag, der 14 Tage lang nicht gesendet werden konnte, gilt als abgelaufen und wird zwei Tage später gelöscht. Die Sponsorenliste zeigt die App nach 7 Tagen nicht mehr an und löscht sie nach 14 Tagen. Endet deine Mitarbeit in einer Aktion oder schaltet der Club die Akquise dort ab, kann die App deren Einträge nicht mehr senden: Du kannst sie noch lesen und verwerfen, nach zwei Tagen löscht die App sie.
+Die App sendet Einträge, sobald du wieder online bist, und löscht sie danach sofort vom Gerät; das gilt auch für die Rechnungs- und Lieferadresse einer Bestellung. Ein Eintrag, der 14 Tage lang nicht gesendet werden konnte, gilt als abgelaufen und wird zwei Tage später gelöscht. Die Sponsorenliste zeigt die App nach 7 Tagen nicht mehr an und löscht sie nach 14 Tagen. Endet deine Mitarbeit in einer Aktion oder schaltet der Club die Akquise dort ab, kann die App deren Einträge nicht mehr senden: Du kannst sie noch lesen und verwerfen, nach zwei Tagen löscht die App sie.
 
-Wenn du dich abmeldest, löscht die App alle Daten, die sie auf dem Gerät gespeichert hat. Meldet sich auf dem Gerät eine andere Person an, löscht die App deine Daten, bevor sie deren Arbeitsbereich zeigt. Wenn du die Website-Daten im Browser löschst oder die App entfernst, sind die Daten ebenfalls gelöscht.`;
+Wenn du dich abmeldest, in der Akquise-App oder im Verwaltungsbereich, löscht die App alle Daten, die sie auf dem Gerät gespeichert hat. Endet deine Sitzung, löscht sie die Kurzform deiner Anmeldung und die Sponsorenliste; noch nicht gesendete Einträge bleiben, bis du dich wieder anmeldest, längstens bis zu den oben genannten Fristen. Meldet sich auf dem Gerät eine andere Person an, löscht die App deine Daten, bevor sie deren Arbeitsbereich zeigt. Wenn du die Website-Daten im Browser löschst oder die App entfernst, sind die Daten ebenfalls gelöscht.`;

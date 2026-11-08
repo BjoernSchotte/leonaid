@@ -5,15 +5,17 @@
  */
 import { describe, expect, it } from "vitest";
 
-import type {
-  AcquisitionActivityBoardResponse,
-  CurrentIdentityResponse,
+import {
+  ApiError,
+  type AcquisitionActivityBoardResponse,
+  type CurrentIdentityResponse,
 } from "@leonaid/api-client";
 import {
   cacheFreshness,
   createDeviceKey,
   databaseName,
   identityFromSummary,
+  isNetworkFailure,
   minimizeBoard,
   seal,
   sessionEnded,
@@ -213,5 +215,23 @@ describe("encryption at rest (§8.4)", () => {
       "leonaid-pwa-v1-10000000-0000-4000-8000-000000000004",
     );
     expect(() => databaseName("anna@leonaid.invalid")).toThrow();
+  });
+});
+
+describe("network failure (§9.4)", () => {
+  it("is no answer from Core, never a programming error", () => {
+    const answer = (status: number, code = "x") =>
+      new ApiError(status, { code, message: code, requestId: "" });
+    expect(isNetworkFailure(new TypeError("Failed to fetch"))).toBe(true);
+    expect(isNetworkFailure(new DOMException("t", "TimeoutError"))).toBe(true);
+    expect(isNetworkFailure(new DOMException("a", "AbortError"))).toBe(true);
+    expect(isNetworkFailure(answer(503))).toBe(true);
+    expect(isNetworkFailure(answer(200, "unexpected_response_type"))).toBe(
+      true,
+    );
+    expect(isNetworkFailure(answer(401))).toBe(false);
+    expect(isNetworkFailure(answer(409))).toBe(false);
+    expect(isNetworkFailure(new SyntaxError("Unexpected token"))).toBe(false);
+    expect(isNetworkFailure(new Error("bug"))).toBe(false);
   });
 });
