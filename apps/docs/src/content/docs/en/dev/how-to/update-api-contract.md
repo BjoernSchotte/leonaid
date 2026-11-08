@@ -4,8 +4,8 @@ description: Change FastAPI, canonical OpenAPI, and the TypeScript client togeth
 docId: DOC-P032
 audience: [dev]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
+contentRevision: 2
+reviewedRevision: 2
 verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
 reviewer: Björn Schotte
 ---
@@ -18,9 +18,9 @@ reviewer: Björn Schotte
    codes, security, and error shapes must match the intended Core change.
 4. Update consumers and curated DE/EN explanations. The docs API reference is
    generated from exactly this JSON during every docs gate.
-5. Run `tools/openapi/test.sh` and the affected feature test. The OpenAPI test
-   regenerates and compares both files byte for byte, typechecks them, and
-   exercises the real API client.
+5. Run `./leonaid check` and `tools/openapi/test.sh`, plus the affected
+   feature test. The check regenerates and compares both files byte for byte
+   and typechecks them; the OpenAPI test exercises the real API client.
 
 A breaking change requires an exact, reasoned entry in the versioned breaking
 approval contract. A missing contract or one that differs from Core blocks the
