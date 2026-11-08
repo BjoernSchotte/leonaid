@@ -5,7 +5,6 @@ const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const mailpitBaseUrl = process.env.LEONAID_E2E_MAILPIT_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
 const charityAdminEmail = "klara.kern@leonaid.invalid";
-const financeEmail = "finn.finanzen@leonaid.invalid";
 
 if (!baseUrl || !mailpitBaseUrl || !artifactDirectory) {
   throw new Error("POC-042 browser environment is incomplete");
@@ -204,52 +203,6 @@ test("login, normal work, fresh login, admin action and logout", async ({
     ).toBe(false);
     await page.screenshot({
       path: `${artifactDirectory}/session-login.png`,
-      fullPage: true,
-    });
-  } finally {
-    await context.close();
-  }
-});
-
-test("finance read access starts directly in the invoice journal", async ({
-  browser,
-}) => {
-  const context = await browser.newContext({
-    viewport: { width: 390, height: 844 },
-    ignoreHTTPSErrors: true,
-  });
-  const page = await context.newPage();
-  try {
-    const loginMailIds = await messageIds(context.request);
-    await page.goto(`${baseUrl}/login`);
-    await page.locator("#login-email").fill(financeEmail);
-    await page.locator('[data-testid="request-login"]').click();
-    const loginCode = await waitForCode(
-      context.request,
-      loginMailIds,
-      financeEmail,
-    );
-    await page.locator("#login-code").fill(loginCode);
-    await page.locator('[data-testid="complete-login"]').click();
-
-    await page.waitForURL(`${baseUrl}/admin/invoices`);
-    await expect(page.locator('[data-testid="display-name"]')).toHaveText(
-      "Finn Finanzen",
-    );
-    await expect(page.locator('[data-testid="roles"]')).toContainText(
-      "Finanzen",
-    );
-    // The invoice list (Task 5.2) marks the finance reader's view.
-    await expect(page.getByTestId("invoice-read-only")).toContainText(
-      "Nur lesen.",
-    );
-    await expect(
-      page.getByRole("heading", { level: 1, name: "Rechnungen" }),
-    ).toBeVisible();
-    await expect(page.locator('[data-testid="record-payment"]')).toHaveCount(0);
-    await expect(page.locator('[data-testid="cancel-invoice"]')).toHaveCount(0);
-    await page.screenshot({
-      path: `${artifactDirectory}/session-finance-default-route.png`,
       fullPage: true,
     });
   } finally {

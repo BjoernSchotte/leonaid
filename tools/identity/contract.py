@@ -1691,6 +1691,9 @@ async def run(arguments: argparse.Namespace) -> None:
                     "SYSTEM_ROLE_STALE_SESSION",
                     "KLARA_SESSION",
                     "ANNA_SESSION",
+                    # Ended by the suspension above: the browser proof of
+                    # the sign-in notice (z-account-status.spec.mjs).
+                    "ANNA_OLD_SESSION",
                     "FINN_SESSION",
                 }
             )

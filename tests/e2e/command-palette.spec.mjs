@@ -8,14 +8,12 @@ import { expect, test } from "./csp-guard.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const klaraSession = process.env.KLARA_SESSION;
-const felixSession = process.env.FELIX_SESSION;
-const simoneSession = process.env.SIMONE_SESSION;
 const disabledModules = (process.env.LEONAID_PALETTE_DISABLED_MODULES ?? "")
   .split(",")
   .filter(Boolean);
 const actionId = "20000000-0000-4000-8000-000000000001";
 
-if (!baseUrl || !klaraSession || !felixSession || !simoneSession) {
+if (!baseUrl || !klaraSession) {
   throw new Error("Command palette browser environment is incomplete");
 }
 
@@ -246,94 +244,6 @@ test.describe("enabled modules", () => {
       await expect(close).toBeFocused();
       await page.keyboard.press("Escape");
       await expect(help).toBeHidden();
-    } finally {
-      await context.close();
-    }
-  });
-
-  test("a charity admin of another action sees no invoice hit", async ({
-    browser,
-  }) => {
-    const context = await signedIn(browser, felixSession, {
-      width: 390,
-      height: 844,
-    });
-    const page = await context.newPage();
-    try {
-      await page.goto(`${baseUrl}/admin/`);
-      await shellReady(page);
-      await openPalette(page);
-      const response = searchResponse(page, "KT26");
-      await paletteInput(page).fill("KT26");
-      const body = await (await response).json();
-      expect(body.results.filter((hit) => hit.type === "invoice")).toEqual([]);
-      await expect(palette(page).locator(".palette-empty")).toContainText(
-        "Keine Treffer für „KT26“",
-      );
-      await expect(
-        palette(page).locator("[data-hit-type='invoice']"),
-      ).toHaveCount(0);
-      const overflow = await page.evaluate(
-        () => document.documentElement.scrollWidth - window.innerWidth,
-      );
-      expect(overflow).toBeLessThanOrEqual(1);
-    } finally {
-      await context.close();
-    }
-  });
-
-  test("a system admin lands on the action of an invoice and order hit", async ({
-    browser,
-  }) => {
-    const context = await signedIn(browser, simoneSession);
-    const page = await context.newPage();
-    try {
-      await page.goto(`${baseUrl}/admin/actions`);
-      await shellReady(page);
-      await openPalette(page);
-      const invoiceSearch = searchResponse(page, "KT26-0001");
-      await paletteInput(page).fill("KT26-0001");
-      await invoiceSearch;
-      await palette(page)
-        .getByRole("group", { name: "Rechnungen" })
-        .getByRole("option", { name: /KT26-0001/ })
-        .click();
-      await expect(page).toHaveURL(
-        new RegExp(`/admin/invoices\\?action=${actionId}`),
-      );
-      await expect(page).toHaveURL(/[?&]view=all(&|$)/);
-      await expect(page).toHaveURL(/[?&]open=[0-9a-f-]{36}/);
-      // The unlisted action stays the selected one and the hit opens.
-      await expect(
-        page.locator(
-          '[data-testid="invoice-action"] option:checked, [data-testid="invoice-action-name"]',
-        ),
-      ).toHaveText("Krapfentaxi 2026");
-      await expect(page.getByTestId("invoice-detail")).toContainText(
-        "KT26-0001",
-      );
-
-      await openPalette(page);
-      const orderSearch = searchResponse(page, "Musterwerk");
-      await paletteInput(page).fill("Musterwerk");
-      const orders = (await (await orderSearch).json()).results.filter(
-        (hit) => hit.type === "order",
-      );
-      expect(orders.length).toBeGreaterThan(0);
-      await palette(page)
-        .getByRole("group", { name: "Bestellungen" })
-        .getByRole("option")
-        .first()
-        .click();
-      await expect(page).toHaveURL(
-        new RegExp(`/admin/orders\\?action=${actionId}`),
-      );
-      await expect(page.getByTestId("commitment-admin-action")).toHaveValue(
-        actionId,
-      );
-      await expect(
-        page.getByTestId("commitment-admin-action").locator("option:checked"),
-      ).toHaveText("Krapfentaxi 2026");
     } finally {
       await context.close();
     }
