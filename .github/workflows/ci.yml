@@ -533,6 +533,29 @@ jobs:
           if [ "$COLD_RUN" = true ]; then set -- "$@" --may-skip fixture; fi
           python3 tools/ci/gate.py "$@"
 
+  rerun-stale-gates:
+    # After a real run's gate completed: re-run the failed gate of any
+    # title-edit or draft run of this workflow for the same commit, so it
+    # mirrors this result; GitHub keeps such a failed gate blocking the PR
+    # otherwise. Fail-closed: a red result is mirrored as red.
+    # tools/ci/rerun_stale_gates.py
+    name: Refresh mirrored gates
+    needs: gate
+    if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) }}
+    permissions:
+      actions: write
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: tools/ci
+      - name: Re-run failed mirror gates of this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 tools/ci/rerun_stale_gates.py
   flake-summary:
     # Nightly only: which jobs failed or needed a rerun across recent runs.
     name: Flake summary

@@ -40,7 +40,15 @@ NO_EVIDENCE = {"select", "gate", "golden-journey", "flake-summary"}
 # matrix leg, and each summary cost a runner slot per run.
 REMOVED_SUMMARIES = ("integration", "e2e-summary", "emdash-proofs")
 # Not part of the gate: dispatch-only probes and the post-gate report.
-OUTSIDE_GATE = {"gate", "pilot-cold-rehearsal", "artifact-probe", "flake-summary"}
+OUTSIDE_GATE = {
+    "gate",
+    "pilot-cold-rehearsal",
+    "artifact-probe",
+    "flake-summary",
+    "rerun-stale-gates",
+}
+# After a real gate, re-run failed mirror gates (tools/ci/rerun_stale_gates.py).
+RERUN_JOB = "rerun-stale-gates"
 
 # Editor load race (PR #37) and Caddy body drain (PR #38) were only visible here.
 EMDASH_GROUPS = ("krapfentaxi-orders", "krapfentaxi-migration", "static")
@@ -288,6 +296,7 @@ def check(path: Path) -> list[str]:
     problems.extend(check_tiers(text, "ci.yml"))
     problems.extend(check_drafts(text, "ci.yml"))
     problems.extend(check_gate(text, "ci.yml"))
+    problems.extend(check_rerun(text, "ci.yml"))
     problems.extend(check_retries(text, "ci.yml"))
     problems.extend(check_free_disk(text, "ci.yml"))
     problems.extend(check_nightly(text))
@@ -493,6 +502,29 @@ def check_tiers(text: str, name: str) -> list[str]:
         if "uses: ./.github/workflows/select-suites.yml" not in select:
             problems.append(f"{name}: the select job must use select-suites.yml.")
     return problems
+
+
+def check_rerun(text: str, name: str) -> list[str]:
+    """Every gated workflow refreshes failed mirror gates after a real gate."""
+    block = job_block(text, RERUN_JOB)
+    condition = re.search(r"(?m)^    if: (.*)$", block)
+    if (
+        not block
+        or needs_of(block) != {"gate"}
+        or not condition
+        or "always()" not in condition.group(1)
+        or "github.event_name == 'pull_request'" not in condition.group(1)
+        or DRAFT not in condition.group(1)
+        or EDIT not in condition.group(1)
+        or "      actions: write\n" not in block
+        or "python3 tools/ci/rerun_stale_gates.py" not in block
+    ):
+        return [
+            f"{name}: job {RERUN_JOB} must re-run failed mirror gates after every "
+            "real pull-request gate (needs gate, always(), not for drafts or "
+            "title edits, actions: write)."
+        ]
+    return []
 
 
 def check_gate(text: str, name: str) -> list[str]:
@@ -728,6 +760,7 @@ def check_repository(root: Path) -> list[str]:
         problems.extend(check_tiers(text, name))
         problems.extend(check_drafts(text, name))
         problems.extend(check_gate(text, name))
+        problems.extend(check_rerun(text, name))
         problems.extend(check_retries(text, name))
         problems.extend(check_free_disk(text, name))
     for name, job in UNGATED_REQUIRED.items():

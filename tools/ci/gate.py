@@ -150,9 +150,17 @@ def pull_request_context(
     """(decision, message): None = evaluate the needs normally."""
     if environ.get("EVENT_NAME") != "pull_request":
         return None, ""
-    if environ.get("DRAFT") == "true":
-        return False, "draft pull request: no CI ran; mark it ready for review"
-    if (
+    draft_run = environ.get("DRAFT") == "true"
+    if draft_run:
+        # The event says draft; a re-run (tools/ci/rerun_stale_gates.py)
+        # after ready_for_review must see the pull request's current state.
+        pull = fetch(
+            f"repos/{environ.get('GITHUB_REPOSITORY', '')}/pulls/"
+            f"{environ.get('PR_NUMBER', '')}"
+        )
+        if not isinstance(pull, dict) or pull.get("draft") is not False:
+            return False, "draft pull request: no CI ran; mark it ready for review"
+    if draft_run or (
         environ.get("EVENT_ACTION") == "edited"
         and environ.get("BASE_CHANGED") != "true"
     ):
@@ -163,7 +171,8 @@ def pull_request_context(
             environ.get("GATE_NAME", ""),
             environ.get("GITHUB_RUN_ID", ""),
         )
-        message = f"title/body edit: this commit's real gate result is {result}"
+        kind = "draft run, now ready" if draft_run else "title/body edit"
+        message = f"{kind}: this commit's real gate result is {result}"
         if result != "success":
             message += (
                 "; when the real run finishes, its gate supersedes this one "

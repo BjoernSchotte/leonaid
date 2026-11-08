@@ -237,6 +237,18 @@ CI_MUTATIONS = (
 
 OTHER_MUTATIONS = (
     (
+        "pins.yml",
+        "      actions: write\n",
+        "      actions: read\n",
+        "pins.yml: job rerun-stale-gates must re-run failed mirror gates",
+    ),
+    (
+        "surveys.yml",
+        "    needs: gate\n",
+        "    needs: select\n",
+        "surveys.yml: job rerun-stale-gates must re-run failed mirror gates",
+    ),
+    (
         "select-suites.yml",
         "    name: Select suites\n",
         "    name: Choose suites\n",

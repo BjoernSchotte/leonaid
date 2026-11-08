@@ -16,6 +16,7 @@ sys.path.insert(0, str(HERE.parents[1]))
 
 from tools.ci import flake_summary  # noqa: E402
 from tools.ci import gate  # noqa: E402
+from tools.ci import rerun_stale_gates  # noqa: E402
 
 FAILURES: list[str] = []
 
@@ -295,11 +296,36 @@ def test_pull_request_context() -> None:
     def never(path: str) -> object:
         raise AssertionError(f"unexpected API call {path}")
 
-    # Drafts fail the gate: no CI ran.
-    decision, message = gate.pull_request_context(
-        {**base_env, "DRAFT": "true"}, {}, never
-    )
+    # Drafts fail the gate while the pull request is still a draft (read from
+    # the API, not the event: a re-run after ready_for_review mirrors).
+    draft_env = {
+        **base_env,
+        "DRAFT": "true",
+        "PR_NUMBER": "7",
+        "HEAD_SHA": "abc",
+        "GATE_NAME": "CI gate",
+        "GITHUB_RUN_ID": "9",
+    }
+
+    def still_draft(path: str) -> object:
+        assert path.endswith("/pulls/7"), path
+        return {"draft": True}
+
+    decision, message = gate.pull_request_context(draft_env, {}, still_draft)
     expect(decision is False and "draft" in message, f"draft: {decision} {message}")
+    for real_conclusion, expected in (("success", True), ("failure", False)):
+        mirror = api([check_run(5, "completed", real_conclusion, "t")], {5})
+
+        def now_ready(path: str, mirror: gate.Fetch = mirror) -> object:
+            return {"draft": False} if path.endswith("/pulls/7") else mirror(path)
+
+        decision, _ = gate.pull_request_context(draft_env, {}, now_ready)
+        expect(
+            decision is expected,
+            f"a re-run draft gate mirrors the real {real_conclusion}: {decision}",
+        )
+    decision, _ = gate.pull_request_context(draft_env, {}, lambda path: {})
+    expect(decision is False, "an unreadable pull request stays a draft")
     expect(
         gate.pull_request_context(
             {**base_env, "EVENT_ACTION": "synchronize"}, {}, never
@@ -370,8 +396,56 @@ def test_pull_request_context() -> None:
     )
 
 
+def test_rerun_selection() -> None:
+    def job(name: str, conclusion: str) -> dict[str, object]:
+        return {"name": name, "conclusion": conclusion}
+
+    def run(number: int, **fields: object) -> dict[str, object]:
+        return {
+            "id": number,
+            "workflow_id": 1,
+            "head_sha": "abc",
+            "status": "completed",
+            "conclusion": "failure",
+            **fields,
+        }
+
+    edit_jobs = [job("select / Select suites", "skipped"), job("CI gate", "failure")]
+    real_red = [job("select / Select suites", "success"), job("CI gate", "failure")]
+    draft_ok = [job("select / Select suites", "skipped"), job("CI gate", "success")]
+    runs = [
+        run(2),  # failed mirror gate: re-run
+        run(3),  # real run, red: never re-run (stays red)
+        run(4, workflow_id=2),  # another workflow
+        run(5, head_sha="old"),  # another commit
+        run(6, status="in_progress", conclusion=None),
+        run(7, conclusion="success"),
+        run(8),  # gate-only run whose gate passed: nothing to fix
+        run(9),  # this run
+    ]
+    jobs = {2: edit_jobs, 3: real_red, 8: draft_ok}
+
+    def fetch(path: str) -> object:
+        if path.endswith("/actions/runs/9"):
+            return {"workflow_id": 1}
+        if "/actions/runs?" in path:
+            return {"workflow_runs": runs}
+        number = int(path.split("/actions/runs/")[1].split("/")[0])
+        return {"jobs": jobs.get(number, [])}
+
+    selected = rerun_stale_gates.stale_runs(fetch, "o/r", "9", "abc")
+    expect(selected == [2], f"only failed mirror gates are re-run: {selected}")
+    expect(
+        not rerun_stale_gates.gate_only_failure(
+            [job("Survey gate", "failure"), job("Unit", "skipped")]
+        ),
+        "without the select job a run is never treated as a mirror",
+    )
+
+
 def main() -> int:
     test_gate()
+    test_rerun_selection()
     test_pull_request_context()
     test_flake_tally()
     test_retry_allowlist()
