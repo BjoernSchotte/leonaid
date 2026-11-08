@@ -56,9 +56,7 @@ ROOT = Path(__file__).resolve().parents[2]
 # Matrix order is the request order: long jobs first.
 INTEGRATION_SHARDS = (
     "compose",
-    "seed-cold",
     "seed-reset",
-    "core",
     "typst",
     "storage",
     "documents",
@@ -110,10 +108,10 @@ FLAGS = ("contract", "golden", "surveys", "api", "pins")
 # measured test-step durations of PR run 42360553738 (2026-11-07); refresh
 # them from `gh run view <id> --json jobs` when a shard grows a lot.
 INTEGRATION_SECONDS = {
-    "compose": 263,
-    "seed-cold": 243,
-    "seed-reset": 201,
-    "core": 226,
+    # Run 42508593075: compose 296 s (now with the Core smoke), seed-reset
+    # 273 s (now with the idempotent second seed of the former seed-cold).
+    "compose": 300,
+    "seed-reset": 295,
     "typst": 119,
     "storage": 142,
     "documents": 149,
@@ -121,7 +119,8 @@ INTEGRATION_SECONDS = {
     "crm-gateway": 129,
     "crm-import": 100,
     "twenty-install": 133,
-    "policy": 206,
+    # On the prepared fixture: about 35 s import, 25 s contract.
+    "policy": 75,
     "schema-outbox": 199,
     "delivery": 30,
     # The Contract job (tools/ci/contract.sh) rides in an Integration bin.
@@ -179,9 +178,7 @@ LOAD_WARNING = 0.75
 MAX_BINS = {"integration": 4, "e2e": 4}
 # Integration shards that start Twenty: its image (about 40 s of pulls in
 # the policy leg of run 42504505501) is prefetched beside the layer import.
-SEED_BOOTSTRAP = frozenset(
-    {"compose", "seed-cold", "seed-reset", "twenty-install", "policy"}
-)
+SEED_BOOTSTRAP = frozenset({"compose", "seed-reset", "twenty-install", "policy"})
 
 # Fast tier (pull requests): Integration shards and Contract that a specific
 # rule selects run before the merge only when each fits FAST_LEG_SECONDS of
@@ -505,7 +502,7 @@ RULES: tuple[Rule, ...] = (
     # Integration shards with their own proof directories.
     Rule(("tools/delivery/**",), integration("delivery"), "delivery proofs"),
     Rule(("tools/compose/**",), integration("compose", "profiles"), "Compose proofs"),
-    Rule(("tools/core/**",), integration("core"), "Core proofs"),
+    Rule(("tools/core/**",), integration("compose"), "Core smoke (in compose)"),
     Rule(
         (
             "tools/schema/**",

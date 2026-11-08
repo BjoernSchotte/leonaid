@@ -383,9 +383,10 @@ there); bot dispatches on `pins/repin-images` only read it.
 
 ## Integration and survey shards
 
-Normal PR/main-push CI runs separate Integration shards for Compose cold start,
-seed cold/idempotency, seed mutation/reset, Core, schema, outbox, storage, documents,
-Typst, Twenty installation, CRM gateway, CRM import and policy. Pilot import includes a
+Normal PR/main-push CI runs separate Integration shards for the one cold start
+(Compose, with the Core API smoke on it), seed idempotency/mutation/reset, schema,
+outbox, storage, documents, Typst, Twenty installation, CRM gateway, CRM import and
+policy (on the prepared fixture). Pilot import includes a
 real backup/restore and runs nightly instead. `bash tools/ci/integration.sh`
 also excludes pilot import by default; that shard remains explicitly selectable.
 
