@@ -1,6 +1,7 @@
 """Process/lease checks; actual data reset semantics use shared_stack_live.py."""
 
 import importlib.util
+import re
 import os
 from pathlib import Path
 import shlex
@@ -85,6 +86,117 @@ class SharedStackTests(unittest.TestCase):
         subprocess.run(["mkdir", str(second.directory / "in-use")], check=True)
         self.assertTrue((first.directory / "in-use").is_dir())
         self.assertTrue((second.directory / "in-use").is_dir())
+
+
+class VerifiedResetTests(unittest.TestCase):
+    """The reset proves an empty fixture: digests must match the first restore."""
+
+    def stack(self, kind="survey"):
+        stack = module.SharedStack(ROOT, kind)
+        self.addCleanup(shutil.rmtree, stack.directory, True)
+        stack.volumes = [
+            f"{stack.project}_core-postgres-data",
+            f"{stack.project}_rustfs-data",
+            f"{stack.project}_twenty-postgres-data",
+        ]
+        return stack
+
+    def test_first_restore_records_and_a_clean_reset_matches(self):
+        stack = self.stack()
+        stack.verify_digests("0 " + "a" * 64 + "\n1 " + "b" * 64 + "\n2 " + "c" * 64)
+        stack.preserving = True
+        stack.verify_digests("0 " + "a" * 64 + "\n1 " + "b" * 64)
+
+    def test_leftover_state_refuses_the_next_check(self):
+        stack = self.stack()
+        stack.verify_digests("0 " + "a" * 64 + "\n1 " + "b" * 64 + "\n2 " + "c" * 64)
+        stack.preserving = True
+        with self.assertRaisesRegex(RuntimeError, "left state behind.*rustfs-data"):
+            stack.verify_digests("0 " + "a" * 64 + "\n1 " + "d" * 64)
+
+    def test_a_missing_or_extra_volume_digest_is_refused(self):
+        stack = self.stack()
+        with self.assertRaisesRegex(RuntimeError, "digest covers"):
+            stack.verify_digests("0 " + "a" * 64)
+        stack.verify_digests("0 " + "a" * 64 + "\n1 " + "b" * 64 + "\n2 " + "c" * 64)
+        stack.preserving = True
+        # A preserved Twenty volume must not be restored or compared.
+        with self.assertRaisesRegex(RuntimeError, "digest covers"):
+            stack.verify_digests(
+                "0 " + "a" * 64 + "\n1 " + "b" * 64 + "\n2 " + "c" * 64
+            )
+        with self.assertRaisesRegex(RuntimeError, "Unreadable"):
+            stack.verify_digests("7 " + "a" * 64)
+
+    def test_only_survey_stacks_preserve_twenty(self):
+        survey, golden = self.stack(), self.stack("golden")
+        self.assertIn("twenty-server", survey.preserved_services)
+        self.assertEqual(golden.preserved_services, frozenset())
+        self.assertEqual(golden.preserved_volumes, frozenset())
+
+    def test_preserved_containers_survive_quiesce_only_while_preserving(self):
+        stack = self.stack()
+        rows = "c1 api\nc2 twenty-server\nc3 twenty-postgres\nc4 \n"
+        stack.call = lambda args, capture=False: rows
+        self.assertEqual(stack.active_containers(), ["c1", "c2", "c3", "c4"])
+        stack.preserving = True
+        self.assertEqual(stack.active_containers(), ["c1", "c4"])
+
+    def test_survey_fixture_never_gets_the_crm_key(self):
+        fake = type(sys)("ci_fixture")
+        fake.is_synthetic = lambda root, text: True
+        fake.validate = lambda root, directory: None
+        original = sys.modules.get("ci_fixture")
+        sys.modules["ci_fixture"] = fake
+        self.addCleanup(
+            lambda: sys.modules.pop("ci_fixture")
+            if original is None
+            else sys.modules.__setitem__("ci_fixture", original)
+        )
+        for kind, expected in (("survey", ""), ("golden", "k" * 40)):
+            stack = self.stack(kind)
+            stack.fixture_metadata = {
+                "integrationKey": "k" * 40,
+                "volumes": ["core-postgres-data"],
+                "files": [],
+            }
+            stack.root = Path(tempfile.mkdtemp())
+            self.addCleanup(shutil.rmtree, stack.root)
+            (stack.root / ".env.local").write_text("")
+            stack.call = lambda args, capture=False: ""
+            stack.inventory = lambda resource, s=stack: [
+                s.project + "_core-postgres-data"
+            ]
+            stack.copy_volumes = lambda mode: None
+            stack.import_fixture(Path("/nonexistent"))
+            self.assertEqual(stack.env["TWENTY_INTEGRATION_API_KEY"], expected, kind)
+
+
+class SurveyTwentyIsolationTests(unittest.TestCase):
+    """Twenty is not reset between survey checks, so no survey check may use it."""
+
+    PATTERN = re.compile(r"twenty|crm|:3000|/rest/|/graphql", re.IGNORECASE)
+    # Credential redaction only (it names the key to remove it from logs).
+    # Subnet allocation names every Compose network, crm-data included.
+    ALLOWED = {
+        "tools/surveys/ci_failure_excerpt.py",
+        "tools/surveys/ci_failure_excerpt_test.py",
+        "tools/surveys/network_override.py",
+    }
+
+    def test_no_survey_check_or_spec_references_twenty(self):
+        paths = sorted(
+            [*ROOT.glob("tools/surveys/*"), *ROOT.glob("tests/e2e/surveys-*.spec.mjs")]
+        )
+        self.assertTrue(paths)
+        offenders = [
+            f"{path.relative_to(ROOT)}:{number}"
+            for path in paths
+            if path.is_file() and str(path.relative_to(ROOT)) not in self.ALLOWED
+            for number, line in enumerate(path.read_text().splitlines(), 1)
+            if self.PATTERN.search(line)
+        ]
+        self.assertEqual(offenders, [])
 
 
 class LeafSequenceTests(unittest.TestCase):

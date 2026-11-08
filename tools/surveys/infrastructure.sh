@@ -117,6 +117,9 @@ fi
 compose run --rm --no-deps --volume "$root:/repo:ro" --workdir /repo \
   --entrypoint alembic api upgrade head
 fi
+# Every check starts without survey data: a borrowed fixture after its
+# verified reset (tools/testing/shared_stack.py), a fresh stack by design.
+compose exec -T core-postgres sh -eu -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -qAt' <"$root/tools/surveys/empty_state.sql"
 compose run --rm --no-deps --user "$(id -u):$(id -g)" --volume "$root:/repo:ro" --volume "$proof:/proof" \
   --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
 if [ "$mode" = contracts ]; then
