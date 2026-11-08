@@ -488,8 +488,8 @@ OTHER_MUTATIONS = (
     ),
     (
         "api-contract.yml",
-        '          "$UV_IMAGE"\n',
-        "          ghcr.io/astral-sh/uv:0.13.6-python3.13-trixie-slim@sha256:"
+        '          "$PYTHON_IMAGE"\n',
+        "          docker.io/library/python:3.13.18-slim-trixie@sha256:"
         + "e" * 64
         + "\n",
         "a digest in a workflow blocks the automatic re-pin",
