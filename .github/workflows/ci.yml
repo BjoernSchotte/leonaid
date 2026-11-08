@@ -684,6 +684,9 @@ jobs:
         shard: ${{ fromJSON((github.event_name == 'pull_request' || github.event_name == 'push') && '["permissions","runner","editor","analysis","lifecycle","invitations","journey"]' || '["permissions","runner","editor","analysis","lifecycle","invitations","journey","recovery","exports-recovery","restic","pilot"]') }}
     env:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/survey-${{ matrix.shard }}
+      # Two stacks from the prepared fixture: the leaves of a shard run on
+      # both at once (tools/testing/parallel_stacks.py).
+      LEONAID_TEST_STACKS: "2"
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
