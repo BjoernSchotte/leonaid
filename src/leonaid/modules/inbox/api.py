@@ -313,7 +313,8 @@ class UpdateCase(InboxModel):
     assignee_user_id: UUID | None
     closure_note: (
         Annotated[
-            str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)
+            str,
+            StringConstraints(strip_whitespace=True, min_length=10, max_length=4000),
         ]
         | None
     ) = None

@@ -121,7 +121,7 @@ docker run --rm \
   --reporter=line
 
 mkdir -p "$artifact_directory"
-screenshots="session-fresh-admin.png session-login.png session-finance-default-route.png"
+screenshots="session-fresh-admin.png session-login.png"
 # The CI smoke leg runs only the login test; the finance test is not run.
 if [ -n "${LEONAID_E2E_SMOKE:-}" ]; then
   screenshots="session-fresh-admin.png session-login.png"

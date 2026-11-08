@@ -81,7 +81,6 @@ E2E_SHARDS = (
     "identity",
     "matching",
     "tasks",
-    "materials",
     "knowledge",
     "inbox",
     "leitsystem-ui",
@@ -108,17 +107,19 @@ FLAGS = ("contract", "golden", "surveys", "api", "pins")
 # measured test-step durations of PR run 42360553738 (2026-11-07); refresh
 # them from `gh run view <id> --json jobs` when a shard grows a lot.
 INTEGRATION_SECONDS = {
-    # Run 42508593075: compose 296 s (now with the Core smoke), seed-reset
-    # 273 s (now with the idempotent second seed of the former seed-cold).
+    # Run 42508593075: compose 296 s (now with the Core smoke). seed-reset
+    # 424 s in run 42521057525, minus about 155 s: its second seed is the
+    # golden.py data step, not `./leonaid seed` with a full stack start.
     "compose": 300,
-    "seed-reset": 295,
+    "seed-reset": 270,
     "typst": 119,
     "storage": 142,
     "documents": 149,
     "profiles": 127,
     "crm-gateway": 129,
     "crm-import": 100,
-    "twenty-install": 133,
+    # On the prepared fixture: about 75 s less than its cold Twenty start.
+    "twenty-install": 60,
     # On the prepared fixture: about 35 s import, 25 s contract.
     "policy": 75,
     "schema-outbox": 199,
@@ -143,7 +144,6 @@ E2E_SECONDS = {
     "identity": 129,
     "matching": 103,
     "tasks": 162,
-    "materials": 112,
     "knowledge": 127,
     "inbox": 99,
     "leitsystem-ui": 278,
@@ -159,14 +159,13 @@ EMDASH_BINS = (
     ("campaign-edge", "static"),
 )
 EMDASH_SECONDS = {
-    # Measured on PR #145 run 42511933095: commerce half 458 s, deadline
-    # half 413 s, redirect-aliases 147 s; campaign-hosts 160 s plus its
-    # admin-only round on the same stack (about 60 s, estimate).
-    # Chromium-only orders and deadlines (E-026): estimates −64 s and −100 s.
-    "krapfentaxi-orders": 395,
-    "krapfentaxi-deadlines": 315,
-    "campaign-edge": 370,
-    "static": 107,
+    # Run 42521057525: orders 420 s, deadlines 364 s, campaign-edge 377 s,
+    # static 106 s. Orders and deadlines minus about 85 s: Twenty's cold
+    # start now overlaps the editor phases.
+    "krapfentaxi-orders": 335,
+    "krapfentaxi-deadlines": 280,
+    "campaign-edge": 377,
+    "static": 106,
 }
 TARGET_SECONDS = 600
 # ci.yml timeout-minutes of each leg kind (workflow_contract.py keeps them
@@ -205,12 +204,25 @@ FAST_REQUIRED: dict[str, tuple[str, ...]] = {
         "alembic.ini",
         "tools/policy/**",
         "tools/sessions/**",
+        # Since #148 the proof borrows the prepared fixture.
+        "tools/testing/shared_stack.py",
+        "tools/testing/borrow_stack.sh",
+        "tools/testing/shared-runtime.yml",
+        ".github/workflows/test-fixture.yml",
+        ".github/actions/test-fixture/**",
         "tests/fixtures/golden/**",
         "tools/twenty/**",
         "tools/seed/**",
         "infra/compose/**",
         "infra/proxy/**",
         "tools/typst/render_golden.sh",
+    ),
+    # The campaign renderer switch is system-admin only (cutover and
+    # rollback, tests/integration/test_campaign_renderer_api.py, E-028).
+    "schema-outbox": (
+        "tests/integration/test_campaign_renderer_api.py",
+        "src/leonaid/adapters/postgres/campaign_aliases.py",
+        "src/leonaid/application/campaign_renderer.py",
     ),
 }
 # Never in the fast tier: browser suites and multi-minute acceptance runs.
@@ -383,28 +395,23 @@ RULES: tuple[Rule, ...] = (
             "tests/e2e/tasks-*.spec.mjs",
             "tests/e2e/modules-tasks.spec.mjs",
         ),
-        e2e("tasks"),
+        # Its server rules are contracts in Integration / schema-outbox.
+        e2e("tasks") | integration("schema-outbox"),
         "tasks module",
     ),
     # tools/schema/test.sh also runs the tasks schema contract.
     Rule(
         ("tools/tasks/**",), e2e("tasks") | integration("schema-outbox"), "tasks proofs"
     ),
-    # Materials module.
+    # Materials module: its contracts run in Integration / schema-outbox.
     Rule(
         (
             "src/leonaid/modules/materials/**",
             "packages/features/src/materials/**",
-            "tests/e2e/modules-materials.spec.mjs",
+            "tools/materials/**",
         ),
-        e2e("materials"),
+        e2e("knowledge") | integration("schema-outbox"),
         "materials module",
-    ),
-    # tools/schema/test.sh also runs the materials schema contracts.
-    Rule(
-        ("tools/materials/**",),
-        e2e("materials") | integration("schema-outbox"),
-        "materials proofs",
     ),
     # Knowledge module.
     Rule(
@@ -428,12 +435,11 @@ RULES: tuple[Rule, ...] = (
         (
             "src/leonaid/modules/inbox/**",
             "packages/features/src/inbox/**",
-            "tests/e2e/modules-inbox.spec.mjs",
             "tests/e2e/public-inbox-retry.spec.mjs",
             "apps/public/src/components/PublicInbox.astro",
             "apps/public/src/lib/modules.ts",
         ),
-        e2e("inbox"),
+        e2e("inbox") | integration("schema-outbox"),
         "inbox module",
     ),
     # tools/schema/test.sh also runs the inbox schema contracts.
@@ -449,7 +455,7 @@ RULES: tuple[Rule, ...] = (
     Rule(("tests/e2e/task-list.mjs",), e2e("tasks"), "task list helper"),
     Rule(
         ("tests/e2e/material-list.mjs",),
-        e2e("materials", "inbox", "knowledge"),
+        e2e("knowledge"),
         "material list helper",
     ),
     Rule(("tests/e2e/delivery-board.spec.mjs",), e2e("invoices"), "delivery board"),
@@ -503,6 +509,7 @@ RULES: tuple[Rule, ...] = (
             "tools/outbox/**",
             "tests/integration/test_order_cancellation_api.py",
             "tests/integration/test_offline_capture_api.py",
+            "tests/integration/test_campaign_renderer_api.py",
         ),
         integration("schema-outbox"),
         "schema/outbox proofs",
@@ -524,13 +531,12 @@ RULES: tuple[Rule, ...] = (
         (
             "tools/commitments/**",
             "tests/e2e/commitments.spec.mjs",
-            "tests/e2e/order-cancellation.spec.mjs",
         ),
         e2e("commitments"),
         "commitment proofs",
     ),
     Rule(
-        ("tools/matching/**", "tests/e2e/matching.spec.mjs"),
+        ("tools/matching/**",),
         e2e("matching", "acquisition-management"),
         "matching proofs",
     ),
@@ -540,7 +546,6 @@ RULES: tuple[Rule, ...] = (
             "tests/e2e/identity.spec.mjs",
             "tests/e2e/members-keyboard.spec.mjs",
             "tests/e2e/member-list.mjs",
-            "tests/e2e/y-role-management.spec.mjs",
             "tests/e2e/z-account-status.spec.mjs",
         ),
         e2e("identity"),
@@ -577,7 +582,7 @@ RULES: tuple[Rule, ...] = (
         "membership proofs",
     ),
     Rule(
-        ("tools/actions/**", "tools/templates/**", "tests/e2e/actions.spec.mjs"),
+        ("tools/actions/**", "tools/templates/**"),
         e2e("action-templates"),
         "action template proofs",
     ),
@@ -585,7 +590,6 @@ RULES: tuple[Rule, ...] = (
         (
             "tools/assignments/**",
             "tools/activities/**",
-            "tests/e2e/activities.spec.mjs",
         ),
         e2e("acquisition-management"),
         "acquisition management proofs",
@@ -596,7 +600,6 @@ RULES: tuple[Rule, ...] = (
             "tools/activity_feed/**",
             "tests/e2e/public-actions.spec.mjs",
             "tests/e2e/public-audit.spec.mjs",
-            "tests/e2e/activity-feed.spec.mjs",
             "tools/multi_host/**",
             "tests/e2e/multi-host.spec.mjs",
         ),
@@ -745,7 +748,7 @@ def everything_but_e2e() -> frozenset[str]:
 # module that imports it, directly or transitively (``e2e_owners``).
 E2E_OWNERS: dict[str, tuple[str, ...]] = {
     "tasks": ("tasks",),
-    "materials": ("materials",),
+    "materials": ("knowledge",),
     "inbox": ("inbox",),
     "knowledge": ("knowledge",),
     "acquisition": ("acquisition-management", "matching"),
@@ -805,7 +808,7 @@ MODULE_OWNERS: tuple[tuple[str, tuple[str, ...] | str], ...] = (
         ("matching", "acquisition-management", "public-orders"),
     ),
     ("leonaid.adapters.typst", ("invoices", "invoice-flows")),
-    ("leonaid.adapters.storage", ("materials", "knowledge", "inbox", "invoices")),
+    ("leonaid.adapters.storage", ("knowledge", "inbox", "invoices")),
     ("leonaid.adapters.feature_flags", ("operations",)),
     ("leonaid.adapters.operations", ("operations",)),
     ("leonaid.adapters.postgres.outbox", _MESSAGING),

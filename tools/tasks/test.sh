@@ -11,10 +11,11 @@ fi
 leaf=tasks-test
 # CI smoke leg (tools/ci/e2e.sh smoke): one list view only.
 module_smoke_grep="admin: S1 compact rows, status undo and concurrent conflict"
+# Planning and structure are server rules: tools/tasks/planning_contract.py
+# and structure_contract.py (Integration / schema-outbox), not browser specs.
 module_specs="tests/e2e/modules-tasks.spec.mjs tests/e2e/tasks-details.spec.mjs
-  tests/e2e/tasks-views.spec.mjs tests/e2e/tasks-planning.spec.mjs
-  tests/e2e/tasks-ordering.spec.mjs tests/e2e/tasks-structure.spec.mjs
+  tests/e2e/tasks-views.spec.mjs tests/e2e/tasks-ordering.spec.mjs
   tests/e2e/tasks-keyboard.spec.mjs tests/e2e/tasks-ordering-faults.spec.mjs"
 . "$root/tools/testing/module_browser.sh"
 
-echo "tasks-test: OK: web and PWA task journeys, planning, ordering, structure and details"
+echo "tasks-test: OK: web and PWA task journeys, ordering, keyboard and details"

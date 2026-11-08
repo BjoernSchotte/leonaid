@@ -243,8 +243,9 @@ def main() -> int:
     )
     expect(tasks["e2e"] == ["tasks"], f"tasks module: {tasks}")
     expect(
-        tasks["integration"] == ["api-contract"] and tasks["emdash"] == [],
-        f"tasks module: {tasks}",
+        tasks["integration"] == ["schema-outbox", "api-contract"]
+        and tasks["emdash"] == [],
+        f"tasks module: its server contracts run in schema-outbox: {tasks}",
     )
     expect(tasks["api"] is True and tasks["surveys"] is False, f"tasks module: {tasks}")
     quick_tasks = fast(

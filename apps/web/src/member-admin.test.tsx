@@ -703,6 +703,49 @@ describe("member pane", () => {
     );
   });
 
+  it("reactivates through the confirmation and asks for a new sign-in", async () => {
+    const client = await renderPage();
+    const gesaId = "10000000-0000-4000-8000-000000000005";
+    client.changeMemberStatus.mockResolvedValue({
+      displayName: "Gesa Gesperrt",
+      previousStatus: "suspended",
+      previousStatusLabel: "Gesperrt",
+      replayed: false,
+      revision: 4,
+      revokedSessionCount: 0,
+      status: "active",
+      statusLabel: "Aktiv",
+      userId: gesaId,
+    });
+    const pane = await openMember("Gesa Gesperrt");
+    fireEvent.click(pane.getByTestId("member-status-reactivate"));
+    expect(
+      confirmDialog().getByText(
+        "Gesa Gesperrt erhält wieder Zugriff. Alte Sitzungen bleiben beendet; die Person muss sich neu anmelden.",
+      ),
+    ).toBeTruthy();
+    fireEvent.click(
+      confirmDialog().getByRole("button", { name: "Zugang reaktivieren" }),
+    );
+    expect(
+      await screen.findByText("Gesa Gesperrt ist wieder aktiv."),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Für den nächsten Zugriff ist eine neue Anmeldung erforderlich.",
+      ),
+    ).toBeTruthy();
+    expect(client.changeMemberStatus).toHaveBeenCalledWith(
+      gesaId,
+      { expectedRevision: 3, status: "active" },
+      {
+        headers: {
+          "Idempotency-Key": expect.stringMatching(/^pilot011:member-status:/),
+        },
+      },
+    );
+  });
+
   it("guards the only system admin and the own access", async () => {
     await renderPage();
     const pane = await openMember("Simone System");

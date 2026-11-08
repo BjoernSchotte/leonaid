@@ -368,6 +368,52 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         ):
             raise ContractFailure("Activities overwrite instead of appending history")
 
+        read_back = {item["id"]: item for item in activities}
+        if (
+            read_back[overdue_body["activity"]["id"]]["note"]
+            != "Einkauf möchte das Angebot.\n\nKeine sensiblen Angaben."
+            or read_back[overdue_body["activity"]["id"]]["nextAction"]
+            != "Angebot per E-Mail senden"
+            or read_back[today_activity.json()["activity"]["id"]]["nextAction"]
+            != "Rückmeldung telefonisch einholen"
+        ):
+            raise ContractFailure("Board does not read back note and next action")
+
+        cleared = await request(
+            api,
+            "POST",
+            activity_path,
+            tokens[ANNA_ID],
+            "poc061:overdue-cleared",
+            {
+                "partyKind": "company",
+                "partyId": str(MUSTERWERK_ID),
+                "revision": 2,
+                "channel": "in_person",
+                "outcome": "reached",
+                "note": "Lieferadresse gemeinsam geprüft.",
+                "nextAction": "Lieferadresse bestätigen",
+                "dueOn": (today + timedelta(days=3)).isoformat(),
+            },
+        )
+        cleared.raise_for_status()
+        after = await request(
+            api, "GET", board_path, tokens[ANNA_ID], "poc061:overdue-cleared-board"
+        )
+        after.raise_for_status()
+        urgency = {
+            item["partyDisplayName"]: (item["urgency"], item["nextAction"])
+            for item in after.json()["workItems"]
+        }
+        newest = after.json()["activities"][0]
+        if (
+            urgency["Musterwerk GmbH"] != ("upcoming", "Lieferadresse bestätigen")
+            or urgency["Doppelkontakt AG"][0] != "today"
+            or newest["id"] != cleared.json()["activity"]["id"]
+            or newest["note"] != "Lieferadresse gemeinsam geprüft."
+        ):
+            raise ContractFailure(f"Overdue follow-up did not move to soon: {urgency}")
+
         print(
             "activity-contract: OK:",
             "append-only history, reminder priority, co-assignment,",
@@ -404,8 +450,7 @@ async def exercise_offline_queue(
 ) -> None:
     """Server part of the PWA offline queue (PLAN §11.1, §11.2, §11.4, §11.5).
 
-    Runs on Bernd's own Sonnenseite assignment so the browser proof that
-    follows still finds Anna's follow-ups exactly as the contract left them.
+    Runs on Bernd's own Sonnenseite assignment, apart from Anna's follow-ups.
     """
 
     token = tokens[BERND_ID]

@@ -101,7 +101,7 @@ test("acquirer works from the personal dashboard into the filtered pipeline", as
     await expect(
       page.getByRole("heading", { name: "Heute dran" }),
     ).toBeVisible();
-    // This stack's sponsors have no follow-up yet (activities.spec proves
+    // This stack's sponsors have no follow-up yet (activities/contract.py proves
     // the filled list on its own data).
     await expect(page.getByTestId("due-today")).toHaveCount(0);
     await expect(

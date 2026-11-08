@@ -59,6 +59,88 @@ def type_contract(schema: object) -> object:
     }
 
 
+LOWER_BOUNDS = {"minLength", "minimum", "exclusiveMinimum", "minItems"}
+UPPER_BOUNDS = {"maxLength", "maximum", "exclusiveMaximum", "maxItems"}
+
+
+def constraints(schema: object, at: str = "") -> dict[str, object]:
+    """Bounds and patterns by position, through anyOf/oneOf/allOf/items."""
+    if isinstance(schema, list):
+        return {
+            key: value
+            for index, item in enumerate(schema)
+            for key, value in constraints(item, f"{at}/{index}").items()
+        }
+    if not isinstance(schema, dict):
+        return {}
+    found: dict[str, object] = {
+        f"{at}/{key}": value
+        for key, value in schema.items()
+        if key in LOWER_BOUNDS | UPPER_BOUNDS | {"pattern"}
+    }
+    for key in ("anyOf", "oneOf", "allOf", "items"):
+        found.update(constraints(schema.get(key), f"{at}/{key}"))
+    return found
+
+
+def tightened(old: object, new: object) -> bool:
+    before, after = constraints(old), constraints(new)
+    for position, value in after.items():
+        keyword = position.rsplit("/", 1)[1]
+        if position not in before:
+            return True
+        previous = before[position]
+        if keyword == "pattern":
+            if value != previous:
+                return True
+        elif not isinstance(value, (int, float)) or not isinstance(
+            previous, (int, float)
+        ):
+            return True
+        elif keyword in LOWER_BOUNDS and value > previous:
+            return True
+        elif keyword in UPPER_BOUNDS and value < previous:
+            return True
+    return False
+
+
+def parameters(operation: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
+    raw = operation.get("parameters", [])
+    return {
+        (str(item.get("in")), str(item.get("name"))): item
+        for item in (raw if isinstance(raw, list) else [])
+        if isinstance(item, dict)
+    }
+
+
+def parameter_changes(
+    label: str, old_operation: dict[str, Any], new_operation: dict[str, Any]
+) -> set[str]:
+    """Query, path and header parameters a caller already sends.
+
+    Breaking: a new required parameter, a parameter that became required,
+    a changed type or enum, and a tightened bound or pattern.
+    """
+    changes: set[str] = set()
+    old = parameters(old_operation)
+    for key, parameter in parameters(new_operation).items():
+        where = f"{label} {key[0]}:{key[1]}"
+        before = old.get(key)
+        if before is None:
+            if parameter.get("required") is True:
+                changes.add(f"parameter-newly-required:{where}")
+            continue
+        if parameter.get("required") is True and before.get("required") is not True:
+            changes.add(f"parameter-newly-required:{where}")
+        if type_contract(before.get("schema")) != type_contract(
+            parameter.get("schema")
+        ):
+            changes.add(f"parameter-type-changed:{where}")
+        elif tightened(before.get("schema"), parameter.get("schema")):
+            changes.add(f"parameter-constraint-tightened:{where}")
+    return changes
+
+
 def breaking_changes(
     old: dict[str, Any],
     new: dict[str, Any],
@@ -86,6 +168,11 @@ def breaking_changes(
                 continue
             if old_operation.get("operationId") != new_operation.get("operationId"):
                 changes.add(f"operation-id-changed:{method.upper()} {path}")
+            changes.update(
+                parameter_changes(
+                    f"{method.upper()} {path}", old_operation, new_operation
+                )
+            )
             old_responses = old_operation.get("responses", {})
             new_responses = new_operation.get("responses", {})
             if isinstance(old_responses, dict) and isinstance(new_responses, dict):
@@ -118,6 +205,8 @@ def breaking_changes(
                 new_properties[property_name]
             ):
                 changes.add(f"property-type-changed:{name}.{property_name}")
+            elif tightened(old_property, new_properties[property_name]):
+                changes.add(f"property-constraint-tightened:{name}.{property_name}")
         old_required = set(old_schema.get("required", []))
         new_required = set(new_schema.get("required", []))
         for property_name in new_required - old_required:

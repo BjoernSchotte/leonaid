@@ -136,6 +136,8 @@ jobs:
       # Stops the suite 5 minutes before timeout-minutes, so the evidence
       # is still collected and uploaded (tools/ci/capture-command.sh).
       LEONAID_CI_STEP_SECONDS: "2400"
+      # Nightly, seed-reset's second seed is the full `./leonaid seed`.
+      LEONAID_SEED_CLI: ${{ github.event_name == 'schedule' }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -453,7 +455,10 @@ jobs:
         run: |
           test "$(wc -c < comparison/ci-golden-primary/comparison.txt)" -eq 65
           test "$(wc -c < comparison/ci-golden-repeat/comparison.txt)" -eq 65
-          cmp comparison/ci-golden-primary/comparison.txt comparison/ci-golden-repeat/comparison.txt
+          if ! cmp comparison/ci-golden-primary/comparison.txt comparison/ci-golden-repeat/comparison.txt; then
+            diff comparison/ci-golden-primary/comparison.json comparison/ci-golden-repeat/comparison.json || true
+            exit 1
+          fi
 
   surveys:
     # One job per survey shard, the same leonaid command as

@@ -230,14 +230,16 @@ References:
 ## Real verification
 
 ```sh
-./tools/twenty/test.sh
+python3 tools/testing/shared_stack.py golden tools/twenty/test.sh
 ./leonaid test-twenty-gateway
 ./leonaid test-crm-import
 ```
 
-The schema test starts Twenty from empty volumes, provisions twice, compares
-canonical snapshots byte for byte, checks the real integration key and then
-changes a field through `updateOneField`. `check` must report the concrete
+The schema test runs on a shared stack whose Twenty is already provisioned
+(the shared template or the CI fixture; both provision an empty Twenty, and so
+does the cold `./leonaid reset` in `tools/seed/test.sh`). It provisions again,
+compares canonical snapshots byte for byte, checks the real integration key and
+then changes a field through `updateOneField`. `check` must report the concrete
 field path including the actual value.
 
 The import test starts its own empty Twenty, provisions and fills it through
