@@ -132,7 +132,13 @@ def main() -> int:
         f"tr-mapped leaf: {leaves['action-admin']}",
     )
     expect(set(s.EMDASH_GROUPS) <= set(cases), "every EmDash group has cases")
-    seconds = r.shard_seconds(LOG, leaves, cases)
+    # The group's case list grows with emdash.sh; the log names the two cases
+    # above and every further case at 10 s, so the sum stays exact.
+    extra = [c for c in cases["krapfentaxi-migration"] if f"OK: {c} (" not in LOG]
+    log = LOG + "".join(
+        f"2026-11-07T10:00:00Z ci-emdash: OK: {c} (10s)\n" for c in extra
+    )
+    seconds = r.shard_seconds(log, leaves, cases)
     expect(seconds.get("core") == 300, f"integration line: {seconds}")
     expect("policy" not in seconds, "a failed shard is no timing")
     expect(
@@ -144,7 +150,10 @@ def main() -> int:
         seconds.get("public-catalog") == 70 + 40 + 90 + r.E2E_SETUP_SHARE,
         f"own-stack leaves count too: {seconds}",
     )
-    expect(seconds.get("krapfentaxi-migration") == 340, f"EmDash group sum: {seconds}")
+    expect(
+        seconds.get("krapfentaxi-migration") == 340 + 10 * len(extra),
+        f"EmDash group sum: {seconds}",
+    )
     expect("static" not in seconds, "an incomplete group is no timing")
     # Outliers (outside half to double the median) do not move the value.
     expect(r.robust_median([100, 110, 105, 900, 20]) == 105, "outlier rejection")

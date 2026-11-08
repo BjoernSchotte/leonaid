@@ -301,8 +301,7 @@ active domain is not publicly reachable.
 Without a public host you lose: the home page listing all active campaigns,
 campaign pages under `club.org/campaigns/…`, the contact form outside campaign
 pages, and any order page of a campaign without a published CMS campaign page
-(the domain shows CMS pages only). Until the stack proof of this mode is green
-in CI, the deployment contract refuses `Caddyfile.admin-only`.
+(the domain shows CMS pages only).
 
 ### Switch to an admin host
 
