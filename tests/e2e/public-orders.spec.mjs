@@ -284,7 +284,8 @@ test("a double submit sends one order request and shows the confirmation", async
   });
 });
 
-test("without JavaScript the confirmation is the focused target of the post", async ({
+// @webkit: WebKit handles autofocus differently.
+test("without JavaScript the confirmation is the focused target of the post @webkit", async ({
   browser,
 }) => {
   const context = await browser.newContext({

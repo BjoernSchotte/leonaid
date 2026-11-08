@@ -251,6 +251,7 @@ async def main() -> None:
                 ).status_code == 404
                 for invalid in [
                     {**change, "closureNote": None},
+                    {**change, "closureNote": "  Zu kurz  "},
                     {**change, "expectedRevision": "1"},
                     {**change, "message": "Rewrite original"},
                 ]:

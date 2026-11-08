@@ -259,6 +259,18 @@ def error_response(
     )
 
 
+def crm_probes(settings: Settings) -> tuple[HttpReadinessProbe, ...]:
+    """Twenty is a readiness dependency only with an integration key.
+
+    Without the key the CRM features are off (decision E-031). Production
+    requires the key: the pilot doctor fails without it
+    (tools/pilot_deployment/doctor.py).
+    """
+    if settings.twenty_integration_api_key is None:
+        return ()
+    return (HttpReadinessProbe("twenty", str(settings.twenty_health_url)),)
+
+
 def build_service(
     settings: Settings, postgres_probe: PostgresReadinessProbe
 ) -> PlatformApplicationService:
@@ -271,7 +283,7 @@ def build_service(
         identity=identity,
         probes=(
             postgres_probe,
-            HttpReadinessProbe("twenty", str(settings.twenty_health_url)),
+            *crm_probes(settings),
             HttpReadinessProbe("rustfs", str(settings.rustfs_health_url)),
         ),
     )

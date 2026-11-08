@@ -3,15 +3,12 @@
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 import hashlib
 import os
-import stat
 import sys
 from datetime import datetime, timezone
 from decimal import Decimal
-from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid5
 
@@ -214,6 +211,18 @@ async def exercise(
             headers=request_headers("own-detail"),
         )
         own.raise_for_status()
+        detail = own.json()
+        if (
+            detail["id"] != str(action_id)
+            or detail["name"] != "Quartalsaktion Frühjahr 2027"
+            or detail["status"] != "draft"
+            or detail["goal"]["unit"] != "EUR"
+            or detail["goal"]["currency"] != "EUR"
+            or len(detail["beneficiaries"]) != 2
+        ):
+            raise ContractFailure(
+                f"own detail does not read back the created action: {detail}"
+            )
         foreign = await client.get(
             f"/api/v1/actions/{action_id}",
             cookies=cookies(tokens[FELIX_ID]),
@@ -474,21 +483,11 @@ async def exercise(
         return action_id
 
 
-def write_session(path: Path, token: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-        handle.write(f"KLARA_SESSION={token}\n")
-    if stat.S_IMODE(path.stat().st_mode) != 0o600:
-        raise ContractFailure("session evidence file does not have file mode 0600")
-
-
-async def run(session_output: Path) -> None:
+async def run() -> None:
     connection = await asyncpg.connect(require_env("CORE_DATABASE_URL"), timeout=10)
     try:
         tokens = await seed_sessions(connection)
         await exercise(connection, tokens)
-        write_session(session_output, tokens[KLARA_ID])
     finally:
         await connection.close()
     print(
@@ -498,11 +497,8 @@ async def run(session_output: Path) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--session-output", type=Path, required=True)
-    arguments = parser.parse_args()
     try:
-        asyncio.run(run(arguments.session_output))
+        asyncio.run(run())
     except (ContractFailure, asyncpg.PostgresError, httpx.HTTPError) as error:
         print(f"action-contract: ERROR: {error}", file=sys.stderr)
         return 1

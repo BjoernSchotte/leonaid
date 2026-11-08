@@ -8,13 +8,11 @@ personal-account repository):
   five minutes): the always-on jobs (lint/types, unit, build, security,
   vulnerability gate, docs) plus the API contract and pins workflows when
   their path filters match, plus the Integration shards and the Contract
-  job that a *specific* rule maps and that fit ``FAST_LEG_SECONDS`` in at
-  most ``FAST_MAX_BINS`` legs. E2E leaves, the smoke leg, EmDash proofs, the
+  job that a *specific* rule maps, packed into legs of ``FAST_LEG_SECONDS``
+  (a longer unit gets a leg of its own; nothing selected is dropped). E2E leaves, the smoke leg, EmDash proofs, the
   Golden Journey and the survey shards never run here (``deferred``).
 * ``pull_request`` with the ``full-ci`` label: the complete suite, every
   E2E leaf included, before the merge (migrations, security, large rewrites).
-* stacked ``pull_request`` (base is not main): the fast tier of the
-  module-local suites only; its gates never pass.
 * ``push`` to main, the **post-merge tier**: the suites the changed paths
   select since the last green run on main (``--base``), as the pull request
   tier selected them before E-018: stack suites by their inputs, E2E leaves
@@ -66,6 +64,8 @@ INTEGRATION_SHARDS = (
     "policy",
     "schema-outbox",
     "delivery",
+    # The live OpenAPI contract on the prepared fixture (tools/openapi/test.sh).
+    "api-contract",
 )
 E2E_SHARDS = (
     "acquisition-management",
@@ -80,7 +80,6 @@ E2E_SHARDS = (
     "identity",
     "matching",
     "tasks",
-    "materials",
     "knowledge",
     "inbox",
     "leitsystem-ui",
@@ -121,11 +120,14 @@ INTEGRATION_SECONDS = {
     # 130 s, minus its own cold Twenty start: it runs on the fixture now.
     "twenty-install": 60,
     "policy": 54,
-    "schema-outbox": 182,
+    # About 240 s since the renderer API test joined it (#153).
+    "schema-outbox": 240,
     "delivery": 14,
+    # Local run 171 s incl. fixture restore: generation, typecheck and the
+    # live contract, without the former job's Twenty pull and boot.
+    "api-contract": 120,
     # The Contract job (tools/ci/contract.sh) rides in an Integration bin.
-    # 192 s measured; 178 keeps it in the fast tier until #160 removes that.
-    "contract": 178,
+    "contract": 192,
 }
 E2E_SECONDS = {
     "acquisition-management": 156,
@@ -141,7 +143,6 @@ E2E_SECONDS = {
     "identity": 129,
     "matching": 103,
     "tasks": 162,
-    "materials": 112,
     "knowledge": 127,
     "inbox": 99,
     "leitsystem-ui": 278,
@@ -159,11 +160,10 @@ EMDASH_BINS = (
 EMDASH_SECONDS = {
     # Run 42521057525: orders 420 s, deadlines 364 s, campaign-edge 377 s,
     # static 106 s. Orders and deadlines minus about 85 s: Twenty's cold
-    # start now overlaps the editor phases. campaign-edge minus 30 s: the
-    # lapse proof runs in one host round only.
+    # start now overlaps the editor phases.
     "krapfentaxi-orders": 335,
     "krapfentaxi-deadlines": 280,
-    "campaign-edge": 347,
+    "campaign-edge": 377,
     "static": 106,
 }
 # Average test seconds per leg; MAX_BINS caps the count. Integration then
@@ -185,13 +185,11 @@ MAX_BINS = {"integration": 4, "e2e": 4}
 SEED_BOOTSTRAP = frozenset({"seed-reset", "twenty-install", "policy"})
 
 # Fast tier (pull requests): Integration shards and Contract that a specific
-# rule selects run before the merge only when each fits FAST_LEG_SECONDS of
-# INTEGRATION_SECONDS and all of them fit FAST_MAX_BINS legs of that size.
-# A leg also pays about two minutes of image and fixture preparation, so
-# 180 s of tests keep it near the five-minute budget. Everything else the
-# change selects runs after the merge on main (post-merge tier).
+# rule selects run before the merge, packed into legs of FAST_LEG_SECONDS of
+# INTEGRATION_SECONDS (a leg also pays about two minutes of preparation);
+# a longer unit gets a leg of its own. Browser and acceptance suites run
+# after the merge on main (post-merge tier).
 FAST_LEG_SECONDS = 180
-FAST_MAX_BINS = 2
 # Security proofs that never move after the merge (decision E-019): a pull
 # request into main runs each, in a leg of its own outside the fast budget,
 # whenever a changed path matches its patterns, also for shared and unmapped
@@ -207,6 +205,12 @@ FAST_REQUIRED: dict[str, tuple[str, ...]] = {
         "alembic.ini",
         "tools/policy/**",
         "tools/sessions/**",
+        # Since #148 the proof borrows the prepared fixture.
+        "tools/testing/shared_stack.py",
+        "tools/testing/borrow_stack.sh",
+        "tools/testing/shared-runtime.yml",
+        ".github/workflows/test-fixture.yml",
+        ".github/actions/test-fixture/**",
         "tests/fixtures/golden/**",
         "tools/twenty/**",
         "tools/seed/**",
@@ -275,7 +279,6 @@ RULES: tuple[Rule, ...] = (
             "tools/ci/conflict_markers.py",
             "tools/ci/core_oneoff_user.py",
             "tools/ci/gate.py",
-            "tools/ci/hold_gate.py",
             "tools/ci/legacy_ui.py",
             "tools/ci/lint-types.sh",
             "tools/ci/no_test_doubles.py",
@@ -299,7 +302,6 @@ RULES: tuple[Rule, ...] = (
         NONE,
         "workflow without stack suites",
     ),
-    Rule((".github/workflows/api-contract.yml",), frozenset({"api"}), "API workflow"),
     Rule((".github/workflows/pins.yml",), frozenset({"pins"}), "pins workflow"),
     # Shared infrastructure: wins over every narrower rule below.
     Rule(
@@ -387,28 +389,23 @@ RULES: tuple[Rule, ...] = (
             "tests/e2e/tasks-*.spec.mjs",
             "tests/e2e/modules-tasks.spec.mjs",
         ),
-        e2e("tasks"),
+        # Its server rules are contracts in Integration / schema-outbox.
+        e2e("tasks") | integration("schema-outbox"),
         "tasks module",
     ),
     # tools/schema/test.sh also runs the tasks schema contract.
     Rule(
         ("tools/tasks/**",), e2e("tasks") | integration("schema-outbox"), "tasks proofs"
     ),
-    # Materials module.
+    # Materials module: its contracts run in Integration / schema-outbox.
     Rule(
         (
             "src/leonaid/modules/materials/**",
             "packages/features/src/materials/**",
-            "tests/e2e/modules-materials.spec.mjs",
+            "tools/materials/**",
         ),
-        e2e("materials"),
+        e2e("knowledge") | integration("schema-outbox"),
         "materials module",
-    ),
-    # tools/schema/test.sh also runs the materials schema contracts.
-    Rule(
-        ("tools/materials/**",),
-        e2e("materials") | integration("schema-outbox"),
-        "materials proofs",
     ),
     # Knowledge module.
     Rule(
@@ -432,12 +429,11 @@ RULES: tuple[Rule, ...] = (
         (
             "src/leonaid/modules/inbox/**",
             "packages/features/src/inbox/**",
-            "tests/e2e/modules-inbox.spec.mjs",
             "tests/e2e/public-inbox-retry.spec.mjs",
             "apps/public/src/components/PublicInbox.astro",
             "apps/public/src/lib/modules.ts",
         ),
-        e2e("inbox"),
+        e2e("inbox") | integration("schema-outbox"),
         "inbox module",
     ),
     # tools/schema/test.sh also runs the inbox schema contracts.
@@ -453,7 +449,7 @@ RULES: tuple[Rule, ...] = (
     Rule(("tests/e2e/task-list.mjs",), e2e("tasks"), "task list helper"),
     Rule(
         ("tests/e2e/material-list.mjs",),
-        e2e("materials", "inbox", "knowledge"),
+        e2e("knowledge"),
         "material list helper",
     ),
     Rule(("tests/e2e/delivery-board.spec.mjs",), e2e("invoices"), "delivery board"),
@@ -528,13 +524,12 @@ RULES: tuple[Rule, ...] = (
         (
             "tools/commitments/**",
             "tests/e2e/commitments.spec.mjs",
-            "tests/e2e/order-cancellation.spec.mjs",
         ),
         e2e("commitments"),
         "commitment proofs",
     ),
     Rule(
-        ("tools/matching/**", "tests/e2e/matching.spec.mjs"),
+        ("tools/matching/**",),
         e2e("matching", "acquisition-management"),
         "matching proofs",
     ),
@@ -581,7 +576,7 @@ RULES: tuple[Rule, ...] = (
         "membership proofs",
     ),
     Rule(
-        ("tools/actions/**", "tools/templates/**", "tests/e2e/actions.spec.mjs"),
+        ("tools/actions/**", "tools/templates/**"),
         e2e("action-templates"),
         "action template proofs",
     ),
@@ -589,7 +584,6 @@ RULES: tuple[Rule, ...] = (
         (
             "tools/assignments/**",
             "tools/activities/**",
-            "tests/e2e/activities.spec.mjs",
         ),
         e2e("acquisition-management"),
         "acquisition management proofs",
@@ -600,7 +594,6 @@ RULES: tuple[Rule, ...] = (
             "tools/activity_feed/**",
             "tests/e2e/public-actions.spec.mjs",
             "tests/e2e/public-audit.spec.mjs",
-            "tests/e2e/activity-feed.spec.mjs",
             "tools/multi_host/**",
             "tests/e2e/multi-host.spec.mjs",
         ),
@@ -675,7 +668,6 @@ RULES: tuple[Rule, ...] = (
 # selector keeps them, so those workflows run as often as before while their
 # checks now always report.
 API_PATHS = (
-    ".github/workflows/api-contract.yml",
     "apps/**",
     "packages/api-client/**",
     "packages/features/**",
@@ -750,7 +742,7 @@ def everything_but_e2e() -> frozenset[str]:
 # module that imports it, directly or transitively (``e2e_owners``).
 E2E_OWNERS: dict[str, tuple[str, ...]] = {
     "tasks": ("tasks",),
-    "materials": ("materials",),
+    "materials": ("knowledge",),
     "inbox": ("inbox",),
     "knowledge": ("knowledge",),
     "acquisition": ("acquisition-management", "matching"),
@@ -810,7 +802,7 @@ MODULE_OWNERS: tuple[tuple[str, tuple[str, ...] | str], ...] = (
         ("matching", "acquisition-management", "public-orders"),
     ),
     ("leonaid.adapters.typst", ("invoices", "invoice-flows")),
-    ("leonaid.adapters.storage", ("materials", "knowledge", "inbox", "invoices")),
+    ("leonaid.adapters.storage", ("knowledge", "inbox", "invoices")),
     ("leonaid.adapters.feature_flags", ("operations",)),
     ("leonaid.adapters.operations", ("operations",)),
     ("leonaid.adapters.postgres.outbox", _MESSAGING),
@@ -989,36 +981,27 @@ def pack(
     return [bins[i] for i in order]
 
 
-def fast_pack(
-    names: Sequence[str], seconds: Mapping[str, int]
-) -> tuple[list[list[str]], list[str]]:
+def fast_pack(names: Sequence[str], seconds: Mapping[str, int]) -> list[list[str]]:
     """Fast-tier legs: first-fit decreasing, deterministic.
 
-    At most FAST_MAX_BINS legs of at most FAST_LEG_SECONDS each. Returns the
-    legs (longest first) and the names that did not fit; those run after the
-    merge (post-merge tier) instead.
+    Legs of at most FAST_LEG_SECONDS each; a unit longer than that gets a leg
+    of its own. A selected unit is never dropped for the budget. Returns the
+    legs, longest first.
     """
     bins: list[list[str]] = []
     loads: list[int] = []
-    deferred: list[str] = []
     for name in sorted(names, key=lambda name: (-seconds[name], name)):
         cost = seconds[name]
-        if cost > FAST_LEG_SECONDS:
-            deferred.append(name)
-            continue
         for index, load in enumerate(loads):
             if load + cost <= FAST_LEG_SECONDS:
                 bins[index].append(name)
                 loads[index] += cost
                 break
         else:
-            if len(bins) < FAST_MAX_BINS:
-                bins.append([name])
-                loads.append(cost)
-            else:
-                deferred.append(name)
+            bins.append([name])
+            loads.append(cost)
     order = sorted(range(len(bins)), key=lambda i: (-loads[i], i))
-    return [bins[i] for i in order], sorted(deferred)
+    return [bins[i] for i in order]
 
 
 def integration_unit(suite: str) -> str | None:
@@ -1067,10 +1050,7 @@ class Selection:
     reason: str
     suites: frozenset[str]
     explanation: tuple[tuple[str, str, tuple[str, ...]], ...] = ()
-    # Security, vulnerability gate and Build: always, except in a stacked
-    # pull request.
-    heavy: bool = True
-    # "fast" (pull request), "stacked", "full" (full-ci label), "post-merge"
+    # "fast" (pull request), "full" (full-ci label), "post-merge"
     # (push to main) or "complete" (schedule, dispatch, push without a diff).
     tier: str = "complete"
     # What the change selects but the fast tier leaves to the post-merge run.
@@ -1084,13 +1064,18 @@ class Selection:
         return units + (["contract"] if "contract" in self.suites else [])
 
     def integration_bins(self) -> list[list[str]]:
-        if self.tier in FAST_TIERS:
-            # Required security proofs get a leg each; select() kept only
-            # other units that fit, so nothing is dropped here.
+        if self.tier == "fast":
+            # Required security proofs get a leg each; the rest is packed
+            # into fast legs, capped at MAX_BINS legs in all (runner budget,
+            # E-029): above the cap the rest shares the remaining legs.
             units = self.integration_units()
             solo = [[unit] for unit in units if unit in FAST_REQUIRED]
             rest = [unit for unit in units if unit not in FAST_REQUIRED]
-            return solo + fast_pack(rest, INTEGRATION_SECONDS)[0]
+            legs = fast_pack(rest, INTEGRATION_SECONDS)
+            cap = MAX_BINS["integration"]
+            if len(solo) + len(legs) > cap:
+                legs = pack(rest, INTEGRATION_SECONDS, max(1, cap - len(solo)))
+            return solo + legs
         return pack(
             self.integration_units(), INTEGRATION_SECONDS, MAX_BINS["integration"]
         )
@@ -1115,20 +1100,11 @@ class Selection:
             ),
             "e2e": json.dumps(matrix(self.e2e_bins(), lambda _: "browser")),
             "emdash": json.dumps(matrix(self.emdash_bins(), emdash_bootstrap)),
-            "heavy": json.dumps(self.heavy),
             "tier": self.tier,
         }
         for flag in FLAGS:
             result[flag] = json.dumps(flag in self.suites)
         return result
-
-
-def stacked(base_ref: str) -> bool:
-    """A pull request into another feature branch, not into main."""
-    return bool(base_ref) and base_ref != MAIN_BRANCH
-
-
-FAST_TIERS = frozenset({"fast", "stacked"})
 
 
 @dataclass(frozen=True)
@@ -1142,21 +1118,14 @@ class Mapped:
     explanation: tuple[tuple[str, str, tuple[str, ...]], ...]
 
 
-def map_paths(changed: Sequence[str], is_stacked: bool, root: Path | None) -> Mapped:
-    """Suites per changed path (``RULES``, import graph, API/pins filters).
-
-    In a stacked pull request shared infrastructure, unmapped paths and the
-    former API/pins path filters select nothing.
-    """
+def map_paths(changed: Sequence[str], root: Path | None) -> Mapped:
+    """Suites per changed path (``RULES``, import graph, API/pins filters)."""
     suites: set[str] = set()
     specific: set[str] = set()
     explanation = []
     for path in changed:
         selected, reason = classify(path)
-        if is_stacked and selected == everything():
-            selected = frozenset()
-            reason = f"{reason}; stacked PR: verified once the stack targets main"
-        elif selected == everything():
+        if selected == everything():
             # Unknown or shared: every non-E2E suite, the smoke leg, and the
             # E2E leaves the import graph maps.
             owners = e2e_owners(path, root)
@@ -1167,11 +1136,11 @@ def map_paths(changed: Sequence[str], is_stacked: bool, root: Path | None) -> Ma
                 )
         else:
             specific |= selected
-        if not is_stacked:
-            if matches(path, API_PATHS) and not matches(path, API_EXCLUDED):
-                selected = selected | {"api"}
-            if matches(path, PINS_PATHS):
-                selected = selected | {"pins"}
+        if matches(path, API_PATHS) and not matches(path, API_EXCLUDED):
+            # The live API contract rides in an Integration leg.
+            selected = selected | {"api", "integration:api-contract"}
+        if matches(path, PINS_PATHS):
+            selected = selected | {"pins"}
         suites |= selected
         explanation.append((path, reason, tuple(sorted(selected))))
     if e2e(*E2E_SHARDS) <= suites:
@@ -1196,8 +1165,8 @@ def fast_tier(
 
     Browser and acceptance suites never run here. The ``required`` security
     proofs always run (a leg each). Other Integration shards and Contract run
-    only when a specific rule selected them and all of them fit the fast
-    legs; the rest of the selection runs after the merge.
+    when a specific rule selected them (never dropped for the budget); the
+    rest of the selection runs after the merge.
     """
     kept = {
         suite
@@ -1210,7 +1179,7 @@ def fast_tier(
         for suite in sorted(mapped.suites & mapped.specific)
         if (unit := integration_unit(suite)) is not None and unit not in required
     ]
-    bins, _ = fast_pack(candidates, INTEGRATION_SECONDS)
+    bins = fast_pack(candidates, INTEGRATION_SECONDS)
     for unit in (unit for leg in bins for unit in leg):
         kept.add("contract" if unit == "contract" else f"integration:{unit}")
     suites = frozenset(kept)
@@ -1227,10 +1196,8 @@ def select(
 ) -> Selection:
     """Suites for an event (see the module docstring for the tiers).
 
-    A stacked pull request (``base_ref`` is not main) runs only the fast tier
-    of its module-local suites; Security, the vulnerability gate and Build
-    are skipped (``heavy``). The stack's pull request into main runs the fast
-    tier on the combined diff, and the post-merge run covers the rest.
+    ``base_ref`` is accepted for the workflow's call and ignored: a pull
+    request into another branch runs like one into main.
 
     ``push`` with ``paths`` is the post-merge run on main: the paths changed
     since the last green run there. ``push`` without paths (no green run
@@ -1238,7 +1205,7 @@ def select(
     """
     changed = sorted({p.strip() for p in paths if p.strip()})
     if event == "push" and changed:
-        mapped = map_paths(changed, False, root)
+        mapped = map_paths(changed, root)
         full = mapped.suites >= everything()
         reason = (
             "post-merge: complete suite"
@@ -1254,9 +1221,8 @@ def select(
         return Selection(
             True, "pull_request without a readable diff: complete suite", everything()
         )
-    is_stacked = stacked(base_ref)
-    mapped = map_paths(changed, is_stacked, root)
-    if full_ci and not is_stacked:
+    mapped = map_paths(changed, root)
+    if full_ci:
         return Selection(
             True,
             f"pull_request with the {FULL_CI_LABEL} label: complete suite before the merge",
@@ -1264,23 +1230,17 @@ def select(
             mapped.explanation,
             tier="full",
         )
-    # Stacked runs never pass their gate; the proofs run once it targets main.
-    required = [] if is_stacked else required_security(changed)
+    required = required_security(changed)
+    if "integration:api-contract" in mapped.suites:
+        # The API contract gate is required: its unit always runs.
+        required.append("api-contract")
     suites, deferred = fast_tier(mapped, required)
-    if is_stacked:
-        reason = (
-            f"stacked pull_request into {base_ref}: fast tier of the module-local "
-            "suites only"
-        )
-    else:
-        reason = "pull_request: fast tier; the rest runs after the merge on main"
     return Selection(
         False,
-        reason,
+        "pull_request: fast tier; the rest runs after the merge on main",
         suites,
         mapped.explanation,
-        heavy=not is_stacked,
-        tier="stacked" if is_stacked else "fast",
+        tier="fast",
         deferred=deferred,
     )
 
@@ -1376,7 +1336,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--base-ref",
         default="",
-        help="pull request base branch; anything but main is a stacked PR",
+        help="pull request base branch (ignored; kept for the workflow call)",
     )
     parser.add_argument(
         "--paths-file", help="newline-separated changed paths instead of git diff"

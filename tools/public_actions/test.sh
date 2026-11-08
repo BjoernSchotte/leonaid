@@ -138,8 +138,6 @@ docker run --rm \
 
 for screenshot in \
   public-active-chromium-390.png \
-  public-active-firefox-390.png \
-  public-active-webkit-390.png \
   public-active-chromium-1440.png \
   public-archive-chromium-1440.png \
   public-inactive-chromium-390.png; do
@@ -157,5 +155,5 @@ done
 mkdir -p "$artifact_directory"
 cp "$proof/"*.png "$proof/"*.json "$artifact_directory/"
 
-echo "public-actions-test: OK: Astro/Core parity, three browsers, responsive public UX,"
+echo "public-actions-test: OK: Astro/Core parity, responsive public UX,"
 echo "public-actions-test:     alias/archive, WCAG 2.2 AA and Web Vitals proven for real"

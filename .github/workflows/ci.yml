@@ -7,23 +7,10 @@ on:
   # Fast tier (decision E-018): the required gate in about five minutes;
   # browser and acceptance suites run after the merge.
   pull_request:
-    # Drafts run nothing (their gate fails); ready_for_review starts CI,
-    # converted_to_draft cancels the running one. edited: a base change (a
-    # stacked PR retargeted to main) runs the normal selection; a title or
-    # body edit runs no job and its gate mirrors the commit's real result.
-    # labeled: adding full-ci runs the complete suite now; any other label
-    # change mirrors like a title edit.
-    types:
-      [
-        opened,
-        reopened,
-        synchronize,
-        ready_for_review,
-        converted_to_draft,
-        edited,
-        labeled,
-        unlabeled,
-      ]
+    # Only events that change what is tested; a title, label or draft
+    # change starts no run (the gate of the last run stays). A draft runs
+    # nothing and its gate fails; ready_for_review starts CI.
+    types: [opened, reopened, synchronize, ready_for_review]
   # Post-merge tier: every push to main runs the suites of the paths changed
   # since the last green run there; every post-merge run finishes (E-019),
   # GitHub keeps only the newest pending one;
@@ -40,7 +27,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: leonaid-ci-${{ github.event_name }}-${{ github.ref }}-${{ github.event.schedule }}${{ ((github.event.action == 'edited' && !github.event.changes.base) || (github.event.action == 'labeled' && github.event.label.name != 'full-ci') || github.event.action == 'unlabeled' || (github.event.pull_request.draft && github.event.action != 'converted_to_draft')) && format('-mirror-{0}', github.run_id) || '' }}
+  group: leonaid-ci-${{ github.event_name }}-${{ github.ref }}-${{ github.event.schedule }}
   # A new push supersedes a pull request's run. Post-merge runs on main are
   # never cancelled (E-019): the running one finishes, GitHub keeps the
   # newest pending one, and that one diffs since the last green run, so the
@@ -49,7 +36,7 @@ concurrency:
 
 jobs:
   select:
-    if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
+    if: github.event.pull_request.draft != true
     uses: ./.github/workflows/select-suites.yml
     # actions: read finds the last green run on main for the post-merge diff.
     permissions:
@@ -58,33 +45,8 @@ jobs:
     with:
       post-merge: true
 
-  hold:
-    # Adding full-ci: the gate turns red on the head commit at once, so the
-    # green fast gate cannot be merged while the complete run is pending;
-    # only that run's gate (or a later push's) replaces it (E-019,
-    # tools/ci/hold_gate.py).
-    if: github.event.action == 'labeled' && github.event.label.name == 'full-ci' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
-    name: Hold the gate for full-ci
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      checks: write
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          sparse-checkout: tools/ci
-          persist-credentials: false
-      - name: Put a red gate on the head commit until the complete run reports
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          GATE_NAME: CI gate, Survey gate
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: python3 tools/ci/hold_gate.py
-
   fixture:
-    if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
+    if: github.event.pull_request.draft != true
     uses: ./.github/workflows/test-fixture.yml
     # A called workflow may not request more than its caller grants
     # (select-suites.yml and test-fixture.yml read the Actions API).
@@ -94,7 +56,7 @@ jobs:
 
   lint:
     # Stack-free: three parallel lanes inside tools/ci/lint-types.sh.
-    if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
+    if: github.event.pull_request.draft != true
     name: Lint and types
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -107,6 +69,21 @@ jobs:
         run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
       - name: Run lint, type and contract-generation checks
         run: bash tools/ci/run-job.sh lint-types bash tools/ci/lint-types.sh
+      - name: Checkout pull-request base
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .ci-base
+          persist-credentials: false
+      - name: Reject unapproved OpenAPI breaking changes
+        # Stack-free and stdlib-only; part of the API contract gate below.
+        if: github.event_name == 'pull_request'
+        run: >-
+          python3 -I tools/openapi/breaking.py
+          .ci-base/packages/api-client/openapi.json
+          packages/api-client/openapi.json
+          specs/leonaid-poc/openapi-breaking-approvals.json
       - name: Publish lint and type evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -119,7 +96,7 @@ jobs:
   unit:
     # Stack-free: the exhaustive disclosure solver proof is spread over
     # parallel pytest processes beside the other unit tests (tools/ci/unit.sh).
-    if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
+    if: github.event.pull_request.draft != true
     name: Unit
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -159,6 +136,8 @@ jobs:
       # Stops the suite 5 minutes before timeout-minutes, so the evidence
       # is still collected and uploaded (tools/ci/capture-command.sh).
       LEONAID_CI_STEP_SECONDS: "2400"
+      # Nightly, seed-reset's second seed is the full `./leonaid seed`.
+      LEONAID_SEED_CLI: ${{ github.event_name == 'schedule' }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -294,11 +273,10 @@ jobs:
           retention-days: 14
 
   vulnerability:
-    # Skipped only in a stacked pull request (selector output heavy=false).
     # Builds every own image and scans it, the checkout, both lockfiles and
     # every pinned third-party image (tools/security/vulnerability-scan.sh).
     needs: select
-    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.heavy != 'false' }}
+    if: ${{ !cancelled() && needs.select.result == 'success' }}
     name: Vulnerability gate
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -329,11 +307,10 @@ jobs:
           retention-days: 14
 
   security:
-    # Skipped only in a stacked pull request (selector output heavy=false).
     # Policy self-tests and the secret scan beside the security stack test;
     # the image gate is the vulnerability job.
     needs: [select, fixture]
-    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.heavy != 'false' && needs.fixture.result == 'success' }}
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.fixture.result == 'success' }}
     name: Security
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -368,9 +345,8 @@ jobs:
           retention-days: 14
 
   build:
-    # Skipped only in a stacked pull request (selector output heavy=false).
     needs: select
-    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.heavy != 'false' }}
+    if: ${{ !cancelled() && needs.select.result == 'success' }}
     name: Build
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -456,7 +432,7 @@ jobs:
   golden-journey:
     name: Golden journey
     needs: [select, golden-parts]
-    if: ${{ !cancelled() && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled' }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -602,18 +578,13 @@ jobs:
       - name: Require every selected job
         env:
           NEEDS: ${{ toJSON(needs) }}
-          # Pull request context for tools/ci/gate.py: drafts fail, title
-          # edits mirror the commit's newest completed real gate (or fail
-          # fast), a stacked result never passes.
+          # Pull request context for tools/ci/gate.py: drafts fail.
           GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
-          EVENT_ACTION: ${{ github.event.action }}
-          BASE_CHANGED: ${{ toJSON(github.event.changes.base) != 'null' }}
-          LABEL: ${{ github.event.label.name }}
           DRAFT: ${{ github.event.pull_request.draft == true }}
+          # A stacked result never passes (tools/ci/gate.py stacked).
+          BASE_REF: ${{ github.base_ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          STACK_BASE: ${{ github.base_ref }}
           GATE_NAME: CI gate
           # A fast run never satisfies the gate while the PR carries full-ci.
           FULL_CI_GATE: "true"
@@ -624,10 +595,7 @@ jobs:
             --selectable emdash-cases=emdash \
             --selectable golden-parts=golden \
             --selectable surveys=surveys \
-            --may-skip backup-recovery \
-            --selectable security=heavy \
-            --selectable vulnerability=heavy \
-            --selectable build=heavy
+            --may-skip backup-recovery
           python3 tools/ci/gate.py "$@"
 
   survey-gate:
@@ -643,3 +611,30 @@ jobs:
         env:
           RESULT: ${{ needs.gate.result }}
         run: test "$RESULT" = success
+
+  api-gate:
+    # Required check (repository ruleset): the OpenAPI breaking check (Lint)
+    # and the live contract (Integration unit api-contract) of this run.
+    name: API contract gate
+    needs: [select, lint, integration-shards]
+    if: ${{ always() }}
+    permissions:
+      contents: read
+      pull-requests: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: tools/ci
+          persist-credentials: false
+      - name: Require the breaking check and the selected contract leg
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          DRAFT: ${{ github.event.pull_request.draft == true }}
+          # A stacked result never passes (tools/ci/gate.py stacked).
+          BASE_REF: ${{ github.base_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python3 tools/ci/gate.py --name "API contract gate" --selectable integration-shards=integration

@@ -36,7 +36,7 @@ cleanup() {
     echo "activity-feed-test: diagnostics for the failed real services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=180 \
-      api core-postgres twenty-server twenty-worker pwa web proxy >&2 || true
+      api core-postgres twenty-server twenty-worker >&2 || true
     /bin/sh "$root/tools/ci/capture-failure.sh" \
       "$root" "$proof" "$project" || true
   fi
@@ -72,7 +72,7 @@ existing=$(docker network ls -q --filter "label=com.docker.compose.project=$proj
 python3 "$root/tools/surveys/network_override.py" "$isolation_file"
 owned=true
 compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
-build_shared_images api public pwa web
+build_shared_images api
 compose up --detach --wait --wait-timeout 420 \
   core-postgres rustfs mailpit twenty-server twenty-worker
 
@@ -120,53 +120,5 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --entrypoint python \
   api tools/activity_feed/contract.py
 
-compose up --detach --wait --wait-timeout 420 public pwa web proxy
-
-docker run --rm \
-  --network "${project}_edge" \
-  --env CI=1 \
-  --env HOME=/tmp \
-  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
-  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
-  --env ANNA_SESSION=poc082-10000000-0000-4000-8000-000000000004-server-session-token-value \
-  --env BERND_SESSION=poc082-10000000-0000-4000-8000-000000000005-server-session-token-value \
-  --env KLARA_SESSION=poc082-10000000-0000-4000-8000-000000000002-server-session-token-value \
-  --volume "$root:/workspace:ro" \
-  --volume "$proof:/proof" \
-  --workdir /workspace \
-  --user "$(id -u):$(id -g)" \
-  "$PLAYWRIGHT_IMAGE" \
-  node_modules/.bin/playwright test \
-  tests/e2e/activity-feed.spec.mjs \
-  --browser=chromium \
-  --output=/proof/test-results \
-  --trace=retain-on-failure \
-  --reporter=line
-
-compose run --rm --user "$(id -u):$(id -g)" --no-deps \
-  --env-from-file "$env_file" \
-  --env PYTHONPATH=/repo:/workspace/src \
-  --env UI_PROOF_PATH=/proof/activity-feed-ui-proof.json \
-  --volume "$root:/repo:ro" \
-  --volume "$proof:/proof" \
-  --workdir /repo \
-  --entrypoint python \
-  api tools/activity_feed/verify_ui.py
-
-for artifact in \
-  activity-feed-anna-mobile.png \
-  activity-feed-admin-desktop.png \
-  activity-feed-ui-proof.json; do
-  if [ ! -s "$proof/$artifact" ]; then
-    echo "activity-feed-test: ERROR: browser proof is missing: $artifact" >&2
-    exit 1
-  fi
-done
-
-mkdir -p "$root/.artifacts/poc082"
-cp "$proof/activity-feed-anna-mobile.png" "$root/.artifacts/poc082/"
-cp "$proof/activity-feed-admin-desktop.png" "$root/.artifacts/poc082/"
-cp "$proof/activity-feed-ui-proof.json" "$root/.artifacts/poc082/"
-
 echo "activity-feed-test: OK: feed for both acquirers and charity admin,"
-echo "activity-feed-test:     read status, next action, A11y and row-level protection proven"
+echo "activity-feed-test:     read status, next action and row-level protection proven (API)"

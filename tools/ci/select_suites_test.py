@@ -105,9 +105,7 @@ def label_tier(labels: str) -> str:
 
 def stack_suites(result: dict[str, Any]) -> dict[str, Any]:
     """Only what starts a runner: matrix shards plus the flags."""
-    return {
-        k: v for k, v in result.items() if k in BINNED or (v is True and k != "heavy")
-    }
+    return {k: v for k, v in result.items() if k in BINNED or v is True}
 
 
 # Path -> exactly the suites it must start (flags that are true, shard lists).
@@ -128,7 +126,6 @@ PRECISE: tuple[tuple[str, dict[str, Any]], ...] = (
     (".github/workflows/docs.yml", {}),
     (".github/workflows/nightly-watchdog.yml", {}),
     (".github/workflows/release.yml", {}),
-    (".github/workflows/api-contract.yml", {"api": True}),
     (".github/workflows/pins.yml", {"pins": True}),
     ("tools/ci/contract.sh", {"contract": True, "integration": ["contract"]}),
     (
@@ -160,7 +157,7 @@ def case_labels(script: Path) -> set[str]:
 
 def fast_of(selection: s.Selection) -> bool:
     """A fast-tier selection: no browser, acceptance or unmapped stack suite."""
-    return selection.tier in ("fast", "stacked") and not any(
+    return selection.tier == "fast" and not any(
         s.is_heavy(suite) for suite in selection.suites
     )
 
@@ -184,9 +181,9 @@ def main() -> int:
         quick = pr(path)
         expect(
             fast_of(quick)
-            and quick.heavy
-            and quick.integration_units() == []
-            and quick.deferred >= s.everything_but_e2e() - {"api", "pins"},
+            and set(quick.integration_units()) <= {"api-contract"}
+            and quick.deferred
+            >= s.everything_but_e2e() - {"api", "pins", "integration:api-contract"},
             f"unmapped {path}: the PR runs the fast tier only, "
             f"the rest after the merge: {sorted(quick.suites)}",
         )
@@ -246,7 +243,9 @@ def main() -> int:
     )
     expect(tasks["e2e"] == ["tasks"], f"tasks module: {tasks}")
     expect(
-        tasks["integration"] == [] and tasks["emdash"] == [], f"tasks module: {tasks}"
+        tasks["integration"] == ["schema-outbox", "api-contract"]
+        and tasks["emdash"] == [],
+        f"tasks module: its server contracts run in schema-outbox: {tasks}",
     )
     expect(tasks["api"] is True and tasks["surveys"] is False, f"tasks module: {tasks}")
     quick_tasks = fast(
@@ -311,80 +310,56 @@ def main() -> int:
             view("tests/unit/test_x.py")["api"] is True, "API filter keeps tests/unit"
         )
         expect(view("tests/unit/test_x.py")["e2e"] == [], "unit tests run no stack")
-    # Stacked pull requests (base is not main): module-local fast suites only.
-    stack_paths = [
-        "migrations/versions/0052_x.py",
-        "infra/compose/compose.yml",
-        "apps/web/src/app.tsx",
-        "brand-new/thing.py",
-        "uv.lock",
-        "src/leonaid/modules/tasks/api.py",
-        "tools/delivery/foundation.py",
-    ]
-    stacked_run = s.select("pull_request", stack_paths, "md/stage2c")
-    raw = flat(stacked_run)
-    expect(raw["heavy"] is False, "a stacked PR skips Security and Build")
-    expect(
-        raw["e2e"] == []
-        and raw["integration"] == ["delivery"]
-        and raw["emdash"] == []
-        and not any(raw[flag] for flag in s.FLAGS),
-        f"a stacked PR runs only module-local fast suites: {raw}",
-    )
-    expect(
-        not stacked_run.full
-        and "stacked" in stacked_run.reason
-        and stacked_run.tier == "stacked",
-        f"stacked reason: {stacked_run.reason}",
-    )
-    # The same diff into main: the fast tier, everything else deferred.
-    for base in ("main", ""):
-        into_main = s.select("pull_request", stack_paths, base)
-        expect(
-            into_main.heavy
-            and into_main.tier == "fast"
-            and fast_of(into_main)
-            and into_main.deferred | into_main.suites
-            >= s.everything_but_e2e() | {s.SMOKE, *s.e2e("tasks")},
-            f"base {base!r}: fast tier, the rest deferred: {into_main.reason}",
-        )
     # The post-merge run on main ignores the base branch; no diff: complete.
     expect(
         broad(s.select("push", ["brand-new/thing.py"], "md/stage2c"))
-        and s.select("push", [], "x").heavy
+        and s.select("push", [], "x").full
         and s.select("push", ["README.md"]).tier == "post-merge",
         "push diffs since the last green run",
     )
-    # A stacked PR without a readable diff stays fail-safe.
-    expect(full(s.select("pull_request", [], "md/stage2c")), "stacked empty diff")
+    # A pull request into another branch runs like one into main.
     expect(
-        json.loads(pr("README.md").outputs()["heavy"]) is True,
-        "a PR into main always runs Security and Build",
+        s.select("pull_request", ["tools/delivery/x.py"], "md/stage2c").suites
+        == s.select("pull_request", ["tools/delivery/x.py"], "main").suites,
+        "no stacked tier",
     )
-    # Fast Integration legs: only specifically mapped shards that fit; a
-    # long or overflowing shard waits for the merge.
-    for shard, shard_seconds in s.INTEGRATION_SECONDS.items():
-        legs, deferred = s.fast_pack([shard], s.INTEGRATION_SECONDS)
-        fits = shard_seconds <= s.FAST_LEG_SECONDS
-        expect(
-            (legs == [[shard]]) == fits and (deferred == [shard]) == (not fits),
-            f"fast leg for {shard} ({shard_seconds} s)",
-        )
+    # Fast Integration legs: a selected unit is never dropped for the budget;
+    # a long one gets a leg of its own.
+    for shard in s.INTEGRATION_SECONDS:
+        legs = s.fast_pack([shard], s.INTEGRATION_SECONDS)
+        expect(legs == [[shard]], f"fast leg for {shard}")
     every = [*s.INTEGRATION_SHARDS, "contract"]
-    legs, deferred = s.fast_pack(every, s.INTEGRATION_SECONDS)
+    legs = s.fast_pack(every, s.INTEGRATION_SECONDS)
     expect(
-        len(legs) <= s.FAST_MAX_BINS
-        and all(
-            sum(s.INTEGRATION_SECONDS[x] for x in leg) <= s.FAST_LEG_SECONDS
+        all(
+            len(leg) == 1
+            or sum(s.INTEGRATION_SECONDS[x] for x in leg) <= s.FAST_LEG_SECONDS
             for leg in legs
         )
-        and sorted([x for leg in legs for x in leg] + deferred) == sorted(every),
-        f"fast legs keep the budget and lose nothing: {legs} {deferred}",
+        and sorted(x for leg in legs for x in leg) == sorted(every),
+        f"fast legs keep the budget and lose nothing: {legs}",
     )
     core = pr("tools/core/smoke.py")
     expect(
-        core.integration_units() == [] and "integration:seed-reset" in core.deferred,
-        f"a long shard runs after the merge: {core.integration_bins()}",
+        core.integration_units() == ["seed-reset"]
+        and "integration:seed-reset" not in core.deferred,
+        f"a long shard still runs before the merge: {core.integration_bins()}",
+    )
+    # Every Integration unit selected (tools/ci/integration.sh): nothing is
+    # dropped, and the fast legs stay within MAX_BINS (runner budget).
+    wide = pr("tools/ci/integration.sh")
+    wide_bins = wide.integration_bins()
+    expect(
+        len(wide_bins) <= s.MAX_BINS["integration"]
+        and sorted(x for leg in wide_bins for x in leg)
+        == sorted(wide.integration_units()),
+        f"fast legs are capped and lose nothing: {wide_bins}",
+    )
+    # The API contract rides in an Integration leg whenever its filter matches.
+    api = pr("tools/openapi/generate.py")
+    expect(
+        "api-contract" in api.integration_units(),
+        f"the API filter runs the contract leg: {api.integration_bins()}",
     )
     # E-019: the authorization negative contract stays before the merge for
     # every change that reaches what it guards, in a leg of its own.
@@ -423,12 +398,12 @@ def main() -> int:
         )
     combined = pr("src/leonaid/domain/sessions.py", "tools/delivery/foundation.py")
     expect(
-        combined.integration_bins() == [["policy"], ["delivery"]],
+        combined.integration_bins() == [["policy"], ["api-contract", "delivery"]],
         f"the required leg comes on top of the fast legs: {combined.integration_bins()}",
     )
     openapi = pr("tools/openapi/generate.py")
     expect(
-        openapi.integration_units() == ["contract"]
+        openapi.integration_units() == ["api-contract", "contract"]
         and json.loads(openapi.outputs()["contract"]) is True,
         "Contract runs before the merge when its inputs changed",
     )
@@ -534,7 +509,6 @@ def main() -> int:
     expect(
         full(labelled)
         and labelled.tier == "full"
-        and labelled.heavy
         and sorted(x for leg in labelled_legs for x in leg["shards"].split())
         == sorted(s.E2E_SHARDS),
         f"full-ci label: complete suite, no smoke: {labelled_legs}",
@@ -542,11 +516,6 @@ def main() -> int:
     expect(
         full(s.select("pull_request", ["README.md"], "main", full_ci=True)),
         "full-ci runs the complete suite even for a docs-only change",
-    )
-    expect(
-        not s.select("pull_request", ["tools/pwa/test.sh"], "md/x", full_ci=True).suites
-        & s.e2e(*s.E2E_SHARDS),
-        "the label does not widen a stacked PR",
     )
     for labels, want_tier in (
         ("full-ci", "full"),

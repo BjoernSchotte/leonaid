@@ -142,6 +142,21 @@ async def main() -> None:
         assert updated.priority == "high"
         assert [tag.id for tag in updated.tags] == [first.id]
         assert updated.checklist == [step]
+        # Ticking the step off persists as its own revision.
+        done = step.model_copy(update={"done": True})
+        ticked = await service.set_task_structure(
+            owner,
+            task.id,
+            structure.model_copy(
+                update={
+                    "idempotency_key": uuid4(),
+                    "expected_revision": updated.revision,
+                    "checklist": [done],
+                }
+            ),
+        )
+        assert ticked.checklist == [done] and ticked.revision == updated.revision + 1
+        updated = ticked
         await expect(
             Conflict,
             "revision_conflict",

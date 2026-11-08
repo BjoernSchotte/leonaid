@@ -210,7 +210,14 @@ docker run --rm \
   /repo/tests/fixtures/golden/v1
 
 echo "seed-test: running a second idempotent seed"
-phase seed-second golden_seed
+# Per run the data step only; nightly (LEONAID_SEED_CLI=true, ci.yml) and in
+# the local suite the whole operator command: re-provisioning, the api/worker
+# recreate and its guards.
+if [ "${LEONAID_SEED_CLI:-}" = true ] || [ "$seed_part" = all ]; then
+  phase seed-second "$root/leonaid" seed
+else
+  phase seed-second golden_seed
+fi
 "$root/leonaid" snapshot poc012-second.json
 docker run --rm \
   -v "$root/.local:/local:ro" \
