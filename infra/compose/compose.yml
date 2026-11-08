@@ -277,9 +277,6 @@ services:
       context: ../..
       dockerfile: infra/compose/Dockerfile.core
     logging: *default-logging
-    # As PID 1 the server ignores SIGTERM (no handler); the init forwards
-    # it, so a stop takes milliseconds instead of the 10 s kill timeout.
-    init: true
     restart: unless-stopped
     <<: *hardened-runtime
     user: *core-user
