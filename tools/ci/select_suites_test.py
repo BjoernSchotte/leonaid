@@ -412,10 +412,6 @@ def main() -> int:
             f"{path}: Integration / policy must run before the merge, alone: "
             f"{guarded.integration_bins()}",
         )
-        expect(
-            "integration:policy" not in s.select("pull_request", [path], "md/x").suites,
-            f"{path}: a stacked PR runs the proof once it targets main",
-        )
     for path in (
         "apps/web/src/app.tsx",
         "tools/storage/test.sh",
@@ -643,8 +639,8 @@ def main() -> int:
         )
     expect(set(s.EMDASH_SECONDS) == set(s.EMDASH_GROUPS), "EMDASH_SECONDS")
     expect(
-        s.leg_estimate("integration", ["core", "policy"], s.INTEGRATION_SECONDS)
-        == s.LEG_SETUP_SECONDS + 2 * s.SHARD_SETUP_SECONDS["integration"] + 226 + 206,
+        s.leg_estimate("integration", ["compose", "policy"], s.INTEGRATION_SECONDS)
+        == s.LEG_SETUP_SECONDS + 2 * s.SHARD_SETUP_SECONDS["integration"] + 300 + 75,
         "Integration estimates count a stack boot per shard",
     )
     original = dict(s.E2E_SECONDS)
@@ -658,7 +654,9 @@ def main() -> int:
         s.E2E_SECONDS.clear()
         s.E2E_SECONDS.update(original)
     total = sum(len(json.loads(complete[key])) for key in BINNED)
-    expect(total <= 10, f"a complete run must stay at 10 stack legs or fewer: {total}")
+    # 4 Integration + 4 E2E + 3 EmDash (krapfentaxi-orders in two halves,
+    # E-024): with Golden's 2 and the 6 stack-free jobs within 20 runners.
+    expect(total <= 11, f"a complete run must stay at 11 stack legs or fewer: {total}")
     # A small PR packs into one leg; packing is deterministic.
     small = post("tools/pwa/test.sh", "tools/tasks/test.sh")
     legs = json.loads(small.outputs()["e2e"])

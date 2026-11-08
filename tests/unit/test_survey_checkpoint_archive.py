@@ -2,12 +2,14 @@
 
 from datetime import datetime, timedelta, timezone
 import os
+from pathlib import Path
 import subprocess
 import sys
 from uuid import uuid4
 
 import pytest
 
+import leonaid
 from leonaid.modules.surveys.adapters.storage.survey_checkpoint_archive import (
     FileCheckpointArchive,
 )
@@ -18,6 +20,18 @@ from leonaid.modules.surveys.application.recovery import (
 )
 
 SECRET = "synthetic-checkpoint-archive-key-not-for-real-use"
+ROOT = Path(__file__).resolve().parents[2]
+# Child processes import the same leonaid package as this test, without
+# relying on a PYTHONPATH from the caller.
+SOURCE = str(Path(leonaid.__file__).resolve().parents[1])
+
+
+def child_env(**values):
+    env = {**os.environ, **values}
+    env["PYTHONPATH"] = os.pathsep.join(
+        part for part in (SOURCE, os.environ.get("PYTHONPATH", "")) if part
+    )
+    return env
 
 
 def checkpoints():
@@ -97,7 +111,7 @@ module.FileCheckpointArchive(root).publish(candidate, secret)
 """
     result = subprocess.run(
         [sys.executable, "-c", script, str(tmp_path), stage],
-        env={**os.environ, "ARCHIVE_TEST_SECRET": SECRET},
+        env=child_env(ARCHIVE_TEST_SECRET=SECRET),
         timeout=15,
     )
     assert result.returncode == 73
@@ -160,7 +174,7 @@ def test_fetch_cli_needs_no_database_and_preserves_output_on_failure(tmp_path):
     output = tmp_path / "fetched.json"
     command = [
         sys.executable,
-        "tools/surveys/recovery.py",
+        str(ROOT / "tools/surveys/recovery.py"),
         "fetch",
         "--archive",
         str(directory),
@@ -171,7 +185,7 @@ def test_fetch_cli_needs_no_database_and_preserves_output_on_failure(tmp_path):
         "--required-through",
         latest.exported_at.isoformat(),
     ]
-    env = {**os.environ, "LEONAID_SESSION_ENCRYPTION_KEY": SECRET}
+    env = child_env(LEONAID_SESSION_ENCRYPTION_KEY=SECRET)
     env.pop("CORE_DATABASE_URL", None)
     result = subprocess.run(command, env=env, capture_output=True, timeout=15)
     assert result.returncode == 0

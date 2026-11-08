@@ -41,16 +41,19 @@ NO_EVIDENCE = {"select", "gate", "golden-journey"}
 # matrix leg, and each summary cost a runner slot per run.
 REMOVED_SUMMARIES = ("integration", "e2e-summary", "emdash-proofs")
 # Not part of the gate: the full-ci hold (it only posts a red gate check;
-# tools/ci/hold_gate.py) and the main-only image publication.
+# tools/ci/hold_gate.py).
 OUTSIDE_GATE = {
     "gate",
     "hold",
-    # main only: publishes images, gates nothing (decision E-020).
-    "publish-images",
 }
 
 # Editor load race (PR #37) and Caddy body drain (PR #38) were only visible here.
-EMDASH_GROUPS = ("krapfentaxi-orders", "krapfentaxi-migration", "static")
+EMDASH_GROUPS = (
+    "krapfentaxi-orders",
+    "krapfentaxi-deadlines",
+    "campaign-edge",
+    "static",
+)
 
 # Proofs that run nowhere else; dropping a shard silently stops the proof.
 INTEGRATION_SHARDS = ("delivery",)
@@ -87,7 +90,7 @@ UNGATED_REQUIRED = {"docs.yml": "Bilingual site artifact"}
 # Scheduled re-pin of moved image tags (tools/pins/image_digests.py).
 PIN_DRIFT = "pin-drift.yml"
 # Scheduled workflows that open a pull request with GITHUB_TOKEN.
-PR_BOTS = ("pin-drift.yml", "refit-timings.yml")
+PR_BOTS = ("pin-drift.yml",)
 PIN_DRIFT_PERMISSIONS = {
     ("actions", "write"),
     ("contents", "write"),

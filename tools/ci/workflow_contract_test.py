@@ -472,7 +472,7 @@ OTHER_MUTATIONS = (
     ),
     (
         "nightly-watchdog.yml",
-        "        Survey acceptance,\n",
+        " Survey acceptance,",
         "",
         "does not react to completed runs of surveys.yml",
     ),

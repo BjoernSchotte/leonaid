@@ -47,11 +47,7 @@ def load_manifest(root: Path) -> dict:
         if check["argv"][0] == "./leonaid":
             assert len(check["argv"]) == 2
             assert check["argv"][1] in {
-                "test-surveys-core",
-                "test-surveys-validation-candidate",
-                "test-surveys-dependencies",
                 "test-surveys-migrations",
-                "test-surveys-package",
             }, "Aggregate recursion or unknown leaf command"
         else:
             script = Path(check["argv"][1])

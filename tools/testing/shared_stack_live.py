@@ -125,7 +125,9 @@ with smtplib.SMTP("mailpit",1025) as smtp: smtp.sendmail("probe@example.invalid"
                 "mailpit",
             ]
         )
-        for service in ("core-postgres", "twenty-postgres"):
+        # Twenty stays running and untouched in a survey stack (E-022): its
+        # probes survive; every core volume is back to the verified fixture.
+        for service, gone in (("core-postgres", "t"), ("twenty-postgres", "f")):
             value = stack.call(
                 [
                     *stack.compose,
@@ -139,7 +141,7 @@ with smtplib.SMTP("mailpit",1025) as smtp: smtp.sendmail("probe@example.invalid"
                 ],
                 capture=True,
             )
-            assert value.strip() == "t", service
+            assert value.strip() == gone, service
         assert (
             stack.call(
                 [
@@ -153,7 +155,7 @@ with smtplib.SMTP("mailpit",1025) as smtp: smtp.sendmail("probe@example.invalid"
                 ],
                 capture=True,
             ).strip()
-            == "0"
+            == "1"
         )
         verify = """import boto3,json,os,urllib.request
 s3=boto3.client("s3", endpoint_url=os.environ["RUSTFS_ENDPOINT_URL"], aws_access_key_id=os.environ["RUSTFS_ACCESS_KEY"], aws_secret_access_key=os.environ["RUSTFS_SECRET_KEY"])
@@ -174,7 +176,7 @@ with urllib.request.urlopen("http://mailpit:8025/mail/api/v1/messages") as r: as
             ]
         )
         print(
-            "PASS: unchanged containers/volumes; both databases, Valkey, object versions/delete markers and mail reset; concurrent lease refused",
+            "PASS: unchanged containers/volumes; core database, object versions/delete markers and mail reset with matching digests; Twenty kept running and untouched; concurrent lease refused",
             flush=True,
         )
     finally:

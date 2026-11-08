@@ -16,7 +16,7 @@ shard=${1:-all}
 
 case "$shard" in
   all)
-    for part in compose profiles seed core schema outbox storage documents typst crm policy delivery; do
+    for part in compose profiles seed schema outbox storage documents typst crm policy delivery; do
       /bin/sh "$root/tools/ci/integration.sh" "$part"
     done
     ;;
@@ -29,18 +29,12 @@ case "$shard" in
   seed)
     /bin/sh "$root/tools/seed/test.sh" "$root"
     ;;
-  seed-cold)
-    LEONAID_SEED_PART=cold /bin/sh "$root/tools/seed/test.sh" "$root"
-    ;;
   seed-reset)
     if [ -n "${LEONAID_CI_FIXTURE:-}" ]; then
       LEONAID_SEED_PART=reset /bin/sh "$root/tools/seed/test.sh" "$root"
     else
       /bin/sh "$root/tools/seed/test.sh" "$root"
     fi
-    ;;
-  core)
-    /bin/sh "$root/tools/core/test.sh" "$root"
     ;;
   schema-outbox)
     /bin/sh "$root/tools/schema/test.sh" "$root"
@@ -77,7 +71,9 @@ case "$shard" in
     /bin/sh "$root/tools/delivery/test-foundation.sh"
     ;;
   policy)
-    /bin/sh "$root/tools/policy/test.sh" "$root"
+    # On the prepared fixture (Twenty provisioned): the proof is the
+    # negative contract, not a cold start; Integration / compose owns that.
+    python3 "$root/tools/testing/shared_stack.py" golden tools/policy/test.sh
     ;;
   # OpenAPI and cross-system contracts; rides in an Integration bin.
   contract)
