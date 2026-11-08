@@ -40,6 +40,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           sparse-checkout: tools/ci
+          # The script talks to the API with GH_TOKEN; git needs no token.
+          persist-credentials: false
       - name: Re-run the failed gate-only runs of this commit
         env:
           GH_TOKEN: ${{ github.token }}
