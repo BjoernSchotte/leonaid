@@ -45,7 +45,7 @@ async def main() -> None:
                 "Authorization": f"Bearer {os.environ['TWENTY_INTEGRATION_API_KEY']}"
             },
         ) as twenty:
-            for engine in ("chromium", "firefox", "webkit"):
+            for engine in ("chromium",):
                 label = f"deadline-{engine}-{transport}-person"
                 party_key = normalize_match_name(f"Synthetic {label}")
                 assert party_key == f"synthetic deadline {engine} {transport} person"
