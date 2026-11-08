@@ -370,7 +370,10 @@ DRAFT = "github.event.pull_request.draft != true"
 # hold, no refresh and no title-edit concurrency group (E-024/E-025).
 PR_TYPES = frozenset({"opened", "reopened", "synchronize", "ready_for_review"})
 # Environment the gate step hands to tools/ci/gate.py: drafts fail.
-GATE_CONTEXT = ("DRAFT: ${{ github.event.pull_request.draft == true }}",)
+GATE_CONTEXT = (
+    "DRAFT: ${{ github.event.pull_request.draft == true }}",
+    "BASE_REF: ${{ github.base_ref }}",
+)
 FULL_CI = select_suites.FULL_CI_LABEL
 
 
@@ -780,6 +783,7 @@ def check_repository(root: Path) -> list[str]:
     if (
         "    name: API contract gate\n" not in api
         or "python3 tools/ci/gate.py" not in api
+        or not all(item in api for item in GATE_CONTEXT)
         or not {"select", "lint", "integration-shards"} <= needs_of(api)
         or "tools/openapi/breaking.py" not in job_block(ci, "lint")
     ):

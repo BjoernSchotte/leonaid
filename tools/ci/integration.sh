@@ -67,7 +67,7 @@ case "$shard" in
     done
     ;;
   api-contract)
-    # OpenAPI generation, typed client and the live contract on the fixture
+    # The live API contract on the fixture (generation and types: Lint)
     # (the required "API contract gate" in ci.yml).
     python3 "$root/tools/testing/shared_stack.py" documents tools/openapi/test.sh
     ;;

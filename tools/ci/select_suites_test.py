@@ -326,18 +326,17 @@ def main() -> int:
     # Fast Integration legs: a selected unit is never dropped for the budget;
     # a long one gets a leg of its own.
     for shard in s.INTEGRATION_SECONDS:
-        legs, deferred = s.fast_pack([shard], s.INTEGRATION_SECONDS)
-        expect(legs == [[shard]] and deferred == [], f"fast leg for {shard}")
+        legs = s.fast_pack([shard], s.INTEGRATION_SECONDS)
+        expect(legs == [[shard]], f"fast leg for {shard}")
     every = [*s.INTEGRATION_SHARDS, "contract"]
-    legs, deferred = s.fast_pack(every, s.INTEGRATION_SECONDS)
+    legs = s.fast_pack(every, s.INTEGRATION_SECONDS)
     expect(
         all(
             len(leg) == 1
             or sum(s.INTEGRATION_SECONDS[x] for x in leg) <= s.FAST_LEG_SECONDS
             for leg in legs
         )
-        and sorted(x for leg in legs for x in leg) == sorted(every)
-        and deferred == [],
+        and sorted(x for leg in legs for x in leg) == sorted(every),
         f"fast legs keep the budget and lose nothing: {legs}",
     )
     compose = pr("tools/compose/test.sh")
@@ -345,6 +344,16 @@ def main() -> int:
         sorted(compose.integration_units()) == ["compose", "profiles"]
         and "integration:compose" not in compose.deferred,
         f"a long shard still runs before the merge: {compose.integration_bins()}",
+    )
+    # Every Integration unit selected (tools/ci/integration.sh): nothing is
+    # dropped, and the fast legs stay within MAX_BINS (runner budget).
+    wide = pr("tools/ci/integration.sh")
+    wide_bins = wide.integration_bins()
+    expect(
+        len(wide_bins) <= s.MAX_BINS["integration"]
+        and sorted(x for leg in wide_bins for x in leg)
+        == sorted(wide.integration_units()),
+        f"fast legs are capped and lose nothing: {wide_bins}",
     )
     # The API contract rides in an Integration leg whenever its filter matches.
     api = pr("tools/openapi/generate.py")

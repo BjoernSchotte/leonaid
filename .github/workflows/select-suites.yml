@@ -82,7 +82,7 @@ jobs:
       - id: select
         env:
           EVENT: ${{ github.event_name }}
-          # A pull request into another feature branch is a stacked PR.
+          # Ignored by the selector; the gates fail a stacked PR (gate.py).
           BASE_REF: ${{ github.base_ref }}
           # full-ci runs the complete suite before the merge.
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}

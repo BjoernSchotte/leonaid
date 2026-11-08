@@ -14,8 +14,10 @@ passes only when the selector said Contract was not needed.
 
 Pull requests run only on opened, synchronize, reopened and
 ready_for_review, so every gate belongs to a run that selected suites.
-A draft fails (no CI ran). A pull request that carries ``full-ci`` fails a
-run that was not the complete one (labels are read live).
+A draft fails (no CI ran). A stacked pull request (``BASE_REF`` not main)
+fails: a retarget starts no run. A pull request that carries ``full-ci``
+fails a run that was not the complete one (labels are read live): set the
+label, then push a new commit (or set it while still a draft).
 """
 
 from __future__ import annotations
@@ -119,6 +121,18 @@ def full_ci_pending(
     )
 
 
+def stacked(environ: Mapping[str, str]) -> bool:
+    """A pull request into another branch: its diff and checks miss main.
+
+    A retarget to main is an ``edited`` event and starts no run, so its
+    green gate must not count; the next push or reopen runs against main.
+    """
+    return (
+        environ.get("EVENT_NAME") == "pull_request"
+        and environ.get("BASE_REF", "main") != "main"
+    )
+
+
 def parse_selectable(values: Sequence[str]) -> dict[str, str]:
     mapping: dict[str, str] = {}
     for value in values:
@@ -154,11 +168,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
+    if stacked(os.environ):
+        print(
+            f"ci-gate: ERROR: {args.name}: stacked pull request (base "
+            f"{os.environ.get('BASE_REF')!r}): a result against another branch "
+            "never passes; retarget to main, then push or close and reopen",
+            file=sys.stderr,
+        )
+        return 1
     if full_ci_pending(os.environ, outputs, github_fetch):
         print(
             f"ci-gate: ERROR: {args.name}: the pull request carries {FULL_CI_LABEL}, "
             f"but this run is the {outputs.get('tier') or 'unknown'} tier; only the "
-            "complete run's gate counts (push, or close and reopen the pull request)",
+            "complete run's gate counts (push a new commit)",
             file=sys.stderr,
         )
         return 1

@@ -31,7 +31,7 @@ CI_MUTATIONS = (
         "ci.yml: pull_request must list exactly opened",
     ),
     (
-        "          DRAFT: ${{ github.event.pull_request.draft == true }}\n          PR_NUMBER: ${{ github.event.pull_request.number }}\n          GATE_NAME: CI gate\n",
+        "          DRAFT: ${{ github.event.pull_request.draft == true }}\n          # A stacked result never passes (tools/ci/gate.py stacked).\n          BASE_REF: ${{ github.base_ref }}\n          PR_NUMBER: ${{ github.event.pull_request.number }}\n          GATE_NAME: CI gate\n",
         "          PR_NUMBER: ${{ github.event.pull_request.number }}\n          GATE_NAME: CI gate\n",
         "ci.yml: the gate must hand the draft context",
     ),
@@ -226,6 +226,12 @@ CI_MUTATIONS = (
 )
 
 OTHER_MUTATIONS = (
+    (
+        "pins.yml",
+        "          BASE_REF: ${{ github.base_ref }}\n",
+        "",
+        "pins.yml: the gate must hand the draft context to gate.py",
+    ),
     (
         "nightly-watchdog.yml",
         " surveys.yml:30:nightly",

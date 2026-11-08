@@ -136,6 +136,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           DRAFT: ${{ github.event.pull_request.draft == true }}
+          # A stacked result never passes (tools/ci/gate.py stacked).
+          BASE_REF: ${{ github.base_ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GATE_NAME: Dependency pins gate
         run: >-

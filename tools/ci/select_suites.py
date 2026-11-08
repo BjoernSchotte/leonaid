@@ -985,14 +985,12 @@ def pack(
     return [bins[i] for i in order]
 
 
-def fast_pack(
-    names: Sequence[str], seconds: Mapping[str, int]
-) -> tuple[list[list[str]], list[str]]:
+def fast_pack(names: Sequence[str], seconds: Mapping[str, int]) -> list[list[str]]:
     """Fast-tier legs: first-fit decreasing, deterministic.
 
     Legs of at most FAST_LEG_SECONDS each; a unit longer than that gets a leg
     of its own. A selected unit is never dropped for the budget. Returns the
-    legs (longest first) and an empty list (kept for the callers' shape).
+    legs, longest first.
     """
     bins: list[list[str]] = []
     loads: list[int] = []
@@ -1007,7 +1005,7 @@ def fast_pack(
             bins.append([name])
             loads.append(cost)
     order = sorted(range(len(bins)), key=lambda i: (-loads[i], i))
-    return [bins[i] for i in order], []
+    return [bins[i] for i in order]
 
 
 def integration_unit(suite: str) -> str | None:
@@ -1071,12 +1069,17 @@ class Selection:
 
     def integration_bins(self) -> list[list[str]]:
         if self.tier == "fast":
-            # Required security proofs get a leg each; select() kept only
-            # other units that fit, so nothing is dropped here.
+            # Required security proofs get a leg each; the rest is packed
+            # into fast legs, capped at MAX_BINS legs in all (runner budget,
+            # E-029): above the cap the rest shares the remaining legs.
             units = self.integration_units()
             solo = [[unit] for unit in units if unit in FAST_REQUIRED]
             rest = [unit for unit in units if unit not in FAST_REQUIRED]
-            return solo + fast_pack(rest, INTEGRATION_SECONDS)[0]
+            legs = fast_pack(rest, INTEGRATION_SECONDS)
+            cap = MAX_BINS["integration"]
+            if len(solo) + len(legs) > cap:
+                legs = pack(rest, INTEGRATION_SECONDS, max(1, cap - len(solo)))
+            return solo + legs
         return pack(
             self.integration_units(), INTEGRATION_SECONDS, MAX_BINS["integration"]
         )
@@ -1166,8 +1169,8 @@ def fast_tier(
 
     Browser and acceptance suites never run here. The ``required`` security
     proofs always run (a leg each). Other Integration shards and Contract run
-    only when a specific rule selected them and all of them fit the fast
-    legs; the rest of the selection runs after the merge.
+    when a specific rule selected them (never dropped for the budget); the
+    rest of the selection runs after the merge.
     """
     kept = {
         suite
@@ -1180,7 +1183,7 @@ def fast_tier(
         for suite in sorted(mapped.suites & mapped.specific)
         if (unit := integration_unit(suite)) is not None and unit not in required
     ]
-    bins, _ = fast_pack(candidates, INTEGRATION_SECONDS)
+    bins = fast_pack(candidates, INTEGRATION_SECONDS)
     for unit in (unit for leg in bins for unit in leg):
         kept.add("contract" if unit == "contract" else f"integration:{unit}")
     suites = frozenset(kept)
@@ -1233,7 +1236,7 @@ def select(
         )
     required = required_security(changed)
     if "integration:api-contract" in mapped.suites:
-        # The API contract gate is required: its leg always runs (own leg).
+        # The API contract gate is required: its unit always runs.
         required.append("api-contract")
     suites, deferred = fast_tier(mapped, required)
     return Selection(

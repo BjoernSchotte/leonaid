@@ -491,6 +491,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           DRAFT: ${{ github.event.pull_request.draft == true }}
+          # A stacked result never passes (tools/ci/gate.py stacked).
+          BASE_REF: ${{ github.base_ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GATE_NAME: CI gate
           # A fast run never satisfies the gate while the PR carries full-ci.
@@ -525,5 +527,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           DRAFT: ${{ github.event.pull_request.draft == true }}
+          # A stacked result never passes (tools/ci/gate.py stacked).
+          BASE_REF: ${{ github.base_ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: python3 tools/ci/gate.py --name "API contract gate" --selectable integration-shards=integration

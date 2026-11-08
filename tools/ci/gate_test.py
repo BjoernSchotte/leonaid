@@ -229,6 +229,40 @@ def test_pull_request() -> None:
             result.returncode == code,
             f"draft={draft}: gate exit {result.returncode}: {result.stderr}",
         )
+    for environ, expected in (
+        ({**base_env, "BASE_REF": "main"}, False),
+        ({**base_env, "BASE_REF": "md/stage2c"}, True),
+        ({"EVENT_NAME": "push", "BASE_REF": ""}, False),
+    ):
+        expect(gate.stacked(environ) is expected, f"stacked: {environ}")
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(HERE / "gate.py"),
+            "--name",
+            "Test gate",
+            "--selectable",
+            "e2e=e2e",
+            "--selectable",
+            "contract=contract",
+            "--selectable",
+            "emdash-cases=emdash",
+        ],
+        env={
+            **os.environ,
+            **base_env,
+            "DRAFT": "false",
+            "NEEDS": good,
+            "BASE_REF": "md/stage2c",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    expect(
+        result.returncode == 1 and "stacked" in result.stderr,
+        f"a stacked result never passes: {result.stderr}",
+    )
     expect(
         gate.FULL_CI_LABEL == select_suites.FULL_CI_LABEL,
         "gate.py and select_suites.py agree on the full-ci label",
