@@ -327,7 +327,7 @@ async def verify_round(
     document_rows = await connection.fetch(
         """
         SELECT document.invoice_id, object_key, storage_version_id, sha256, size_bytes,
-               invoice.issued_at, invoice.service_on, invoice.due_on
+               invoice.issued_at, invoice.issued_on, invoice.service_on, invoice.due_on
         FROM generated_document AS document JOIN invoice ON invoice.id=document.invoice_id
         WHERE document.invoice_id = ANY($1::uuid[]) AND document.status = 'available'
         ORDER BY document.invoice_id
@@ -399,7 +399,9 @@ async def verify_round(
             # Parallel installations may straddle midnight. Verify the real
             # calendar values first, then compare the stable payment terms and
             # service date instead of the wall-clock-dependent issue/due dates.
-            issued_on = document["issued_at"].date()
+            # The printed issue date is the club's day stored at issue
+            # (invoice.issued_on, Europe/Berlin), not the UTC day of issued_at.
+            issued_on = document["issued_on"]
             for value in (issued_on, document["service_on"], document["due_on"]):
                 if value.strftime("%d.%m.%Y") not in text:
                     raise ContractFailure(f"PDF calendar date missing: {invoice_id}")

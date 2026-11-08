@@ -14,6 +14,7 @@ import {
   nextDueAt,
   newEntryId,
   type QueueEntry,
+  type QueueError,
   type QueueStore,
   type SendResult,
   type SponsorDraftEntry,
@@ -44,9 +45,22 @@ export type QueueDraft = QueueEntry extends infer Entry
   : never;
 
 export type SubmitOutcome =
-  | { readonly state: "accepted"; readonly result: SendResult }
+  | {
+      readonly state: "accepted";
+      readonly entryId: string;
+      readonly result: SendResult;
+    }
+  | {
+      /** Another tab sent it meanwhile; Core has it. */
+      readonly state: "sent";
+      readonly entryId: string;
+    }
   | {
       readonly state: "queued" | "conflict" | "failed" | "blocked" | "expired";
+      readonly entryId: string;
+      readonly error: QueueError | null;
+      /** Why a queued entry is still here: no network, signed out, or a retry. */
+      readonly reason?: "offline" | "paused" | "retry";
     };
 
 export interface QueueSnapshot {
@@ -58,6 +72,8 @@ export interface QueueSnapshot {
   readonly sent: readonly QueueEntry[];
   /** navigator.storage.persist() refused: the browser may evict (§8.5). */
   readonly evictable: boolean;
+  /** The store has been read once (drafts and counts are real). */
+  readonly loaded: boolean;
 }
 
 export interface QueueControllerOptions {
@@ -85,11 +101,13 @@ export class QueueController {
   #snapshot: QueueSnapshot = {
     entries: [],
     evictable: false,
+    loaded: false,
     paused: false,
     sending: false,
     sent: [],
   };
   #timer: ReturnType<typeof setTimeout> | null = null;
+  #chain: Promise<unknown> = Promise.resolve();
   #running: Promise<SyncReport | null> | null = null;
   #rerun = false;
   #stopped = false;
@@ -127,9 +145,12 @@ export class QueueController {
 
   async reload(): Promise<void> {
     if (this.#stopped) return;
-    const entries = await this.#options.store.list();
+    // The store can be gone (sign-out in another tab): keep the last view.
+    const entries = await this.#options.store.list().catch(() => null);
+    if (!entries) return;
     this.#publish({
       entries,
+      loaded: true,
       sent: sentThisPage.get(this.#options.userId) ?? [],
     });
     this.#schedule(entries);
@@ -138,21 +159,49 @@ export class QueueController {
   /** Saves a capture on the device; online it is sent at once. */
   async submit(draft: QueueDraft): Promise<SubmitOutcome> {
     const entry = await this.#write(draft);
+    return this.#sendAndReport(entry.entryId);
+  }
+
+  /**
+   * An online decision on the capture page (FullWindowConfirm, the new
+   * price): the entry changes and is sent again at once (§10.2).
+   */
+  async resubmit(
+    entryId: string,
+    change: (entry: QueueEntry) => QueueEntry,
+    options: { readonly newKey: boolean },
+  ): Promise<SubmitOutcome> {
+    await this.replace(entryId, change, options);
+    return this.#sendAndReport(entryId);
+  }
+
+  async #sendAndReport(entryId: string): Promise<SubmitOutcome> {
     if (navigator.onLine === false || this.#snapshot.paused) {
-      return { state: "queued" };
+      return {
+        entryId,
+        error: null,
+        reason: this.#snapshot.paused ? "paused" : "offline",
+        state: "queued",
+      };
     }
     await this.run();
     // A run already under way when the entry was written ends with a rerun.
     while (this.#running) await this.#running;
-    const result = this.#accepted.get(entry.entryId);
-    if (result) return { state: "accepted", result };
+    const result = this.#accepted.get(entryId);
+    if (result) return { entryId, result, state: "accepted" };
     const current = (await this.#options.store.list()).find(
-      (item) => item.entryId === entry.entryId,
+      (item) => item.entryId === entryId,
     );
-    if (!current || current.state === "sending" || current.state === "queued") {
-      return { state: "queued" };
+    if (!current) return { entryId, state: "sent" };
+    if (current.state === "sending" || current.state === "queued") {
+      return {
+        entryId,
+        error: current.lastError,
+        reason: this.#snapshot.paused ? "paused" : "retry",
+        state: "queued",
+      };
     }
-    return { state: current.state };
+    return { entryId, error: current.lastError, state: current.state };
   }
 
   async #write(
@@ -200,27 +249,44 @@ export class QueueController {
     change: (entry: QueueEntry) => QueueEntry,
     { newKey }: { readonly newKey: boolean },
   ): Promise<void> {
-    const current = (await this.#options.store.list()).find(
-      (item) => item.entryId === entryId,
-    );
-    if (!current) return;
-    const changed = change(current);
-    const key = newKey
-      ? idempotencyKeyFor(`${entryId.slice(0, 8)}-${crypto.randomUUID()}`)
-      : current.idempotencyKey;
-    await this.#options.store.put({
-      ...changed,
-      attempts: 0,
-      idempotencyKey: key,
-      lastError: null,
-      nextAttemptAt: null,
-      previousKeys: newKey
-        ? [...current.previousKeys, current.idempotencyKey]
-        : current.previousKeys,
-      state: "queued",
-    } as QueueEntry);
-    this.#announce();
-    await this.reload();
+    await this.#mutate(async (store) => {
+      const current = (await store.list()).find(
+        (item) => item.entryId === entryId,
+      );
+      if (!current || current.state === "sending") return;
+      const changed = change(current);
+      await store.put({
+        ...changed,
+        attempts: 0,
+        // A new body is a new command (§9.3): new key, never sent yet.
+        everSent: newKey ? false : current.everSent,
+        idempotencyKey: newKey
+          ? idempotencyKeyFor(newEntryId())
+          : current.idempotencyKey,
+        lastError: null,
+        nextAttemptAt: null,
+        previousKeys: newKey
+          ? [...current.previousKeys, current.idempotencyKey]
+          : current.previousKeys,
+        state: "queued",
+      } as QueueEntry);
+    });
+    void this.run();
+  }
+
+  /**
+   * Deletes an entry. It waits for a send in flight (same lock), so a
+   * discarded entry never reaches Core afterwards nor comes back. A draft
+   * goes with the captures that wait for it (§10.4), read from the store,
+   * so one written in another tab is not left behind.
+   */
+  async discard(entryId: string): Promise<void> {
+    await this.#mutate(async (store) => {
+      for (const entry of await store.list()) {
+        if (entry.dependsOn === entryId) await store.delete(entry.entryId);
+      }
+      await store.delete(entryId);
+    });
     void this.run();
   }
 
@@ -248,6 +314,9 @@ export class QueueController {
         actionId,
         assignmentId: placeholder,
         base: {},
+        // §10.4: the match step resolves with the draft's own command id,
+        // so a repeated check after a lost answer replays, not duplicates.
+        commandId: newEntryId(),
         kind: "sponsor-draft",
         mode,
         party: { displayName, id: placeholder, kind: mode },
@@ -259,7 +328,7 @@ export class QueueController {
 
   /**
    * The match step resolved a draft: the captures that waited for it take
-   * the sponsor and assignment Core returned and are sent (§9.2).
+   * the sponsor, assignment and revision Core returned and are sent (§9.2).
    */
   async resolveDraft(
     draftId: string,
@@ -271,91 +340,117 @@ export class QueueController {
       readonly revision: number;
     },
   ): Promise<void> {
-    const { store } = this.#options;
     const party = {
       displayName: resolved.displayName,
       id: resolved.partyId,
       kind: resolved.partyKind,
     };
-    for (const entry of await store.list()) {
-      if (entry.dependsOn !== draftId) continue;
-      if (entry.kind === "activity") {
-        await store.put({
-          ...entry,
-          assignmentId: resolved.assignmentId,
-          base: { ...entry.base, assignmentRevision: resolved.revision },
-          dependsOn: null,
-          party,
-          request: {
-            ...entry.request,
-            partyId: resolved.partyId,
-            partyKind: resolved.partyKind,
-            revision: resolved.revision,
-          },
-        });
-      } else {
-        await store.put({
-          ...entry,
-          assignmentId: resolved.assignmentId,
-          dependsOn: null,
-          party,
-        });
+    await this.#mutate(async (store) => {
+      for (const entry of await store.list()) {
+        if (entry.dependsOn !== draftId) continue;
+        if (entry.kind === "activity") {
+          await store.put({
+            ...entry,
+            assignmentId: resolved.assignmentId,
+            base: { ...entry.base, assignmentRevision: resolved.revision },
+            dependsOn: null,
+            party,
+            request: {
+              ...entry.request,
+              partyId: resolved.partyId,
+              partyKind: resolved.partyKind,
+              revision: resolved.revision,
+            },
+          });
+        } else {
+          await store.put({
+            ...entry,
+            assignmentId: resolved.assignmentId,
+            dependsOn: null,
+            party,
+          });
+        }
       }
-    }
-    await store.delete(draftId);
-    this.#announce();
-    await this.reload();
+      await store.delete(draftId);
+    });
     void this.run();
   }
 
-  /** The captures that wait for a draft, named in the discard question. */
-  dependents(draftId: string): QueueEntry[] {
-    return this.#snapshot.entries.filter(
+  /** Updates a decision's facts (Core's current state); it stays put. */
+  async annotate(
+    entryId: string,
+    patch: Pick<QueueEntry, "conflictAssignment">,
+  ): Promise<void> {
+    await this.#mutate(async (store) => {
+      const current = (await store.list()).find(
+        (item) => item.entryId === entryId,
+      );
+      if (current) await store.put({ ...current, ...patch } as QueueEntry);
+    });
+  }
+
+  /** The captures that wait for a draft, as the store holds them. */
+  async dependents(draftId: string): Promise<QueueEntry[]> {
+    return (await this.#options.store.list()).filter(
       (entry) => entry.dependsOn === draftId,
     );
   }
 
-  async discard(entryId: string): Promise<void> {
-    // A draft goes with the captures that wait for it (§10.4).
-    for (const entry of this.dependents(entryId)) {
-      await this.#options.store.delete(entry.entryId);
-    }
-    await this.#options.store.delete(entryId);
-    this.#announce();
-    await this.reload();
-    void this.run();
-  }
-
-  /** "Erneut versuchen" of a failed entry. */
+  /** "Erneut versuchen" of a failed or no-longer-possible entry. */
   async retry(entryId: string): Promise<void> {
-    const current = (await this.#options.store.list()).find(
-      (item) => item.entryId === entryId,
-    );
-    if (!current) return;
-    await this.#options.store.put({
-      ...current,
-      attempts: 0,
-      nextAttemptAt: null,
-      state: "queued",
+    await this.#mutate(async (store) => {
+      const current = (await store.list()).find(
+        (item) => item.entryId === entryId,
+      );
+      if (!current || current.state === "sending") return;
+      await store.put({
+        ...current,
+        attempts: 0,
+        nextAttemptAt: null,
+        settledAt: null,
+        state: "queued",
+      });
     });
-    this.#announce();
-    await this.reload();
     void this.run();
   }
 
   /** "Jetzt senden", `online` and a new sign-in reset the backoff. */
   async sendNow(): Promise<void> {
     this.#publish({ paused: false });
-    for (const entry of await this.#options.store.list()) {
-      if (entry.state === "queued" && entry.nextAttemptAt) {
-        await this.#options.store.put({
-          ...entry,
-          attempts: entry.lastError ? entry.attempts : 0,
-          nextAttemptAt: null,
-        });
+    await this.#mutate(async (store) => {
+      for (const entry of await store.list()) {
+        if (entry.state === "queued" && entry.nextAttemptAt) {
+          await store.put({ ...entry, nextAttemptAt: null });
+        }
       }
-    }
+    });
     await this.run();
+  }
+
+  /** A change of the store under the sending lock, then the news. */
+  async #mutate(change: (store: QueueStore) => Promise<void>): Promise<void> {
+    await this.#exclusive(() => change(this.#options.store));
+    this.#announce();
+    await this.reload();
+  }
+
+  /**
+   * One writer at a time: this page's runs and changes queue up in order,
+   * and the Web Lock keeps other tabs out while one of them runs.
+   */
+  #exclusive<T>(work: () => Promise<T>): Promise<T> {
+    const locks =
+      typeof navigator !== "undefined" ? navigator.locks : undefined;
+    const next = this.#chain.then(() =>
+      locks
+        ? (locks.request(
+            `leonaid-sync-${this.#options.userId}`,
+            work,
+          ) as Promise<T>)
+        : work(),
+    );
+    this.#chain = next.catch(() => undefined);
+    return next;
   }
 
   /** Runs the loop under the user's Web Lock; one run at a time. */
@@ -385,6 +480,10 @@ export class QueueController {
       try {
         const report = await drainQueue({
           now: this.#options.now,
+          onProgress: async () => {
+            this.#announce();
+            await this.reload();
+          },
           preflight: this.#options.preflight,
           send: this.#options.send,
           store: this.#options.store,
@@ -409,13 +508,10 @@ export class QueueController {
         await this.reload();
       }
     };
-    const locks =
-      typeof navigator !== "undefined" ? navigator.locks : undefined;
-    if (!locks) return work();
     // Another tab (or this page's previous controller) may be sending: wait
     // for it, then drain what is left and read the store fresh. The holder
     // never keeps the lock longer than one drain (each send times out).
-    return locks.request(`leonaid-sync-${this.#options.userId}`, () =>
+    return this.#exclusive(() =>
       this.#stopped ? Promise.resolve(null) : work(),
     );
   }

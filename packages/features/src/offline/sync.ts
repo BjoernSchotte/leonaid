@@ -30,10 +30,13 @@ export interface SyncDependencies {
   readonly now?: () => Date;
   readonly random?: () => number;
   /**
-   * A decision known before sending (§10.3), e.g. the device copy shows
-   * the chosen window as full; null sends.
+   * A decision known before the first send (§10.3), e.g. the device copy
+   * shows the chosen window as full; null sends. Never asked for an entry
+   * that may already be at Core.
    */
   readonly preflight?: (entry: QueueEntry) => Promise<string | null>;
+  /** Called when an entry goes on its way, so views can follow. */
+  readonly onProgress?: () => Promise<void> | void;
 }
 
 export interface SyncReport {
@@ -44,13 +47,6 @@ export interface SyncReport {
   }>;
   /** A 401 paused the whole queue (§9.4). */
   readonly paused: boolean;
-}
-
-/** Retry-After of a 429, in seconds, carried on the API error if known. */
-function retryAfter(error: unknown): number | null {
-  if (!(error instanceof ApiError)) return null;
-  const value = error.detail.details?.["retryAfterSeconds"];
-  return typeof value === "number" ? value : null;
 }
 
 /**
@@ -81,25 +77,29 @@ export async function drainQueue(
   // Each loop sends one entry; a send changes what is due next.
   for (;;) {
     const entries = await store.list();
-    const entry = nextSendable(entries, now());
-    if (!entry) return { accepted, paused: false };
-    const known = await dependencies.preflight?.(entry);
+    const found = nextSendable(entries, now());
+    if (!found) return { accepted, paused: false };
+    const known = found.everSent ? null : await dependencies.preflight?.(found);
     if (known) {
+      // §10.3: a decision known before the first send.
       await store.put({
-        ...entry,
+        ...found,
         lastError: { code: known, message: "", status: 0 },
         nextAttemptAt: null,
         state: "conflict",
       });
       continue;
     }
+    const entry: QueueEntry = { ...found, everSent: true };
     const sending: QueueEntry = { ...entry, state: "sending" };
     await store.put(sending);
+    // The sheet shows "Wird gesendet …" and no "Verwerfen" while in flight.
+    await dependencies.onProgress?.();
     let result: SendResult;
     try {
       result = await dependencies.send(sending);
     } catch (error) {
-      const outcome = classifyFailure(error, retryAfter(error));
+      const outcome = classifyFailure(error);
       const attempts = entry.attempts + 1;
       switch (outcome.type) {
         case "transient": {
@@ -121,16 +121,19 @@ export async function drainQueue(
           await store.put({ ...entry, state: "queued" });
           return { accepted, paused: true };
         case "blocked": {
-          // 403: nothing of that action can be sent any more.
+          // 403 for the action (no acquirer role any more): its entries go
+          // to "Nicht mehr möglich", stay readable and wait for the
+          // acquirer's "Verwerfen" or a retry once the role is back.
           const settledAt = now().toISOString();
           for (const other of await store.list()) {
             if (
               other.actionId === entry.actionId &&
               other.state !== "expired" &&
-              other.state !== "blocked"
+              other.state !== "blocked" &&
+              (other.entryId === entry.entryId || other.state !== "sending")
             ) {
               await store.put({
-                ...other,
+                ...(other.entryId === entry.entryId ? entry : other),
                 lastError: outcome.error,
                 settledAt,
                 state: "blocked",
@@ -181,7 +184,10 @@ async function settleAccepted(
     for (const rebased of rebaseAfter(entry, response, await store.list())) {
       await store.put(rebased);
     }
-    if (response.assignmentUpdated === false && hasFollowUp(entry)) {
+    if (
+      response.assignmentUpdated === false &&
+      changedAssignment(entry, response)
+    ) {
       // D1: the contact is stored, the follow-up was not applied because
       // the assignment moved; the acquirer decides (§10.1).
       await store.put({
@@ -194,7 +200,11 @@ async function settleAccepted(
           status: response.assignment.status,
         },
         lastError: {
-          code: "follow_up_not_applied",
+          code:
+            entry.kind === "activity" &&
+            (entry.request.dueOn || entry.request.nextAction)
+              ? "follow_up_not_applied"
+              : "status_not_applied",
           message: "",
           status: 201,
         },
@@ -207,11 +217,27 @@ async function settleAccepted(
   await store.delete(entry.entryId);
 }
 
-function hasFollowUp(entry: QueueEntry) {
-  return (
-    entry.kind === "activity" &&
-    Boolean(entry.request.dueOn && entry.request.nextAction)
-  );
+/**
+ * D1 kept the contact but not the assignment change: a follow-up (date or
+ * next step) or the status the outcome sets (committed, declined,
+ * contacted) is reported, never dropped silently (§11.4).
+ */
+function changedAssignment(
+  entry: QueueEntry,
+  response: RecordAcquisitionActivityResponse,
+): boolean {
+  if (entry.kind !== "activity") return false;
+  if (entry.request.dueOn || entry.request.nextAction) return true;
+  return outcomeStatus(entry.request.outcome) !== response.assignment.status;
+}
+
+/** The assignment status an outcome sets (domain/acquisition.py). */
+export function outcomeStatus(
+  outcome: string,
+): "committed" | "declined" | "contacted" {
+  if (outcome === "committed") return "committed";
+  if (outcome === "declined") return "declined";
+  return "contacted";
 }
 
 /** Sends one entry through the generated client with the entry's key. */

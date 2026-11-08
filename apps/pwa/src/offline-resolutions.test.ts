@@ -121,10 +121,12 @@ describe("choices (§10)", () => {
       "book-anyway",
       "other-window",
       "as-draft",
+      "discard",
     ]);
     expect(resolutionsFor(order("delivery_window_unavailable"))).toEqual([
       "other-window",
       "as-draft",
+      "discard",
     ]);
     expect(resolutionsFor(order("commitment_price_changed"))).toEqual([
       "accept-price",
@@ -133,6 +135,11 @@ describe("choices (§10)", () => {
     expect(resolutionsFor(order("delivery_required"))).toEqual([
       "complete-delivery",
       "as-draft",
+      "discard",
+    ]);
+    expect(resolutionsFor(contact("status_not_applied"))).toEqual([
+      "keep-status",
+      "discard-status",
     ]);
     expect(resolutionsFor(order("offering_not_available"))).toEqual([
       "discard",
@@ -243,8 +250,15 @@ describe("sponsor drafts (§10.4)", () => {
 
 describe("my follow-up (§11.4)", () => {
   it("is due at 09:00 on the chosen day, with the device offset", () => {
-    expect(followUpDueAt("2026-11-12")).toMatch(
-      /^2026-11-12T09:00:00[+-]\d{2}:\d{2}$/,
-    );
+    const due = followUpDueAt("2026-11-12");
+    expect(due).toMatch(/^2026-11-12T09:00:00[+-]\d{2}:\d{2}$/);
+    // The instant is 09:00 on that day in the device's own zone.
+    const local = new Date(Date.parse(due));
+    expect([
+      local.getFullYear(),
+      local.getMonth() + 1,
+      local.getDate(),
+    ]).toEqual([2026, 11, 12]);
+    expect([local.getHours(), local.getMinutes()]).toEqual([9, 0]);
   });
 });

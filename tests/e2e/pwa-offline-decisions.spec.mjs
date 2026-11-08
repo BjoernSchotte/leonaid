@@ -254,6 +254,12 @@ test("a sponsor saved offline is checked online, then its contact goes out (D10)
     `Neuer Sponsor ${company} wartet auf deine Prüfung. 1 Eintrag wartet darauf.`,
   );
   await sheet.getByTestId("queue-check-draft").click();
+  // The form opens with the draft's values; the street can be added
+  // before the CRM check (#132 M2).
+  await expect(page.getByTestId("sponsor-draft-check")).toBeVisible();
+  await expect(page.getByTestId("sponsor-company")).toHaveValue(company);
+  await page.locator("#sponsor-street").fill("Unterwegsstraße 9");
+  await page.getByTestId("sponsor-preview").click();
   await page.getByTestId("sponsor-resolve").click();
   await expect(page.locator("#sponsor-status")).toContainText(
     `${company} ist jetzt dir zugeordnet.`,
@@ -267,4 +273,145 @@ test("a sponsor saved offline is checked online, then its contact goes out (D10)
   const contacts = after.activities.filter((item) => item.note === note);
   expect(contacts).toHaveLength(1);
   expect(contacts[0].partyId).toBe(sponsor.partyId);
+});
+
+/** Asks tools/pwa/test.sh for a database change and waits until it is done. */
+async function serverChange(name) {
+  const { existsSync, rmSync, writeFileSync } = await import("node:fs");
+  const done = `${artifactDirectory}/offline-done-${name}`;
+  rmSync(done, { force: true });
+  writeFileSync(`${artifactDirectory}/offline-request-${name}`, "");
+  await baseExpect.poll(() => existsSync(done), { timeout: 30_000 }).toBe(true);
+}
+
+/** Order for Musterwerk up to the review step; delivery when asked. */
+async function fillOrder(page, { delivery }) {
+  await page
+    .getByTestId("sponsor-row")
+    .filter({ hasText: "Musterwerk GmbH" })
+    .click();
+  await page.getByTestId("order-open").click();
+  await page.getByTestId("commitment-quantity").fill("1");
+  await page.getByRole("button", { name: "Weiter" }).click();
+  await page.getByTestId("commitment-street").fill("Entscheidungsweg 3");
+  await page.locator("#commitment-postal-code").fill("80331");
+  await page.locator("#commitment-city").fill("München");
+  if (delivery) {
+    await page
+      .getByText("Lieferadresse wie Rechnungsadresse übernehmen")
+      .click();
+    await page.locator('input[name="delivery-window"]').first().check();
+  }
+  await page.getByRole("button", { name: "Weiter" }).click();
+}
+
+test("a window booked out meanwhile asks in the queue (§10.2, §10.3)", async ({
+  context,
+  page,
+}) => {
+  await serverChange("window-setup");
+  try {
+    await signIn(context);
+    await page.goto(`${baseUrl}/app/sponsors`);
+    await expect(page.getByTestId("sponsor-row").first()).toBeVisible();
+    await controlled(page);
+    await deviceCopyReady(page);
+    await context.setOffline(true);
+    await page.reload();
+    await fillOrder(page, { delivery: true });
+    await page.getByTestId("commitment-save-ready").click();
+    await expect(page.getByTestId("commitment-queued")).toBeVisible();
+
+    await serverChange("window-full");
+    await context.setOffline(false);
+    const indicator = page.getByTestId("network-state");
+    await expect(indicator).toHaveAccessibleName(
+      "1 Eintrag braucht deine Entscheidung",
+    );
+    await indicator.click();
+    const entry = page
+      .getByTestId("queue-sheet")
+      .locator('[data-testid="queue-entry"][data-state="conflict"]');
+    await expect(entry.getByTestId("queue-reason")).toContainText("ausgebucht");
+    // The way out exists (#132 M1), and booking anyway keeps the key.
+    await expect(
+      entry.getByRole("button", { name: "Verwerfen" }),
+    ).toBeVisible();
+    await entry.getByRole("button", { name: "Trotzdem eintragen" }).click();
+    await expect(indicator).toHaveAttribute("data-queue-state", "empty");
+  } finally {
+    await serverChange("window-teardown");
+  }
+});
+
+test("a price changed meanwhile asks in the queue (§10.2)", async ({
+  context,
+  page,
+}) => {
+  await signIn(context);
+  await page.goto(`${baseUrl}/app/sponsors`);
+  await expect(page.getByTestId("sponsor-row").first()).toBeVisible();
+  await controlled(page);
+  await deviceCopyReady(page);
+  await context.setOffline(true);
+  await page.reload();
+  await fillOrder(page, { delivery: false });
+  await page.getByTestId("commitment-save-draft").click();
+  await expect(page.getByTestId("commitment-queued")).toBeVisible();
+
+  await serverChange("price-up");
+  try {
+    await context.setOffline(false);
+    const indicator = page.getByTestId("network-state");
+    await expect(indicator).toHaveAccessibleName(
+      "1 Eintrag braucht deine Entscheidung",
+    );
+    await indicator.click();
+    const entry = page
+      .getByTestId("queue-sheet")
+      .locator('[data-testid="queue-entry"][data-state="conflict"]');
+    await expect(entry.getByTestId("queue-reason")).toContainText(
+      "Der Preis ist jetzt",
+    );
+    await entry.getByRole("button", { name: "Neuen Preis übernehmen" }).click();
+    await expect(indicator).toHaveAttribute("data-queue-state", "empty");
+  } finally {
+    await serverChange("price-down");
+  }
+});
+
+test("'Trotzdem abmelden' deletes what still waits (§12.5)", async ({
+  context,
+  page,
+}) => {
+  await signIn(context);
+  await page.goto(`${baseUrl}/app/sponsors`);
+  await controlled(page);
+  await deviceCopyReady(page);
+  await context.setOffline(true);
+  await page
+    .getByTestId("sponsor-row")
+    .filter({ hasText: "Musterwerk GmbH" })
+    .click();
+  await page.getByTestId("contact-open").click();
+  await page.locator("#activity-note").fill("Wird gelöscht");
+  await page.getByTestId("activity-submit").click();
+  await page.getByTestId("pwa-menu").click();
+  await page.getByTestId("logout").click();
+  const warning = page.getByRole("alertdialog", { name: "Abmelden?" });
+  await expect(warning).toContainText("Noch 1 Eintrag nicht gesendet.");
+  // Offline the sign-out request cannot reach Core; the device is cleared
+  // first anyway.
+  await warning.getByTestId("sign-out-anyway").click();
+  await context.setOffline(false);
+  await page.goto(`${baseUrl}/login`);
+  await expect
+    .poll(() =>
+      page.evaluate(async () =>
+        (await indexedDB.databases())
+          .map((item) => item.name)
+          .filter((name) => name.startsWith("leonaid-pwa-v1-")),
+      ),
+    )
+    .toEqual([]);
 });

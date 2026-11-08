@@ -5,7 +5,7 @@
 import { StatusIcon } from "@leonaid/ui";
 
 import { formatDateTime } from "../shared/dates";
-import { entryTitle, queueStateLabel, queueStateShape } from "./labels";
+import { entryStateLabel, entryTitle, queueStateShape } from "./labels";
 import { useQueueSnapshot } from "./runtime";
 
 export function PendingCaptures({
@@ -43,7 +43,7 @@ export function PendingCaptures({
                 size={16}
                 status={queueStateShape[entry.state]}
               />
-              {queueStateLabel[entry.state]}
+              {entryStateLabel(entry)}
             </span>
           </li>
         ))}

@@ -98,15 +98,17 @@ function errorCopy(error: unknown) {
 
 /** The confirmation of §12.3: sent, kept on the device, or a decision. */
 function queuedToast(outcome: SubmitOutcome | null) {
-  if (!outcome || outcome.state === "accepted") {
+  if (!outcome || outcome.state === "accepted" || outcome.state === "sent") {
     return { title: "Kontakt erfasst.", tone: "success" as const };
   }
   if (outcome.state === "queued") {
     return {
       title:
-        navigator.onLine === false
-          ? "Kontakt gespeichert. Wird gesendet, sobald du wieder online bist."
-          : "Kontakt gespeichert. LeonAid sendet ihn gleich noch einmal.",
+        outcome.reason === "paused"
+          ? "Kontakt gespeichert. Melde dich wieder an, damit LeonAid ihn senden kann."
+          : outcome.reason === "retry"
+            ? "Kontakt gespeichert. LeonAid ist gerade nicht erreichbar; die App sendet ihn gleich."
+            : "Kontakt gespeichert. Wird gesendet, sobald du wieder online bist.",
       tone: "success" as const,
     };
   }

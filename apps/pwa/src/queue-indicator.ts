@@ -6,7 +6,13 @@ import type { QueueSnapshot } from "@leonaid/features/offline";
 
 export interface QueueIndicator {
   readonly count: number;
-  readonly state: "empty" | "waiting" | "sending" | "decision" | "failed";
+  readonly state:
+    | "empty"
+    | "waiting"
+    | "sending"
+    | "decision"
+    | "failed"
+    | "settled";
   readonly label: string;
   /** Entries still waiting to be sent (banner "N warten auf Versand"). */
   readonly waiting: number;
@@ -18,17 +24,18 @@ function entries(count: number) {
 
 export function queueIndicator(snapshot: QueueSnapshot): QueueIndicator {
   const sendable = snapshot.entries.filter(
-    (entry) => entry.kind !== "sponsor-draft",
+    (entry) => entry.kind !== "sponsor-draft" && !entry.dependsOn,
   );
+  const drafts = snapshot.entries.filter(
+    (entry) => entry.kind === "sponsor-draft",
+  ).length;
   const count = (states: readonly string[]) =>
     sendable.filter((entry) => states.includes(entry.state)).length;
   const waiting = count(["queued", "sending"]);
   const failed = count(["failed"]);
   // A sponsor draft needs the acquirer's check (§10.4), whatever its state.
-  const decision =
-    count(["conflict", "blocked", "expired"]) +
-    snapshot.entries.length -
-    sendable.length;
+  const decision = count(["conflict"]) + drafts;
+  const settled = count(["blocked", "expired"]);
   if (failed) {
     return {
       count: failed,
@@ -58,6 +65,14 @@ export function queueIndicator(snapshot: QueueSnapshot): QueueIndicator {
       count: waiting,
       label: `${entries(waiting)} ${waiting === 1 ? "wartet" : "warten"} auf Versand`,
       state: "waiting",
+      waiting,
+    };
+  }
+  if (settled) {
+    return {
+      count: settled,
+      label: `${entries(settled)} ${settled === 1 ? "kann" : "können"} nicht mehr gesendet werden`,
+      state: "settled",
       waiting,
     };
   }

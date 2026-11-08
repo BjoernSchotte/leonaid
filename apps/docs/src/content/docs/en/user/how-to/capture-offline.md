@@ -43,14 +43,17 @@ device and sent when you are back online).
   sobald du wieder online bist.** Blocked contact channels cannot be chosen
   offline either.
 - **Order:** choose **Bestellung erfassen** at the sponsor. Below the total
-  the app says when the price was last updated. If it changes before
-  sending, the app asks you first. After saving you see **Bestellung
-  gespeichert**.
+  the app says when the price was last updated. If it has changed by the time
+  the order is sent, the app asks you before the order is saved. Online it
+  asks right on the form, also for a delivery window that filled up
+  meanwhile. After saving you see **Bestellung gespeichert**.
 - **New sponsor:** under **Neu** you save a draft offline (without the
-  street). You can capture a contact for the draft right away. The CRM check
-  runs online: the queue shows **Neuer Sponsor … wartet auf deine Prüfung**
-  (new sponsor waits for your check). **Jetzt prüfen** starts the usual
-  check; afterwards the app sends the contact for this sponsor.
+  street). You can capture a contact for the draft right away; it shows
+  **Wartet auf den Entwurf** (waits for the draft). The CRM check runs
+  online: the queue shows **Neuer Sponsor … wartet auf deine Prüfung** (new
+  sponsor waits for your check). **Jetzt prüfen** opens the usual form with
+  your details; add the street if needed and choose **Im CRM prüfen**.
+  Afterwards the app sends the contact for this sponsor.
 
 Online, contacts and orders go through the queue too. The app sends them at
 once; if an answer is lost, it sends the same entry again, and LeonAid still
@@ -80,12 +83,13 @@ while the app is open.
 | What the app reports                                     | Your choice                                                                        |
 | -------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | Contact stored, follow-up not taken over                  | **Meine Wiedervorlage übernehmen** (keep my follow-up) or **Die andere Wiedervorlage behalten** (keep the other one) |
+| Contact stored, status not taken over                     | **Meinen Stand übernehmen** (keep my status) or **Den anderen Stand behalten** (keep the other one) |
 | The sponsor does not want to be contacted this way        | **Als Besuch speichern** (save as visit) or **Verwerfen**                          |
 | The sponsor is no longer assigned to you                  | **Notiz kopieren** (copy note) or **Verwerfen**                                    |
-| The delivery window is fully booked meanwhile             | **Trotzdem eintragen** (book anyway), **Anderes Fenster wählen** (other window) or **Als Entwurf speichern** (save as draft) |
-| The delivery window no longer exists                      | **Anderes Fenster wählen** or **Als Entwurf speichern**                            |
+| The delivery window is fully booked meanwhile             | **Trotzdem eintragen** (book anyway), **Anderes Fenster wählen** (other window), **Als Entwurf speichern** (save as draft) or **Verwerfen** |
+| The delivery window no longer exists                      | **Anderes Fenster wählen**, **Als Entwurf speichern** or **Verwerfen**             |
 | The price has changed                                     | **Neuen Preis übernehmen** (accept the new price) or **Verwerfen**                 |
-| The order now needs a delivery address and window         | **Ergänzen** (add) or **Als Entwurf speichern**                                    |
+| The order now needs a delivery address and window         | **Ergänzen** (add), **Als Entwurf speichern** or **Verwerfen**                     |
 | The offer can no longer be ordered, or the campaign takes no more orders | **Verwerfen**                                                       |
 | Your device's clock is wrong                              | Check the clock, then **Verwerfen** and capture again                              |
 
@@ -93,8 +97,9 @@ while the app is open.
 
 Signing out, in the acquisition app or in the admin area, deletes everything
 the app kept on the device. If entries are
-still waiting, the app asks first: **Erst senden** (send first),
-**Trotzdem abmelden** (sign out anyway) or **Abbrechen** (cancel). If
+still waiting, the app asks first: **Erst senden** (send first; it sends and
+opens the queue, in the admin area **Zur Akquise-App**), **Trotzdem
+abmelden** (sign out anyway, which deletes them) or **Abbrechen** (cancel). If
 another person signs in on the device, the app deletes your data without
 asking before it shows their workspace.
 

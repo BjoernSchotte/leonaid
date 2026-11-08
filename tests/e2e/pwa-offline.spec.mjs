@@ -422,14 +422,28 @@ test("the admin web app clears the device copy too (D6, §8.5)", async ({
   await expect(page).toHaveTitle("LeonAid ist offline");
   await context.setOffline(false);
 
-  // Sign-out in the admin web app deletes the copy as well. Klara has no
-  // acquirer role, so a copy of hers is planted the way the PWA names it.
+  // Sign-out in the admin web app asks while captures wait (§12.5) and then
+  // deletes the copy as well. Klara has no acquirer role, so a copy of hers
+  // with one queued record is planted the way the PWA lays it out.
   await page.goto(`${baseUrl}/admin/`);
   await expect(page.getByTestId("display-name")).toHaveText(/Klara/);
   await page.evaluate(async (id) => {
     localStorage.setItem("leonaid-pwa-active-user", id);
     await new Promise((resolve, reject) => {
-      const request = indexedDB.open(`leonaid-pwa-v1-${id}`);
+      const request = indexedDB.open(`leonaid-pwa-v1-${id}`, 1);
+      request.onupgradeneeded = () => {
+        const database = request.result;
+        const queue = database.createObjectStore("queue", {
+          keyPath: "entryId",
+        });
+        queue.createIndex("state", "state");
+        queue.createIndex("actionId", "actionId");
+        queue.createIndex("sequence", "sequence", { unique: true });
+        queue.createIndex("dependsOn", "dependsOn");
+        database.createObjectStore("cache", { keyPath: "id" });
+        database.createObjectStore("meta", { keyPath: "name" });
+        queue.put({ entryId: "planted", sequence: 1, state: "queued" });
+      };
       request.onsuccess = () => {
         request.result.close();
         resolve(undefined);
@@ -439,6 +453,14 @@ test("the admin web app clears the device copy too (D6, §8.5)", async ({
   }, KLARA_ID);
   expect(await databaseNames(page)).toEqual([`leonaid-pwa-v1-${KLARA_ID}`]);
   await page.getByTestId("logout").click();
+  const warning = page.getByRole("alertdialog", { name: "Abmelden?" });
+  await expect(warning).toContainText(
+    "In der Akquise-App auf diesem Gerät ist noch 1 Eintrag nicht gesendet.",
+  );
+  await warning.getByRole("button", { name: "Abbrechen" }).click();
+  expect(await databaseNames(page)).toEqual([`leonaid-pwa-v1-${KLARA_ID}`]);
+  await page.getByTestId("logout").click();
+  await warning.getByTestId("sign-out-anyway").click();
   await expect(page).toHaveURL(/\/login/);
   await expect.poll(() => databaseNames(page)).toEqual([]);
   await context.setOffline(true);

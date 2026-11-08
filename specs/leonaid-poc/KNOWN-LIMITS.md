@@ -63,6 +63,12 @@ Punkte sind keine stillschweigenden Produktzusagen.
   - Der Core verlangt den `Idempotency-Key` für Kontakte noch nicht (PLAN
     §11.1, eine Version Übergang).
   - Eine serverseitig widerrufene Sitzung sieht ein Gerät erst online.
+  - Abmelden fragt in Akquise-App und Verwaltungsbereich, solange Einträge
+    warten; „Trotzdem abmelden“ löscht sie vom Gerät.
+  - Im Ausschalt-Modus halten Einträge mit Entscheidung oder Fehler das Gerät
+    bis zu 16 Tage (Ablauf plus Warnfrist).
+  - Die Bestelldetails im Backoffice zeigen „Erfasst offline“, wenn eine
+    Erfassung mehr als 5 Minuten nach `capturedAt` ankam.
   - Das Flag darf erst eingeschaltet werden, wenn ein Mitglieder-
     Datenschutzhinweis mit dem Abschnitt zur Speicherung auf dem Gerät aktiv
     ist; LeonAid prüft das nicht selbst.
@@ -196,8 +202,8 @@ Punkte sind keine stillschweigenden Produktzusagen.
   grünen Stack-Nachweis als Vorschau markiert. Die Abnahme mit echtem ACME und einer echten Domain ist
   offen (`tools/site_hosts/acme_probe.py`). Eine
   Installation ohne öffentlichen Host (`pilot-secrets --no-public-host`,
-  `Caddyfile.admin-only`) ist im Deployment-Vertrag abgedeckt; ihr
-  Stack-Nachweis mit echten Diensten fehlt noch. `/` auf dem Verwaltungshost ist der
+  `Caddyfile.admin-only`) ist im Deployment-Vertrag abgedeckt und mit
+  echten Diensten nachgewiesen (EmDash `campaign-hosts-admin-only`). `/` auf dem Verwaltungshost ist der
   rollenbasierte Einstieg (`/login/start`: Anmeldung, dann `landingPath`). Weiterleitungsnamen des
   öffentlichen Hosts gibt es im Dev-Stack nicht. Beim Umstellen auf zwei
   Hosts melden sich alle Mitglieder einmal neu an

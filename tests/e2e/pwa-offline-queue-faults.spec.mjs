@@ -45,6 +45,7 @@ test("a lost answer is resent with the same key and stored once", async ({
   ]);
   const keys = [];
   let dropped = false;
+  let firstStatus = 0;
   await page.route(
     `**/api/v1/actions/${ACTION_ID}/acquisition/activities`,
     async (route) => {
@@ -52,9 +53,11 @@ test("a lost answer is resent with the same key and stored once", async ({
       if (request.method() !== "POST") return route.continue();
       keys.push(request.headers()["idempotency-key"]);
       if (dropped) return route.continue();
-      // The real request reaches Core and commits; its answer is lost.
+      // Only the first answer is dropped: the real request reaches Core
+      // and commits, then its answer is lost.
+      dropped = true;
       const response = await route.fetch();
-      dropped = response.status() === 201;
+      firstStatus = response.status();
       return route.abort("connectionreset");
     },
   );
@@ -88,6 +91,7 @@ test("a lost answer is resent with the same key and stored once", async ({
     { timeout: 30_000 },
   );
   expect(dropped).toBe(true);
+  expect(firstStatus).toBe(201);
   expect(keys.length).toBeGreaterThanOrEqual(2);
   expect(new Set(keys).size).toBe(1);
   expect(keys[0]).toMatch(/^pwa-q:[0-9a-f-]{36}$/);

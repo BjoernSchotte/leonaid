@@ -76,7 +76,13 @@ export interface MobileShellSurfaces {
  */
 export interface MobileShellQueue {
   readonly count: number;
-  readonly state: "empty" | "waiting" | "sending" | "decision" | "failed";
+  readonly state:
+    | "empty"
+    | "waiting"
+    | "sending"
+    | "decision"
+    | "failed"
+    | "settled";
   /** "3 Einträge warten auf Versand"; empty uses "Online"/"Offline". */
   readonly label: string;
   readonly onOpen: () => void;

@@ -37,6 +37,7 @@ export function useOfflineRuntime(): OfflineRuntime {
 const EMPTY_SNAPSHOT: QueueSnapshot = {
   entries: [],
   evictable: false,
+  loaded: false,
   paused: false,
   sending: false,
   sent: [],

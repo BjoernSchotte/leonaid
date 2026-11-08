@@ -23,7 +23,7 @@ import { formatDateTime } from "../shared/dates";
 import { conflictText } from "./conflicts";
 import type { DeviceStore } from "./device-store";
 import { EntryChoices } from "./entry-choices";
-import { entryTitle, queueStateLabel, queueStateShape } from "./labels";
+import { entryStateLabel, entryTitle, queueStateShape } from "./labels";
 import type { QueueEntry } from "./queue";
 import { useOfflineRuntime, useQueueSnapshot } from "./runtime";
 
@@ -64,6 +64,12 @@ function useCaptureContexts(
     };
   }, [key, open, store]);
   return contexts;
+}
+
+/** D1: the contact itself already reached Core (§11.4). */
+function isStoredAtCore(entry: QueueEntry) {
+  const code = entry.lastError?.code;
+  return code === "follow_up_not_applied" || code === "status_not_applied";
 }
 
 function isStandaloneIos(): boolean {
@@ -113,6 +119,8 @@ export function QueueSheet({
     snapshot.entries.map((entry) => entry.actionId),
   );
   const iosHint = useIosHint(open);
+  const waitingFor = (draftId: string) =>
+    snapshot.entries.filter((entry) => entry.dependsOn === draftId).length;
   const [discarding, setDiscarding] = useState<QueueEntry | null>(null);
 
   useEffect(() => {
@@ -122,8 +130,12 @@ export function QueueSheet({
     if (!open && dialog.open) dialog.close();
   }, [open]);
 
+  // Drafts and what waits for them do not wait for the network (§10.4).
   const waiting = snapshot.entries.filter(
-    (entry) => entry.state === "queued" || entry.state === "sending",
+    (entry) =>
+      (entry.state === "queued" || entry.state === "sending") &&
+      entry.kind !== "sponsor-draft" &&
+      !entry.dependsOn,
   ).length;
 
   return (
@@ -216,13 +228,13 @@ export function QueueSheet({
                     size={16}
                     status={queueStateShape[entry.state]}
                   />
-                  {queueStateLabel[entry.state]}
+                  {entryStateLabel(entry)}
                 </span>
                 {entry.kind === "sponsor-draft" ? (
                   <p className="small" data-testid="queue-reason">
                     {`Neuer Sponsor ${entry.party.displayName} wartet auf deine Prüfung.`}
-                    {queue?.dependents(entry.entryId).length
-                      ? ` ${queue.dependents(entry.entryId).length} ${queue.dependents(entry.entryId).length === 1 ? "Eintrag wartet" : "Einträge warten"} darauf.`
+                    {waitingFor(entry.entryId)
+                      ? ` ${waitingFor(entry.entryId)} ${waitingFor(entry.entryId) === 1 ? "Eintrag wartet" : "Einträge warten"} darauf.`
                       : ""}
                   </p>
                 ) : entry.state === "conflict" ||
@@ -267,10 +279,12 @@ export function QueueSheet({
         description={
           discarding
             ? [
-                `${entryTitle(discarding)} wird von diesem Gerät gelöscht und nicht gesendet.`,
-                ...(queue?.dependents(discarding.entryId) ?? []).map(
-                  (entry) => `Mit gelöscht: ${entryTitle(entry)}.`,
-                ),
+                isStoredAtCore(discarding)
+                  ? `${entryTitle(discarding)} ist bei LeonAid gespeichert. Verwerfen löscht nur den Hinweis auf diesem Gerät; der Rest wird nicht übernommen.`
+                  : `${entryTitle(discarding)} wird von diesem Gerät gelöscht und nicht gesendet.`,
+                ...snapshot.entries
+                  .filter((entry) => entry.dependsOn === discarding.entryId)
+                  .map((entry) => `Mit gelöscht: ${entryTitle(entry)}.`),
               ].join(" ")
             : ""
         }

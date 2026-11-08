@@ -72,7 +72,8 @@ FEATURE_FLAG_CATALOG = (
         effect=(
             "Akquisiteure in der PWA speichern Daten auf ihren Geräten. "
             "Ausschalten sendet noch wartende Einträge und löscht danach "
-            "die Daten auf den Geräten."
+            "die Daten auf den Geräten. Erst einschalten, wenn die "
+            "Entscheidungen in der Warteschlange ausgeliefert sind (Stufe 4)."
         ),
         default_enabled=False,
         client_safe=True,

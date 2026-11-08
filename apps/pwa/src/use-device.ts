@@ -30,6 +30,7 @@ import {
   sendEntry,
   type DeviceStore,
   type OfflineRuntime,
+  type QueueSnapshot,
 } from "@leonaid/features/offline";
 
 import {
@@ -235,14 +236,22 @@ export function useDevice(
   // Drain mode: once everything is sent, nothing stays on the device.
   useEffect(() => {
     if (!queue || mode !== "drain") return;
-    return queue.subscribe((snapshot) => {
-      if (!snapshot.sending && snapshot.entries.length === 0) {
-        void forgetDevice(userId).then(() => {
-          openStore.current = null;
-          setPrepared(null);
-        });
-      }
-    });
+    let done = false;
+    const clearIfEmpty = (snapshot: QueueSnapshot) => {
+      if (done || snapshot.sending || snapshot.entries.length > 0) return;
+      done = true;
+      void forgetDevice(userId).then(() => {
+        openStore.current = null;
+        setPrepared(null);
+      });
+    };
+    const unsubscribe = queue.subscribe(clearIfEmpty);
+    // A drain that finished before this effect subscribed still clears.
+    void queue.reload().then(() => clearIfEmpty(queue.snapshot));
+    return () => {
+      done = true;
+      unsubscribe();
+    };
   }, [mode, queue, userId]);
 
   const runtime = useMemo<OfflineRuntime>(

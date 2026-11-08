@@ -260,3 +260,165 @@ test("captures made offline are kept on the device and sent once online", async 
     page.getByTestId("activity-entry").filter({ hasText: note }),
   ).toHaveCount(1);
 });
+
+/** Asks tools/pwa/test.sh for a database change and waits until it is done. */
+async function serverChange(name) {
+  const { existsSync, rmSync, writeFileSync } = await import("node:fs");
+  const done = `${artifactDirectory}/offline-done-${name}`;
+  rmSync(done, { force: true });
+  writeFileSync(`${artifactDirectory}/offline-request-${name}`, "");
+  await expect.poll(() => existsSync(done), { timeout: 30_000 }).toBe(true);
+}
+
+async function openOrder(page) {
+  await page.goto(`${baseUrl}/app/sponsors`);
+  await page
+    .getByTestId("sponsor-row")
+    .filter({ hasText: "Musterwerk GmbH" })
+    .click();
+  await page.getByTestId("order-open").click();
+  await page.getByTestId("commitment-quantity").fill("1");
+  await page.getByRole("button", { name: "Weiter" }).click();
+  await page.getByTestId("commitment-street").fill("Preisweg 1");
+  await page.locator("#commitment-postal-code").fill("80331");
+  await page.locator("#commitment-city").fill("München");
+  await page.getByRole("button", { name: "Weiter" }).click();
+}
+
+test("online, a changed price is asked on the order form (§10.2)", async ({
+  context,
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await authenticate(context);
+  await page.goto(`${baseUrl}/app/sponsors`);
+  await expect(page.getByTestId("network-state")).toHaveAttribute(
+    "data-queue-state",
+    "empty",
+  );
+  await openOrder(page);
+  // The price changes after the form loaded it.
+  await serverChange("price-up");
+  try {
+    await page.getByTestId("commitment-save-draft").click();
+    const question = page.getByTestId("commitment-price-changed");
+    await expect(question).toContainText("Der Preis ist jetzt");
+    await expect(question).toContainText("Die Bestellung kostet");
+    await page.getByTestId("commitment-accept-price").click();
+    await expect(page.getByTestId("commitment-success")).toBeVisible();
+    await expect(page.getByTestId("network-state")).toHaveAttribute(
+      "data-queue-state",
+      "empty",
+    );
+  } finally {
+    await serverChange("price-down");
+  }
+});
+
+test("two tabs: one sends, each capture reaches Core once (§9.1)", async ({
+  context,
+}) => {
+  test.setTimeout(180_000);
+  await authenticate(context);
+  const first = await context.newPage();
+  await first.goto(`${baseUrl}/app/sponsors`);
+  await controlled(first);
+  await deviceCopyReady(first);
+  const second = await context.newPage();
+  await second.goto(`${baseUrl}/app/sponsors`);
+  await expect(second.getByTestId("sponsor-row").first()).toBeVisible();
+  const posts = [];
+  context.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      request.url().endsWith("/acquisition/activities")
+    ) {
+      posts.push(request.headers()["idempotency-key"]);
+    }
+  });
+
+  await context.setOffline(true);
+  const note = `Zwei Tabs ${Date.now()}`;
+  await first
+    .getByTestId("sponsor-row")
+    .filter({ hasText: "Musterwerk GmbH" })
+    .click();
+  await first.getByTestId("contact-open").click();
+  await first.locator("#activity-note").fill(note);
+  await first.getByTestId("activity-submit").click();
+  // The other tab follows the queue (BroadcastChannel).
+  await expect(second.getByTestId("network-state")).toHaveAccessibleName(
+    "1 Eintrag wartet auf Versand",
+  );
+
+  await context.setOffline(false);
+  for (const tab of [first, second]) {
+    await expect(tab.getByTestId("network-state")).toHaveAttribute(
+      "data-queue-state",
+      "empty",
+      { timeout: 30_000 },
+    );
+  }
+  expect(posts).toHaveLength(1);
+  const board = await apiJson(
+    first,
+    `/api/v1/actions/${ACTION_ID}/acquisition/activity-board?limit=100`,
+  );
+  expect(board.activities.filter((item) => item.note === note)).toHaveLength(1);
+});
+
+test("flag switched off: queued captures are sent, then the device is cleared", async ({
+  context,
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await authenticate(context);
+  await page.goto(`${baseUrl}/app/sponsors`);
+  await controlled(page);
+  await deviceCopyReady(page);
+  await context.setOffline(true);
+  const note = `Flag aus ${Date.now()}`;
+  await page
+    .getByTestId("sponsor-row")
+    .filter({ hasText: "Musterwerk GmbH" })
+    .click();
+  await page.getByTestId("contact-open").click();
+  await page.locator("#activity-note").fill(note);
+  await page.getByTestId("activity-submit").click();
+  await expect(page.getByTestId("network-state")).toHaveAccessibleName(
+    "1 Eintrag wartet auf Versand",
+  );
+
+  await serverChange("flag-off");
+  try {
+    await context.setOffline(false);
+    await page.reload();
+    // Drain mode: the old entry goes out, nothing is kept afterwards.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(async () =>
+            (await indexedDB.databases())
+              .map((item) => item.name)
+              .filter((name) => name.startsWith("leonaid-pwa-v1-")),
+          ),
+        { timeout: 30_000 },
+      )
+      .toEqual([]);
+    const board = await apiJson(
+      page,
+      `/api/v1/actions/${ACTION_ID}/acquisition/activity-board?limit=100`,
+    );
+    expect(board.activities.filter((item) => item.note === note)).toHaveLength(
+      1,
+    );
+    // Without the flag, the banner tells the old truth again.
+    await context.setOffline(true);
+    await expect(page.getByTestId("offline-banner")).toContainText(
+      "LeonAid speichert keine Änderungen im Hintergrund",
+    );
+    await context.setOffline(false);
+  } finally {
+    await serverChange("flag-on");
+  }
+});

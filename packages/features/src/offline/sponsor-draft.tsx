@@ -100,6 +100,15 @@ export function OfflineSponsorDraft({
       setError("Bitte Vor- und Nachnamen angeben.");
       return;
     }
+    // The same rule as the online form (sponsor-workspace submit).
+    if (
+      mode === "company" &&
+      (draft.givenName || draft.familyName || draft.email) &&
+      (!draft.givenName || !draft.familyName)
+    ) {
+      setError("Gib für die Ansprechperson Vorname und Nachname gemeinsam an.");
+      return;
+    }
     setError(null);
     setSaved(await queue.saveDraft({ actionId, mode, request: draft }));
   }

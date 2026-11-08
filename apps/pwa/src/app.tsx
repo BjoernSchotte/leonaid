@@ -29,7 +29,9 @@ import {
 import {
   OfflineRuntimeContext,
   QueueSheet,
+  OPEN_QUEUE_EVENT,
   SignOutWarning,
+  pendingDeviceEntries,
   useOfflineRuntime,
   useQueueSnapshot,
 } from "@leonaid/features/offline";
@@ -304,6 +306,11 @@ function useQueueShell(
   const { queue } = useOfflineRuntime();
   const snapshot = useQueueSnapshot();
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const show = () => setOpen(true);
+    window.addEventListener(OPEN_QUEUE_EVENT, show);
+    return () => window.removeEventListener(OPEN_QUEUE_EVENT, show);
+  }, []);
   const actionNames = useMemo(
     () =>
       new Map(
@@ -353,6 +360,7 @@ export function App({ client }: AppProps) {
   const device = useDevice(client, lifecycle.online);
   const identity = device.identity;
   const [signOutOpen, setSignOutOpen] = useState(false);
+  const [signOutCount, setSignOutCount] = useState(0);
   function signOut() {
     // Sign-out deletes everything the PWA kept on this device (§8.5).
     void forgetDevice(identity.data?.userId ?? null)
@@ -491,12 +499,16 @@ export function App({ client }: AppProps) {
         notices={<PwaNotices lifecycle={lifecycle} />}
         offline={!lifecycle.online}
         onLogout={() => {
-          // §12.5: captures still on the device would be deleted; ask first.
-          if (device.runtime.queue?.snapshot.entries.length) {
-            setSignOutOpen(true);
-            return;
-          }
-          signOut();
+          // §12.5: captures still on the device would be deleted; ask
+          // first. The store counts, not a view that may still be loading.
+          void pendingDeviceEntries().then((count) => {
+            if (count > 0) {
+              setSignOutCount(count);
+              setSignOutOpen(true);
+            } else {
+              signOut();
+            }
+          });
         }}
         person={identity.data.displayName}
         role={identity.data.roleLabels.join(" · ")}
@@ -528,11 +540,13 @@ export function App({ client }: AppProps) {
         )}
       </PwaShell>
       <SignOutWarning
-        count={device.runtime.queue?.snapshot.entries.length ?? 0}
+        count={signOutCount}
         onCancel={() => setSignOutOpen(false)}
         onSendFirst={() => {
+          // Send, and show what still needs a decision (L2 of #132).
           setSignOutOpen(false);
           void device.runtime.queue?.sendNow();
+          window.dispatchEvent(new Event(OPEN_QUEUE_EVENT));
         }}
         onSignOut={() => {
           setSignOutOpen(false);

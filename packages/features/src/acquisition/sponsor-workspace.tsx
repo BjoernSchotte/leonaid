@@ -691,6 +691,25 @@ function MatchResult({
   );
 }
 
+/** The assignment's revision, read again while the CRM write settles. */
+async function assignmentRevision(
+  client: LeonAidApiClient,
+  actionId: string,
+  assignmentId: string,
+): Promise<number | null> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const board = await client
+      .getAcquisitionActivityBoard(actionId, { limit: 100 })
+      .catch(() => null);
+    const item = board?.workItems.find(
+      (work) => work.assignmentId === assignmentId,
+    );
+    if (item) return item.revision;
+    await new Promise((resolve) => setTimeout(resolve, 1_000 * (attempt + 1)));
+  }
+  return null;
+}
+
 function NewSponsor({
   actionId,
   client,
@@ -727,7 +746,9 @@ function NewSponsor({
     onSuccess: (result, nextDraft) => {
       setDraft(nextDraft);
       setMatch(result);
-      setCommandId(crypto.randomUUID());
+      // §10.4: a draft resolves with its own command id, so a repeated
+      // check after a lost answer replays instead of creating again.
+      setCommandId(draftRef.current?.commandId ?? crypto.randomUUID());
       setResolution(null);
       setSelectedId(
         result.status === "single_match"
@@ -753,34 +774,37 @@ function NewSponsor({
     },
     onSuccess: async (result) => {
       setResolution(result);
-      if (draftEntry && queue) {
+      const pending = draftRef.current;
+      if (pending && queue) {
         // The captures of the draft take the resolved sponsor and the
-        // assignment's current revision, then go out (§9.2).
-        const board = await client
-          .getAcquisitionActivityBoard(actionId, { limit: 100 })
-          .catch(() => null);
-        const assignment = board?.workItems.find(
-          (item) => item.assignmentId === result.assignmentId,
+        // assignment's real revision, then go out (§9.2). Without it they
+        // keep waiting; a new check replays with the same command id.
+        const revision = await assignmentRevision(
+          client,
+          actionId,
+          result.assignmentId,
         );
-        await queue.resolveDraft(draftEntry.entryId, {
-          assignmentId: result.assignmentId,
-          displayName: result.displayName,
-          partyId: result.twentyId,
-          partyKind: result.partyKind,
-          revision: assignment?.revision ?? 1,
-        });
+        if (revision === null) {
+          setFormError(
+            "Der Sponsor ist angelegt, aber noch nicht in deiner Liste. Prüfe den Entwurf gleich noch einmal; die wartenden Einträge gehen dann los.",
+          );
+        } else {
+          await queue.resolveDraft(pending.entryId, {
+            assignmentId: result.assignmentId,
+            displayName: result.displayName,
+            partyId: result.twentyId,
+            partyKind: result.partyKind,
+            revision,
+          });
+          draftRef.current = undefined;
+        }
       }
       await onAssigned();
     },
   });
-  // A draft starts its check at once, with the values saved offline.
-  const started = useRef(false);
-  useEffect(() => {
-    if (!draftEntry || started.current) return;
-    started.current = true;
-    setMode(draftEntry.mode);
-    preview.mutate({ ...draftEntry.request, streetLine1: null });
-  }, [draftEntry]);
+  // The draft as it was when the check opened; it leaves the queue once
+  // resolved, while this form still shows the result.
+  const draftRef = useRef(draftEntry);
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
@@ -855,6 +879,14 @@ function NewSponsor({
         onSubmit={submit}
         ref={formRef}
       >
+        {draftRef.current && !match && !resolution ? (
+          <StatusMessage tone="info">
+            <span data-testid="sponsor-draft-check">
+              Dein Entwurf von unterwegs. Ergänze bei Bedarf die Straße und
+              prüfe den Sponsor dann im CRM.
+            </span>
+          </StatusMessage>
+        ) : null}
         <fieldset className="pwa-fieldset stack" disabled={formLocked}>
           <legend className="sr-only">Sponsor-Daten</legend>
           <div
@@ -1028,7 +1060,9 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
   const online = useOnline();
   const offlineCapture = runtime.enabled && runtime.queue !== null;
   const draftId = query.get("draft");
-  const draftEntry = useQueueSnapshot().entries.find(
+  const queueSnapshot = useQueueSnapshot();
+  const queueLoaded = queueSnapshot.loaded;
+  const draftEntry = queueSnapshot.entries.find(
     (entry): entry is SponsorDraftEntry =>
       entry.kind === "sponsor-draft" && entry.entryId === draftId,
   );
@@ -1064,6 +1098,8 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
         {choice}
         {offlineCapture && !online ? (
           <OfflineSponsorDraft actionId={actionId} client={client} />
+        ) : draftId && offlineCapture && !queueLoaded ? (
+          <BoardLoading label="Entwurf wird geladen" />
         ) : (
           <NewSponsor
             actionId={actionId}

@@ -363,10 +363,12 @@ def admin_only(split: dict[str, Any]) -> None:
     api["LEONAID_SITE_BASE_URL"] = f"https://{admin}"
     _environment(config, "campaign-site")["LEONAID_SITE_BASE_URL"] = f"https://{admin}"
     _environment(config, "campaign-site")["LEONAID_PUBLIC_HOST_ENABLED"] = "false"
-    # Not released for production until its stack proof is green in CI.
-    rejected(config, "admin-only before its stack proof")
     from tools.pilot_deployment import validate as contract
 
+    # Released by default; the switch still refuses the mode when off.
+    assert contract.ADMIN_ONLY_RELEASED is True
+    contract.ADMIN_ONLY_RELEASED = False
+    rejected(config, "admin-only while unreleased")
     contract.ADMIN_ONLY_RELEASED = True
     validate(config)
     mutations: list[tuple[str, dict[str, Any]]] = []
@@ -397,10 +399,9 @@ def admin_only(split: dict[str, Any]) -> None:
     )
     for label, mutation in mutations:
         rejected(mutation, label)
-    contract.ADMIN_ONLY_RELEASED = False
     print(
-        "pilot-deployment-contract-test: OK: admin host without public host refused "
-        "until released, otherwise valid; "
+        "pilot-deployment-contract-test: OK: admin host without public host valid, "
+        "refused when the release switch is off; "
         f"{len(mutations)} mutations rejected fail-closed"
     )
 

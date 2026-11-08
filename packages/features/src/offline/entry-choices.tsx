@@ -23,7 +23,7 @@ import { configuredWindowLabel } from "../commitments/order-format";
 import {
   ResolutionError,
   applySimpleResolution,
-  keepMyFollowUp,
+  keepMine,
 } from "./apply-resolution";
 import type { QueueController } from "./controller";
 import type { QueueEntry } from "./queue";
@@ -71,20 +71,29 @@ export function EntryChoices({
   const [copied, setCopied] = useState(false);
 
   if (entry.kind === "sponsor-draft") {
+    // An expired or no-longer-possible draft can only be discarded.
+    const checkable = entry.state === "queued" || entry.state === "conflict";
     return (
       <div className="pwa-queue-actions">
-        <a
-          aria-disabled={!online}
-          className={buttonClassName({ size: "sm", variant: "secondary" })}
-          data-testid="queue-check-draft"
-          href={
-            online
-              ? `${PWA_BASE}sponsors?view=new&action=${encodeURIComponent(entry.actionId)}&draft=${encodeURIComponent(entry.entryId)}`
-              : undefined
-          }
-        >
-          Jetzt prüfen
-        </a>
+        {checkable && online ? (
+          <a
+            className={buttonClassName({ size: "sm", variant: "secondary" })}
+            data-testid="queue-check-draft"
+            href={`${PWA_BASE}sponsors?view=new&action=${encodeURIComponent(entry.actionId)}&draft=${encodeURIComponent(entry.entryId)}`}
+          >
+            Jetzt prüfen
+          </a>
+        ) : checkable ? (
+          <Button
+            data-testid="queue-check-draft"
+            disabled
+            size="sm"
+            title="Prüfen geht nur online"
+            variant="secondary"
+          >
+            Prüfen geht nur online
+          </Button>
+        ) : null}
         <Button
           data-testid="queue-discard"
           onClick={onDiscard}
@@ -123,8 +132,8 @@ export function EntryChoices({
     }
     setBusy(true);
     try {
-      if (resolution === "keep-follow-up") {
-        await keepMyFollowUp(client, queue, entry);
+      if (resolution === "keep-follow-up" || resolution === "keep-status") {
+        await keepMine(client, queue, entry);
       } else if (!(await applySimpleResolution(queue, entry, resolution))) {
         setError("Diese Wahl ist für den Eintrag nicht möglich.");
       }
@@ -135,14 +144,18 @@ export function EntryChoices({
     }
   }
 
-  const windows = choosableWindows(context);
+  // A window shown as full is no silent "Trotzdem eintragen" (#132 L4).
+  const windows = choosableWindows(context).filter(
+    (window) => !window.fullyBooked,
+  );
   const choices = resolutionsFor(entry);
 
   return (
     <>
       <div className="pwa-queue-actions">
-        {entry.state === "failed" &&
-        entry.lastError?.code !== "idempotency_conflict" ? (
+        {(entry.state === "failed" &&
+          entry.lastError?.code !== "idempotency_conflict") ||
+        entry.state === "blocked" ? (
           <Button
             disabled={!online}
             onClick={() => void queue.retry(entry.entryId)}
@@ -162,17 +175,25 @@ export function EntryChoices({
                 }
                 disabled={
                   busy ||
-                  (resolution === "keep-follow-up" && !online) ||
+                  ((resolution === "keep-follow-up" ||
+                    resolution === "keep-status") &&
+                    !online) ||
                   ((resolution === "other-window" ||
                     resolution === "complete-delivery") &&
                     windows.length === 0)
                 }
                 key={resolution}
-                loading={busy && resolution === "keep-follow-up"}
+                loading={
+                  busy &&
+                  (resolution === "keep-follow-up" ||
+                    resolution === "keep-status")
+                }
                 onClick={() => void choose(resolution)}
                 size="sm"
                 variant={
-                  resolution === "discard" || resolution === "discard-follow-up"
+                  resolution === "discard" ||
+                  resolution === "discard-follow-up" ||
+                  resolution === "discard-status"
                     ? "ghost"
                     : "secondary"
                 }
