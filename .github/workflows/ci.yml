@@ -99,6 +99,11 @@ jobs:
   fixture:
     if: inputs.cold_run != true && inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
     uses: ./.github/workflows/test-fixture.yml
+    # A called workflow may not request more than its caller grants
+    # (select-suites.yml and test-fixture.yml read the Actions API).
+    permissions:
+      actions: read
+      contents: read
 
   lint:
     # Stack-free: three parallel lanes inside tools/ci/lint-types.sh.

@@ -34,6 +34,11 @@ jobs:
   select:
     if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base)
     uses: ./.github/workflows/select-suites.yml
+    # A called workflow may not request more than its caller grants
+    # (select-suites.yml and test-fixture.yml read the Actions API).
+    permissions:
+      actions: read
+      contents: read
 
   contract:
     name: Generated client against real API

@@ -1,4 +1,8 @@
 #!/bin/sh
+# Authorization negative contract (CI: Integration / policy). It runs before
+# the merge for every pull request that touches src/leonaid, migrations,
+# tools/policy or tools/sessions (tools/ci/select_suites.py FAST_REQUIRED,
+# decision E-019), in a CI leg of its own.
 set -eu
 
 root=${1:-$(pwd)}
