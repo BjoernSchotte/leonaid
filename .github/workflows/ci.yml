@@ -79,7 +79,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          GATE_NAME: CI gate
+          GATE_NAME: CI gate, Survey gate
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: python3 tools/ci/hold_gate.py
 
@@ -481,6 +481,93 @@ jobs:
           test "$(wc -c < comparison/ci-golden-repeat/comparison.txt)" -eq 65
           cmp comparison/ci-golden-primary/comparison.txt comparison/ci-golden-repeat/comparison.txt
 
+  surveys:
+    # One job per survey shard, the same leonaid command as
+    # locally (decision E-027). Selected after the merge, with full-ci and
+    # nightly (tools/ci/select_suites.py, flag surveys); the recovery shards
+    # run only nightly and on dispatch.
+    needs: [select, fixture]
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.surveys == 'true' && needs.fixture.result == 'success' }}
+    name: Survey ${{ matrix.shard }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON((github.event_name == 'pull_request' || github.event_name == 'push') && '["permissions","limits","runner","editor","analysis","exports","lifecycle","invitations","journey"]' || '["permissions","limits","runner","editor","analysis","exports","lifecycle","invitations","journey","recovery","exports-recovery","restic","pilot"]') }}
+    env:
+      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/survey-${{ matrix.shard }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Start freeing runner disk from unused toolchains
+        run: sh tools/ci/free-runner-disk.sh start
+      - name: Reuse persistent Docker build layers
+        uses: ./.github/actions/build-cache
+        with:
+          bootstrap: browser
+          # Only journey (the PWA) and the nightly shards need every image.
+          targets: ${{ contains(fromJSON('["journey","recovery","exports-recovery","restic","pilot"]'), matrix.shard) && 'default' || 'survey-runtime' }}
+      - name: Use prepared synthetic data
+        uses: ./.github/actions/test-fixture
+        with:
+          key: ${{ needs.fixture.outputs.key }}
+      - name: Finish freeing runner disk
+        run: sh tools/ci/free-runner-disk.sh wait
+      - name: Run the survey shard
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: bash tools/ci/run-job.sh "survey-$SHARD" ./leonaid test-surveys "$SHARD"
+      - name: Publish survey evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-survey-${{ matrix.shard }}
+          path: .artifacts/ci/survey-${{ matrix.shard }}
+          if-no-files-found: error
+          retention-days: 14
+
+  backup-recovery:
+    # Nightly and on dispatch: full restore, upgrade rollback, the backup
+    # target, the first install and the pilot restore/release paths.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    name: Nightly backup / ${{ matrix.command }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        command:
+          - test-backup
+          - test-upgrade
+          - test-pilot-backup
+          - test-pilot-deployment
+          - test-pilot-install
+          - test-pilot-import
+          - test-pilot-release
+    env:
+      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/${{ matrix.command }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Start freeing runner disk from unused toolchains
+        run: sh tools/ci/free-runner-disk.sh start
+      - name: Bootstrap pinned Docker toolchains
+        run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
+      - name: Finish freeing runner disk
+        run: sh tools/ci/free-runner-disk.sh wait
+      - name: Run isolated backup and recovery proof
+        env:
+          TEST_COMMAND: ${{ matrix.command }}
+        run: bash tools/ci/run-job.sh "$TEST_COMMAND" ./leonaid "$TEST_COMMAND"
+      - name: Publish sanitized evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: nightly-${{ matrix.command }}
+          path: .artifacts/ci/${{ matrix.command }}
+          if-no-files-found: error
+          retention-days: 14
+
   gate:
     # The one required check of this workflow (repository ruleset).
     # tools/ci/gate.py: selected jobs succeeded, unselected ones were
@@ -499,6 +586,8 @@ jobs:
       - build
       - golden-parts
       - golden-journey
+      - surveys
+      - backup-recovery
     if: ${{ always() }}
     permissions:
       checks: read
@@ -534,7 +623,23 @@ jobs:
             --selectable e2e=e2e \
             --selectable emdash-cases=emdash \
             --selectable golden-parts=golden \
+            --selectable surveys=surveys \
+            --may-skip backup-recovery \
             --selectable security=heavy \
             --selectable vulnerability=heavy \
             --selectable build=heavy
           python3 tools/ci/gate.py "$@"
+
+  survey-gate:
+    # Required check of the repository ruleset since before decision E-027;
+    # the survey shards now belong to the CI gate, and this mirrors it.
+    name: Survey gate
+    needs: gate
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Mirror the CI gate
+        env:
+          RESULT: ${{ needs.gate.result }}
+        run: test "$RESULT" = success

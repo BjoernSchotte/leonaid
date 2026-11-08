@@ -15,6 +15,18 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 
+# Over-limit bytes the server still reads before it answers 413.
+DRAIN_BYTES = 1 << 20
+
+
+async def drain(receive: Receive) -> None:
+    """Read and discard the rest of the request body."""
+    while True:
+        message = await receive()
+        if message["type"] != "http.request" or not message.get("more_body", False):
+            return
+
+
 class BodyLimitExceeded(Exception):
     """The request body crossed the limit of its path."""
 
@@ -51,6 +63,12 @@ class RequestBodyLimitMiddleware:
             except ValueError:
                 too_large = False  # The server rejects malformed lengths itself.
             if too_large:
+                # Closing with unread request bytes makes the kernel reset the
+                # connection, and the client may lose the 413. A body at most
+                # DRAIN_BYTES over the limit is read and discarded first;
+                # anything larger is cut off at once.
+                if int(declared) <= limit + DRAIN_BYTES:
+                    await drain(receive)
                 await self.reject(scope, receive, send)
                 return
 

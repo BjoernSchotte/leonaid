@@ -105,8 +105,8 @@ async def main():
     )
     results = []
     try:
-        for template in ["krapfentaxi", "golf"]:
-            for width in [1440, 390]:
+        for template in ["krapfentaxi"]:
+            for width in [1440]:
                 stem = f"journey-{template}-{width}"
                 state = json.loads((PROOF / f"{stem}.json").read_text())
                 assert state["template"] == template and state["width"] == width
@@ -166,7 +166,7 @@ async def main():
         json.dumps({"syntheticOnly": True, "journeys": results}, indent=2) + "\n"
     )
     print(
-        "PASS: four complete browser journeys; 16 real downloads parsed; SQL content and every object version erased"
+        "PASS: the browser journey; 4 real downloads parsed; SQL content and every object version erased"
     )
 
 

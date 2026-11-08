@@ -11,14 +11,7 @@ name: Refresh mirrored gates
 # never checks out pull-request code and only re-runs existing runs.
 on:
   workflow_run:
-    workflows:
-      [
-        LeonAid CI,
-        Survey acceptance,
-        API contract,
-        Dependency pins,
-        Documentation,
-      ]
+    workflows: [LeonAid CI, API contract, Dependency pins, Documentation]
     types: [completed]
 
 permissions:
