@@ -117,7 +117,7 @@ else
   python3 "$root/tools/surveys/network_override.py" "$isolation_file"
   owned=true
   compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
-  compose build api
+  build_shared_images api
   compose up --detach --wait --wait-timeout 420 api
 fi
 

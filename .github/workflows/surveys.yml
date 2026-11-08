@@ -44,6 +44,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # Kill switch of the prebuilt GHCR images (decision E-020, ci.yml).
+  CI_PREBUILT_IMAGES: ${{ vars.CI_PREBUILT_IMAGES }}
+
 concurrency:
   group: survey-acceptance-${{ github.event_name }}-${{ github.ref }}-${{ github.event.schedule }}${{ ((github.event.action == 'edited' && !github.event.changes.base) || (github.event.action == 'labeled' && github.event.label.name != 'full-ci') || github.event.action == 'unlabeled' || (github.event.pull_request.draft && github.event.action != 'converted_to_draft')) && format('-mirror-{0}', github.run_id) || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

@@ -362,7 +362,7 @@ bound by CPU and I/O contention on the 4-vCPU runner, not by downloads
 |---|---|---|
 | uv/bun dependency cache | `.venv` + `node_modules` 830 MB, bootstrap 20 s alone | skipped: no faster to restore |
 | Third-party image tarball cache | images 1.7 GB (Playwright 1.0 GB), pull hidden behind bootstrap | skipped: no gain, 1.7 GB of the 10 GB cache budget |
-| GHCR CI images by content hash | saves ~20–30 s of the in-step compose build per leg | deferred: needs a public package, cleanup and #122 (`ghcr.io/bjoernschotte/leonaid-ci/<service>:<tools/testing/image_tags.py hash>` agreed) |
+| GHCR CI images by content hash | layer import 40–50 s per image job (#140) | built (E-020): see [Prebuilt CI images](#prebuilt-ci-images-ghcr) |
 | Split EmDash `krapfentaxi-orders` per browser | 3 legs ≈ 20 runner-min instead of 11, +2 jobs; wall −1 min (E2E legs are as long) | not done: every E2E leaf runs only nightly now |
 | Concurrent light shards per leg | see the peaks below | not now: CPU-bound (4 vCPU, timing-sensitive browser proofs), gain ≤ ~1 min setup per merged leg |
 
@@ -688,8 +688,8 @@ pre-build hash only if the inputs still hash the same (not in CI). A FROM or
 build secrets/ssh, symlinks leaving the context or unknown `.dockerignore`
 syntax make it build without sharing (the CLI exits non-zero). Teardown removes
 only `<project>-*` tags; the four most recently used content tags per service
-are kept (`LEONAID_IMAGE_KEEP`). CI may push the same hash as
-`ghcr.io/bjoernschotte/leonaid-ci/<service>:<hash>`.
+are kept (`LEONAID_IMAGE_KEEP`). CI pulls the same hash from
+`ghcr.io/bjoernschotte/leonaid-ci/<image>:<hash>` (see Prebuilt CI images).
 
 ## Shared package caches
 
@@ -742,6 +742,54 @@ normal cache. Reports include builder preparation/import/build/export/load time
 and a subsequent project-renamed Compose build. The latter must cache every
 Dockerfile RUN step. Full-image cases also start the real Public Node image and
 verify its HTTP readiness. No database or test stack is needed for this benchmark.
+
+## Prebuilt CI images (GHCR)
+
+Decision E-020. Every image the CI builds also lives on GHCR as
+`ghcr.io/bjoernschotte/leonaid-ci/<image>:<hash>`. The hash is the content
+hash of `tools/testing/image_tags.py`, so one tag names exactly one set of
+build inputs. API and worker share the `api` image (same build section).
+
+- **Pull (every image job).** `.github/actions/build-cache` first runs
+  `python3 -I tools/ci/prebuilt_images.py pull <targets>`. For each image it
+  resolves the hash tag anonymously, checks the registry config (label
+  `io.leonaid.ci.content-hash` equals the hash, built at most 6 days ago),
+  pulls by digest, checks the pulled image again (label, `RepoDigests`) and
+  tags it `leonaid-local/<service>:<hash>`. The harness
+  (`build_shared_images`, `shared_stack.py`), `tools/ci/build.sh`, the
+  vulnerability gate and the API contract then only tag it as
+  `<project>-<service>` (`prebuilt_images.py adopt`). Only the misses go
+  to the BuildKit layer import and the Compose build, as before.
+- **Fail-closed.** Every registry or Docker problem (no tag, private
+  package, wrong label, too old, pull error, timeout) is a miss, and a miss is
+  built in the job. The pull never skips a test. Fork pull requests pull
+  without a token and behave the same.
+- **Publish (main only).** The `publish-images` job of `ci.yml` runs after a
+  green Build on push, schedule and dispatch runs of `main`. It is the only
+  job with `packages: write` (`tests/unit/test_workflow_files.py` enforces
+  this). `plan` lists the images whose tag is missing, foreign or older than
+  3 days; bake builds them from the shared layers with the hash, revision
+  and source labels. `publish` refuses an image that contains `.env` files
+  (except `.env.example`), session files, SSH keys, registry credentials or a
+  `.git` directory, that has credential-like environment variables or
+  labels, or in which Trivy's secret scanner finds a secret. Then it pushes
+  the image and checks the pushed digest and label. When an anonymous pull
+  fails, it warns that the package is not public yet.
+- **Kill switch.** The repository variable `CI_PREBUILT_IMAGES=off` turns
+  off pulls and publishing. Every job then builds as before. Each workflow
+  that uses the action passes the variable on as `env`.
+- **Cleanup.** `ci-images-cleanup.yml` runs weekly on main. It deletes
+  versions created more than 30 days ago that carry no hash of the current
+  main checkout. Tags that are not content hashes are never touched. A
+  dispatch is a dry run unless `dry_run` is unticked. The self-test
+  `tools/ci/prebuilt_images_test.py` runs first, and it also runs in
+  `./leonaid check` and the Lint job.
+- **Visibility.** A new GHCR package is private, and only the owner can make
+  it public (package settings, "Change visibility"). Until then pull
+  requests miss and build locally.
+
+`python3 -I tools/ci/prebuilt_images.py check-clean <image>...` runs the
+secret check on local images.
 
 ## Runner disk budget
 
