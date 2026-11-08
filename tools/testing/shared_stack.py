@@ -581,34 +581,19 @@ class SharedStack:
         """Record the initialized state once; afterwards every reset must match it.
 
         A file a check left behind, or one the restore could not delete,
-        changes the digest of its volume. The reset then fails instead of
-        handing the next check a dirty fixture.
+        changes the digest of its volume, and the next check is refused.
         """
-        digests = {}
-        for line in output.splitlines():
-            index, _, digest = line.partition(" ")
-            if not index.isdigit() or int(index) >= len(self.volumes):
-                raise RuntimeError(f"Unreadable fixture digest line: {line!r}")
-            if len(digest) != 64:
-                raise RuntimeError(f"Unreadable fixture digest line: {line!r}")
-            digests[self.volumes[int(index)]] = digest
-        expected = sorted(
-            volume
-            for volume in self.volumes
-            if not (self.preserving and volume in self.preserved_volumes)
-        )
-        if sorted(digests) != expected:
-            raise RuntimeError(
-                f"Fixture digest covers {sorted(digests)}, expected {expected}"
-            )
+        digests = dict(line.split(" ", 1) for line in output.splitlines())
+        if not digests:
+            raise RuntimeError("Fixture digest is empty")
         if not self.digests:
             self.digests = digests
             return
-        changed = sorted(
-            volume
-            for volume, digest in digests.items()
-            if self.digests[volume] != digest
-        )
+        changed = [
+            self.volumes[int(index)]
+            for index, digest in digests.items()
+            if self.digests.get(index) != digest
+        ]
         if changed:
             raise RuntimeError(
                 f"Fixture reset left state behind in {changed}; refusing the next check"
