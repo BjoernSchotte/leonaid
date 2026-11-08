@@ -337,4 +337,44 @@ describe("the street of a check leaves the device (E-017)", () => {
     expect(expired.resolveRequest).toBeNull();
     expect(await onDevice(store)).toBe(false);
   });
+
+  it("goes after 14 days from a blocked draft too, which itself stays (#139 M1)", async () => {
+    const { queue, store } = controller();
+    const draft = await draftWithContact(queue);
+    const silent = {
+      resolveSponsorMatch: () =>
+        Promise.reject(new TypeError("Failed to fetch")),
+    } as unknown as LeonAidApiClient;
+    await expect(
+      resolveDraftSponsor(
+        silent,
+        queue,
+        ACTION,
+        draft.entryId,
+        withStreet(draft),
+      ),
+    ).rejects.toThrow();
+    // A 403 for the action made every entry of it "Nicht mehr möglich".
+    for (const entry of await store.list()) {
+      await store.put({ ...entry, state: "blocked" });
+    }
+    const run = (days: number) =>
+      drainQueue({
+        now: () => new Date(Date.parse(draft.capturedAt) + days * 86_400_000),
+        send: () => Promise.reject(new Error("no send")),
+        store,
+      });
+    // Still within 14 days: the check may come back with the role, and its
+    // replay needs the exact body.
+    await run(13);
+    expect(await onDevice(store)).toBe(true);
+    await run(15);
+    const blocked = (await store.list()).find(
+      (entry) => entry.entryId === draft.entryId,
+    ) as SponsorDraftEntry;
+    expect(blocked.state).toBe("blocked");
+    expect(blocked.resolveRequest).toBeNull();
+    expect(blocked.resolution).toBeNull();
+    expect(await onDevice(store)).toBe(false);
+  });
 });

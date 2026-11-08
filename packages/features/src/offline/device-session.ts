@@ -27,6 +27,20 @@ function offlineStartKey() {
 }
 
 /**
+ * The setting as the pages of this origin last wrote it; `null` without
+ * Cache Storage.
+ */
+async function storedOfflineStart(): Promise<boolean | null> {
+  if (typeof caches === "undefined") return null;
+  try {
+    const settings = await caches.open(SETTINGS_CACHE);
+    return Boolean(await settings.match(offlineStartKey()));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Whether `/app/` may start from the cache. The setting lives in the
  * service worker's Cache Storage, which every page of the origin reaches,
  * so the admin web app can switch it off too.
@@ -39,14 +53,21 @@ export async function setOfflineStart(enabled: boolean): Promise<void> {
     try {
       const registration =
         await navigator.serviceWorker.getRegistration(PWA_BASE);
-      const message = { type: "OFFLINE_START", enabled };
-      registration?.active?.postMessage(message);
+      registration?.active?.postMessage({ type: "OFFLINE_START", enabled });
       // On the first visit the worker is still installing: it gets the
       // setting once active, or the app would start offline only after a
-      // second online start (WebKit).
+      // second online start (WebKit). It gets the setting as it is then,
+      // not this call's value: another tab may have signed out meanwhile.
       const pending = registration?.installing ?? registration?.waiting;
-      pending?.addEventListener("statechange", () => {
-        if (pending.state === "activated") pending.postMessage(message);
+      pending?.addEventListener("statechange", function onActivated() {
+        if (pending.state !== "activated") return;
+        pending.removeEventListener("statechange", onActivated);
+        void storedOfflineStart().then((current) =>
+          pending.postMessage({
+            type: "OFFLINE_START",
+            enabled: current ?? enabled,
+          }),
+        );
       });
     } catch {
       // No service worker: nothing starts offline anyway.
