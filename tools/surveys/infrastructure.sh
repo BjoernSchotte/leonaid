@@ -639,5 +639,5 @@ compose down --volumes --remove-orphans
 [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$project")" ]
   echo 'PASS: isolated survey stack, real API/PostgreSQL/browser, no host ports, teardown verified'
 else
-  echo 'PASS: real survey API/PostgreSQL/browser; shared fixture teardown belongs to gate'
+  echo 'PASS: real survey API/PostgreSQL/browser; the shard runner owns the shared stack'
 fi
