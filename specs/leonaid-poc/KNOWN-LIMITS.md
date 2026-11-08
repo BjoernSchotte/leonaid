@@ -59,7 +59,8 @@ Punkte sind keine stillschweigenden Produktzusagen.
   Datenschutzhinweis (D8) aktiv ist. Der Abschluss eines eigenen
   Bestellentwurfs (`completeCommitment`) geht weiter nur online. Im
   Ausschalt-Modus halten Einträge mit Entscheidung oder Fehler das Gerät bis
-  zu 16 Tage (Ablauf plus Warnfrist). Schaltet die System-Administration das Flag aus, sendet die App
+  zu 16 Tage (Ablauf plus Warnfrist); „Nicht mehr möglich“ (keine
+  Berechtigung mehr) hält es, bis die Person den Eintrag verwirft. Schaltet die System-Administration das Flag aus, sendet die App
   noch wartende Einträge und löscht danach die Daten auf dem Gerät. Die
   Startseite (Aktionsstand), Module und das Lieferboard bleiben offline
   gesperrt. Die Prüfung auf einem echten iPhone (PLAN §13, Speicher einer

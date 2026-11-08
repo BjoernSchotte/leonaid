@@ -199,8 +199,47 @@ describe("QueueController", () => {
     const again = await queue.resubmit(first.entryId, (entry) => entry, {
       newKey: false,
     });
-    expect(again.state).toBe("accepted");
+    expect(again?.state).toBe("accepted");
     expect(keys).toEqual([`pwa-q:${first.entryId}`, `pwa-q:${first.entryId}`]);
+  });
+
+  it("resubmits an edited body with a new key, and reports a discarded entry as gone (#131 N1)", async () => {
+    let fail = true;
+    const sent: { key: string; note: unknown }[] = [];
+    const { queue } = controller(async (entry) => {
+      sent.push({
+        key: entry.idempotencyKey,
+        note: (entry.request as { note?: unknown }).note,
+      });
+      if (fail) {
+        throw new ApiError(409, {
+          code: "contact_suppressed",
+          message: "x",
+          requestId: "r",
+        });
+      }
+      return accepted(entry);
+    });
+    const first = await queue.submit(draft());
+    fail = false;
+    const edited = await queue.resubmit(
+      first.entryId,
+      (entry) =>
+        ({ ...entry, request: { ...entry.request, note: "edited" } }) as never,
+      { newKey: true },
+    );
+    expect(edited?.state).toBe("accepted");
+    expect(sent).toHaveLength(2);
+    expect(sent[1]!.note).toBe("edited");
+    expect(sent[1]!.key).not.toBe(sent[0]!.key);
+
+    fail = true;
+    const second = await queue.submit(draft());
+    await queue.discard(second.entryId);
+    const gone = await queue.resubmit(second.entryId, (entry) => entry, {
+      newKey: true,
+    });
+    expect(gone).toBeNull();
   });
 
   it("does not send while offline and sends when the network returns", async () => {

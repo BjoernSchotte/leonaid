@@ -153,14 +153,16 @@ export class QueueController {
 
   /**
    * An online decision on the capture page (FullWindowConfirm, the new
-   * price): the entry changes and is sent again at once (§10.2).
+   * price, an edited order): the entry changes and is sent again at once
+   * (§10.2). `null`: the entry is gone (discarded in the queue meanwhile).
    */
   async resubmit(
     entryId: string,
     change: (entry: QueueEntry) => QueueEntry,
     options: { readonly newKey: boolean },
-  ): Promise<SubmitOutcome> {
-    await this.replace(entryId, change, options);
+  ): Promise<SubmitOutcome | null> {
+    const applied = await this.replace(entryId, change, options);
+    if (applied === "missing") return null;
     return this.#sendAndReport(entryId);
   }
 
@@ -235,12 +237,19 @@ export class QueueController {
     entryId: string,
     change: (entry: QueueEntry) => QueueEntry,
     { newKey }: { readonly newKey: boolean },
-  ): Promise<void> {
+  ): Promise<"applied" | "missing" | "sending"> {
+    let applied: "applied" | "missing" | "sending" = "missing";
     await this.#mutate(async (store) => {
       const current = (await store.list()).find(
         (item) => item.entryId === entryId,
       );
-      if (!current || current.state === "sending") return;
+      if (!current) return;
+      // In flight in another tab: its answer decides; nothing changes.
+      if (current.state === "sending") {
+        applied = "sending";
+        return;
+      }
+      applied = "applied";
       const changed = change(current);
       await store.put({
         ...changed,
@@ -259,6 +268,7 @@ export class QueueController {
       } as QueueEntry);
     });
     void this.run();
+    return applied;
   }
 
   /**

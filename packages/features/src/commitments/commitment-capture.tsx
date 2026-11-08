@@ -463,9 +463,12 @@ export function CommitmentCapturePage({
   const [queuedOrder, setQueuedOrder] = useState<QueuedOrder | null>(null);
   const [confirmFull, setConfirmFull] = useState(false);
   // A queued order waiting for this screen's answer (full window, price).
+  // `choice` is the question on screen; a form change drops it, and the
+  // next save gives the queued order the body the screen shows (#131 N1).
   const pendingEntry = useRef<{
     readonly entryId: string;
-    readonly choice: "window" | "price";
+    readonly choice: "window" | "price" | null;
+    readonly readyForReview: boolean;
   } | null>(null);
   const appliedBuyer = useRef("");
   const commandId = useRef(crypto.randomUUID());
@@ -536,11 +539,14 @@ export function CommitmentCapturePage({
   const create = useMutation({
     mutationFn: async ({
       allowFullWindow = false,
+      answer = false,
       readyForReview,
       selected,
       selectedOffering,
     }: {
       readonly allowFullWindow?: boolean;
+      /** The answer to the question on screen, for the queued order as is. */
+      readonly answer?: boolean;
       readonly readyForReview: boolean;
       readonly selected: CommitmentBuyerResponse;
       readonly selectedOffering: ConfiguredOfferingResponse;
@@ -579,37 +585,47 @@ export function CommitmentCapturePage({
       const chosenWindow = configuration?.windows.find(
         (item) => item.id === delivery.windowId,
       );
+      const base = {
+        unitPriceMinor: selectedOffering.unitPriceMinor,
+        windowFullyBooked: chosenWindow?.fullyBooked ?? false,
+        windowId: deliveryEnabled ? delivery.windowId || null : null,
+      };
       const pending = pendingEntry.current;
-      // An answer on this screen (FullWindowConfirm, the new price) changes
-      // the entry already queued instead of capturing a second order.
-      const outcome = pending
+      const question = answer ? pending?.choice : null;
+      // An order already queued for this screen is changed, never captured
+      // a second time: an answer (FullWindowConfirm, the new price) keeps
+      // its body; any other save gives it the body on screen. Core refused
+      // it, so it left no receipt, and a new body takes a new key (§9.3).
+      const changed = pending
         ? await runtime.queue.resubmit(
             pending.entryId,
             (entry) =>
               entry.kind !== "commitment"
                 ? entry
-                : pending.choice === "price"
+                : question === "price"
                   ? (acceptPrice(entry) ?? entry)
-                  : bookAnyway(entry),
-            // allowFullWindow is not in Core's hash; a new price is.
-            { newKey: pending.choice === "price" },
+                  : question === "window"
+                    ? bookAnyway(entry)
+                    : { ...entry, base, request: body },
+            // allowFullWindow is not in Core's hash; a new price or body is.
+            { newKey: question !== "window" },
           )
-        : await runtime.queue.submit({
-            actionId,
-            assignmentId: sponsor.assignmentId,
-            base: {
-              unitPriceMinor: selectedOffering.unitPriceMinor,
-              windowFullyBooked: chosenWindow?.fullyBooked ?? false,
-              windowId: deliveryEnabled ? delivery.windowId || null : null,
-            },
-            kind: "commitment",
-            party: {
-              displayName: sponsor.partyDisplayName,
-              id: sponsor.partyId,
-              kind: sponsor.partyKind,
-            },
-            request: body,
-          });
+        : null;
+      // Gone meanwhile (discarded in the queue): this save is a new order.
+      const outcome =
+        changed ??
+        (await runtime.queue.submit({
+          actionId,
+          assignmentId: sponsor.assignmentId,
+          base,
+          kind: "commitment",
+          party: {
+            displayName: sponsor.partyDisplayName,
+            id: sponsor.partyId,
+            kind: sponsor.partyKind,
+          },
+          request: body,
+        }));
       pendingEntry.current = null;
       if (
         outcome.state === "accepted" &&
@@ -627,6 +643,7 @@ export function CommitmentCapturePage({
         pendingEntry.current = {
           choice: code === "commitment_price_changed" ? "price" : "window",
           entryId: outcome.entryId,
+          readyForReview,
         };
         throw new ApiError(409, {
           code,
@@ -663,9 +680,12 @@ export function CommitmentCapturePage({
       window.history.replaceState({}, "", `${url.pathname}${url.search}`);
     },
     onError: (error) => {
+      // The form shows the current windows and price, so a save after an
+      // edit sends what is on screen.
       if (
         error instanceof ApiError &&
-        error.detail.code.startsWith("delivery_")
+        (error.detail.code.startsWith("delivery_") ||
+          error.detail.code === "commitment_price_changed")
       ) {
         void context.refetch();
       }
@@ -674,6 +694,36 @@ export function CommitmentCapturePage({
     },
   });
   const fullWindow = fullWindowSelected(configuration, delivery.windowId);
+
+  // Any change to the order or a step change ends the question on screen;
+  // only its own buttons answer it (#131 N1).
+  const formKey = JSON.stringify([
+    offeringId,
+    quantity,
+    delivery,
+    recipient,
+    step,
+  ]);
+  const resetCreate = create.reset;
+  useEffect(() => {
+    const pending = pendingEntry.current;
+    if (pending?.choice) pendingEntry.current = { ...pending, choice: null };
+    setConfirmFull(false);
+    resetCreate();
+  }, [formKey, resetCreate]);
+
+  /** "Neuen Preis übernehmen" or "Trotzdem eintragen" for the queued order. */
+  function answerPending() {
+    const pending = pendingEntry.current;
+    if (!buyer || !offering || !pending?.choice) return;
+    create.mutate({
+      allowFullWindow: pending.choice === "window",
+      answer: true,
+      readyForReview: pending.readyForReview,
+      selected: buyer,
+      selectedOffering: offering,
+    });
+  }
 
   function save(readyForReview: boolean, allowFullWindow = false) {
     if (!buyer || !offering) return;
@@ -1140,7 +1190,7 @@ export function CommitmentCapturePage({
                 <Button
                   data-testid="commitment-accept-price"
                   loading={create.isPending}
-                  onClick={() => save(true)}
+                  onClick={answerPending}
                   variant="primary"
                 >
                   Neuen Preis übernehmen
@@ -1178,7 +1228,7 @@ export function CommitmentCapturePage({
           <Button
             className="pwa-wide"
             data-testid="commitment-save-draft"
-            disabled={create.isPending}
+            disabled={create.isPending || context.isFetching}
             onClick={() => save(false)}
             variant="ghost"
           >
@@ -1191,18 +1241,23 @@ export function CommitmentCapturePage({
         onCancel={() => {
           // The order stays in the queue as a decision (§10.2).
           setConfirmFull(false);
-          if (pendingEntry.current) {
+          const pending = pendingEntry.current;
+          if (pending) {
             setQueuedOrder({
               currency: offering?.currency ?? "EUR",
               queued: "conflict",
-              readyForReview: true,
+              readyForReview: pending.readyForReview,
               totalMinor: total,
             });
             pendingEntry.current = null;
           }
           create.reset();
         }}
-        onConfirm={() => save(true, true)}
+        onConfirm={() =>
+          pendingEntry.current?.choice === "window"
+            ? answerPending()
+            : save(true, true)
+        }
         pending={create.isPending}
         window={
           confirmFull
