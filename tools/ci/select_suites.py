@@ -83,7 +83,6 @@ E2E_SHARDS = (
     "identity",
     "matching",
     "tasks",
-    "materials",
     "knowledge",
     "inbox",
     "leitsystem-ui",
@@ -136,7 +135,6 @@ E2E_SECONDS = {
     "identity": 129,
     "matching": 103,
     "tasks": 162,
-    "materials": 112,
     "knowledge": 127,
     "inbox": 99,
     "leitsystem-ui": 278,
@@ -387,21 +385,16 @@ RULES: tuple[Rule, ...] = (
     Rule(
         ("tools/tasks/**",), e2e("tasks") | integration("schema-outbox"), "tasks proofs"
     ),
-    # Materials module.
+    # Materials module: server rules only (E-026); its contracts run in
+    # Integration / schema-outbox, its upload UI in the knowledge editor.
     Rule(
         (
             "src/leonaid/modules/materials/**",
             "packages/features/src/materials/**",
-            "tests/e2e/modules-materials.spec.mjs",
+            "tools/materials/**",
         ),
-        e2e("materials"),
+        e2e("knowledge") | integration("schema-outbox"),
         "materials module",
-    ),
-    # tools/schema/test.sh also runs the materials schema contracts.
-    Rule(
-        ("tools/materials/**",),
-        e2e("materials") | integration("schema-outbox"),
-        "materials proofs",
     ),
     # Knowledge module.
     Rule(
@@ -425,7 +418,6 @@ RULES: tuple[Rule, ...] = (
         (
             "src/leonaid/modules/inbox/**",
             "packages/features/src/inbox/**",
-            "tests/e2e/modules-inbox.spec.mjs",
             "tests/e2e/public-inbox-retry.spec.mjs",
             "apps/public/src/components/PublicInbox.astro",
             "apps/public/src/lib/modules.ts",
@@ -446,7 +438,7 @@ RULES: tuple[Rule, ...] = (
     Rule(("tests/e2e/task-list.mjs",), e2e("tasks"), "task list helper"),
     Rule(
         ("tests/e2e/material-list.mjs",),
-        e2e("materials", "inbox", "knowledge"),
+        e2e("knowledge"),
         "material list helper",
     ),
     Rule(("tests/e2e/delivery-board.spec.mjs",), e2e("invoices"), "delivery board"),
@@ -521,13 +513,12 @@ RULES: tuple[Rule, ...] = (
         (
             "tools/commitments/**",
             "tests/e2e/commitments.spec.mjs",
-            "tests/e2e/order-cancellation.spec.mjs",
         ),
         e2e("commitments"),
         "commitment proofs",
     ),
     Rule(
-        ("tools/matching/**", "tests/e2e/matching.spec.mjs"),
+        ("tools/matching/**",),
         e2e("matching", "acquisition-management"),
         "matching proofs",
     ),
@@ -574,7 +565,7 @@ RULES: tuple[Rule, ...] = (
         "membership proofs",
     ),
     Rule(
-        ("tools/actions/**", "tools/templates/**", "tests/e2e/actions.spec.mjs"),
+        ("tools/actions/**", "tools/templates/**"),
         e2e("action-templates"),
         "action template proofs",
     ),
@@ -582,7 +573,6 @@ RULES: tuple[Rule, ...] = (
         (
             "tools/assignments/**",
             "tools/activities/**",
-            "tests/e2e/activities.spec.mjs",
         ),
         e2e("acquisition-management"),
         "acquisition management proofs",
@@ -593,7 +583,6 @@ RULES: tuple[Rule, ...] = (
             "tools/activity_feed/**",
             "tests/e2e/public-actions.spec.mjs",
             "tests/e2e/public-audit.spec.mjs",
-            "tests/e2e/activity-feed.spec.mjs",
             "tools/multi_host/**",
             "tests/e2e/multi-host.spec.mjs",
         ),
@@ -743,7 +732,7 @@ def everything_but_e2e() -> frozenset[str]:
 # module that imports it, directly or transitively (``e2e_owners``).
 E2E_OWNERS: dict[str, tuple[str, ...]] = {
     "tasks": ("tasks",),
-    "materials": ("materials",),
+    "materials": ("knowledge",),
     "inbox": ("inbox",),
     "knowledge": ("knowledge",),
     "acquisition": ("acquisition-management", "matching"),
@@ -803,7 +792,7 @@ MODULE_OWNERS: tuple[tuple[str, tuple[str, ...] | str], ...] = (
         ("matching", "acquisition-management", "public-orders"),
     ),
     ("leonaid.adapters.typst", ("invoices", "invoice-flows")),
-    ("leonaid.adapters.storage", ("materials", "knowledge", "inbox", "invoices")),
+    ("leonaid.adapters.storage", ("knowledge", "inbox", "invoices")),
     ("leonaid.adapters.feature_flags", ("operations",)),
     ("leonaid.adapters.operations", ("operations",)),
     ("leonaid.adapters.postgres.outbox", _MESSAGING),

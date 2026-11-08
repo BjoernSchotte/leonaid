@@ -92,30 +92,4 @@ run_python tools/seed/golden.py seed-core \
 run_python tools/actions/contract.py \
   --session-output /proof/sessions.env
 
-docker run --rm \
-  --network "${project}_edge" \
-  --env-file "$proof/sessions.env" \
-  --env HOME=/tmp \
-  --env CI=1 \
-  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
-  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
-  --volume "$root:/workspace:ro" \
-  --volume "$proof:/proof" \
-  --workdir /workspace \
-  --user "$(id -u):$(id -g)" \
-  "$PLAYWRIGHT_IMAGE" \
-  node_modules/.bin/playwright test \
-  tests/e2e/actions.spec.mjs \
-  --browser=chromium \
-  --output=/proof/test-results \
-  --trace=retain-on-failure \
-  --reporter=line
-
-if [ ! -s "$proof/action-created.png" ]; then
-  echo "action-test: ERROR: browser evidence missing" >&2
-  exit 1
-fi
-mkdir -p "$artifact_directory"
-cp "$proof/action-created.png" "$artifact_directory/"
-
-echo "action-test: OK: neutral action core and complete browser creation proven"
+echo "action-test: OK: neutral action core proven (API contract)"

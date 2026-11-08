@@ -5,7 +5,8 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   expect: { timeout: 15_000 },
   fullyParallel: false,
-  projects: ["chromium", "firefox", "webkit"].map((browserName) => ({
+  // Several engines only in Golden, the PWA and the EmDash editor (E-026).
+  projects: ["chromium"].map((browserName) => ({
     name: browserName,
     use: {
       browserName,

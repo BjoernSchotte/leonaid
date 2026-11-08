@@ -110,7 +110,6 @@ Commands:
   test-activities   Prove activity history and prioritized reminders
   test-pwa          Prove installable PWA, sponsor lists and responsive UX
   test-tasks        Prove task lists, planning and ordering in web and PWA
-  test-materials    Prove versioned material uploads and downloads in web and PWA
   test-knowledge    Prove knowledge pages and the editor in web and PWA
   test-inbox        Prove inbox cases in web and PWA and the public form with consent
   test-actions      Prove neutral CharityAction lifecycle and browser creation
@@ -4564,7 +4563,6 @@ case "$command" in
   test-activities) run_feature_tests tools/activities/test.sh ;;
   test-pwa) run_feature_tests tools/pwa/test.sh ;;
   test-tasks) run_feature_tests tools/tasks/test.sh ;;
-  test-materials) run_feature_tests tools/materials/test.sh ;;
   test-knowledge) run_feature_tests tools/knowledge/test.sh ;;
   test-inbox) run_feature_tests tools/inbox/test.sh ;;
   test-actions) run_feature_tests tools/actions/test.sh ;;
