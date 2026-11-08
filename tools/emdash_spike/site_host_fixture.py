@@ -3,7 +3,8 @@
 ``activate``: krapfentaxi.test is an active campaign host with the published
 Krapfentaxi campaign at "/" (segment 2026); www.krapfentaxi.test redirects
 there. ``disable``: krapfentaxi.test lapses (status disabled) while Caddy
-still holds its certificate. The host check itself is proven against real
+still holds its certificate. ``reactivate``: active again, and the public
+inbox rate attempts cleared for the next round. The host check itself is proven against real
 PostgreSQL in tests/integration; here the states are set directly.
 """
 
@@ -49,12 +50,19 @@ async def main() -> None:
                     ACTION_ID,
                     SYSTEM_ID,
                 )
-        elif sys.argv[1] == "disable":
+        elif sys.argv[1] in ("disable", "reactivate"):
+            status = "disabled" if sys.argv[1] == "disable" else "active"
             await connection.execute(
-                "UPDATE site_host SET status='disabled' WHERE id=$1", HOST_ID
+                "UPDATE site_host SET status=$2 WHERE id=$1", HOST_ID, status
             )
+            if sys.argv[1] == "reactivate":
+                # The second (admin-only) round is a new visitor: the first
+                # round's public inbox attempts would trip its 5/10 min limit.
+                await connection.execute(
+                    "DELETE FROM security_rate_attempt WHERE scope = 'inbox.public.submit'"
+                )
         else:
-            raise SystemExit("usage: site_host_fixture.py activate|disable")
+            raise SystemExit("usage: site_host_fixture.py activate|disable|reactivate")
     finally:
         await connection.close()
     print(f"site-host-fixture: {sys.argv[1]}")

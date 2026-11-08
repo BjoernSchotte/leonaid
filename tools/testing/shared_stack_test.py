@@ -1,6 +1,7 @@
 """Process/lease checks; actual data reset semantics use shared_stack_live.py."""
 
 import importlib.util
+import re
 import os
 from pathlib import Path
 import shlex
@@ -85,6 +86,60 @@ class SharedStackTests(unittest.TestCase):
         subprocess.run(["mkdir", str(second.directory / "in-use")], check=True)
         self.assertTrue((first.directory / "in-use").is_dir())
         self.assertTrue((second.directory / "in-use").is_dir())
+
+
+class VerifiedResetTests(unittest.TestCase):
+    """The reset proves an empty fixture: digests must match the first restore."""
+
+    def stack(self, kind="survey"):
+        stack = module.SharedStack(ROOT, kind)
+        self.addCleanup(shutil.rmtree, stack.directory, True)
+        stack.volumes = [
+            f"{stack.project}_core-postgres-data",
+            f"{stack.project}_rustfs-data",
+            f"{stack.project}_twenty-postgres-data",
+        ]
+        return stack
+
+    def test_first_restore_records_and_a_clean_reset_matches(self):
+        stack = self.stack()
+        stack.verify_digests("0 " + "a" * 64 + "\n1 " + "b" * 64 + "\n2 " + "c" * 64)
+        stack.preserving = True
+        stack.verify_digests("0 " + "a" * 64 + "\n1 " + "b" * 64)
+
+    def test_leftover_state_refuses_the_next_check(self):
+        stack = self.stack()
+        stack.verify_digests("0 " + "a" * 64 + "\n1 " + "b" * 64 + "\n2 " + "c" * 64)
+        stack.preserving = True
+        with self.assertRaisesRegex(RuntimeError, "left state behind.*rustfs-data"):
+            stack.verify_digests("0 " + "a" * 64 + "\n1 " + "d" * 64)
+
+
+class SurveyTwentyIsolationTests(unittest.TestCase):
+    """Twenty is not reset between survey checks, so no survey check may use it."""
+
+    PATTERN = re.compile(r"twenty|crm|:3000|/rest/|/graphql", re.IGNORECASE)
+    # Credential redaction only (it names the key to remove it from logs).
+    # Subnet allocation names every Compose network, crm-data included.
+    ALLOWED = {
+        "tools/surveys/ci_failure_excerpt.py",
+        "tools/surveys/ci_failure_excerpt_test.py",
+        "tools/surveys/network_override.py",
+    }
+
+    def test_no_survey_check_or_spec_references_twenty(self):
+        paths = sorted(
+            [*ROOT.glob("tools/surveys/*"), *ROOT.glob("tests/e2e/surveys-*.spec.mjs")]
+        )
+        self.assertTrue(paths)
+        offenders = [
+            f"{path.relative_to(ROOT)}:{number}"
+            for path in paths
+            if path.is_file() and str(path.relative_to(ROOT)) not in self.ALLOWED
+            for number, line in enumerate(path.read_text().splitlines(), 1)
+            if self.PATTERN.search(line)
+        ]
+        self.assertEqual(offenders, [])
 
 
 class LeafSequenceTests(unittest.TestCase):

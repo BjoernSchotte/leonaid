@@ -25,8 +25,14 @@ async def main() -> None:
     assert len(sys.argv) <= 2 and (sys.argv[1] if len(sys.argv) == 2 else "") in files
     receipt_file = files[sys.argv[1] if len(sys.argv) == 2 else ""]
     orders = json.loads(Path(receipt_file).read_text())
-    assert len(orders) == 24
-    assert len({item["publicReference"] for item in orders}) == 24
+    # campaign-orders-browser-proof.mjs SCENARIOS: 3 engines x 2 modes x 2.
+    assert len(orders) == 12
+    assert len({item["publicReference"] for item in orders}) == 12
+    assert {(item["javaScriptEnabled"], item["scenario"]) for item in orders} == {
+        (js, scenario)
+        for js in (False, True)
+        for scenario in ("new-company", "existing-company", "person", "mixed")
+    }
     connection = await asyncpg.connect(os.environ["CORE_DATABASE_URL"], timeout=5)
     try:
         async with httpx.AsyncClient(
@@ -48,7 +54,10 @@ async def main() -> None:
             assert len(people_by_id) == len(people)
             assert len(companies_by_id) == len(companies)
             for index, item in enumerate(orders):
-                print(f"campaign-orders: verifying order {index + 1}/24", flush=True)
+                print(
+                    f"campaign-orders: verifying order {index + 1}/{len(orders)}",
+                    flush=True,
+                )
                 rows = await connection.fetch(
                     "SELECT id FROM commitment WHERE public_reference=$1",
                     item["publicReference"],
@@ -158,7 +167,12 @@ async def main() -> None:
     finally:
         await connection.close()
     print(
-        "campaign-orders: 24 browser references including six mixed-unit orders verified in Core SQL, completed idempotency receipts, lines, consent/audit and real Twenty records; twelve native POST replays created no duplicate orders"
+        f"campaign-orders: {len(orders)} browser references including "
+        f"{sum(item['scenario'] == 'mixed' for item in orders)} mixed-unit orders "
+        "verified in Core SQL, completed idempotency receipts, lines, consent/audit "
+        "and real Twenty records; "
+        f"{sum(not item['javaScriptEnabled'] for item in orders)} native POST "
+        "replays created no duplicate orders"
     )
 
 

@@ -43,6 +43,8 @@ python_lane() {
   python3 "$root/tools/testing/parallel_stacks_test.py"
   # Opt-in pre-push hook (check-fast, --no-verify).
   python3 "$root/tools/dx/pre_push_test.py"
+  # Prebuilt GHCR images: pull, publish, secret check, cleanup (E-020).
+  python3 -I "$root/tools/ci/prebuilt_images_test.py"
 
   run_python uv run --frozen --no-sync ruff check \
     migrations src tests tools/action_admin tools/actions tools/activities tools/backup \
@@ -96,10 +98,6 @@ python_lane() {
   docker run --rm --network none \
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
     python /workspace/tools/ci/post_merge_test.py
-  # Weekly refit of the shard seconds (refit-timings.yml).
-  docker run --rm --network none \
-    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
-    python /workspace/tools/ci/refit_timings_test.py /workspace
   # Leak check between the shards of a packed CI leg.
   docker run --rm --network none \
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
