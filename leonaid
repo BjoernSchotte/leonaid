@@ -1204,6 +1204,7 @@ check_python_contracts() {
 # One of $solver_shards deterministic shards (tools/dx/pytest_shard.py).
 check_solver() {
   run_python env PYTHONPATH=/workspace:/workspace/src LEONAID_PYTEST_SHARD="$1/$solver_shards" \
+    LEONAID_PYTEST_WEIGHTS=/workspace/tests/unit/test_survey_disclosure_solver.weights.json \
     uv run --frozen --no-sync pytest -q -p no:cacheprovider -p tools.dx.pytest_shard "$solver_tests"
 }
 

@@ -34,6 +34,11 @@ jobs:
   select:
     if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base)
     uses: ./.github/workflows/select-suites.yml
+    # A called workflow may not request more than its caller grants
+    # (select-suites.yml and test-fixture.yml read the Actions API).
+    permissions:
+      actions: read
+      contents: read
 
   contract:
     name: Generated client against real API
@@ -45,13 +50,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # The toolchain bootstrap and the Twenty image pull (the contract stack
+      # starts Twenty; about 50 s of pulls otherwise) run beside the import.
       - name: Reuse persistent Core build layers
         uses: ./.github/actions/build-cache
         with:
           targets: api
-
-      - name: Bootstrap locked Docker toolchains
-        run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
+          bootstrap: seed
 
       - name: Generate, typecheck and run real contract
         run: ./tools/openapi/test.sh "$PWD"

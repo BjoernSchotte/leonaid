@@ -1,8 +1,8 @@
 name: Survey acceptance
 # The nightly run (recovery shards and backup proofs) is the only one with
 # those checks; its own name lets nightly-watchdog.yml track it apart from
-# the 3-hourly runs.
-run-name: ${{ github.event.schedule == '17 1 * * *' && 'Survey acceptance nightly (recovery and backup)' || github.event.schedule == '47 */3 * * *' && 'Survey acceptance main every 3 hours' || github.event.pull_request.title || github.workflow }}
+# the post-merge runs.
+run-name: ${{ github.event.schedule == '17 1 * * *' && 'Survey acceptance nightly (recovery and backup)' || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'Survey acceptance post-merge' || github.event.pull_request.title || github.workflow }}
 
 on:
   pull_request:
@@ -10,6 +10,9 @@ on:
     # converted_to_draft cancels the running one. edited: a base change (a
     # stacked PR retargeted to main) runs the normal selection; a title or
     # body edit runs no job and its gate mirrors the commit's real result.
+    # Survey shards are post-merge suites (decision E-018): a pull request
+    # runs them only with the full-ci label; adding it starts that run now,
+    # any other label change mirrors like a title edit.
     types:
       [
         opened,
@@ -18,12 +21,18 @@ on:
         ready_for_review,
         converted_to_draft,
         edited,
+        labeled,
+        unlabeled,
       ]
-  # No run per push to main: the 3-hourly schedule runs the PR selection
-  # on main, the nightly one the recovery shards and backup proofs.
+  # Post-merge: every push to main runs the PR shards when survey inputs
+  # changed since the last green run there; post-merge runs are never
+  # cancelled (E-019). The nightly schedule runs the recovery shards and
+  # backup proofs.
+  push:
+    branches:
+      - main
   schedule:
     - cron: "17 1 * * *"
-    - cron: "47 */3 * * *"
   workflow_dispatch:
     inputs:
       suite:
@@ -36,13 +45,44 @@ permissions:
   contents: read
 
 concurrency:
-  group: survey-acceptance-${{ github.event_name }}-${{ github.ref }}-${{ github.event.schedule }}${{ ((github.event.action == 'edited' && !github.event.changes.base) || (github.event.pull_request.draft && github.event.action != 'converted_to_draft')) && format('-mirror-{0}', github.run_id) || '' }}
+  group: survey-acceptance-${{ github.event_name }}-${{ github.ref }}-${{ github.event.schedule }}${{ ((github.event.action == 'edited' && !github.event.changes.base) || (github.event.action == 'labeled' && github.event.label.name != 'full-ci') || github.event.action == 'unlabeled' || (github.event.pull_request.draft && github.event.action != 'converted_to_draft')) && format('-mirror-{0}', github.run_id) || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   select:
-    if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base)
+    if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
     uses: ./.github/workflows/select-suites.yml
+    # actions: read finds the last green run on main for the post-merge diff.
+    permissions:
+      actions: read
+      contents: read
+    with:
+      post-merge: true
+
+  hold:
+    # Adding full-ci: the gate turns red on the head commit at once, so the
+    # green fast gate cannot be merged while the complete run is pending;
+    # only that run's gate (or a later push's) replaces it (E-019,
+    # tools/ci/hold_gate.py).
+    if: github.event.action == 'labeled' && github.event.label.name == 'full-ci' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
+    name: Hold the gate for full-ci
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      checks: write
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: tools/ci
+          persist-credentials: false
+      - name: Put a red gate on the head commit until the complete run reports
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GATE_NAME: Survey gate
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 tools/ci/hold_gate.py
 
   fixture:
     needs: select
@@ -134,7 +174,7 @@ jobs:
       # tools/ci/sanitize_artifacts.py; a check with personal data is withheld.
       - name: Print sanitized failure excerpts
         if: failure()
-        # Its self-test runs in "Lint, types and unit" (tools/ci/lint-types.sh).
+        # Its self-test runs in "Lint and types" (tools/ci/lint-types.sh).
         run: sudo --preserve-env=LEONAID_CI_FIXTURE python3 tools/surveys/ci_failure_excerpt.py . "$RUNNER_TEMP/surveys-ci-results/failure-excerpts.json"
       - name: Publish structured results and sanitized excerpts
         if: always()
@@ -185,8 +225,9 @@ jobs:
           retention-days: 14
 
   gate:
-    # The one required check of this workflow (branch protection and merge
-    # queue): tools/ci/gate.py.
+    # The one required check of this workflow (repository ruleset):
+    # tools/ci/gate.py. In the fast tier it requires the selector and no
+    # shard; full-ci, post-merge and nightly runs require every shard.
     name: Survey gate
     needs: [select, fixture, inventory, surveys, backup-recovery]
     if: ${{ always() }}
@@ -210,11 +251,14 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           EVENT_ACTION: ${{ github.event.action }}
           BASE_CHANGED: ${{ toJSON(github.event.changes.base) != 'null' }}
+          LABEL: ${{ github.event.label.name }}
           DRAFT: ${{ github.event.pull_request.draft == true }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           STACK_BASE: ${{ github.base_ref }}
           GATE_NAME: Survey gate
+          # A fast run never satisfies the gate while the PR carries full-ci.
+          FULL_CI_GATE: "true"
         # backup-recovery runs only nightly or on dispatch; when it runs it
         # must pass.
         run: >-

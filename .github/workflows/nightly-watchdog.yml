@@ -1,10 +1,13 @@
 name: Nightly watchdog
 
-# Scheduled runs on main have no pull request that shows their result. This
-# keeps one open issue per scheduled workflow while its latest scheduled run
-# on main is not green or is overdue, and closes it after a green run.
+# Scheduled and post-merge runs on main have no pull request that shows
+# their result. This keeps one open issue per watched entry while its latest
+# run on main is not green (or a schedule is overdue), and closes it after a
+# green run. Post-merge entries (ci.yml, surveys.yml: the heavy suites after
+# every merge, decision E-018) ignore cancelled, superseded runs.
 # Documentation publication has its own watchdog (docs-watchdog.yml).
-# tools/ci/workflow_contract.py requires every other scheduled workflow here.
+# tools/ci/workflow_contract.py requires every other scheduled workflow and
+# every post-merge workflow here.
 on:
   workflow_run:
     workflows:
@@ -32,19 +35,24 @@ concurrency:
 jobs:
   monitor:
     name: Alert or resolve scheduled failures
-    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.event == 'schedule' && github.event.workflow_run.head_branch == 'main') }}
+    if: ${{ github.event_name != 'workflow_run' || ((github.event.workflow_run.event == 'schedule' || github.event.workflow_run.event == 'push') && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
       GH_TOKEN: ${{ github.token }}
-      # workflow file:maximum hours since its last scheduled run on main.
       # workflow file:maximum hours since its last scheduled run on main
-      # [:word the run title must contain]. ci.yml and surveys.yml run on
-      # main every 3 hours (no push runs); their nightly runs (ci.yml: every
-      # E2E leaf; surveys.yml: recovery and backup) are tracked on their own.
-      # Runs after every completed scheduled run (workflow_run), not daily.
-      WATCHED: "ci.yml:8 ci.yml:30:nightly surveys.yml:8 surveys.yml:30:nightly pin-drift.yml:30 pins.yml:192 refit-timings.yml:192"
+      # [:word the run title must contain], or workflow file:push for the
+      # latest post-merge run on main (no age limit: main may see no merge
+      # for days). ci.yml and surveys.yml run after every merge; their
+      # nightly runs (ci.yml: every E2E leaf; surveys.yml: recovery and
+      # backup) are tracked on their own. Runs after every completed
+      # scheduled or post-merge run (workflow_run), and daily.
+      WATCHED: "ci.yml:push ci.yml:30:nightly surveys.yml:push surveys.yml:30:nightly pin-drift.yml:30 pins.yml:192 refit-timings.yml:192"
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: tools/ci
+          persist-credentials: false
       - name: Check the latest scheduled run of each workflow and maintain alerts
         run: |
           set -eu
@@ -55,18 +63,28 @@ jobs:
             hours=${rest%%:*}
             word=
             label=$workflow
-            if [ "$rest" != "$hours" ]; then
+            event=schedule
+            kind=scheduled
+            if [ "$rest" = push ]; then
+              # Post-merge: the newest run that was not superseded.
+              event=push
+              kind=post-merge
+              hours=
+              label="$workflow (post-merge)"
+            elif [ "$rest" != "$hours" ]; then
               word=${rest#*:}
               label="$workflow ($word)"
             fi
-            title="[nightly-watchdog] $label scheduled run needs attention"
-            latest=$(WORD="$word" gh api \
-              "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?branch=main&event=schedule&status=completed&per_page=30" \
-              --jq '[.workflow_runs[] | select(env.WORD == "" or (.display_title | contains(env.WORD)))][0] // empty | [.id, .conclusion, .created_at, .html_url] | @tsv')
+            title="[nightly-watchdog] $label $kind run needs attention"
+            # tools/ci/post_merge.py latest (tested in post_merge_test.py):
+            # post-merge entries skip cancelled runs.
+            latest=$(gh api \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?branch=main&event=$event&status=completed&per_page=30" |
+              python3 tools/ci/post_merge.py latest --event "$event" --word "$word")
             problem=
             if [ -z "$latest" ]; then
               # A newly added schedule has nothing to report yet.
-              echo "nightly-watchdog: $label has no completed scheduled run on main yet"
+              echo "nightly-watchdog: $label has no completed $kind run on main yet"
               continue
             fi
             id=$(printf '%s' "$latest" | cut -f1)
@@ -77,9 +95,9 @@ jobs:
               failed=$(gh api --paginate \
                 "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100" \
                 --jq '.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out") | "- " + .name')
-              problem=$(printf 'The scheduled run %s of %s on main ended with %s (started %s).\n\nFailed jobs:\n%s' \
-                "$url" "$label" "$conclusion" "$created" "${failed:-- none reported}")
-            elif [ "$(( now - $(date -u -d "$created" +%s) ))" -gt "$(( hours * 3600 ))" ]; then
+              problem=$(printf 'The %s run %s of %s on main ended with %s (started %s).\n\nFailed jobs:\n%s' \
+                "$kind" "$url" "$label" "$conclusion" "$created" "${failed:-- none reported}")
+            elif [ -n "$hours" ] && [ "$(( now - $(date -u -d "$created" +%s) ))" -gt "$(( hours * 3600 ))" ]; then
               problem="The last scheduled run of $label on main ($url, $created) is older than $hours hours; the schedule may have stopped."
             fi
 
@@ -89,7 +107,7 @@ jobs:
               gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" \
                 --body "$problem
 
-          This issue closes itself after the next green scheduled run of $label on main."
+          This issue closes itself after the next green $kind run of $label on main."
             elif [ -n "$problem" ]; then
               # One comment per failed run: skip a run this issue already reports.
               reported=$({
@@ -101,6 +119,6 @@ jobs:
               fi
             elif [ -n "$issue" ]; then
               gh issue close "$issue" --repo "$GITHUB_REPOSITORY" \
-                --comment "The latest scheduled run of $label on main is green again: $url"
+                --comment "The latest $kind run of $label on main is green again: $url"
             fi
           done

@@ -19,7 +19,9 @@ sys.path.insert(0, str(HERE.parents[1]))
 
 from tools.ci import flake_summary  # noqa: E402
 from tools.ci import gate  # noqa: E402
+from tools.ci import hold_gate  # noqa: E402
 from tools.ci import rerun_stale_gates  # noqa: E402
+from tools.ci import select_suites  # noqa: E402
 
 FAILURES: list[str] = []
 
@@ -386,6 +388,134 @@ def test_pull_request_context() -> None:
         expect(decision is expected, f"mirror {runs} real={real}: {decision}")
         if not expected:
             expect("supersedes" in message, f"fail-fast message: {message}")
+    # Label changes: adding full-ci is a real (complete) run; any other label
+    # change, and every removal, mirrors the commit's real gate.
+    expect(
+        gate.pull_request_context(
+            {**base_env, "EVENT_ACTION": "labeled", "LABEL": "full-ci"}, {}, never
+        )
+        == (None, ""),
+        "adding full-ci evaluates the complete run normally",
+    )
+    for action, label in (
+        ("labeled", "documentation"),
+        ("labeled", ""),
+        ("unlabeled", "full-ci"),
+        ("unlabeled", "x"),
+    ):
+        label_env = {**edit, "EVENT_ACTION": action, "LABEL": label}
+        for conclusion, expected in (("success", True), ("failure", False)):
+            decision, message = gate.pull_request_context(
+                label_env, {}, api([check_run(5, "completed", conclusion, "t")], {5})
+            )
+            expect(
+                decision is expected and "label change" in message,
+                f"{action} {label!r} mirrors the real {conclusion}: {decision} {message}",
+            )
+        decision, _ = gate.pull_request_context(label_env, {}, api([], set()))
+        expect(decision is False, f"{action} {label!r} without a real gate fails fast")
+    expect(
+        gate.FULL_CI_LABEL == select_suites.FULL_CI_LABEL,
+        "gate.py and select_suites.py agree on the full-ci label",
+    )
+    # E-019 H1: full-ci added after a green fast gate. The hold check
+    # (tools/ci/hold_gate.py) is newer than the green gate and blocks; a
+    # mirror copies it as red; only the complete run's newer gate replaces it.
+    expect(gate.HOLD_TITLE == hold_gate.HOLD_TITLE, "hold titles agree")
+    # N1: re-running an old fast run after full-ci was added must not create
+    # a green gate that lifts the hold; only the complete run counts.
+    full_env = {
+        **base_env,
+        "FULL_CI_GATE": "true",
+        "PR_NUMBER": "7",
+        "EVENT_ACTION": "synchronize",
+    }
+
+    def labels(*names: str) -> gate.Fetch:
+        def fetch(path: str) -> object:
+            assert path.endswith("/pulls/7"), path
+            return {"labels": [{"name": name} for name in names]}
+
+        return fetch
+
+    def broken(path: str) -> object:
+        raise urllib.error.URLError("down")
+
+    for env, outputs, fetch, pending, what in (
+        (full_env, {"tier": "fast"}, labels("full-ci"), True, "fast run, label set"),
+        (full_env, {}, labels("x", "full-ci"), True, "no tier output, label set"),
+        (full_env, {"tier": "fast"}, labels("x"), False, "fast run, no label"),
+        (full_env, {"tier": "full"}, labels("full-ci"), False, "the complete run"),
+        (full_env, {"tier": "fast"}, broken, True, "unreadable PR fails closed"),
+        (full_env, {"tier": "fast"}, lambda path: {}, True, "no labels field"),
+        (
+            {**full_env, "FULL_CI_GATE": ""},
+            {"tier": "fast"},
+            never,
+            False,
+            "workflows without a full tier (API contract, pins)",
+        ),
+        (
+            {**full_env, "EVENT_NAME": "push"},
+            {"tier": "post-merge"},
+            never,
+            False,
+            "post-merge runs",
+        ),
+    ):
+        expect(
+            gate.full_ci_pending(env, outputs, fetch) is pending,
+            f"full_ci_pending: {what}",
+        )
+    sent: list[tuple[str, dict[str, object]]] = []
+    hold_gate.main(
+        {
+            "GITHUB_REPOSITORY": "o/r",
+            "HEAD_SHA": "a" * 40,
+            "GATE_NAME": "CI gate",
+            "RUN_URL": "https://github.com/o/r/actions/runs/6",
+        },
+        lambda path, body: sent.append((path, dict(body))),
+    )
+    body = sent[0][1] if sent else {}
+    expect(
+        len(sent) == 1
+        and sent[0][0] == "repos/o/r/check-runs"
+        and body.get("name") == "CI gate"
+        and body.get("head_sha") == "a" * 40
+        and body.get("status") == "completed"
+        and body.get("conclusion") == "failure",
+        f"hold posts one failed gate check on the head commit: {sent}",
+    )
+    for bad in ("", "abc", "A" * 40):
+        try:
+            hold_gate.payload("CI gate", bad, "u")
+        except ValueError:
+            continue
+        FAILURES.append(f"hold accepted the SHA {bad!r}")
+    green_fast = check_run(5, "completed", "success", "t")
+    hold = {
+        "id": 60,
+        "details_url": "https://github.com/o/r/runs/60",
+        "status": "completed",
+        "conclusion": "failure",
+        "output": {"title": hold_gate.HOLD_TITLE},
+    }
+    full_gate = check_run(7, "completed", "success", "t")
+    full_red = check_run(7, "completed", "failure", "t")
+    for runs, expected, what in (
+        ([green_fast], True, "before the label: the fast gate counts"),
+        ([green_fast, hold], False, "the hold blocks after the label"),
+        ([green_fast, hold, full_gate], True, "the full run's green gate replaces it"),
+        ([green_fast, hold, full_red], False, "a red full run stays red"),
+    ):
+        decision, _ = gate.pull_request_context(edit, {}, api(runs, {5, 6, 7}))
+        expect(decision is expected, f"mirror with hold: {what}: {decision}")
+    expect(
+        gate.mirrored_result(api([green_fast, hold], {5}), "o/r", "abc", "CI gate", "9")
+        == "failure",
+        "a hold counts even though its link is no run",
+    )
     # A stacked selection never passes; a selection into main does.
     expect(
         gate.stacked_result(base_env, {"heavy": "false"}),
