@@ -11,8 +11,30 @@ host_user_id=$(id -u)
 host_group_id=$(id -g)
 
 tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+registry_pid=""
+cleanup() {
+  if [ -n "$registry_pid" ]; then
+    kill "$registry_pid" 2>/dev/null || true
+    wait "$registry_pid" 2>/dev/null || true
+  fi
+  rm -rf "$tmp"
+}
+trap cleanup EXIT HUP INT TERM
 mkdir -p "$tmp/python" "$tmp/frontend" "$tmp/syft-tmp"
+
+# The 14 pinned runtime images need nothing from the checkout. Their SBOMs
+# come straight from the registries, four at a time, beside the Python,
+# frontend and proxy SBOMs below (one after another they took 168 s with the
+# rest, run 42505220242).
+mkdir -p "$tmp/registry"
+printf '%s %s\n' \
+  python "$PYTHON_IMAGE" node "$NODE_IMAGE" twenty "$TWENTY_IMAGE" \
+  postgres "$POSTGRES_IMAGE" valkey "$VALKEY_IMAGE" rustfs "$RUSTFS_IMAGE" \
+  seaweedfs "$SEAWEEDFS_IMAGE" mailpit "$MAILPIT_IMAGE" typst "$TYPST_IMAGE" \
+  playwright "$PLAYWRIGHT_IMAGE" listmonk "$LISTMONK_IMAGE" otel "$OTEL_IMAGE" \
+  prometheus "$PROMETHEUS_IMAGE" alertmanager "$ALERTMANAGER_IMAGE" |
+  xargs -n 2 -P 4 /bin/sh "$root/tools/sbom/registry-scan.sh" "$tmp/registry" "$output" &
+registry_pid=$!
 
 cp "$root/pyproject.toml" "$root/uv.lock" "$tmp/python/"
 docker run --rm \
@@ -65,31 +87,12 @@ docker run --rm \
   "$SYFT_IMAGE" \
   docker-archive:/image/proxy.tar -o cyclonedx-json=/out/container-caddy.cdx.json
 
-python_image="$PYTHON_IMAGE"
-node_image="$NODE_IMAGE"
-twenty_image="$TWENTY_IMAGE"
-postgres_image="$POSTGRES_IMAGE"
-valkey_image="$VALKEY_IMAGE"
-rustfs_image="$RUSTFS_IMAGE"
-seaweedfs_image="$SEAWEEDFS_IMAGE"
-mailpit_image="$MAILPIT_IMAGE"
-typst_image="$TYPST_IMAGE"
-playwright_image="$PLAYWRIGHT_IMAGE"
-listmonk_image="$LISTMONK_IMAGE"
-otel_image="$OTEL_IMAGE"
-prometheus_image="$PROMETHEUS_IMAGE"
-alertmanager_image="$ALERTMANAGER_IMAGE"
-
-for system_id in python node twenty postgres valkey rustfs seaweedfs mailpit typst playwright listmonk otel prometheus alertmanager; do
-  eval "image=\${${system_id}_image}"
-  docker run --rm \
-    --user "$host_user_id:$host_group_id" \
-    -e SYFT_CACHE_DIR=/tmp/syft-cache \
-    -v "$tmp/syft-tmp:/tmp" \
-    -v "$output:/out" \
-    "$SYFT_IMAGE" \
-    "registry:$image" -o "cyclonedx-json=/out/container-$system_id.cdx.json"
-done
+if ! wait "$registry_pid"; then
+  registry_pid=""
+  echo "sbom: ERROR: a runtime image SBOM failed (log above)" >&2
+  exit 1
+fi
+registry_pid=""
 
 docker run --rm \
   -v "$output:/sbom:ro" \

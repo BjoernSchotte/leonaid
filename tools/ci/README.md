@@ -341,7 +341,7 @@ bound by CPU and I/O contention on the 4-vCPU runner, not by downloads
 |---|---|---|
 | uv/bun dependency cache | `.venv` + `node_modules` 830 MB, bootstrap 20 s alone | skipped: no faster to restore |
 | Third-party image tarball cache | images 1.7 GB (Playwright 1.0 GB), pull hidden behind bootstrap | skipped: no gain, 1.7 GB of the 10 GB cache budget |
-| GHCR CI images by content hash | saves ~20–30 s of the in-step compose build per leg | deferred: needs a public package, cleanup and #122 (`ghcr.io/bjoernschotte/leonaid-ci/<service>:<tools/testing/image_tags.py hash>` agreed) |
+| GHCR CI images by content hash | layer import 40–50 s per image job (#140) | built (E-020): see [Prebuilt CI images](#prebuilt-ci-images-ghcr) |
 | Split EmDash `krapfentaxi-orders` per browser | 3 legs ≈ 20 runner-min instead of 11, +2 jobs; wall −1 min (E2E legs are as long) | not done: every E2E leaf runs only nightly now |
 | Concurrent light shards per leg | see the peaks below | not now: CPU-bound (4 vCPU, timing-sensitive browser proofs), gain ≤ ~1 min setup per merged leg |
 
@@ -652,8 +652,8 @@ pre-build hash only if the inputs still hash the same (not in CI). A FROM or
 build secrets/ssh, symlinks leaving the context or unknown `.dockerignore`
 syntax make it build without sharing (the CLI exits non-zero). Teardown removes
 only `<project>-*` tags; the four most recently used content tags per service
-are kept (`LEONAID_IMAGE_KEEP`). CI may push the same hash as
-`ghcr.io/bjoernschotte/leonaid-ci/<service>:<hash>`.
+are kept (`LEONAID_IMAGE_KEEP`). CI pulls the same hash from
+`ghcr.io/bjoernschotte/leonaid-ci/<image>:<hash>` (see Prebuilt CI images).
 
 ## Shared package caches
 
@@ -706,6 +706,34 @@ normal cache. Reports include builder preparation/import/build/export/load time
 and a subsequent project-renamed Compose build. The latter must cache every
 Dockerfile RUN step. Full-image cases also start the real Public Node image and
 verify its HTTP readiness. No database or test stack is needed for this benchmark.
+
+## Prebuilt CI images (GHCR)
+
+Decision E-020. Images live at
+`ghcr.io/bjoernschotte/leonaid-ci/<service>:<hash>`; the hash is the content
+hash of `tools/testing/image_tags.py`.
+
+- **Pull.** Jobs with `prebuilt: true` on `.github/actions/build-cache`
+  (Build, Vulnerability gate, Security, API contract) run
+  `python3 -I tools/ci/prebuilt_images.py pull <targets>` first. It pulls
+  each image, checks its `io.leonaid.ci.content-hash` label and tags it
+  `leonaid-local/<service>:<hash>`, where the harness, `tools/ci/build.sh`
+  and the vulnerability gate reuse it (`image_tags.adopt`). Only the misses
+  go to the layer import. Every failure is a miss and is built as before.
+  Other image jobs keep the full import: some of their suites build directly
+  (`compose up --build`), which would start cold for a pulled image.
+- **Publish.** `publish-images` in `ci.yml`, after a green Build on main only,
+  is the only CI job with `packages: write`
+  (`tests/unit/test_workflow_files.py`). It pushes every image whose tag is
+  missing, after the secret check (forbidden files such as `.env`, keys and
+  `.git`; Trivy's secret scanner). The Monday nightly republishes every image
+  built without the layer cache, so OS packages stay current; CI has no image
+  age limit.
+- **Kill switch.** Repository variable `CI_PREBUILT_IMAGES=off`.
+- **Visibility.** New GHCR packages are private; the owner makes them public
+  once (package settings). Until then pulls miss.
+- **Locally** the hashes differ: a checkout with umask 002 has other file
+  modes than CI, and modes are part of the image. Local pulls would never hit.
 
 ## Runner disk budget
 

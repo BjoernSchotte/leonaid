@@ -47,7 +47,8 @@ NO_EVIDENCE = {"select", "gate", "survey-gate", "golden-journey", "flake-summary
 # matrix leg, and each summary cost a runner slot per run.
 REMOVED_SUMMARIES = ("integration", "e2e-summary", "emdash-proofs")
 # Not part of the gate: dispatch-only probes, the post-gate report and the
-# full-ci hold (it only posts a red gate check; tools/ci/hold_gate.py).
+# full-ci hold (it only posts a red gate check; tools/ci/hold_gate.py) and the
+# main-only image publication.
 OUTSIDE_GATE = {
     "gate",
     "survey-gate",
@@ -55,6 +56,8 @@ OUTSIDE_GATE = {
     "pilot-cold-rehearsal",
     "artifact-probe",
     "flake-summary",
+    # main only: publishes images, gates nothing (decision E-020).
+    "publish-images",
 }
 
 # Editor load race (PR #37) and Caddy body drain (PR #38) were only visible here.
