@@ -204,6 +204,12 @@ FAST_REQUIRED: dict[str, tuple[str, ...]] = {
         "alembic.ini",
         "tools/policy/**",
         "tools/sessions/**",
+        # Since #148 the proof borrows the prepared fixture.
+        "tools/testing/shared_stack.py",
+        "tools/testing/borrow_stack.sh",
+        "tools/testing/shared-runtime.yml",
+        ".github/workflows/test-fixture.yml",
+        ".github/actions/test-fixture/**",
         "tests/fixtures/golden/**",
         "tools/twenty/**",
         "tools/seed/**",
@@ -390,15 +396,15 @@ RULES: tuple[Rule, ...] = (
             "tests/e2e/tasks-*.spec.mjs",
             "tests/e2e/modules-tasks.spec.mjs",
         ),
-        e2e("tasks"),
+        # Its server rules are contracts in Integration / schema-outbox.
+        e2e("tasks") | integration("schema-outbox"),
         "tasks module",
     ),
     # tools/schema/test.sh also runs the tasks schema contract.
     Rule(
         ("tools/tasks/**",), e2e("tasks") | integration("schema-outbox"), "tasks proofs"
     ),
-    # Materials module: server rules only (E-026); its contracts run in
-    # Integration / schema-outbox, its upload UI in the knowledge editor.
+    # Materials module: its contracts run in Integration / schema-outbox.
     Rule(
         (
             "src/leonaid/modules/materials/**",
@@ -434,7 +440,7 @@ RULES: tuple[Rule, ...] = (
             "apps/public/src/components/PublicInbox.astro",
             "apps/public/src/lib/modules.ts",
         ),
-        e2e("inbox"),
+        e2e("inbox") | integration("schema-outbox"),
         "inbox module",
     ),
     # tools/schema/test.sh also runs the inbox schema contracts.

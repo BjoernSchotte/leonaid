@@ -214,6 +214,18 @@ async def exercise(
             headers=request_headers("own-detail"),
         )
         own.raise_for_status()
+        detail = own.json()
+        if (
+            detail["id"] != str(action_id)
+            or detail["name"] != "Quartalsaktion Frühjahr 2027"
+            or detail["status"] != "draft"
+            or detail["goal"]["unit"] != "EUR"
+            or detail["goal"]["currency"] != "EUR"
+            or len(detail["beneficiaries"]) != 2
+        ):
+            raise ContractFailure(
+                f"own detail does not read back the created action: {detail}"
+            )
         foreign = await client.get(
             f"/api/v1/actions/{action_id}",
             cookies=cookies(tokens[FELIX_ID]),
