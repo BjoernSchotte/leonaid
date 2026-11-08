@@ -276,8 +276,8 @@ Inside a leg every shard keeps its own isolation:
 
 Survey shards run in `ci.yml` (job `surveys`), one `./leonaid test-surveys
 SHARD` per job, the same command as locally (decision E-027). The checks of a
-shard share one stack; the reset between them restores and verifies every
-volume except Twenty's, which survey checks never use.
+shard share one stack without Twenty (no CRM key, decision E-031); the reset
+between them restores and verifies every volume it uses.
 
 Fast tier measured on PR #140 (wall time from the runs' creation to the last
 of the five required checks; queue at most 3 s per job):
@@ -519,8 +519,8 @@ sh tools/ci/e2e.sh acquisition
 ```
 
 Every reset compares a content digest of each restored volume with the first
-restore and refuses the next leaf on a difference; a survey stack keeps Twenty
-running and untouched. Group logs separate
+restore and refuses the next leaf on a difference; a survey stack never
+starts Twenty. Group logs separate
 initial setup, data reset and each leaf's runtime. Compare new GitHub runtimes
 on the same runner class; local warm/cold-cache measurements are not CI forecasts.
 
