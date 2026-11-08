@@ -299,6 +299,12 @@ if [ "$recovery:$orders" = true:true ]; then
   compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
   echo "recovery-orders: fresh Twenty ready before Core/CMS, matching base startup dependency"
 fi
+if [ "$recovery:$orders:$mode" = false:true:migration ]; then
+  # krapfentaxi-orders: start Twenty now, without waiting. Its first start
+  # (migrations, about 90 s) overlaps the import and editor phases; the order
+  # phase below still waits for it to be healthy before it provisions keys.
+  compose up --detach twenty-server twenty-worker
+fi
 if [ "$mode" = emdash-upgrade ]; then
   . "$root/tools/emdash_spike/emdash-upgrade-legacy.sh"
 fi

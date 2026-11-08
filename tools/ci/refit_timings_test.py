@@ -34,7 +34,7 @@ LOG = """
 2026-11-07T10:00:00Z shared-stack: tools/public_actions/test.sh 70s, exit 0
 2026-11-07T10:00:00Z shared-stack: tools/activity_feed/test.sh 40s, exit 0
 2026-11-07T10:00:00Z ci-e2e: own leaf: tools/multi_host/test.sh 90s, exit 0
-2026-11-07T10:00:00Z ci-emdash: OK: krapfentaxi-migration (300s)
+2026-11-07T10:00:00Z ci-emdash: OK: campaign-hosts (300s)
 2026-11-07T10:00:00Z ci-emdash: OK: redirect-aliases (40s)
 """
 
@@ -134,7 +134,7 @@ def main() -> int:
     expect(set(s.EMDASH_GROUPS) <= set(cases), "every EmDash group has cases")
     # The group's case list grows with emdash.sh; the log names the two cases
     # above and every further case at 10 s, so the sum stays exact.
-    extra = [c for c in cases["krapfentaxi-migration"] if f"OK: {c} (" not in LOG]
+    extra = [c for c in cases["campaign-edge"] if f"OK: {c} (" not in LOG]
     log = LOG + "".join(
         f"2026-11-07T10:00:00Z ci-emdash: OK: {c} (10s)\n" for c in extra
     )
@@ -151,7 +151,7 @@ def main() -> int:
         f"own-stack leaves count too: {seconds}",
     )
     expect(
-        seconds.get("krapfentaxi-migration") == 340 + 10 * len(extra),
+        seconds.get("campaign-edge") == 340 + 10 * len(extra),
         f"EmDash group sum: {seconds}",
     )
     expect("static" not in seconds, "an incomplete group is no timing")

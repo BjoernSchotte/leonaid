@@ -15,14 +15,18 @@ group=${1:-}
 
 case "$group" in
   krapfentaxi-orders)
+    # Also the Krapfentaxi migration proof: it runs the krapfentaxi-migration
+    # case (import, three-browser editor, published redirects) unchanged
+    # before its order phases (auth-runtime-test.sh mode migration), so that
+    # case does not run on its own in CI.
     cases=$group
     ;;
-  krapfentaxi-migration)
+  campaign-edge)
     # redirect-aliases: three-browser alias editor on /admin/actions/<id>
-    # under the strict CSP (short case, shares the browser bootstrap).
-    # campaign-hosts: a campaign on its own host through the real edge
-    # (specs/multi-domain §7, §14).
-    cases="krapfentaxi-migration redirect-aliases campaign-hosts campaign-hosts-admin-only"
+    # under the strict CSP. campaign-hosts: a campaign on its own host
+    # through the real edge (specs/multi-domain §7, §14), with and without
+    # a general public host.
+    cases="redirect-aliases campaign-hosts campaign-hosts-admin-only"
     ;;
   static)
     # Stack-free proofs (dependency pins, source fixtures, authorization
@@ -31,7 +35,7 @@ case "$group" in
     cases="dependencies krapfentaxi-source authorization-inventory release-manifest-compatibility release-legacy-boundary release-image-identity closed-runtime proxy-routing"
     ;;
   *)
-    echo "ci-emdash: ERROR: group krapfentaxi-orders|krapfentaxi-migration|static required" >&2
+    echo "ci-emdash: ERROR: group krapfentaxi-orders|campaign-edge|static required" >&2
     exit 64
     ;;
 esac

@@ -232,7 +232,7 @@ bootstrap, fixture restore and image pulls before its first test. Most of the
 | Vulnerability gate | 1 | Own images built and scanned with the checkout, both lockfiles and every pinned third-party image; four Trivy lanes on one read-only advisory snapshot |
 | `Integration / <shards>` | 4 | All Integration shards and Contract |
 | `E2E / <leaves>` | 4 | All E2E leaves |
-| `EmDash proof / <groups>` | 2 | `krapfentaxi-orders`; `krapfentaxi-migration` + `static` |
+| `EmDash proof / <groups>` | 2 | `krapfentaxi-orders`; `campaign-edge` + `static` |
 | Golden installation | 2 | Prepared and fresh installation (must stay separate runners) |
 | Golden journey, CI gate | 1 + 1 | Result comparison; the required check |
 
@@ -438,12 +438,12 @@ The optional campaign site (Compose profile `emdash`) has its own proof cases
 in them: an EmDash editor load race (PR #37) and a Caddy body-drain regression
 (PR #38). PR and main CI therefore run `tools/ci/emdash.sh` in the
 `EmDash proof / <groups>` matrix, gated by `CI gate`. Two legs
-(`EMDASH_BINS`): `krapfentaxi-orders` alone, `krapfentaxi-migration` with `static`.
+(`EMDASH_BINS`): `krapfentaxi-orders` alone, `campaign-edge` with `static`.
 
 | Group | Cases |
 |---|---|
-| `krapfentaxi-orders` | `krapfentaxi-orders`: Krapfentaxi import, Chromium/Firefox/WebKit editor and order journeys, Core/Twenty order ingress, native order deadlines |
-| `krapfentaxi-migration` | `krapfentaxi-migration`: Krapfentaxi import with original media, three-browser editor and renderer proof, published redirects; `redirect-aliases`: Chromium/Firefox/WebKit redirect alias editor (create, disable/enable, collision, move, remove) under the strict CSP |
+| `krapfentaxi-orders` | `krapfentaxi-orders`: the whole `krapfentaxi-migration` case first (Krapfentaxi import with original media, three-browser editor and renderer proof, published redirects), then Chromium/Firefox/WebKit commerce and order journeys, Core/Twenty order ingress, native order deadlines. `krapfentaxi-migration` therefore does not run on its own. Twenty starts beside the import, not after it. |
+| `campaign-edge` | `campaign-hosts`, `campaign-hosts-admin-only`: a campaign on its own host through the real edge, with and without a general public host; `redirect-aliases`: Chromium/Firefox/WebKit redirect alias editor (create, disable/enable, collision, move, remove) under the strict CSP |
 | `static` | stack-free `dependencies`, `krapfentaxi-source`, `authorization-inventory`, `release-manifest-compatibility`, `release-legacy-boundary`, `release-image-identity`, `closed-runtime`; plus `proxy-routing` (Caddy, public and CMS only, no database) |
 
 The jobs need no prepared fixture: every case builds its own isolated stack and
@@ -455,8 +455,10 @@ workflow retries a failed case, so an intermittent failure stays red and must
 be fixed at its cause. `tools/ci/workflow_contract.py` rejects a missing group,
 a path filter, `continue-on-error` or a retry in the job.
 
-Observed GitHub runtimes (PR #40, run 42360553738): `krapfentaxi-orders`
-12–15 min, `krapfentaxi-migration` 4–6 min, `static` 1–3 min.
+Observed GitHub runtimes (post-merge run 42508593075, before the
+`campaign-edge` regrouping): `krapfentaxi-orders` 719 s, the former
+`krapfentaxi-migration` group 687 s (its own `krapfentaxi-migration` case
+204 s of it), `static` 105 s.
 `krapfentaxi-orders` is one stateful case (import, three-browser commerce
 phases, Twenty start, order journeys) and remains the longest job of the run;
 the other legs are packed to finish before it.
