@@ -2,19 +2,10 @@ name: Documentation
 
 on:
   pull_request:
-    # Drafts run nothing (their gate fails); ready_for_review starts CI,
-    # converted_to_draft cancels the running one. edited: a base change (a
-    # stacked PR retargeted to main) runs the normal selection; a title or
-    # body edit rebuilds the site (cheap) instead of mirroring.
-    types:
-      [
-        opened,
-        reopened,
-        synchronize,
-        ready_for_review,
-        converted_to_draft,
-        edited,
-      ]
+    # Only events that change what is tested; a title, label or draft
+    # change starts no run (the gate of the last run stays). A draft runs
+    # nothing and its gate fails; ready_for_review starts CI.
+    types: [opened, reopened, synchronize, ready_for_review]
   push:
     branches: [main]
   schedule:
@@ -25,9 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  # Title edits and draft runs get their own group, so re-running them
-  # (refresh-gates.yml) never cancels another run.
-  group: documentation-${{ github.ref }}${{ ((github.event.action == 'edited' && !github.event.changes.base) || (github.event.pull_request.draft && github.event.action != 'converted_to_draft')) && format('-mirror-{0}', github.run_id) || '' }}
+  group: documentation-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -43,9 +32,8 @@ jobs:
     steps:
       - name: Refuse a draft
         # Drafts run nothing; a red required check cannot be mistaken for a
-        # result after ready_for_review (a draft cannot be merged anyway).
-        # The current state comes from the API: refresh-gates.yml re-runs
-        # this run once the pull request is ready, and then it builds.
+        # result after ready_for_review (a draft cannot be merged anyway);
+        # ready_for_review starts a new run, which builds.
         if: github.event.pull_request.draft == true
         env:
           GH_TOKEN: ${{ github.token }}
