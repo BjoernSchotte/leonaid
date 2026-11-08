@@ -32,7 +32,6 @@ class RegressionIsolationTests(unittest.TestCase):
     def test_collision_and_inventory_failure_do_not_clean_other_resources(self):
         root = Path(__file__).resolve().parents[2]
         for suite in (
-            "compose/test.sh",
             "surveys/infrastructure.sh",
             "surveys/restic_recovery.sh",
             "schema/test.sh",

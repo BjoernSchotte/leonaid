@@ -381,11 +381,11 @@ def main() -> int:
         and sorted([x for leg in legs for x in leg] + deferred) == sorted(every),
         f"fast legs keep the budget and lose nothing: {legs} {deferred}",
     )
-    compose = pr("tools/compose/test.sh")
+    core = pr("tools/core/smoke.py")
     expect(
-        compose.integration_units() == ["profiles"]
-        and "integration:compose" in compose.deferred,
-        f"a long shard runs after the merge: {compose.integration_bins()}",
+        core.integration_units() == []
+        and "integration:seed-reset" in core.deferred,
+        f"a long shard runs after the merge: {core.integration_bins()}",
     )
     # E-019: the authorization negative contract stays before the merge for
     # every change that reaches what it guards, in a leg of its own.
@@ -638,8 +638,8 @@ def main() -> int:
         )
     expect(set(s.EMDASH_SECONDS) == set(s.EMDASH_GROUPS), "EMDASH_SECONDS")
     expect(
-        s.leg_estimate("integration", ["compose", "policy"], s.INTEGRATION_SECONDS)
-        == s.LEG_SETUP_SECONDS + 2 * s.SHARD_SETUP_SECONDS["integration"] + 300 + 75,
+        s.leg_estimate("integration", ["seed-reset", "policy"], s.INTEGRATION_SECONDS)
+        == s.LEG_SETUP_SECONDS + 2 * s.SHARD_SETUP_SECONDS["integration"] + 330 + 75,
         "Integration estimates count a stack boot per shard",
     )
     original = dict(s.E2E_SECONDS)

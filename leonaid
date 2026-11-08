@@ -1032,7 +1032,7 @@ check_clean_tree() {
 # Python sources linted by ruff (plus tests) and typed by mypy.
 python_source_paths="migrations src tools/action_admin tools/actions tools/commitments tools/delivery
   tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/mail_relay
-  tools/backup tools/ci tools/compose/persistence_probe.py tools/core
+  tools/backup tools/ci tools/core
   tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/openapi tools/outbox
   tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_install tools/pilot_release tools/release tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage tools/tasks tools/materials tools/knowledge tools/inbox
   tools/pilot_readiness
@@ -4534,8 +4534,8 @@ case "$command" in
   dev) dev ;;
   test-integration)
     require_docker
-    /bin/sh "$root/tools/compose/test.sh" "$root"
     /bin/sh "$root/tools/seed/test.sh" "$root"
+    python3 "$root/tools/testing/shared_stack.py" core tools/compose/profiles.sh
     /bin/sh "$root/tools/schema/test.sh" "$root"
     /bin/sh "$root/tools/outbox/test.sh" "$root"
     /bin/sh "$root/tools/mail_relay/test.sh" "$root"
