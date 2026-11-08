@@ -391,6 +391,10 @@ jobs:
           bootstrap: toolchains
           # Every own image, the campaign site included.
           targets: build
+          # vulnerability-scan.sh reuses shared tags (prebuilt_images.py adopt).
+          # Kill switch for every prebuilt pull: repository variable
+          # CI_PREBUILT_IMAGES=off (decision E-020).
+          prebuilt: ${{ vars.CI_PREBUILT_IMAGES != 'off' }}
       - name: Bootstrap locked Docker toolchains
         if: inputs.cold_run == true
         run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
@@ -438,6 +442,8 @@ jobs:
         uses: ./.github/actions/build-cache
         with:
           bootstrap: toolchains
+          # The stack test borrows a shared_stack.py stack (shared tags).
+          prebuilt: ${{ vars.CI_PREBUILT_IMAGES != 'off' }}
       - name: Bootstrap locked Docker toolchains
         if: inputs.cold_run == true
         run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
@@ -496,6 +502,8 @@ jobs:
           # branches (pins/repin-images) only read: their
           # layers would evict main's from the 10 GB budget.
           write: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && 'true' || 'false' }}
+          # tools/ci/build.sh reuses shared tags; a cache write bakes all.
+          prebuilt: ${{ vars.CI_PREBUILT_IMAGES != 'off' }}
       - name: Bootstrap locked Docker toolchains
         if: inputs.cold_run == true
         run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
@@ -511,6 +519,74 @@ jobs:
           path: .artifacts/ci/build
           if-no-files-found: error
           retention-days: 14
+
+  publish-images:
+    # Prebuilt CI images (decision E-020): only runs on main publish, after a
+    # green Build; pull requests only pull (.github/actions/build-cache). Each
+    # image whose content-hash tag is missing is pushed after the secret
+    # check. The Monday nightly rebuilds and republishes every image without
+    # the layer cache, so OS packages stay current; CI has no image age limit.
+    needs: [select, build]
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.build.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.CI_PREBUILT_IMAGES != 'off' && inputs.cold_run != true && inputs.artifact_probe != true }}
+    name: Publish prebuilt images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    # packages: write only here and in release.yml (test_workflow_files.py).
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Start freeing runner disk from unused toolchains
+        run: sh tools/ci/free-runner-disk.sh start
+      - name: Log in to the GitHub Container Registry
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Choose the images to publish
+        id: plan
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = schedule ] && [ "$(date -u +%u)" = 1 ]; then
+            echo "uncached=true" >> "$GITHUB_OUTPUT"
+            python3 -I tools/ci/prebuilt_images.py plan --all build
+          else
+            python3 -I tools/ci/prebuilt_images.py plan build
+          fi
+      - id: builder
+        if: steps.plan.outputs.targets != ''
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        with:
+          cleanup: false
+      - name: Build the images with the hash label
+        if: steps.plan.outputs.targets != ''
+        uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7.3.0
+        env:
+          CACHE_WRITE: "false"
+          CACHE_READ: "true"
+          DOCKER_BUILD_RECORD_UPLOAD: "false"
+          DOCKER_BUILD_SUMMARY: "false"
+        with:
+          source: .
+          files: |
+            tools/ci/docker-bake.hcl
+            ${{ steps.plan.outputs.override }}
+          targets: ${{ steps.plan.outputs.targets }}
+          load: true
+          no-cache: ${{ steps.plan.outputs.uncached == 'true' }}
+          github-token: ${{ github.token }}
+      - name: Finish freeing runner disk
+        run: sh tools/ci/free-runner-disk.sh wait
+      - name: Check each image for secrets and push it
+        if: steps.plan.outputs.targets != ''
+        env:
+          OVERRIDE: ${{ steps.plan.outputs.override }}
+        run: python3 -I tools/ci/prebuilt_images.py publish "$OVERRIDE"
+      - name: Remove the registry login
+        if: always()
+        run: docker logout ghcr.io
 
   golden-parts:
     needs: [select, fixture]

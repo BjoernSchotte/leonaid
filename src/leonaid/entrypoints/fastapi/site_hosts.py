@@ -10,12 +10,10 @@ from datetime import date, datetime
 from typing import Literal, cast
 from uuid import UUID
 
-import asyncio
-import time
 from datetime import timezone
 
 from fastapi import APIRouter, Query, Request, Response
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import PlainTextResponse
 from pydantic import Field
 
 from leonaid.application.identity import IdentityQueryService
@@ -37,7 +35,6 @@ from leonaid.application.site_hosts import (
     UnbindEdition,
 )
 from leonaid.adapters.postgres.site_directory import AsyncpgSiteDirectory
-from leonaid.adapters.site_host_checks import public_resolvers_reachable
 from leonaid.adapters.postgres.site_host_verification import (
     AsyncpgSiteHostVerification,
 )
@@ -510,42 +507,6 @@ async def host_check_answer(
             token,
             nonce,
         ),
-        headers={"Cache-Control": "no-store"},
-    )
-
-
-@infrastructure_router.get("/health/site-host-dns")
-async def site_host_dns(request: Request) -> Response:
-    """Outbound DNS to the public resolvers of the host check (pilot doctor).
-
-    Cached 60 s: the path is public (/api/health/*) and must not turn the
-    API into a DNS amplifier.
-    """
-    state = request.app.state
-    if not hasattr(state, "site_host_dns_lock"):
-        state.site_host_dns_lock = asyncio.Lock()
-    # One probe at a time; concurrent callers wait for it (single flight).
-    async with state.site_host_dns_lock:
-        cached = getattr(state, "site_host_dns_cache", None)
-        if cached is None or time.monotonic() - cached[0] > 60:
-            settings = state.host_check_settings
-            reachable = await public_resolvers_reachable(
-                settings.public_resolvers, settings.edge_name or "example.org"
-            )
-            cached = (time.monotonic(), reachable)
-            state.site_host_dns_cache = cached
-    reachable = cached[1]
-    status = (
-        "off"
-        if not reachable
-        else "ready"
-        if all(reachable.values())
-        else "unavailable"
-    )
-    # Status only: the resolver addresses are configuration, not public.
-    return JSONResponse(
-        {"status": status},
-        status_code=503 if status == "unavailable" else 200,
         headers={"Cache-Control": "no-store"},
     )
 

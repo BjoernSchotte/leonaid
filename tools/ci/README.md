@@ -232,7 +232,7 @@ bootstrap, fixture restore and image pulls before its first test. Most of the
 | Vulnerability gate | 1 | Own images built and scanned with the checkout, both lockfiles and every pinned third-party image; four Trivy lanes on one read-only advisory snapshot |
 | `Integration / <shards>` | 4 | All Integration shards and Contract |
 | `E2E / <leaves>` | 4 | All E2E leaves |
-| `EmDash proof / <groups>` | 2 | `krapfentaxi-orders`; `krapfentaxi-migration` + `static` |
+| `EmDash proof / <groups>` | 3 | `krapfentaxi-orders`; `krapfentaxi-deadlines`; `campaign-edge` + `static` |
 | Golden installation | 2 | Prepared and fresh installation (must stay separate runners) |
 | Golden journey, CI gate | 1 + 1 | Result comparison; the required check |
 
@@ -360,7 +360,7 @@ bound by CPU and I/O contention on the 4-vCPU runner, not by downloads
 |---|---|---|
 | uv/bun dependency cache | `.venv` + `node_modules` 830 MB, bootstrap 20 s alone | skipped: no faster to restore |
 | Third-party image tarball cache | images 1.7 GB (Playwright 1.0 GB), pull hidden behind bootstrap | skipped: no gain, 1.7 GB of the 10 GB cache budget |
-| GHCR CI images by content hash | saves ~20–30 s of the in-step compose build per leg | deferred: needs a public package, cleanup and #122 (`ghcr.io/bjoernschotte/leonaid-ci/<service>:<tools/testing/image_tags.py hash>` agreed) |
+| GHCR CI images by content hash | layer import 40–50 s per image job (#140) | built (E-020): see [Prebuilt CI images](#prebuilt-ci-images-ghcr) |
 | Split EmDash `krapfentaxi-orders` per browser | 3 legs ≈ 20 runner-min instead of 11, +2 jobs; wall −1 min (E2E legs are as long) | not done: every E2E leaf runs only nightly now |
 | Concurrent light shards per leg | see the peaks below | not now: CPU-bound (4 vCPU, timing-sensitive browser proofs), gain ≤ ~1 min setup per merged leg |
 
@@ -431,13 +431,15 @@ The optional campaign site (Compose profile `emdash`) has its own proof cases
 (`./leonaid test-emdash-spike --case <name>`). Two regressions were only visible
 in them: an EmDash editor load race (PR #37) and a Caddy body-drain regression
 (PR #38). PR and main CI therefore run `tools/ci/emdash.sh` in the
-`EmDash proof / <groups>` matrix, gated by `CI gate`. Two legs
-(`EMDASH_BINS`): `krapfentaxi-orders` alone, `krapfentaxi-migration` with `static`.
+`EmDash proof / <groups>` matrix, gated by `CI gate`. Three legs
+(`EMDASH_BINS`): `krapfentaxi-orders` alone, `krapfentaxi-deadlines` alone,
+`campaign-edge` with `static`.
 
 | Group | Cases |
 |---|---|
-| `krapfentaxi-orders` | `krapfentaxi-orders`: Krapfentaxi import, Chromium/Firefox/WebKit editor and order journeys, Core/Twenty order ingress, native order deadlines |
-| `krapfentaxi-migration` | `krapfentaxi-migration`: Krapfentaxi import with original media, three-browser editor and renderer proof, published redirects; `redirect-aliases`: Chromium/Firefox/WebKit redirect alias editor (create, disable/enable, collision, move, remove) under the strict CSP |
+| `krapfentaxi-orders` | `krapfentaxi-orders-commerce`, the commerce half of `krapfentaxi-orders`: the whole `krapfentaxi-migration` case first (Krapfentaxi import with original media, three-browser editor and renderer proof, published redirects), then Chromium/Firefox/WebKit commerce phases, twelve order journeys (every scenario at least once per mode, every engine twice per mode) with Core/Twenty verification, valid order ingress. `krapfentaxi-migration` therefore does not run on its own. |
+| `krapfentaxi-deadlines` | `krapfentaxi-orders-deadlines`, the deadline half on its own stack: import, WebKit editor publication (the state the order proofs read), native and script order deadlines, partial CRM write, Caddy body deadlines. |
+| `campaign-edge` | `campaign-hosts`: a campaign on its own host through the real edge, with and then (same stack, apps recreated) without a general public host; `redirect-aliases`: Chromium/Firefox/WebKit redirect alias editor (create, disable/enable, collision, move, remove) under the strict CSP |
 | `static` | stack-free `dependencies`, `krapfentaxi-source`, `authorization-inventory`, `release-manifest-compatibility`, `release-legacy-boundary`, `release-image-identity`, `closed-runtime`; plus `proxy-routing` (Caddy, public and CMS only, no database) |
 
 The jobs need no prepared fixture: every case builds its own isolated stack and
@@ -449,11 +451,13 @@ workflow retries a failed case, so an intermittent failure stays red and must
 be fixed at its cause. `tools/ci/workflow_contract.py` rejects a missing group,
 a path filter, `continue-on-error` or a retry in the job.
 
-Observed GitHub runtimes (PR #40, run 42360553738): `krapfentaxi-orders`
-12–15 min, `krapfentaxi-migration` 4–6 min, `static` 1–3 min.
-`krapfentaxi-orders` is one stateful case (import, three-browser commerce
-phases, Twenty start, order journeys) and remains the longest job of the run;
-the other legs are packed to finish before it.
+Observed GitHub runtimes (post-merge run 42508593075, before the
+`campaign-edge` regrouping): `krapfentaxi-orders` 719 s, the former
+`krapfentaxi-migration` group 687 s (its own `krapfentaxi-migration` case
+204 s of it), `static` 105 s.
+Both halves start Twenty beside the import (`compose up --detach`) and wait
+for it only before the order phases. Locally `--case krapfentaxi-orders`
+still runs both halves on one stack.
 
 The jobs import the `emdash` BuildKit group; the Build job also exports the
 `campaign-site` cache. On failure the harness stores `compose ps` and the
@@ -684,8 +688,8 @@ pre-build hash only if the inputs still hash the same (not in CI). A FROM or
 build secrets/ssh, symlinks leaving the context or unknown `.dockerignore`
 syntax make it build without sharing (the CLI exits non-zero). Teardown removes
 only `<project>-*` tags; the four most recently used content tags per service
-are kept (`LEONAID_IMAGE_KEEP`). CI may push the same hash as
-`ghcr.io/bjoernschotte/leonaid-ci/<service>:<hash>`.
+are kept (`LEONAID_IMAGE_KEEP`). CI pulls the same hash from
+`ghcr.io/bjoernschotte/leonaid-ci/<image>:<hash>` (see Prebuilt CI images).
 
 ## Shared package caches
 
@@ -738,6 +742,34 @@ normal cache. Reports include builder preparation/import/build/export/load time
 and a subsequent project-renamed Compose build. The latter must cache every
 Dockerfile RUN step. Full-image cases also start the real Public Node image and
 verify its HTTP readiness. No database or test stack is needed for this benchmark.
+
+## Prebuilt CI images (GHCR)
+
+Decision E-020. Images live at
+`ghcr.io/bjoernschotte/leonaid-ci/<service>:<hash>`; the hash is the content
+hash of `tools/testing/image_tags.py`.
+
+- **Pull.** Jobs with `prebuilt: true` on `.github/actions/build-cache`
+  (Build, Vulnerability gate, Security, API contract) run
+  `python3 -I tools/ci/prebuilt_images.py pull <targets>` first. It pulls
+  each image, checks its `io.leonaid.ci.content-hash` label and tags it
+  `leonaid-local/<service>:<hash>`, where the harness, `tools/ci/build.sh`
+  and the vulnerability gate reuse it (`image_tags.adopt`). Only the misses
+  go to the layer import. Every failure is a miss and is built as before.
+  Other image jobs keep the full import: some of their suites build directly
+  (`compose up --build`), which would start cold for a pulled image.
+- **Publish.** `publish-images` in `ci.yml`, after a green Build on main only,
+  is the only CI job with `packages: write`
+  (`tests/unit/test_workflow_files.py`). It pushes every image whose tag is
+  missing, after the secret check (forbidden files such as `.env`, keys and
+  `.git`; Trivy's secret scanner). The Monday nightly republishes every image
+  built without the layer cache, so OS packages stay current; CI has no image
+  age limit.
+- **Kill switch.** Repository variable `CI_PREBUILT_IMAGES=off`.
+- **Visibility.** New GHCR packages are private; the owner makes them public
+  once (package settings). Until then pulls miss.
+- **Locally** the hashes differ: a checkout with umask 002 has other file
+  modes than CI, and modes are part of the image. Local pulls would never hit.
 
 ## Runner disk budget
 

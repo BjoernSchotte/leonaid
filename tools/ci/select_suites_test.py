@@ -655,7 +655,9 @@ def main() -> int:
         s.E2E_SECONDS.clear()
         s.E2E_SECONDS.update(original)
     total = sum(len(json.loads(complete[key])) for key in BINNED)
-    expect(total <= 10, f"a complete run must stay at 10 stack legs or fewer: {total}")
+    # 4 Integration + 4 E2E + 3 EmDash (krapfentaxi-orders in two halves,
+    # E-024): with Golden's 2 and the 6 stack-free jobs within 20 runners.
+    expect(total <= 11, f"a complete run must stay at 11 stack legs or fewer: {total}")
     # A small PR packs into one leg; packing is deterministic.
     small = post("tools/pwa/test.sh", "tools/tasks/test.sh")
     legs = json.loads(small.outputs()["e2e"])

@@ -43,6 +43,8 @@ python_lane() {
   python3 "$root/tools/testing/parallel_stacks_test.py"
   # Opt-in pre-push hook (check-fast, --no-verify).
   python3 "$root/tools/dx/pre_push_test.py"
+  # Prebuilt GHCR images: pull, publish, secret check, cleanup (E-020).
+  python3 -I "$root/tools/ci/prebuilt_images_test.py"
 
   run_python uv run --frozen --no-sync ruff check \
     migrations src tests tools/action_admin tools/actions tools/activities tools/backup \

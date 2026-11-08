@@ -23,10 +23,10 @@ CI_ONLY = {
     # Starts a full stack for the security leaf; covered by the test suites.
     "tools/testing/shared_stack.py": "stack runner, not a self-test",
 }
-# `python[3] <script>` with the script as /workspace/…, "$root/…", "$w/…" or
+# `python[3] [-I] <script>` with the script as /workspace/…, "$root/…", "$w/…" or
 # a repository-relative path.
 CALL = re.compile(
-    r"""(?<![\w/.-])python3?\s+(?:"?\$(?:root|w)/|/workspace/)?([\w.-]+(?:/[\w.-]+)+\.py)\b"""
+    r"""(?<![\w/.-])python3?\s+(?:-I\s+)?(?:"?\$(?:root|w)/|/workspace/)?([\w.-]+(?:/[\w.-]+)+\.py)\b"""
 )
 
 
