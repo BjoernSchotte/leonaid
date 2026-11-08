@@ -46,7 +46,7 @@ async def main() -> None:
                 "Authorization": f"Bearer {os.environ['TWENTY_INTEGRATION_API_KEY']}"
             },
         ) as twenty:
-            for engine in ("chromium", "firefox", "webkit"):
+            for engine in ("chromium",):
                 label = f"partial-{engine}-native-new-company"
                 company_name = f"Synthetic {label} GmbH"
                 before = await snapshot(core, twenty)
