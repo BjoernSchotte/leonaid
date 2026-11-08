@@ -25,8 +25,9 @@ on:
         unlabeled,
       ]
   # Post-merge: every push to main runs the PR shards when survey inputs
-  # changed since the last green run there (a newer push cancels an older
-  # run); the nightly schedule runs the recovery shards and backup proofs.
+  # changed since the last green run there; post-merge runs are never
+  # cancelled (E-019). The nightly schedule runs the recovery shards and
+  # backup proofs.
   push:
     branches:
       - main
@@ -45,7 +46,7 @@ permissions:
 
 concurrency:
   group: survey-acceptance-${{ github.event_name }}-${{ github.ref }}-${{ github.event.schedule }}${{ ((github.event.action == 'edited' && !github.event.changes.base) || (github.event.action == 'labeled' && github.event.label.name != 'full-ci') || github.event.action == 'unlabeled' || (github.event.pull_request.draft && github.event.action != 'converted_to_draft')) && format('-mirror-{0}', github.run_id) || '' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   select:
@@ -57,6 +58,31 @@ jobs:
       contents: read
     with:
       post-merge: true
+
+  hold:
+    # Adding full-ci: the gate turns red on the head commit at once, so the
+    # green fast gate cannot be merged while the complete run is pending;
+    # only that run's gate (or a later push's) replaces it (E-019,
+    # tools/ci/hold_gate.py).
+    if: github.event.action == 'labeled' && github.event.label.name == 'full-ci' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
+    name: Hold the gate for full-ci
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      checks: write
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: tools/ci
+          persist-credentials: false
+      - name: Put a red gate on the head commit until the complete run reports
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GATE_NAME: Survey gate
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 tools/ci/hold_gate.py
 
   fixture:
     needs: select

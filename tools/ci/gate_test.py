@@ -19,6 +19,7 @@ sys.path.insert(0, str(HERE.parents[1]))
 
 from tools.ci import flake_summary  # noqa: E402
 from tools.ci import gate  # noqa: E402
+from tools.ci import hold_gate  # noqa: E402
 from tools.ci import rerun_stale_gates  # noqa: E402
 from tools.ci import select_suites  # noqa: E402
 
@@ -416,6 +417,59 @@ def test_pull_request_context() -> None:
     expect(
         gate.FULL_CI_LABEL == select_suites.FULL_CI_LABEL,
         "gate.py and select_suites.py agree on the full-ci label",
+    )
+    # E-019 H1: full-ci added after a green fast gate. The hold check
+    # (tools/ci/hold_gate.py) is newer than the green gate and blocks; a
+    # mirror copies it as red; only the complete run's newer gate replaces it.
+    expect(gate.HOLD_TITLE == hold_gate.HOLD_TITLE, "hold titles agree")
+    sent: list[tuple[str, dict[str, object]]] = []
+    hold_gate.main(
+        {
+            "GITHUB_REPOSITORY": "o/r",
+            "HEAD_SHA": "a" * 40,
+            "GATE_NAME": "CI gate",
+            "RUN_URL": "https://github.com/o/r/actions/runs/6",
+        },
+        lambda path, body: sent.append((path, dict(body))),
+    )
+    body = sent[0][1] if sent else {}
+    expect(
+        len(sent) == 1
+        and sent[0][0] == "repos/o/r/check-runs"
+        and body.get("name") == "CI gate"
+        and body.get("head_sha") == "a" * 40
+        and body.get("status") == "completed"
+        and body.get("conclusion") == "failure",
+        f"hold posts one failed gate check on the head commit: {sent}",
+    )
+    for bad in ("", "abc", "A" * 40):
+        try:
+            hold_gate.payload("CI gate", bad, "u")
+        except ValueError:
+            continue
+        FAILURES.append(f"hold accepted the SHA {bad!r}")
+    green_fast = check_run(5, "completed", "success", "t")
+    hold = {
+        "id": 60,
+        "details_url": "https://github.com/o/r/runs/60",
+        "status": "completed",
+        "conclusion": "failure",
+        "output": {"title": hold_gate.HOLD_TITLE},
+    }
+    full_gate = check_run(7, "completed", "success", "t")
+    full_red = check_run(7, "completed", "failure", "t")
+    for runs, expected, what in (
+        ([green_fast], True, "before the label: the fast gate counts"),
+        ([green_fast, hold], False, "the hold blocks after the label"),
+        ([green_fast, hold, full_gate], True, "the full run's green gate replaces it"),
+        ([green_fast, hold, full_red], False, "a red full run stays red"),
+    ):
+        decision, _ = gate.pull_request_context(edit, {}, api(runs, {5, 6, 7}))
+        expect(decision is expected, f"mirror with hold: {what}: {decision}")
+    expect(
+        gate.mirrored_result(api([green_fast, hold], {5}), "o/r", "abc", "CI gate", "9")
+        == "failure",
+        "a hold counts even though its link is no run",
     )
     # A stacked selection never passes; a selection into main does.
     expect(

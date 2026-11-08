@@ -79,6 +79,8 @@ def evaluate(
 
 Fetch = Callable[[str], object]
 RUN_ID = re.compile(r"/actions/runs/(\d+)/")
+# tools/ci/hold_gate.py HOLD_TITLE (gate_test.py keeps them equal).
+HOLD_TITLE = "full-ci requested: waiting for the complete run"
 
 
 def github_fetch(path: str) -> object:
@@ -129,20 +131,33 @@ def mirrored_result(
     )
     candidates = sorted(
         (
-            (int(run.get("id") or 0), match.group(1), run)
+            (int(run.get("id") or 0), match.group(1) if match else "", run)
             for run in (data.get("check_runs", []) if isinstance(data, dict) else [])
             if isinstance(run, dict)
             and run.get("status") == "completed"
-            and (match := RUN_ID.search(str(run.get("details_url", ""))))
-            and match.group(1) != own_run
+            and (
+                (match := RUN_ID.search(str(run.get("details_url", ""))))
+                or is_hold(run)
+            )
+            and (match is None or match.group(1) != own_run)
         ),
         key=lambda item: item[0],
         reverse=True,
     )
     for _, run_id, run in candidates:
+        if is_hold(run):
+            # A full-ci run is pending (tools/ci/hold_gate.py): red until
+            # its gate, which is newer, replaces the hold.
+            return "failure"
         if real_run(fetch, repository, run_id):
             return str(run.get("conclusion") or "missing")
     return "missing"
+
+
+def is_hold(run: Mapping[str, object]) -> bool:
+    """A check run tools/ci/hold_gate.py created when full-ci was added."""
+    output = run.get("output")
+    return isinstance(output, Mapping) and output.get("title") == HOLD_TITLE
 
 
 # Adding this label starts the complete suite (tools/ci/select_suites.py

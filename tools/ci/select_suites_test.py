@@ -389,6 +389,44 @@ def main() -> int:
         and "integration:compose" in compose.deferred,
         f"a long shard runs after the merge: {compose.integration_bins()}",
     )
+    # E-019: the authorization negative contract stays before the merge for
+    # every change that reaches what it guards, in a leg of its own.
+    for path in (
+        "tools/policy/contract.py",
+        "tools/sessions/test.sh",
+        "src/leonaid/domain/sessions.py",
+        "src/leonaid/entrypoints/fastapi/security.py",
+        "src/leonaid/modules/tasks/api.py",
+        "migrations/versions/0052_x.py",
+        "alembic.ini",
+    ):
+        guarded = pr(path)
+        expect(
+            guarded.integration_bins()[:1] == [["policy"]]
+            and "integration:policy" not in guarded.deferred,
+            f"{path}: Integration / policy must run before the merge, alone: "
+            f"{guarded.integration_bins()}",
+        )
+        expect(
+            "integration:policy" not in s.select("pull_request", [path], "md/x").suites,
+            f"{path}: a stacked PR runs the proof once it targets main",
+        )
+    for path in (
+        "apps/web/src/app.tsx",
+        "tools/storage/test.sh",
+        "README.md",
+        ".github/workflows/ci.yml",
+        "packages/features/src/tasks/x.tsx",
+    ):
+        expect(
+            "integration:policy" not in pr(path).suites,
+            f"{path} does not reach the authorization contract",
+        )
+    combined = pr("src/leonaid/domain/sessions.py", "tools/delivery/foundation.py")
+    expect(
+        combined.integration_bins() == [["policy"], ["delivery"]],
+        f"the required leg comes on top of the fast legs: {combined.integration_bins()}",
+    )
     openapi = pr("tools/openapi/generate.py")
     expect(
         openapi.integration_units() == ["contract"]
@@ -490,7 +528,7 @@ def main() -> int:
         and {"e2e:invoices", s.SMOKE} <= invoice_pr.deferred,
         f"a pull request defers its E2E leaves: {sorted(invoice_pr.deferred)}",
     )
-    # The full-ci label (alias full-e2e) runs the complete suite before the
+    # The full-ci label runs the complete suite before the
     # merge: every leaf, no smoke leg, every heavy suite.
     labelled = s.select("pull_request", ["apps/web/src/app.tsx"], "main", full_ci=True)
     labelled_legs = json.loads(labelled.outputs()["e2e"])
@@ -513,7 +551,8 @@ def main() -> int:
     )
     for labels, want_tier in (
         ("full-ci", "full"),
-        ("x,full-e2e", "full"),
+        ("x,full-ci", "full"),
+        ("full-e2e", "fast"),
         ("x", "fast"),
     ):
         expect(

@@ -92,6 +92,10 @@ python_lane() {
   docker run --rm --network none \
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
     python /workspace/tools/ci/gate_test.py
+  # Post-merge base lookup and the watchdog's run choice.
+  docker run --rm --network none \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/ci/post_merge_test.py
   # Weekly refit of the shard seconds (refit-timings.yml).
   docker run --rm --network none \
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \

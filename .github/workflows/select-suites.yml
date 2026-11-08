@@ -34,7 +34,10 @@ on:
         value: ${{ jobs.select.outputs.heavy }}
       tier:
         value: ${{ jobs.select.outputs.tier }}
+# The caller caps these; actions: read is needed for the Actions API
+# (runs, caches), which only answers without it for a public repository.
 permissions:
+  actions: read
   contents: read
 jobs:
   select:
@@ -70,23 +73,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           WORKFLOW_REF: ${{ github.workflow_ref }}
           SHA: ${{ github.sha }}
+        # tools/ci/post_merge.py base (tested in post_merge_test.py).
         run: |
-          workflow=${WORKFLOW_REF%%@*}
-          workflow=${workflow##*/}
-          base=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?branch=main&status=success&per_page=50" \
-            --jq '[.workflow_runs[] | select(.event == "push" or .event == "schedule" or .event == "workflow_dispatch") | select(.head_sha != env.SHA)][0].head_sha // empty') || base=
+          base=$(python3 tools/ci/post_merge.py base) || base=
           if [ -n "$base" ] && git fetch --quiet --no-tags --depth=1 origin "$base"; then
             echo "select-suites: post-merge diff since the last green run on main: $base"
             echo "sha=$base" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning title=Post-merge selection::no green run of $workflow on main found (or not fetchable); running the complete suite"
+            echo "::warning title=Post-merge selection::no green run of ${WORKFLOW_REF%%@*} on main found (or not fetchable); running the complete suite"
           fi
       - id: select
         env:
           EVENT: ${{ github.event_name }}
           # A pull request into another feature branch is a stacked PR.
           BASE_REF: ${{ github.base_ref }}
-          # full-ci (alias full-e2e) runs the complete suite before the merge.
+          # full-ci runs the complete suite before the merge.
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
           SCHEDULE: ${{ github.event.schedule }}
           POST_MERGE_BASE: ${{ steps.base.outputs.sha }}

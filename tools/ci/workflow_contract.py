@@ -43,9 +43,11 @@ NO_EVIDENCE = {"select", "gate", "golden-journey", "flake-summary"}
 # Removed pure summary jobs: tools/ci/gate.py already requires every selected
 # matrix leg, and each summary cost a runner slot per run.
 REMOVED_SUMMARIES = ("integration", "e2e-summary", "emdash-proofs")
-# Not part of the gate: dispatch-only probes and the post-gate report.
+# Not part of the gate: dispatch-only probes, the post-gate report and the
+# full-ci hold (it only posts a red gate check; tools/ci/hold_gate.py).
 OUTSIDE_GATE = {
     "gate",
+    "hold",
     "pilot-cold-rehearsal",
     "artifact-probe",
     "flake-summary",
@@ -676,9 +678,24 @@ def check_post_merge(text: str, name: str) -> list[str]:
     if not push or not re.search(r"(?m)^      - main$", push.group(1)):
         problems.append(f"{name}: every push to main must run the post-merge tier.")
     cancel = re.search(r"(?m)^  cancel-in-progress: (.*)$", text)
-    if not cancel or "github.event_name == 'push'" not in cancel.group(1):
+    if not cancel or cancel.group(1) != "${{ github.event_name == 'pull_request' }}":
         problems.append(
-            f"{name}: a newer push to main must cancel an older post-merge run."
+            f"{name}: only pull-request runs may be cancelled; every post-merge "
+            "run must finish (E-019)."
+        )
+    hold = job_block(text, "hold")
+    gate = GATED_WORKFLOWS.get(name, "")
+    if (
+        f"github.event.action == 'labeled' && github.event.label.name == '{FULL_CI}'"
+        not in hold
+        or "checks: write" not in hold
+        or "python3 tools/ci/hold_gate.py" not in hold
+        or f"GATE_NAME: {gate}\n" not in hold
+        or "HEAD_SHA: ${{ github.event.pull_request.head.sha }}" not in hold
+    ):
+        problems.append(
+            f"{name}: adding {FULL_CI} must hold '{gate}' red at once "
+            "(job hold, tools/ci/hold_gate.py)."
         )
     select = job_block(text, "select")
     if (
@@ -690,6 +707,29 @@ def check_post_merge(text: str, name: str) -> list[str]:
             f"{name}: the selector must diff a push since the last green run "
             "(select-suites.yml post-merge: true, actions: read)."
         )
+    return problems
+
+
+# Reusable workflows that call the Actions API: a called workflow's own
+# top-level permissions cap what its caller grants.
+ACTIONS_READ = ("select-suites.yml", "test-fixture.yml")
+
+
+def check_actions_read(root: Path) -> list[str]:
+    problems: list[str] = []
+    for name in ACTIONS_READ:
+        text = (root / ".github/workflows" / name).read_text(encoding="utf-8")
+        permissions = re.search(r"(?m)^permissions:\n((?:  .*\n|#.*\n)+)", text)
+        granted = (
+            set(re.findall(r"(?m)^  ([a-z-]+): ([a-z]+)$", permissions.group(1)))
+            if permissions
+            else set()
+        )
+        if ("actions", "read") not in granted:
+            problems.append(
+                f"{name}: top-level permissions need actions: read (the API "
+                "lookups would only work for a public repository)."
+            )
     return problems
 
 
@@ -915,6 +955,7 @@ def check_repository(root: Path) -> list[str]:
                 f"{rerun_stale_gates.SELECT_JOB_KEY!r} (tools/ci/rerun_stale_gates.py)."
             )
     problems.extend(check_first_attempts(root))
+    problems.extend(check_actions_read(root))
     problems.extend(check_static_gates(root))
     problems.extend(check_pin_drift(root))
     problems.extend(check_nightly_watchdog(root))

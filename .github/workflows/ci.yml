@@ -25,7 +25,8 @@ on:
         unlabeled,
       ]
   # Post-merge tier: every push to main runs the suites of the paths changed
-  # since the last green run there (a newer push cancels an older run);
+  # since the last green run there; every post-merge run finishes (E-019),
+  # GitHub keeps only the newest pending one;
   # nightly-watchdog.yml opens an issue when one is red. The artifact probe
   # branch runs its probe.
   push:
@@ -53,10 +54,11 @@ permissions:
 
 concurrency:
   group: leonaid-ci-${{ github.event_name }}-${{ github.ref }}-${{ github.event.schedule }}${{ ((github.event.action == 'edited' && !github.event.changes.base) || (github.event.action == 'labeled' && github.event.label.name != 'full-ci') || github.event.action == 'unlabeled' || (github.event.pull_request.draft && github.event.action != 'converted_to_draft')) && format('-mirror-{0}', github.run_id) || '' }}
-  # A new push supersedes a pull request's run and an older post-merge run
-  # (the next one diffs since the last green run, so nothing is lost); the
-  # nightly run is never cancelled.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+  # A new push supersedes a pull request's run. Post-merge runs on main are
+  # never cancelled (E-019): the running one finishes, GitHub keeps the
+  # newest pending one, and that one diffs since the last green run, so the
+  # dropped pending runs lose nothing. The nightly run is never cancelled.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   select:
@@ -68,6 +70,31 @@ jobs:
       contents: read
     with:
       post-merge: true
+
+  hold:
+    # Adding full-ci: the gate turns red on the head commit at once, so the
+    # green fast gate cannot be merged while the complete run is pending;
+    # only that run's gate (or a later push's) replaces it (E-019,
+    # tools/ci/hold_gate.py).
+    if: github.event.action == 'labeled' && github.event.label.name == 'full-ci' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
+    name: Hold the gate for full-ci
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      checks: write
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: tools/ci
+          persist-credentials: false
+      - name: Put a red gate on the head commit until the complete run reports
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GATE_NAME: CI gate
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 tools/ci/hold_gate.py
 
   fixture:
     if: inputs.cold_run != true && inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'
@@ -457,9 +484,10 @@ jobs:
         with:
           bootstrap: toolchains
           targets: build
-          # Cache write discipline: only runs on main (the schedules and a
-          # dispatch on main) write the shared BuildKit cache, which every
-          # pull request imports. Pull requests and bot dispatches on other
+          # Cache write discipline: only runs on main (every post-merge push,
+          # the nightly run and a dispatch on main) write the shared BuildKit
+          # cache, which every pull request imports; writing after each merge
+          # is intended, it keeps the PR imports current. Pull requests and bot dispatches on other
           # branches (ci/refit-timings, pins/repin-images) only read: their
           # layers would evict main's from the 10 GB budget.
           write: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && 'true' || 'false' }}

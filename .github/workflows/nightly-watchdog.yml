@@ -49,6 +49,10 @@ jobs:
       # scheduled or post-merge run (workflow_run), and daily.
       WATCHED: "ci.yml:push ci.yml:30:nightly surveys.yml:push surveys.yml:30:nightly pin-drift.yml:30 pins.yml:192 refit-timings.yml:192"
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: tools/ci
+          persist-credentials: false
       - name: Check the latest scheduled run of each workflow and maintain alerts
         run: |
           set -eu
@@ -72,9 +76,11 @@ jobs:
               label="$workflow ($word)"
             fi
             title="[nightly-watchdog] $label $kind run needs attention"
-            latest=$(WORD="$word" EVENT="$event" gh api \
-              "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?branch=main&event=$event&status=completed&per_page=30" \
-              --jq '[.workflow_runs[] | select(env.EVENT != "push" or .conclusion != "cancelled") | select(env.WORD == "" or (.display_title | contains(env.WORD)))][0] // empty | [.id, .conclusion, .created_at, .html_url] | @tsv')
+            # tools/ci/post_merge.py latest (tested in post_merge_test.py):
+            # post-merge entries skip cancelled runs.
+            latest=$(gh api \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?branch=main&event=$event&status=completed&per_page=30" |
+              python3 tools/ci/post_merge.py latest --event "$event" --word "$word")
             problem=
             if [ -z "$latest" ]; then
               # A newly added schedule has nothing to report yet.

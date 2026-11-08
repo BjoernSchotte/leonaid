@@ -12,7 +12,10 @@ on:
     outputs:
       key:
         value: ${{ jobs.fixture.outputs.key }}
+# The caller caps these; actions: read is needed for the Actions API
+# (runs, caches), which only answers without it for a public repository.
 permissions:
+  actions: read
   contents: read
 jobs:
   fixture:
@@ -40,10 +43,20 @@ jobs:
         # Only an exact key on this ref counts; a missing cache after the
         # wait builds it here, so a failed peer never blocks this workflow.
         run: |
+          # A failing API call (missing actions: read made every poll fail
+          # before, so each miss waited the full time) is logged, once.
           deadline=$(( $(date +%s) + MINUTES * 60 ))
+          errors=$(mktemp)
+          reported=false
           while [ "$(date +%s)" -lt "$deadline" ]; do
-            found=$(gh api "repos/$GITHUB_REPOSITORY/actions/caches?key=$KEY&ref=$GITHUB_REF" \
-              --jq "[.actions_caches[] | select(.key == \"$KEY\")] | length" 2>/dev/null || echo 0)
+            if ! found=$(gh api "repos/$GITHUB_REPOSITORY/actions/caches?key=$KEY&ref=$GITHUB_REF" \
+              --jq "[.actions_caches[] | select(.key == \"$KEY\")] | length" 2>"$errors"); then
+              found=0
+              if [ "$reported" = false ]; then
+                echo "::warning title=Fixture peer wait::cache lookup failed: $(head -c 300 "$errors")"
+                reported=true
+              fi
+            fi
             if [ "${found:-0}" -gt 0 ]; then
               echo "Fixture $KEY was uploaded by another workflow; reusing it"
               echo "found=true" >> "$GITHUB_OUTPUT"

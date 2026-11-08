@@ -175,6 +175,20 @@ SEED_BOOTSTRAP = frozenset({"compose", "seed-cold", "seed-reset", "twenty-instal
 # change selects runs after the merge on main (post-merge tier).
 FAST_LEG_SECONDS = 180
 FAST_MAX_BINS = 2
+# Security proofs that never move after the merge (decision E-019): a pull
+# request into main runs each, in a leg of its own outside the fast budget,
+# whenever a changed path matches its patterns, also for shared and unmapped
+# paths. Integration / policy is the authorization negative contract
+# (sessions and foreign-action access against real PostgreSQL and Twenty).
+FAST_REQUIRED: dict[str, tuple[str, ...]] = {
+    "policy": (
+        "src/leonaid/**",
+        "migrations/**",
+        "alembic.ini",
+        "tools/policy/**",
+        "tools/sessions/**",
+    ),
+}
 # Never in the fast tier: browser suites and multi-minute acceptance runs.
 HEAVY_FLAGS = frozenset({"golden", "surveys"})
 
@@ -183,10 +197,8 @@ MAIN_BRANCH = "main"
 # ci.yml's only schedule: the nightly run executes every E2E leaf.
 NIGHTLY_SCHEDULE = "7 3 * * *"
 # The lead sets it on risky pull requests: the complete suite before merge.
+# The former full-e2e label is gone: only adding full-ci starts a run.
 FULL_CI_LABEL = "full-ci"
-# Former label (every E2E leaf); kept as an alias of full-ci.
-FULL_E2E_LABEL = "full-e2e"
-FULL_LABELS = frozenset({FULL_CI_LABEL, FULL_E2E_LABEL})
 
 
 def integration(*shards: str) -> frozenset[str]:
@@ -240,12 +252,14 @@ RULES: tuple[Rule, ...] = (
             "tools/ci/disk-report.sh",
             "tools/ci/flake_summary.py",
             "tools/ci/gate.py",
+            "tools/ci/hold_gate.py",
             "tools/ci/legacy_ui.py",
             "tools/ci/lint-types.sh",
             "tools/ci/measure-cache.sh",
             "tools/ci/no_test_doubles.py",
             "tools/ci/reviewed_network_faults.json",
             "tools/ci/security.sh",
+            "tools/ci/unit.sh",
             "tools/ci/workflow_contract.py",
         ),
         NONE,
@@ -1052,8 +1066,12 @@ class Selection:
 
     def integration_bins(self) -> list[list[str]]:
         if self.tier in FAST_TIERS:
-            # select() kept only units that fit, so nothing is dropped here.
-            return fast_pack(self.integration_units(), INTEGRATION_SECONDS)[0]
+            # Required security proofs get a leg each; select() kept only
+            # other units that fit, so nothing is dropped here.
+            units = self.integration_units()
+            solo = [[unit] for unit in units if unit in FAST_REQUIRED]
+            rest = [unit for unit in units if unit not in FAST_REQUIRED]
+            return solo + fast_pack(rest, INTEGRATION_SECONDS)[0]
         return pack(
             self.integration_units(), INTEGRATION_SECONDS, MAX_BINS["integration"]
         )
@@ -1143,22 +1161,35 @@ def map_paths(changed: Sequence[str], is_stacked: bool, root: Path | None) -> Ma
     return Mapped(frozenset(suites), frozenset(specific), tuple(explanation))
 
 
-def fast_tier(mapped: Mapped) -> tuple[frozenset[str], frozenset[str]]:
+def required_security(changed: Sequence[str]) -> list[str]:
+    """FAST_REQUIRED proofs the changed paths reach (decision E-019)."""
+    return [
+        unit
+        for unit, patterns in FAST_REQUIRED.items()
+        if any(matches(path, patterns) for path in changed)
+    ]
+
+
+def fast_tier(
+    mapped: Mapped, required: Sequence[str] = ()
+) -> tuple[frozenset[str], frozenset[str]]:
     """(suites, deferred): what a pull request runs before the merge.
 
-    Browser and acceptance suites never run here. Integration shards and
-    Contract run only when a specific rule selected them and all of them fit
-    the fast legs; the rest of the selection runs after the merge.
+    Browser and acceptance suites never run here. The ``required`` security
+    proofs always run (a leg each). Other Integration shards and Contract run
+    only when a specific rule selected them and all of them fit the fast
+    legs; the rest of the selection runs after the merge.
     """
     kept = {
         suite
         for suite in mapped.suites
         if not is_heavy(suite) and integration_unit(suite) is None
     }
+    kept |= {f"integration:{unit}" for unit in required}
     candidates = [
         unit
         for suite in sorted(mapped.suites & mapped.specific)
-        if (unit := integration_unit(suite)) is not None
+        if (unit := integration_unit(suite)) is not None and unit not in required
     ]
     bins, _ = fast_pack(candidates, INTEGRATION_SECONDS)
     for unit in (unit for leg in bins for unit in leg):
@@ -1214,7 +1245,9 @@ def select(
             mapped.explanation,
             tier="full",
         )
-    suites, deferred = fast_tier(mapped)
+    # Stacked runs never pass their gate; the proofs run once it targets main.
+    required = [] if is_stacked else required_security(changed)
+    suites, deferred = fast_tier(mapped, required)
     if is_stacked:
         reason = (
             f"stacked pull_request into {base_ref}: fast tier of the module-local "
@@ -1318,8 +1351,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--labels",
         default="",
-        help=f"pull request labels, comma-separated; {FULL_CI_LABEL} (alias "
-        f"{FULL_E2E_LABEL}) runs the complete suite",
+        help=f"pull request labels, comma-separated; {FULL_CI_LABEL} runs the "
+        "complete suite",
     )
     parser.add_argument(
         "--base-ref",
@@ -1353,7 +1386,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         paths,
         args.base_ref,
         schedule=args.schedule,
-        full_ci=bool(FULL_LABELS & labels),
+        full_ci=FULL_CI_LABEL in labels,
     )
     outputs = selection.outputs()
     for warning in load_warnings(selection):

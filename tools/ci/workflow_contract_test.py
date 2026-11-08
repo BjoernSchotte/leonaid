@@ -51,9 +51,19 @@ CI_MUTATIONS = (
         "ci.yml: the selector must diff a push since the last green run",
     ),
     (
-        "  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}\n",
         "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
-        "ci.yml: a newer push to main must cancel an older post-merge run",
+        "  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}\n",
+        "ci.yml: only pull-request runs may be cancelled",
+    ),
+    (
+        "        run: python3 tools/ci/hold_gate.py\n",
+        "        run: true\n",
+        "ci.yml: adding full-ci must hold 'CI gate' red at once",
+    ),
+    (
+        "    permissions:\n      checks: write\n",
+        "    permissions:\n      checks: read\n",
+        "ci.yml: adding full-ci must hold 'CI gate' red at once",
     ),
     (
         "            --selectable vulnerability=heavy",
@@ -352,6 +362,24 @@ OTHER_MUTATIONS = (
         "        labeled,\n        unlabeled,\n",
         "",
         "surveys.yml: pull_request must list labeled and unlabeled",
+    ),
+    (
+        "surveys.yml",
+        "          GATE_NAME: Survey gate\n          RUN_URL:",
+        "          GATE_NAME: CI gate\n          RUN_URL:",
+        "surveys.yml: adding full-ci must hold 'Survey gate' red at once",
+    ),
+    (
+        "select-suites.yml",
+        "  actions: read\n",
+        "",
+        "select-suites.yml: top-level permissions need actions: read",
+    ),
+    (
+        "test-fixture.yml",
+        "  actions: read\n",
+        "",
+        "test-fixture.yml: top-level permissions need actions: read",
     ),
     (
         "nightly-watchdog.yml",
