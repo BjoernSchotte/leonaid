@@ -455,7 +455,10 @@ jobs:
         run: |
           test "$(wc -c < comparison/ci-golden-primary/comparison.txt)" -eq 65
           test "$(wc -c < comparison/ci-golden-repeat/comparison.txt)" -eq 65
-          cmp comparison/ci-golden-primary/comparison.txt comparison/ci-golden-repeat/comparison.txt
+          if ! cmp comparison/ci-golden-primary/comparison.txt comparison/ci-golden-repeat/comparison.txt; then
+            diff comparison/ci-golden-primary/comparison.json comparison/ci-golden-repeat/comparison.json || true
+            exit 1
+          fi
 
   surveys:
     # One job per survey shard, the same leonaid command as
