@@ -87,6 +87,34 @@ async function controlled(page) {
     .toBe(true);
 }
 
+/**
+ * The service worker itself reports that `/app/` may start offline (§8.1):
+ * the setting reaches it after the current page load prepared the device,
+ * which a copy left by an earlier load does not show.
+ */
+async function offlineStartReady(page) {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async () => {
+          const registration = await navigator.serviceWorker.getRegistration();
+          const worker = registration?.active;
+          if (!worker) return false;
+          return new Promise((resolve) => {
+            const channel = new MessageChannel();
+            channel.port1.onmessage = (event) =>
+              resolve(event.data?.enabled === true);
+            worker.postMessage({ type: "OFFLINE_START_STATUS" }, [
+              channel.port2,
+            ]);
+            setTimeout(() => resolve(false), 2_000);
+          });
+        }),
+      { timeout: 30_000 },
+    )
+    .toBe(true);
+}
+
 /** Raw IndexedDB view of one user's device database, as a copy would see it. */
 function rawDatabase(page, userId) {
   return page.evaluate(async (id) => {
@@ -184,6 +212,7 @@ test("the PWA starts offline from the encrypted device copy", async ({
   ).toBe(ANNA_ID);
 
   // §8.1: offline, /app/ starts from the cached shell.
+  await offlineStartReady(page);
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByTestId("offline-banner")).toBeVisible();
@@ -248,6 +277,7 @@ test("the PWA starts offline from the encrypted device copy", async ({
 
   // D3: eight days later (the page's clock), offline, the copy is not
   // shown and capture is blocked.
+  await offlineStartReady(page);
   await context.setOffline(true);
   await page.clock.install({ time: Date.now() + 8 * 86_400_000 });
   await page.reload();

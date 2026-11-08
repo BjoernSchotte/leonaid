@@ -39,7 +39,15 @@ export async function setOfflineStart(enabled: boolean): Promise<void> {
     try {
       const registration =
         await navigator.serviceWorker.getRegistration(PWA_BASE);
-      registration?.active?.postMessage({ type: "OFFLINE_START", enabled });
+      const message = { type: "OFFLINE_START", enabled };
+      registration?.active?.postMessage(message);
+      // On the first visit the worker is still installing: it gets the
+      // setting once active, or the app would start offline only after a
+      // second online start (WebKit).
+      const pending = registration?.installing ?? registration?.waiting;
+      pending?.addEventListener("statechange", () => {
+        if (pending.state === "activated") pending.postMessage(message);
+      });
     } catch {
       // No service worker: nothing starts offline anyway.
     }
