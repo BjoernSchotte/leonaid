@@ -156,12 +156,14 @@ async def main():
                 "SELECT EXISTS(SELECT 1 FROM survey WHERE id=$1)", sid
             )
     # Every parallel case owns its output; aggregate only after all browser
-    # workers have joined. Require the complete role x viewport matrix.
+    # workers have joined. The browser checks visible controls of four
+    # personas (decision E-026), design being the one that opens the survey
+    # without manage_invitations; the rights matrix above is the API proof.
     invitation_controls = []
     assert len(personas) == 14
-    for mobile in (False, True):
+    for mobile in (False,):
         cases = []
-        for name in personas:
+        for name in ("admin", "manage_invitations", "design", "outsider"):
             result = json.loads(
                 (
                     proof / f"invitation-controls-{name}-{str(mobile).lower()}.json"

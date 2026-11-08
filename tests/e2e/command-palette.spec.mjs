@@ -374,6 +374,8 @@ test.describe("switched-off modules", () => {
       expect(keys).not.toContain("knowledge");
       expect(keys).toContain("materials");
 
+      // Ctrl+K before the shell mounts its hotkey listener is lost.
+      await shellReady(page);
       await openPalette(page);
       const goTo = palette(page).getByRole("group", { name: "Gehe zu" });
       await expect(navLabel(goTo, "Material")).toBeVisible();

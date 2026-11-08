@@ -3,6 +3,7 @@ variable "CACHE_NAMESPACE" { default = "leonaid-build-v1" }
 variable "CACHE_WRITE" { default = "false" }
 group "default" { targets = ["api", "worker", "proxy", "web", "pwa", "public", "survey-validator"] }
 group "survey-runtime" { targets = ["api", "worker", "proxy", "web", "public", "survey-validator"] }
+// API contract job (api-contract.yml): the API and the validator it waits for.
 group "survey-foundation" { targets = ["api", "survey-validator"] }
 // Optional EmDash profile: the images the spike harness builds for its stacks.
 group "emdash" { targets = ["api", "worker", "proxy", "web", "public", "campaign-site"] }

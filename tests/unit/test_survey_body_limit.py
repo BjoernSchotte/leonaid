@@ -125,3 +125,56 @@ def test_parser_error_after_the_limit_still_answers_413() -> None:
     )
     assert output[0]["status"] == 413
     assert all(b"parse error" not in message.get("body", b"") for message in output)
+
+
+def declared_run(
+    declared: int, chunks: list[bytes] | None
+) -> tuple[list[Message], int]:
+    """Run a declared-length request; chunks None means receive must not run."""
+
+    async def forbidden(*_args: Any) -> None:
+        raise AssertionError("An over-limit request reached the application")
+
+    consumed = 0
+
+    async def run() -> list[Message]:
+        nonlocal consumed
+        messages = iter(
+            {"type": "http.request", "body": chunk, "more_body": i < len(chunks) - 1}
+            for i, chunk in enumerate(chunks or [])
+        )
+        output: list[Message] = []
+
+        async def receive() -> Message:
+            nonlocal consumed
+            if chunks is None:
+                raise AssertionError("A far oversized body must not be read")
+            consumed += 1
+            return next(messages)
+
+        async def send(message: Message) -> None:
+            output.append(message)
+
+        scope: dict[str, Any] = {
+            "type": "http",
+            "path": "/api/v1/survey-settings",
+            "headers": [(b"content-length", str(declared).encode())],
+        }
+        await RequestBodyLimitMiddleware(forbidden, BODY_LIMITS)(scope, receive, send)
+        return output
+
+    return asyncio.run(run()), consumed
+
+
+def test_slightly_oversized_declared_body_is_drained_before_the_413() -> None:
+    """Unread bytes at close reset the connection and can lose the 413."""
+    chunks = [b"x" * 65536] * 16 + [b"x"]
+    output, consumed = declared_run(SURVEY_REQUEST_BYTES + 1, chunks)
+    assert consumed == len(chunks)
+    assert output[0]["status"] == 413
+
+
+def test_far_oversized_declared_body_is_cut_off_unread() -> None:
+    output, consumed = declared_run(SURVEY_REQUEST_BYTES * 3, None)
+    assert consumed == 0
+    assert output[0]["status"] == 413
