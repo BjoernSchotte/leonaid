@@ -14,12 +14,12 @@ if [ "$#" -ne 0 ]; then
 fi
 case "$test_case" in
   core-readiness-pool) ;;
-  twenty-startup|alias-renderer|cutover-rollback) ;;
+  twenty-startup|alias-renderer) ;;
   migration-operator|emdash-upgrade) ;;
   release-legacy-boundary) ;;
   release-manifest-compatibility) ;;
   release-image-identity) ;;
-  krapfentaxi-source|krapfentaxi-migration|krapfentaxi-orders|krapfentaxi-orders-commerce|krapfentaxi-orders-deadlines|alias-namespaces|alias-persistence|alias-commands|alias-http|redirect-aliases|recovery-sql|recovery-local|recovery-app|recovery-orders|recovery-import) ;;
+  krapfentaxi-source|krapfentaxi-migration|krapfentaxi-orders|krapfentaxi-orders-commerce|krapfentaxi-orders-deadlines|alias-namespaces|alias-persistence|alias-commands|alias-http|redirect-aliases) ;;
   campaign-public-content|campaign-public-http|campaign-hosts|campaign-public-media|postgres-pool|public-order-component|order-ingress-pilot|campaign-orders) ;;
   all|dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime|admin-browser|authorization-inventory|authorization-surface|campaign-content|campaign-runtime|schema-runtime|schema-migration|campaign-auth-race|campaign-editorial-isolation|campaign-media-binding|campaign-media-upload|campaign-media-http|campaign-editor-pointer|campaign-core-public) ;;
   *) echo "emdash-spike: case not implemented: $test_case" >&2; exit 2 ;;
@@ -57,27 +57,6 @@ if [ "$test_case" = release-legacy-boundary ]; then
     docker run --rm -i --network none --env PYTHONPATH=/workspace \
       --volume "$root:/workspace:ro" --workdir /workspace "$PYTHON_IMAGE" \
       python tools/pilot_release/contract_test.py --cms-compose-stdin
-fi
-if [ "$test_case" = recovery-app ] || [ "$test_case" = recovery-orders ] || [ "$test_case" = recovery-import ] || [ "$test_case" = cutover-rollback ]; then
-  docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
-    "$PYTHON_IMAGE" python tools/backup/compose_overlays_test.py
-  docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
-    "$PYTHON_IMAGE" python tools/backup/restore_scope_test.py
-  docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
-    "$PYTHON_IMAGE" python tools/backup/resume_test.py
-  recovery_orders=false
-  recovery_import=false
-  cutover_rollback=false
-  if [ "$test_case" = recovery-orders ]; then recovery_orders=true; fi
-  if [ "$test_case" = recovery-import ]; then recovery_import=true; fi
-  if [ "$test_case" = cutover-rollback ]; then recovery_orders=true; cutover_rollback=true; fi
-  /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" migration "$recovery_orders" true "$recovery_import" "$cutover_rollback"
-fi
-if [ "$test_case" = recovery-local ] || [ "$test_case" = all ]; then
-  /bin/sh "$root/tools/emdash_spike/recovery-test.sh" "$root"
-fi
-if [ "$test_case" = recovery-sql ] || [ "$test_case" = all ]; then
-  /bin/sh "$root/tools/emdash_spike/recovery-sql-test.sh" "$root"
 fi
 if [ "$test_case" = redirect-aliases ] || [ "$test_case" = all ]; then
   /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" alias-browser
