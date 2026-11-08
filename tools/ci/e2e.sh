@@ -131,7 +131,7 @@ fi
 for script in $own; do
   started=$(date +%s)
   step "$script" /bin/sh "$root/$script" "$root"
-  # Same shape as shared-stack's leaf line (tools/ci/refit_timings.py).
+  # Same shape as shared-stack's leaf line.
   echo "ci-e2e: own leaf: $script $(($(date +%s) - started))s, exit $step_status"
 done
 if [ "$status" -ne 0 ]; then

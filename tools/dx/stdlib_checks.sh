@@ -43,7 +43,6 @@ check fast-plan python "$w/tools/dx/fast_plan_test.py" "$w"
 # The same tools/ci self-tests as CI (lint-types.sh, security.sh);
 # tools/dx/check_parity_test.py keeps the lists in step.
 check capture-command python "$w/tools/ci/capture_command_test.py" "$w"
-check refit-timings python "$w/tools/ci/refit_timings_test.py" "$w"
 check leak-check python "$w/tools/ci/leak_check_test.py"
 check base-path-literals-test python "$w/tools/ci/base_path_literals_test.py"
 check base-path-literals python "$w/tools/ci/base_path_literals.py" "$w"
