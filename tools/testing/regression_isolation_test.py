@@ -35,7 +35,6 @@ class RegressionIsolationTests(unittest.TestCase):
             "compose/test.sh",
             "surveys/infrastructure.sh",
             "surveys/restic_recovery.sh",
-            "core/test.sh",
             "schema/test.sh",
             "outbox/test.sh",
             "openapi/test.sh",

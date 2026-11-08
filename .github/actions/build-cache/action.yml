@@ -22,13 +22,6 @@ inputs:
   measure:
     description: Optional directory for bounded timing metadata
     default: ""
-  prebuilt:
-    description: >-
-      Pull prebuilt GHCR images by content hash first and bake only the misses
-      (E-020). Only for jobs whose every image build reuses shared tags
-      (image_tags adopt); a direct `compose build`/`up --build` would find no
-      warm layers for a pulled image and build it cold.
-    default: "false"
 runs:
   using: composite
   steps:
@@ -49,34 +42,13 @@ runs:
           sh tools/ci/retry-infra.sh sh tools/ci/bootstrap-prefetch.sh "$1" > "$2/log" 2>&1 || status=$?
           printf "%s\n" "$status" > "$2/status"
         ' bootstrap "$BOOTSTRAP_PROFILE" "$directory" </dev/null >/dev/null 2>&1 &
-    # Prebuilt images (decision E-020): every image whose content hash is on
-    # GHCR is pulled and tagged leonaid-local/<service>:<hash>, where the test
-    # harness reuses it; only the misses are baked below. Not used when this
-    # step writes the shared cache or loads images for a benchmark.
-    - name: Pull prebuilt images by content hash
-      id: prebuilt
-      shell: bash
-      env:
-        PREBUILT_TARGETS: ${{ inputs.targets }}
-        PREBUILT: ${{ inputs.prebuilt == 'true' && inputs.read != 'false' && inputs.write != 'true' && inputs.load != 'true' }}
-      run: |
-        if [ "$PREBUILT" = true ]; then
-          # No image age limit in CI: main republishes every image without
-          # the layer cache once a week (ci.yml publish-images).
-          echo "LEONAID_IMAGE_MAX_AGE_DAYS=36500" >> "$GITHUB_ENV"
-          python3 -I tools/ci/prebuilt_images.py pull "$PREBUILT_TARGETS"
-        else
-          echo "bake=$PREBUILT_TARGETS" >> "$GITHUB_OUTPUT"
-        fi
     - id: builder
-      if: steps.prebuilt.outputs.bake != ''
       uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       with:
         # The runner is discarded after the job; removing the builder and
         # its volume in the post step cost 30-110 s per job (run 42468977036).
         cleanup: false
     - name: Select the same builder for subsequent Compose calls
-      if: steps.prebuilt.outputs.bake != ''
       shell: bash
       env:
         CACHE_BUILDER: ${{ steps.builder.outputs.name }}
@@ -89,7 +61,6 @@ runs:
     - name: Import layers and build requested images
       id: bake
       continue-on-error: true
-      if: steps.prebuilt.outputs.bake != ''
       uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7.3.0
       env:
         CACHE_NAMESPACE: ${{ inputs.namespace }}
@@ -101,7 +72,7 @@ runs:
       with:
         source: .
         files: tools/ci/docker-bake.hcl
-        targets: ${{ steps.prebuilt.outputs.bake }}
+        targets: ${{ inputs.targets }}
         load: ${{ inputs.load == 'true' }}
         # Materialize imported layers: cache-only warm-up showed cache misses
         # in subsequent Compose builds in CI. Discard the OCI archive; only
@@ -128,7 +99,7 @@ runs:
       with:
         source: .
         files: tools/ci/docker-bake.hcl
-        targets: ${{ steps.prebuilt.outputs.bake }}
+        targets: ${{ inputs.targets }}
         load: ${{ inputs.load == 'true' }}
         # Materialize imported layers: cache-only warm-up showed cache misses
         # in subsequent Compose builds in CI. Discard the OCI archive; only

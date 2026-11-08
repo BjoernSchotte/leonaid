@@ -122,7 +122,6 @@ PRECISE: tuple[tuple[str, dict[str, Any]], ...] = (
     ("tools/ci/workflow_contract.py", {}),
     ("tools/ci/security.sh", {}),
     ("tools/ci/lint-types.sh", {}),
-    ("tools/ci/flake_summary.py", {}),
     ("tools/ci/build.sh", {}),
     ("specs/leonaid-poc/KNOWN-LIMITS.md", {}),
     ("apps/docs/src/content/docs/de/index.mdx", {}),
@@ -412,10 +411,6 @@ def main() -> int:
             f"{path}: Integration / policy must run before the merge, alone: "
             f"{guarded.integration_bins()}",
         )
-        expect(
-            "integration:policy" not in s.select("pull_request", [path], "md/x").suites,
-            f"{path}: a stacked PR runs the proof once it targets main",
-        )
     for path in (
         "apps/web/src/app.tsx",
         "tools/storage/test.sh",
@@ -643,8 +638,8 @@ def main() -> int:
         )
     expect(set(s.EMDASH_SECONDS) == set(s.EMDASH_GROUPS), "EMDASH_SECONDS")
     expect(
-        s.leg_estimate("integration", ["core", "policy"], s.INTEGRATION_SECONDS)
-        == s.LEG_SETUP_SECONDS + 2 * s.SHARD_SETUP_SECONDS["integration"] + 226 + 206,
+        s.leg_estimate("integration", ["compose", "policy"], s.INTEGRATION_SECONDS)
+        == s.LEG_SETUP_SECONDS + 2 * s.SHARD_SETUP_SECONDS["integration"] + 300 + 75,
         "Integration estimates count a stack boot per shard",
     )
     original = dict(s.E2E_SECONDS)

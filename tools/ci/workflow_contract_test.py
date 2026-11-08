@@ -31,13 +31,13 @@ CI_MUTATIONS = (
         "only the Build job of runs on main may write the shared cache",
     ),
     (
-        "    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'\n",
-        "    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'\n",
+        "    if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'\n",
+        "    if: github.event.pull_request.draft != true && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'\n",
         "ci.yml: job select must not run for a draft, a title edit",
     ),
     (
-        "    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'\n",
-        "    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base)\n",
+        "    if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && github.event.action != 'unlabeled'\n",
+        "    if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base)\n",
         "a label change other than adding full-ci",
     ),
     (
@@ -101,11 +101,6 @@ CI_MUTATIONS = (
         "the nightly run is the only schedule",
     ),
     (
-        "      - main\n      - ci-artifact-probe\n",
-        "      - ci-artifact-probe\n",
-        "every push to main must run the post-merge tier",
-    ),
-    (
         "        converted_to_draft,\n        edited,\n",
         "        converted_to_draft,\n",
         "ci.yml: pull_request must list ready_for_review, converted_to_draft and edited",
@@ -126,8 +121,8 @@ CI_MUTATIONS = (
         "Job missing: vulnerability",
     ),
     (
-        "needs.select.outputs.heavy != 'false' && (needs.fixture.result",
-        "(needs.fixture.result",
+        "needs.select.outputs.heavy != 'false' && needs.fixture.result",
+        "needs.fixture.result",
         "security may be skipped only for a stacked PR",
     ),
     (
@@ -158,8 +153,8 @@ CI_MUTATIONS = (
     (
         "      - name: Finish freeing runner disk\n"
         "        run: sh tools/ci/free-runner-disk.sh wait\n"
-        "      - name: Report runner disk after preparation\n",
-        "      - name: Report runner disk after preparation\n",
+        "      - name: Run policies, secret scan and the security stack test\n",
+        "      - name: Run policies, secret scan and the security stack test\n",
         "job security must free runner disk",
     ),
     (
@@ -208,26 +203,6 @@ CI_MUTATIONS = (
         "summary check",
     ),
     (
-        "if: inputs.cold_run == true && inputs.artifact_probe != true",
-        "if: inputs.artifact_probe != true",
-        "cold_run",
-    ),
-    (
-        "docker system prune --all --volumes --force",
-        "docker image ls",
-        "Docker system state",
-    ),
-    (
-        "./leonaid test-pilot-rehearsal --synthetic",
-        "./leonaid test-unit",
-        "synthetic dress rehearsal",
-    ),
-    (
-        "LEONAID_PILOT_REHEARSAL_ARTIFACT_DIR",
-        "REMOVED_REHEARSAL_ARTIFACT_DIR",
-        "dress-rehearsal evidence",
-    ),
-    (
         "        bin: ${{ fromJSON(needs.select.outputs.emdash) }}\n",
         "        bin: [{id: '1', shards: static}]\n",
         "EmDash proof groups must come from the suite selector",
@@ -268,8 +243,8 @@ CI_MUTATIONS = (
         "gate does not require: golden-journey",
     ),
     (
-        "    if: ${{ always() && github.ref != 'refs/heads/ci-artifact-probe'",
-        "    if: ${{ success() && github.ref != 'refs/heads/ci-artifact-probe'",
+        "    if: ${{ always()",
+        "    if: ${{ success()",
         "the gate must run after failures",
     ),
     (
@@ -292,11 +267,6 @@ CI_MUTATIONS = (
         '    - cron: "7 3 * * *"\n',
         "",
         "nightly complete run",
-    ),
-    (
-        "tools/ci/flake_summary.py",
-        "tools/ci/removed.py",
-        "nightly flake summary",
     ),
     (
         "    uses: ./.github/workflows/select-suites.yml\n",
@@ -441,8 +411,8 @@ OTHER_MUTATIONS = (
     ),
     (
         "api-contract.yml",
-        '          "$UV_IMAGE"\n',
-        "          ghcr.io/astral-sh/uv:0.13.6-python3.13-trixie-slim@sha256:"
+        '          "$PYTHON_IMAGE"\n',
+        "          docker.io/library/python:3.13.18-slim-trixie@sha256:"
         + "e" * 64
         + "\n",
         "a digest in a workflow blocks the automatic re-pin",
@@ -558,7 +528,7 @@ def main() -> None:
         raise SystemExit(1)
     print(
         "ci-workflow-contract-test: OK: tiers, schedules, drafts, gates, selector, retries, "
-        "shards, cold rehearsal and missing upload are checked"
+        "shards and missing upload are checked"
     )
 
 

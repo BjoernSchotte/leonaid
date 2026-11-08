@@ -5,7 +5,7 @@ root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/tools/testing/owned_teardown.sh"
 seed_part=${LEONAID_SEED_PART:-all}
-case "$seed_part" in all|cold|reset) ;; *) exit 64 ;; esac
+case "$seed_part" in all|reset) ;; *) exit 64 ;; esac
 . "$root/infra/locks/images.env"
 . "$root/tools/testing/phase.sh"
 
@@ -187,18 +187,12 @@ docker run --rm \
   /repo/tests/fixtures/golden/v1
 
 echo "seed-test: running a second idempotent seed"
-if [ "$seed_part" != reset ]; then
 "$root/leonaid" seed
 "$root/leonaid" snapshot poc012-second.json
 docker run --rm \
   -v "$root/.local:/local:ro" \
   "$ALPINE_IMAGE" \
   cmp /local/snapshots/poc012-first.json /local/snapshots/poc012-second.json
-fi
-if [ "$seed_part" = cold ]; then
-  echo "seed-test: cold installation and idempotent seed passed"
-  exit 0
-fi
 
 echo "seed-test: changing PostgreSQL, Twenty, RustFS and Mailpit for real"
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \
