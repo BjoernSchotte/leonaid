@@ -236,6 +236,34 @@ class LocalStack:
         self.stack.fixture_metadata = metadata
         self.cache.prune()
 
+    def shared_fixture(self):
+        """(entry, manifest) of the host fixture for an additional parallel
+        stack, or None when this checkout cannot use the cache (it would need
+        a full private setup, which parallelism does not pay back)."""
+        if self.stack.env.get("LEONAID_CI_FIXTURE"):
+            return Path(
+                self.stack.env["LEONAID_CI_FIXTURE"]
+            ), self.stack.fixture_metadata
+        if self.stack.env.get("LEONAID_FIXTURE_CACHE") == "off":
+            return None
+        env_file = self.root / ".env.local"
+        if not env_file.is_file() or not is_synthetic(self.root, env_file.read_text()):
+            return None
+        # The retained stack is already initialized; hold the entry (shared
+        # lock) for the extra stack's import until close(). A missing entry is
+        # not built just for parallelism (that costs minutes).
+        self.cache = FixtureCache(output=self.output)
+        self.cache_key = key(self.root)
+
+        def refuse(target):
+            raise LookupError("no cached fixture")
+
+        try:
+            return self.cache.acquire(self.root, self.cache_key, refuse)
+        except LookupError:
+            self.release_fixture_cache()
+            return None
+
     def release_fixture_cache(self):
         if self.cache is not None:
             self.cache.release(self.cache_key)
