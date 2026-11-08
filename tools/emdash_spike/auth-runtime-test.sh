@@ -4,32 +4,20 @@ root=$1
 . "$root/tools/testing/owned_teardown.sh"
 mode=${2:-auth}
 orders=${3:-false}
-recovery=${4:-false}
-recovery_import=${5:-false}
-cutover_rollback=${6:-false}
-case "$cutover_rollback:$recovery:$orders:$recovery_import:$mode" in false:*|true:true:true:false:migration) ;; *) exit 2 ;; esac
-case "$recovery_import:$recovery:$mode:$orders" in false:*|true:true:migration:false) ;; *) exit 2 ;; esac
-case "$recovery:$mode:$orders" in false:*|true:migration:false|true:migration:true) ;; *) exit 2 ;; esac
 case "$orders:$mode" in false:*|true:public-http|true:migration) ;; *) exit 2 ;; esac
 TWENTY_INTEGRATION_API_KEY=
 export TWENTY_INTEGRATION_API_KEY
-if [ "$recovery:$orders" = true:true ]; then
-  EMDASH_RECOVERY_TWENTY_SKIP_MIGRATIONS=false
-  export EMDASH_RECOVERY_TWENTY_SKIP_MIGRATIONS
-fi
 case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|campaign-hosts|campaign-hosts-admin-only|public-media|order-component|migration|migration-operator|alias-http|alias-browser|emdash-upgrade) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
-if [ "$recovery" = false ]; then
-  docker run --rm --network none --volume "$root:/workspace:ro" "$NODE_IMAGE" \
-    node /workspace/tools/emdash_spike/order-subnet.mjs --self-test
-  # Avoid exhausted Docker default pools without modifying any existing net.
-  # A concurrent claimant is rejected atomically by Docker, never removed.
-  isolated_subnet=$(docker network inspect $(docker network ls -q) | \
-    docker run --rm -i --network none --volume "$root:/workspace:ro" "$NODE_IMAGE" \
-      node /workspace/tools/emdash_spike/order-subnet.mjs)
-  EMDASH_TEST_NET_PREFIX=${isolated_subnet%.0/24}
-  export EMDASH_TEST_NET_PREFIX
-fi
+docker run --rm --network none --volume "$root:/workspace:ro" "$NODE_IMAGE" \
+  node /workspace/tools/emdash_spike/order-subnet.mjs --self-test
+# Avoid exhausted Docker default pools without modifying any existing net.
+# A concurrent claimant is rejected atomically by Docker, never removed.
+isolated_subnet=$(docker network inspect $(docker network ls -q) | \
+  docker run --rm -i --network none --volume "$root:/workspace:ro" "$NODE_IMAGE" \
+    node /workspace/tools/emdash_spike/order-subnet.mjs)
+EMDASH_TEST_NET_PREFIX=${isolated_subnet%.0/24}
+export EMDASH_TEST_NET_PREFIX
 if [ "$mode" = migration-operator ]; then
   # Parse-only placeholder, replaced by verified built CMS ID before use.
   LEONAID_CMS_MIGRATION_IMAGE=$NODE_IMAGE
@@ -68,32 +56,6 @@ fi
 proof=$(mktemp -d)
 suffix=$(basename "$proof" | tr '[:upper:].' '[:lower:]-')
 project="leonaid-emdash-$suffix"
-if [ "$recovery" = true ]; then
-  EMDASH_RECOVERY_VERIFIED_CMS_IMAGE=
-  export EMDASH_RECOVERY_VERIFIED_CMS_IMAGE
-  project="leonaid-poc112-$suffix"
-  recovery_source=$project
-  recovery_target="leonaid-restore-$suffix"
-  EMDASH_RECOVERY_IMAGE_PREFIX=$project
-  export EMDASH_RECOVERY_IMAGE_PREFIX
-  choose_recovery_prefix() {
-    subnet=$(docker network inspect $(docker network ls -q) | \
-      docker run --rm -i --network none --volume "$root:/workspace:ro" "$NODE_IMAGE" \
-        node /workspace/tools/emdash_spike/order-subnet.mjs)
-    printf '%s' "${subnet%.0/24}"
-  }
-  recovery_source_prefix=$(choose_recovery_prefix)
-  recovery_target_prefix=$recovery_source_prefix
-  LEONAID_RECOVERY_PREFIX=$recovery_source_prefix
-  export LEONAID_RECOVERY_PREFIX
-  if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$recovery_target")" ] || \
-     [ -n "$(docker volume ls -q --filter "label=com.docker.compose.project=$recovery_target")" ] || \
-     [ -n "$(docker network ls -q --filter "label=com.docker.compose.project=$recovery_target")" ]; then
-    rmdir "$proof"
-    echo "recovery: target project collision; refusing" >&2
-    exit 1
-  fi
-fi
 EMDASH_ORDER_API_IMAGE="$project-api"
 export EMDASH_ORDER_API_IMAGE
 compose() {
@@ -102,20 +64,9 @@ compose() {
   if [ "${emdash_upgrade_legacy:-false}" = true ]; then
     set -- --file "$root/infra/emdash-spike/emdash-upgrade-legacy.test.yml" "$@"
   fi
-  if [ "$cutover_rollback" = true ] && [ "$project" = "$recovery_target" ] && [ "${cutover_target_active:-false}" = true ]; then
-    set -- --file "$root/infra/emdash-spike/cms-rollback-target.test.yml" "$@"
-  fi
-  if [ "$recovery" = false ]; then
-    set -- --file "$root/infra/emdash-spike/isolated-networks.test.yml" "$@"
-  fi
+  set -- --file "$root/infra/emdash-spike/isolated-networks.test.yml" "$@"
   if [ "$mode" = migration-operator ]; then
     set -- --file "$root/infra/emdash-spike/migration-operator.yml" "$@"
-  fi
-  if [ "$recovery:$orders" = true:true ]; then
-    set -- --file "$root/infra/emdash-spike/recovery-orders.test.yml" "$@"
-  fi
-  if [ "$recovery" = true ]; then
-    set -- --file "$root/infra/emdash-spike/recovery-app.test.yml" "$@"
   fi
   if [ "$mode" = alias-browser ]; then
     set -- --file "$root/infra/emdash-spike/alias-browser.test.yml" "$@"
@@ -149,20 +100,7 @@ fi
 cleanup() {
   cleanup_status=$?
   if [ "$cleanup_status" -ne 0 ]; then
-    if [ "$recovery" = true ]; then
-      capture_project=$project
-      capture_prefix=$LEONAID_RECOVERY_PREFIX
-      project=$recovery_target
-      LEONAID_RECOVERY_PREFIX=$recovery_target_prefix
-      emdash_capture_failure
-      project=$recovery_source
-      LEONAID_RECOVERY_PREFIX=$recovery_source_prefix
-    fi
     emdash_capture_failure
-    if [ "$recovery" = true ]; then
-      project=$capture_project
-      LEONAID_RECOVERY_PREFIX=$capture_prefix
-    fi
   fi
   if [ -n "${native_deadline_pid:-}" ]; then
     native_deadline_container=$(docker ps -aq \
@@ -174,29 +112,10 @@ cleanup() {
     wait "$native_deadline_pid" || true
     native_deadline_pid=
   fi
-  if [ "$recovery" = true ]; then
-    if [ -n "${recovery_authority_pid:-}" ]; then
-      authority_container=$(docker ps -aq \
-        --filter "name=^/${recovery_authority_name}$" \
-        --filter "label=com.docker.compose.project=${recovery_authority_project:-$recovery_target}" \
-        --filter "label=com.docker.compose.service=api" \
-        --filter "label=com.docker.compose.oneoff=True")
-      if [ -n "$authority_container" ]; then docker stop "$authority_container" >/dev/null || true; fi
-      wait "$recovery_authority_pid" || true
-      recovery_authority_pid=
-    fi
-    project=$recovery_target
-    LEONAID_RECOVERY_PREFIX=$recovery_target_prefix
-    compose --profile '*' down --volumes --remove-orphans >/dev/null || leak_detected=1
-    verify_owned_project_removed "$project" || leak_detected=1
-    project=$recovery_source
-    LEONAID_RECOVERY_PREFIX=$recovery_source_prefix
-  fi
   compose --profile '*' down --volumes --remove-orphans >/dev/null || leak_detected=1
   verify_owned_project_removed "$project" || leak_detected=1
   rm -f "$proof/sessions.json" "$proof/race-sessions.json" "$proof/reference-sessions.json" "$proof/cms-id" "$proof/root.crt" "$proof/media-http-state.json" "$proof/media-pagination.json" "$proof/public-media.json" "$proof/public-media.png"
-  rm -f "$proof/integration.env" "$proof/orders-ui.json" "$proof/pre-recovery-orders.json" "$proof/import-recovery.json"
-  rm -f "$proof/recovery-aliases.json"
+  rm -f "$proof/integration.env" "$proof/orders-ui.json"
   rm -f "$proof"/emdash-upgrade-*.json
   if [ -n "${EMDASH_UPGRADE_LEGACY_ROOT:-}" ]; then rm -rf "$EMDASH_UPGRADE_LEGACY_ROOT"; fi
   if [ -d "$proof/core-commerce" ]; then
@@ -217,7 +136,6 @@ cleanup() {
     rm -f "$proof/native-order-deadline/orders-ui.json"
     rmdir "$proof/native-order-deadline"
   fi
-  if [ "$recovery" = true ]; then rm -rf "$proof/repository" "$proof/recovery-control" "$proof/recovery-orders-browser" "$proof/cutover-browser"; rm -f "$proof/restic-password" "$proof/erasure-checkpoint.json" "$proof/cutover-state.json" "$proof/after-cutover-orders.json" "$proof/after-rollback-orders.json"; fi
   rmdir "$proof"
 }
 # A teardown leak fails the run even when the test itself passed.
@@ -291,14 +209,6 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
     for(const key of Object.keys(importer.environment)) assert.ok(!key.startsWith("TWENTY_") && key!=="CORE_POSTGRES_PASSWORD");
   }
   console.log("emdash-auth-runtime: isolated services and Edge-only probe; no host ports");'
-if [ "$recovery:$orders" = true:true ]; then
-  # Follow the base Compose dependency: Core starts only after Twenty is
-  # healthy. Identity-only fixtures deliberately remove that dependency, but
-  # full recovery/order acceptance must not defer CRM initialization until
-  # after the CMS/editor workload. All writers still run together for orders.
-  compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
-  echo "recovery-orders: fresh Twenty ready before Core/CMS, matching base startup dependency"
-fi
 if [ "$mode" = emdash-upgrade ]; then
   . "$root/tools/emdash_spike/emdash-upgrade-legacy.sh"
 fi
@@ -405,22 +315,11 @@ if [ "$mode" != auth ]; then
   fi
   if [ "$mode" = migration ]; then
     fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
-    if [ "$recovery_import" = true ]; then
-      compose run --rm --no-deps --volume "$proof:/proof" krapfentaxi-import-probe \
-        bun tools/emdash_spike/krapfentaxi-import-proof.mjs --prepare-recovery
-      compose up --no-deps --build --detach --wait public mailpit worker
-      . "$root/tools/emdash_spike/recovery-app-phase.sh"
-      exit 0
-    fi
     compose run --rm --no-deps --volume "$proof:/proof:ro" krapfentaxi-import-probe
     compose up --no-deps --build --detach --wait public mailpit worker
     compose run --rm --no-deps admin-browser \
       node tools/emdash_spike/krapfentaxi-import-browser-proof.mjs
     fixture /repo/tools/emdash_spike/redirect_http_proof.py --published
-    if [ "$recovery" = true ]; then
-      . "$root/tools/emdash_spike/recovery-app-phase.sh"
-      exit 0
-    fi
     if [ "$orders" = true ]; then
       # Only real Core rows change between ordinary anonymous browser reads.
       # A dedicated directory excludes operator keys from the editorial witness.
