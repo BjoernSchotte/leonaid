@@ -17,6 +17,10 @@ Steps, with a real worker run (``run-until-idle``) between them:
                   arrived exactly once, without the internal reason; the
                   limited notice is dead-lettered, sent nothing and shows in
                   the operations view.
+
+``confirmations --expect-delivery-window`` also requires at least one mailed
+order with a delivery window (the full browser spec books one; the CI smoke
+leg runs only the guided-form case, which books none).
 """
 
 from __future__ import annotations
@@ -25,6 +29,7 @@ import argparse
 import asyncio
 import json
 import os
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
@@ -116,6 +121,17 @@ async def new_orders(
     )
 
 
+def require_window_proof(windows: int, *, expected: bool) -> None:
+    """Fail when a leg that booked a delivery window mailed none with it.
+
+    Only the full browser spec books a window (its "ausgebucht" case); the
+    smoke leg filters the spec to the guided-form case (LEONAID_E2E_SMOKE in
+    tools/public_orders/test.sh), so there no order can carry one.
+    """
+    if expected and windows < 1:
+        raise ContractFailure("No order with a delivery window was mailed")
+
+
 async def snapshot(connection: asyncpg.Connection[Any], state: Path) -> None:
     known = await connection.fetch(
         "SELECT id FROM commitment WHERE source = 'public_form'"
@@ -139,7 +155,9 @@ async def legal_name(connection: asyncpg.Connection[Any]) -> str:
     return str(value)
 
 
-async def confirmations(connection: asyncpg.Connection[Any], state: Path) -> None:
+async def confirmations(
+    connection: asyncpg.Connection[Any], state: Path, *, expect_window: bool
+) -> None:
     data = json.loads(state.read_text(encoding="utf-8"))
     orders = await new_orders(connection, data["known"])
     if len(orders) < 3:
@@ -212,8 +230,7 @@ async def confirmations(connection: asyncpg.Connection[Any], state: Path) -> Non
                 )
                 if f"Lieferfenster: {label}" not in text:
                     raise ContractFailure(f"Window missing in {reference}")
-        if windows < 1:
-            raise ContractFailure("No order with a delivery window was mailed")
+        require_window_proof(windows, expected=expect_window)
         # A lost completion: the job runs again and must not send twice.
         redelivered = orders[0]
         status = await connection.execute(
@@ -274,7 +291,9 @@ async def confirmations(connection: asyncpg.Connection[Any], state: Path) -> Non
     state.write_text(json.dumps(data), encoding="utf-8")
     print(
         f"public-order-mails: {len(orders)} confirmations sent once each "
-        f"({windows} with a delivery window)"
+        f"({windows} with a delivery window"
+        + ("" if expect_window else "; not required in this leg")
+        + ")"
     )
 
 
@@ -543,16 +562,31 @@ async def main() -> None:
         "step", choices=("snapshot", "confirmations", "final", "recovered")
     )
     parser.add_argument("state", type=Path)
+    parser.add_argument(
+        "--expect-delivery-window",
+        action="store_true",
+        help="confirmations: the browser step booked a delivery window",
+    )
     arguments = parser.parse_args()
+    if arguments.expect_delivery_window and arguments.step != "confirmations":
+        parser.error("--expect-delivery-window belongs to the confirmations step")
     connection = await asyncpg.connect(require_env("CORE_DATABASE_URL"), timeout=10)
     try:
-        step = {
+
+        async def confirmed(connection: asyncpg.Connection[Any], state: Path) -> None:
+            await confirmations(
+                connection,
+                state,
+                expect_window=arguments.expect_delivery_window,
+            )
+
+        steps: dict[str, Callable[[asyncpg.Connection[Any], Path], Awaitable[None]]] = {
             "snapshot": snapshot,
-            "confirmations": confirmations,
+            "confirmations": confirmed,
             "final": final,
             "recovered": recovered,
-        }[arguments.step]
-        await step(connection, arguments.state)
+        }
+        await steps[arguments.step](connection, arguments.state)
     finally:
         await connection.close()
 

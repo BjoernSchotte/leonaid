@@ -110,6 +110,8 @@ compose --profile dev-mail run --rm --user "$(id -u):$(id -g)" --no-deps \
   /proof/pdfs
 
 order_mails() {
+  step=$1
+  shift
   compose run --rm --user "$(id -u):$(id -g)" --no-deps \
     --env-from-file "$env_file" \
     --env API_BASE_URL=http://api:8000 \
@@ -118,7 +120,7 @@ order_mails() {
     --volume "$proof:/proof" \
     --workdir /repo \
     --entrypoint python \
-    api tools/public_orders/order_mails.py "$1" /proof/order-mails.json
+    api tools/public_orders/order_mails.py "$step" /proof/order-mails.json "$@"
 }
 
 run_worker() {
@@ -222,7 +224,13 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
 # notice arrives once, injected text is refused, and a notice over the
 # per-address limit is dead-lettered, visible and recoverable.
 run_worker confirmations
-order_mails confirmations
+# Only the full spec books a delivery window (the "ausgebucht" case); the
+# smoke leg runs the guided-form case alone, so no mail can name a window.
+if [ -n "${LEONAID_E2E_SMOKE:-}" ]; then
+  order_mails confirmations
+else
+  order_mails confirmations --expect-delivery-window
+fi
 run_worker redelivery
 order_mails final
 run_worker recovery
