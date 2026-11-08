@@ -694,6 +694,9 @@ jobs:
         uses: ./.github/actions/build-cache
         with:
           bootstrap: browser
+          # Shared-stack shards build only through shared tags; journey and
+          # the nightly shards also build directly (migrations, validator).
+          prebuilt: ${{ vars.CI_PREBUILT_IMAGES != 'off' && !contains(fromJSON('["journey","recovery","exports-recovery","restic","pilot"]'), matrix.shard) }}
       - name: Bootstrap locked Docker toolchains
         if: inputs.cold_run == true
         run: sh tools/ci/retry-infra.sh sh tools/ci/bootstrap-prefetch.sh browser
