@@ -365,8 +365,16 @@
       "contains": ["document = app.openapi()", "openapi.json", "generated.ts"]
     },
     {
+      "file": "tools/ci/lint-types.sh",
+      "contains": [
+        "tools/openapi/generate.py --root /workspace --check",
+        "tools/openapi/check_frontend.py",
+        "bun run typecheck"
+      ]
+    },
+    {
       "file": "tools/openapi/test.sh",
-      "contains": ["--check", "cmp", "check_frontend.py"]
+      "contains": ["tests/contract/api_client.ts"]
     }
   ],
   "DOC-P033": [
