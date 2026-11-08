@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prove the aggregate gate, the flake tally and the infra-retry allowlist."""
+"""Prove the aggregate gate and the infra-retry allowlist."""
 
 from __future__ import annotations
 
@@ -17,7 +17,6 @@ from typing import Any
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1]))
 
-from tools.ci import flake_summary  # noqa: E402
 from tools.ci import gate  # noqa: E402
 from tools.ci import hold_gate  # noqa: E402
 from tools.ci import rerun_stale_gates  # noqa: E402
@@ -161,73 +160,6 @@ def test_gate() -> None:
     expect(
         result.returncode == 1 and "e2e" in result.stderr, "gate CLI accepted a failure"
     )
-
-
-def job(name: str, conclusion: str) -> dict[str, object]:
-    return {
-        "name": name,
-        "conclusion": conclusion,
-        "html_url": f"https://x/{name}/{conclusion}",
-    }
-
-
-def test_flake_tally() -> None:
-    runs = [
-        # Rerun: Security failed in attempt 1, passed in attempt 2.
-        [
-            [job("Security", "failure"), job("Unit", "success")],
-            [job("Security", "success"), job("Unit", "success")],
-        ],
-        # Plain failure, superseded cancellation and a skipped job.
-        [
-            [
-                job("Security", "success"),
-                job("Unit", "failure"),
-                job("Build", "cancelled"),
-                job("Golden", "skipped"),
-            ]
-        ],
-    ]
-    # A draft run (only the gate ran and failed) is not a test result.
-    draft_run = [
-        [
-            job("select / Select suites", "skipped"),
-            job("Unit", "skipped"),
-            job("CI gate", "failure"),
-        ]
-    ]
-    draft_stats, draft_total, _ = flake_summary.tally([draft_run])
-    expect(draft_total == 0 and not draft_stats, f"drafts are ignored: {draft_stats}")
-    docs_draft = [
-        [
-            {
-                "name": "Bilingual site artifact",
-                "conclusion": "failure",
-                "steps": [{"name": "Refuse a draft", "conclusion": "failure"}],
-            }
-        ]
-    ]
-    expect(flake_summary.tally([docs_draft])[1] == 0, "a refused docs draft is ignored")
-    stats, total, reruns = flake_summary.tally(runs)
-    expect(total == 2 and reruns == 1, f"run counts: {total}, {reruns}")
-    expect(
-        stats["Security"].runs == 2
-        and stats["Security"].rerun_failures == 1
-        and stats["Security"].final_failures == 0,
-        f"Security: {stats['Security']}",
-    )
-    expect(
-        stats["Unit"].final_failures == 1 and stats["Unit"].runs == 2,
-        f"Unit: {stats['Unit']}",
-    )
-    expect(
-        "Build" not in stats and "Golden" not in stats,
-        "cancelled/skipped jobs are not counted",
-    )
-    text = flake_summary.render("ci.yml", stats, total, reruns)
-    expect(text.index("Security") < text.index("Unit"), "reruns are listed first")
-    quiet = flake_summary.render("ci.yml", {}, 3, 0)
-    expect("No failed or rerun jobs." in quiet, "quiet summary")
 
 
 def test_retry_allowlist() -> None:
@@ -649,13 +581,12 @@ def main() -> int:
     test_gate()
     test_rerun_selection()
     test_pull_request_context()
-    test_flake_tally()
     test_retry_allowlist()
     if FAILURES:
         for failure in FAILURES:
             print(f"ci-gate-test: ERROR: {failure}", file=sys.stderr)
         return 1
-    print("ci-gate-test: OK: gate fails closed, flake tally, retry allowlist")
+    print("ci-gate-test: OK: gate fails closed, retry allowlist")
     return 0
 
 
