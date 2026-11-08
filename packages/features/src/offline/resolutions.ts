@@ -15,6 +15,8 @@ import type { ActivityEntry, CommitmentEntry, QueueEntry } from "./queue";
 export type Resolution =
   | "keep-follow-up"
   | "discard-follow-up"
+  | "keep-status"
+  | "discard-status"
   | "as-visit"
   | "copy-note"
   | "book-anyway"
@@ -35,20 +37,22 @@ export function resolutionsFor(entry: QueueEntry): Resolution[] {
   switch (code) {
     case "follow_up_not_applied":
       return ["keep-follow-up", "discard-follow-up"];
+    case "status_not_applied":
+      return ["keep-status", "discard-status"];
     case "contact_suppressed":
       return ["as-visit", "discard"];
     case "sponsor_not_assigned":
       return note ? ["copy-note", "discard"] : ["discard"];
     case "delivery_window_full":
-      return ["book-anyway", "other-window", "as-draft"];
+      return ["book-anyway", "other-window", "as-draft", "discard"];
     case "delivery_window_unavailable":
-      return ["other-window", "as-draft"];
+      return ["other-window", "as-draft", "discard"];
     case "commitment_price_changed":
       return ["accept-price", "discard"];
     case "delivery_required":
     case "delivery_address_required":
     case "delivery_window_required":
-      return ["complete-delivery", "as-draft"];
+      return ["complete-delivery", "as-draft", "discard"];
     default:
       return note ? ["copy-note", "discard"] : ["discard"];
   }
@@ -57,6 +61,8 @@ export function resolutionsFor(entry: QueueEntry): Resolution[] {
 export const resolutionLabel: Readonly<Record<Resolution, string>> = {
   "keep-follow-up": "Meine Wiedervorlage übernehmen",
   "discard-follow-up": "Die andere Wiedervorlage behalten",
+  "keep-status": "Meinen Stand übernehmen",
+  "discard-status": "Den anderen Stand behalten",
   "as-visit": "Als Besuch speichern",
   "copy-note": "Notiz kopieren",
   "book-anyway": "Trotzdem eintragen",

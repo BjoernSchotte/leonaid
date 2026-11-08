@@ -86,7 +86,12 @@ export function conflictText(entry: QueueEntry, actionName: string): string {
       return "Das gewählte Lieferfenster gibt es nicht mehr.";
     case "commitment_price_changed": {
       const details = (entry.lastError?.details ?? {}) as PriceDetails;
-      const line = details.lines?.[0];
+      const lines = details.lines ?? [];
+      // Several lines: the new total says it all (#132 L7).
+      if (lines.length > 1 && details.totalMinor !== undefined) {
+        return `Die Preise haben sich geändert. Die Bestellung kostet jetzt ${money(details.totalMinor, details.currency)}.`;
+      }
+      const line = lines[0];
       if (
         line?.unitPriceMinor !== undefined &&
         details.totalMinor !== undefined

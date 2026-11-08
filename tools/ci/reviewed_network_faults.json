@@ -88,5 +88,10 @@
     "path": "tests/e2e/tasks-ordering-faults.spec.mjs",
     "sha256": "5940ed527fe230623f11d59a5f325a8482a4d7130f43ce67792131920fc28cda",
     "reason": "Hold one real task-position PATCH until the test releases it, then forward it unchanged, so the grip and pane button must keep focus while the move saves; every response comes from the real API."
+  },
+  {
+    "path": "tests/e2e/pwa-offline-queue-faults.spec.mjs",
+    "sha256": "cc3a4fe0acd4a72bf5a72151b190dc2cdfc83bd826389b798a941a93c3296365",
+    "reason": "Let one real contact request of the offline queue reach the API and commit, then abort its first answer once (connectionreset), so the queue must resend the same Idempotency-Key and Core must replay; every other request and response passes unchanged from the real API."
   }
 ]

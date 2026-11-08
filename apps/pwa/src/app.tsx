@@ -261,10 +261,12 @@ const implementedPwaNavigation = new Set([
  * themselves.
  */
 function PwaShell({
+  client,
   identity,
   navigation,
   ...props
 }: Omit<MobileShellProps, "active" | "menuItems" | "tabs"> & {
+  readonly client: LeonAidApiClient;
   readonly identity: CurrentIdentityResponse;
   readonly navigation: CurrentIdentityResponse["navigation"];
 }) {
@@ -274,7 +276,7 @@ function PwaShell({
     implementedPwaNavigation,
     window.location,
   );
-  const { sheet, ...queue } = useQueueShell(identity, !props.offline);
+  const { sheet, ...queue } = useQueueShell(client, identity, !props.offline);
   return (
     <>
       <MobileShell
@@ -295,6 +297,7 @@ function PwaShell({
  * a queue (flag off) the shell stays exactly as before.
  */
 function useQueueShell(
+  client: LeonAidApiClient,
   identity: CurrentIdentityResponse,
   online: boolean,
 ): Pick<MobileShellProps, "offlineText" | "queue"> & {
@@ -339,6 +342,7 @@ function useQueueShell(
     sheet: (
       <QueueSheet
         actionNames={actionNames}
+        client={client}
         loginHref={loginHref(window.location)}
         onClose={() => setOpen(false)}
         online={online}
@@ -480,6 +484,7 @@ export function App({ client }: AppProps) {
     <OfflineRuntimeContext.Provider value={device.runtime}>
       <PwaShell
         campaign={currentAction}
+        client={client}
         identity={identity.data}
         navigation={identity.data.navigation}
         surfaces={surfaces}

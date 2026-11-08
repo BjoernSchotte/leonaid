@@ -6,6 +6,8 @@
  * BroadcastChannel and re-read the store.
  */
 import { drainQueue, type SyncDependencies, type SyncReport } from "./sync";
+import type { SponsorDraftRequest } from "@leonaid/api-client";
+
 import {
   capturedAtNow,
   idempotencyKeyFor,
@@ -15,6 +17,7 @@ import {
   type QueueError,
   type QueueStore,
   type SendResult,
+  type SponsorDraftEntry,
 } from "./queue";
 
 /** What the page fills in; the controller adds the bookkeeping. */
@@ -33,7 +36,11 @@ export type QueueDraft = QueueEntry extends infer Entry
         | "lastError"
         | "settledAt"
         | "dependsOn"
-      > & { readonly capturedAt?: string }
+      > & {
+        readonly capturedAt?: string;
+        /** The sponsor draft this capture waits for (§9.2). */
+        readonly dependsOn?: string | null;
+      }
     : never
   : never;
 
@@ -65,6 +72,8 @@ export interface QueueSnapshot {
   readonly sent: readonly QueueEntry[];
   /** navigator.storage.persist() refused: the browser may evict (§8.5). */
   readonly evictable: boolean;
+  /** The store has been read once (drafts and counts are real). */
+  readonly loaded: boolean;
 }
 
 export interface QueueControllerOptions {
@@ -92,6 +101,7 @@ export class QueueController {
   #snapshot: QueueSnapshot = {
     entries: [],
     evictable: false,
+    loaded: false,
     paused: false,
     sending: false,
     sent: [],
@@ -140,6 +150,7 @@ export class QueueController {
     if (!entries) return;
     this.#publish({
       entries,
+      loaded: true,
       sent: sentThisPage.get(this.#options.userId) ?? [],
     });
     this.#schedule(entries);
@@ -195,10 +206,12 @@ export class QueueController {
     return { entryId, error: current.lastError, state: current.state };
   }
 
-  async #write(draft: QueueDraft): Promise<QueueEntry> {
+  async #write(
+    draft: QueueDraft,
+    entryId: string = newEntryId(),
+  ): Promise<QueueEntry> {
     const { store } = this.#options;
     const now = this.#options.now?.() ?? new Date();
-    const entryId = newEntryId();
     for (let attempt = 0; ; attempt += 1) {
       const existing = await store.list();
       const highest = existing.reduce(
@@ -209,7 +222,7 @@ export class QueueController {
         ...draft,
         attempts: 0,
         capturedAt: draft.capturedAt ?? capturedAtNow(now),
-        dependsOn: null,
+        dependsOn: draft.dependsOn ?? null,
         entryId,
         idempotencyKey: idempotencyKeyFor(entryId),
         lastError: null,
@@ -273,11 +286,162 @@ export class QueueController {
 
   /**
    * Deletes an entry. It waits for a send in flight (same lock), so a
-   * discarded entry never reaches Core afterwards nor comes back.
+   * discarded entry never reaches Core afterwards nor comes back. A draft
+   * goes with the captures that wait for it (§10.4), read from the store,
+   * so one written in another tab is not left behind.
    */
-  async discard(entryId: string): Promise<void> {
-    await this.#mutate((store) => store.delete(entryId));
+  async discard(
+    entryId: string,
+    shownDependents?: readonly string[],
+  ): Promise<"discarded" | "changed"> {
+    let outcome: "discarded" | "changed" = "discarded";
+    await this.#mutate(async (store) => {
+      const dependents = (await store.list()).filter(
+        (entry) => entry.dependsOn === entryId,
+      );
+      // A capture the confirmation did not name (written in another tab
+      // meanwhile) is never deleted unseen: the sheet asks again (#132 N2).
+      if (
+        shownDependents &&
+        dependents.some((entry) => !shownDependents.includes(entry.entryId))
+      ) {
+        outcome = "changed";
+        return;
+      }
+      for (const entry of dependents) await store.delete(entry.entryId);
+      await store.delete(entryId);
+    });
     void this.run();
+    return outcome;
+  }
+
+  /** A new sponsor saved offline (§10.4); never sent by itself. */
+  async saveDraft({
+    actionId,
+    mode,
+    request,
+  }: {
+    readonly actionId: string;
+    readonly mode: "company" | "person";
+    readonly request: SponsorDraftRequest;
+  }): Promise<SponsorDraftEntry> {
+    const entryId = newEntryId();
+    const placeholder = `draft:${entryId}`;
+    const displayName =
+      mode === "company"
+        ? (request.companyName ?? "").trim()
+        : [request.givenName, request.familyName]
+            .filter(Boolean)
+            .join(" ")
+            .trim();
+    return (await this.#write(
+      {
+        actionId,
+        assignmentId: placeholder,
+        base: {},
+        // §10.4: the match step resolves with the draft's own command id,
+        // so a repeated check after a lost answer replays, not duplicates.
+        commandId: newEntryId(),
+        kind: "sponsor-draft",
+        mode,
+        party: { displayName, id: placeholder, kind: mode },
+        request,
+      },
+      entryId,
+    )) as SponsorDraftEntry;
+  }
+
+  /**
+   * The match step resolved a draft: the captures that waited for it take
+   * the sponsor, assignment and revision Core returned and are sent (§9.2).
+   */
+  async resolveDraft(
+    draftId: string,
+    resolved: {
+      readonly partyKind: "company" | "person";
+      readonly partyId: string;
+      readonly displayName: string;
+      readonly assignmentId: string;
+      readonly revision: number;
+    },
+  ): Promise<void> {
+    const party = {
+      displayName: resolved.displayName,
+      id: resolved.partyId,
+      kind: resolved.partyKind,
+    };
+    await this.#mutate(async (store) => {
+      for (const entry of await store.list()) {
+        if (entry.dependsOn !== draftId) continue;
+        if (entry.kind === "activity") {
+          await store.put({
+            ...entry,
+            assignmentId: resolved.assignmentId,
+            base: { ...entry.base, assignmentRevision: resolved.revision },
+            dependsOn: null,
+            party,
+            request: {
+              ...entry.request,
+              partyId: resolved.partyId,
+              partyKind: resolved.partyKind,
+              revision: resolved.revision,
+            },
+          });
+        } else {
+          await store.put({
+            ...entry,
+            assignmentId: resolved.assignmentId,
+            dependsOn: null,
+            party,
+          });
+        }
+      }
+      await store.delete(draftId);
+    });
+    void this.run();
+  }
+
+  /** Updates a decision's facts (Core's current state); it stays put. */
+  async annotate(
+    entryId: string,
+    patch: Pick<QueueEntry, "conflictAssignment">,
+  ): Promise<void> {
+    await this.#mutate(async (store) => {
+      const current = (await store.list()).find(
+        (item) => item.entryId === entryId,
+      );
+      if (current) await store.put({ ...current, ...patch } as QueueEntry);
+    });
+  }
+
+  /** The captures that wait for a draft, as the store holds them. */
+  async dependents(draftId: string): Promise<QueueEntry[]> {
+    // Read under the lock: not between a writer's steps in another tab.
+    return this.#exclusive(async () =>
+      (await this.#options.store.list()).filter(
+        (entry) => entry.dependsOn === draftId,
+      ),
+    );
+  }
+
+  /**
+   * Keeps what a draft's CRM check sent and got (#132 N1), or gives the
+   * draft a new command id after Core refused the check.
+   */
+  async updateDraft(
+    draftId: string,
+    patch: Partial<
+      Pick<SponsorDraftEntry, "commandId" | "resolveRequest" | "resolution">
+    >,
+  ): Promise<void> {
+    await this.#mutate(async (store) => {
+      const current = (await store.list()).find(
+        (item) => item.entryId === draftId,
+      );
+      if (current?.kind === "sponsor-draft") {
+        await store.put({ ...current, ...patch });
+      }
+    });
   }
 
   /** "Erneut versuchen" of a failed or no-longer-possible entry. */

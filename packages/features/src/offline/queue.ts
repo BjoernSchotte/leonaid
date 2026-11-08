@@ -6,6 +6,9 @@
  */
 import {
   ApiError,
+  type ResolveSponsorMatchRequest,
+  type SponsorDraftRequest,
+  type SponsorResolutionResponse,
   type CommitmentResponse,
   type CompleteCommitmentRequest,
   type CreateCommitmentRequest,
@@ -15,7 +18,11 @@ import {
 
 import type { DeviceStore } from "./device-store";
 
-export type QueueKind = "activity" | "commitment" | "commitment-completion";
+export type QueueKind =
+  | "activity"
+  | "commitment"
+  | "commitment-completion"
+  | "sponsor-draft";
 
 /**
  * §9.3. `queued` waits for the network or its backoff; `sending` is in
@@ -101,7 +108,31 @@ export interface CompletionEntry extends EntryCommon {
   readonly request: CompleteCommitmentRequest;
 }
 
-export type QueueEntry = ActivityEntry | CommitmentEntry | CompletionEntry;
+/**
+ * A new sponsor saved offline (§10.4, D10). It never sends itself: the
+ * acquirer resolves it online with the match step; entries that depend
+ * on it wait (`dependsOn`) and then take the resolved sponsor.
+ */
+export interface SponsorDraftEntry extends EntryCommon {
+  readonly kind: "sponsor-draft";
+  /** The `command_id` of `resolveSponsorMatch` for this draft (§10.4). */
+  readonly commandId: string;
+  /**
+   * The exact resolve body sent under `commandId`, kept before it goes out:
+   * Core replays only that body (#132 N1). `null`: none sent, or refused.
+   */
+  readonly resolveRequest?: ResolveSponsorMatchRequest | null;
+  /** Core's answer to that resolve, once it arrived. */
+  readonly resolution?: SponsorResolutionResponse | null;
+  readonly mode: "company" | "person";
+  readonly request: SponsorDraftRequest;
+}
+
+export type QueueEntry =
+  | ActivityEntry
+  | CommitmentEntry
+  | CompletionEntry
+  | SponsorDraftEntry;
 
 export interface QueueStore {
   list(): Promise<QueueEntry[]>;
@@ -253,7 +284,7 @@ export function nextSendable(
     if (held.has(key)) continue;
     if (holdsSponsor(entry)) held.add(key);
     if (entry.state !== "queued" && entry.state !== "sending") continue;
-    if (entry.dependsOn) continue;
+    if (entry.dependsOn || entry.kind === "sponsor-draft") continue;
     if (
       entry.state === "queued" &&
       entry.nextAttemptAt &&

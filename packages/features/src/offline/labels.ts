@@ -32,5 +32,18 @@ export function entryTitle(entry: QueueEntry): string {
       return `Bestellung für ${entry.party.displayName}`;
     case "commitment-completion":
       return `Bestellung für ${entry.party.displayName} vervollständigen`;
+    case "sponsor-draft":
+      return `Neuer Sponsor ${entry.party.displayName}`;
   }
+}
+
+/** The state in words; a capture waiting for its sponsor draft says so. */
+export function entryStateLabel(entry: QueueEntry): string {
+  if (entry.kind === "sponsor-draft" && entry.state === "queued") {
+    return "Wartet auf deine Prüfung";
+  }
+  if (entry.dependsOn && entry.state === "queued") {
+    return "Wartet auf den Entwurf";
+  }
+  return queueStateLabel[entry.state];
 }

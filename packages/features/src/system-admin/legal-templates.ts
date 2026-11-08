@@ -78,7 +78,7 @@ Damit du Kontaktversuche und Bestellungen auch ohne Netz erfassen kannst, speich
 
 - eine Kurzform deiner eigenen Anmeldung, damit die App auch ohne Netz startet: dein Name, deine Aktionen und deine Rollen (nicht deine E-Mail-Adresse);
 - die Liste deiner eigenen zugewiesenen Sponsoren mit Name, Ort, Status und nächstem Schritt sowie den Kontaktdaten Ansprechperson, Telefonnummer und E-Mail-Adresse;
-- Einträge, die noch nicht gesendet sind, zum Beispiel Notizen, Kontaktversuche, neue Sponsoren (ohne Straße) und Bestellungen mit Rechnungsadresse, Lieferadresse und Kontakt.
+- Einträge, die noch nicht gesendet sind, zum Beispiel Notizen, Kontaktversuche, neue Sponsoren als Entwurf mit Name, Ansprechperson, E-Mail-Adresse, PLZ und Ort (ohne Straße) und Bestellungen mit Rechnungsadresse, Lieferadresse und Kontakt.
 
 Nicht auf deinem Gerät gespeichert werden die Straßenadressen der Sponsoren (außer der Rechnungs- und Lieferadresse einer Bestellung, die noch nicht gesendet ist), Rechnungen, Bestellungen anderer Mitglieder und Daten der Auslieferung.
 

@@ -830,5 +830,86 @@
       "file": "apps/campaign-site/src/site-host-routing.ts",
       "contains": ["\"/robots.txt\"", "\"/sitemap.xml\"", "\"/archive/\""]
     }
+  ],
+  "DOC-P050": [
+    {
+      "file": "packages/features/src/offline/labels.ts",
+      "contains": [
+        "Wartet auf Verbindung",
+        "Wird gesendet …",
+        "Braucht deine Entscheidung",
+        "Konnte nicht gesendet werden",
+        "Abgelaufen",
+        "Nicht mehr möglich"
+      ]
+    },
+    {
+      "file": "packages/features/src/offline/resolutions.ts",
+      "contains": [
+        "Meine Wiedervorlage übernehmen",
+        "Die andere Wiedervorlage behalten",
+        "Als Besuch speichern",
+        "Notiz kopieren",
+        "Trotzdem eintragen",
+        "Anderes Fenster wählen",
+        "Als Entwurf speichern",
+        "Neuen Preis übernehmen",
+        "Ergänzen"
+      ]
+    },
+    {
+      "file": "apps/pwa/src/queue-indicator.ts",
+      "contains": [
+        "Du bist offline. Neue Kontakte, Wiedervorlagen und Bestellungen speichert LeonAid auf diesem Gerät und sendet sie, sobald du wieder online bist."
+      ]
+    },
+    {
+      "file": "packages/features/src/offline/runtime.tsx",
+      "contains": [
+        "Deine Sponsorenliste ist älter als 7 Tage. Geh online, um sie zu aktualisieren."
+      ]
+    },
+    {
+      "file": "packages/features/src/offline/sign-out.tsx",
+      "contains": [
+        "Erst senden",
+        "Trotzdem abmelden",
+        "Abbrechen"
+      ]
+    },
+    {
+      "file": "packages/features/src/offline/queue-sheet.tsx",
+      "contains": [
+        "Warteschlange",
+        "Jetzt senden",
+        "wartet auf deine Prüfung"
+      ]
+    },
+    {
+      "file": "packages/features/src/offline/entry-choices.tsx",
+      "contains": [
+        "Jetzt prüfen"
+      ]
+    },
+    {
+      "file": "packages/features/src/offline/read-cache.ts",
+      "contains": [
+        "READ_CACHE_SHOW_DAYS = 7",
+        "READ_CACHE_KEEP_DAYS = 14"
+      ]
+    },
+    {
+      "file": "packages/features/src/offline/queue.ts",
+      "contains": [
+        "QUEUE_KEEP_DAYS = 14",
+        "SETTLED_KEEP_DAYS = 2"
+      ]
+    },
+    {
+      "file": "src/leonaid/domain/feature_flags.py",
+      "contains": [
+        "Offline-Erfassung in der Akquise-App"
+      ]
+    }
   ]
 }

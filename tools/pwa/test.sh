@@ -199,14 +199,32 @@ offline_watcher() {
     for request in "$proof"/offline-request-*; do
       [ -f "$request" ] || continue
       name=${request##*/offline-request-}
+      # set +e: a failed request is reported, it never ends the watcher.
+      set +e
       case "$name" in
         price-up) echo "UPDATE offering SET unit_price_minor = unit_price_minor + 200 WHERE action_id = '20000000-0000-4000-8000-000000000001';" | offline_sql ;;
         price-down) echo "UPDATE offering SET unit_price_minor = unit_price_minor - 200 WHERE action_id = '20000000-0000-4000-8000-000000000001';" | offline_sql ;;
+        # The seeded action has no delivery configuration row yet. Retiring
+        # a window is permanent, so teardown only switches delivery off and
+        # the next browser run reuses the same window.
+        window-setup) printf '%s\n' "INSERT INTO action_delivery_configuration (action_id, enabled) VALUES ('20000000-0000-4000-8000-000000000001', true) ON CONFLICT (action_id) DO UPDATE SET enabled = true, revision = action_delivery_configuration.revision + 1;" "INSERT INTO action_delivery_window (id, action_id, starts_at, ends_at) VALUES ('97000000-0000-4000-8000-0000000000a1', '20000000-0000-4000-8000-000000000001', date_trunc('day', now()) + interval '3 days 9 hours', date_trunc('day', now()) + interval '3 days 11 hours') ON CONFLICT (id) DO UPDATE SET fully_booked = false;" | offline_sql ;;
+        window-full) echo "UPDATE action_delivery_window SET fully_booked = true WHERE id = '97000000-0000-4000-8000-0000000000a1';" | offline_sql ;;
+        window-teardown) printf '%s\n' "UPDATE action_delivery_window SET fully_booked = false WHERE id = '97000000-0000-4000-8000-0000000000a1';" "UPDATE action_delivery_configuration SET enabled = false, revision = revision + 1 WHERE action_id = '20000000-0000-4000-8000-000000000001';" | offline_sql ;;
         flag-off) offline_flag false ;;
         flag-on) offline_flag true ;;
+        # A spec that signed a persona out gets the fixed sessions back.
+        sessions) pwa_sessions >/dev/null ;;
+        *) false ;;
       esac
+      status=$?
+      set -e
       rm -f "$request"
-      touch "$proof/offline-done-$name"
+      if [ "$status" -eq 0 ]; then
+        touch "$proof/offline-done-$name"
+      else
+        echo "pwa-test: offline request $name failed" >&2
+        touch "$proof/offline-failed-$name"
+      fi
     done
     sleep 1
   done
@@ -232,6 +250,8 @@ for browser in chromium webkit; do
     node_modules/.bin/playwright test \
     tests/e2e/pwa-offline.spec.mjs \
     tests/e2e/pwa-offline-queue.spec.mjs \
+    tests/e2e/pwa-offline-decisions.spec.mjs \
+    tests/e2e/pwa-offline-queue-faults.spec.mjs \
     --browser="$browser" \
     --output="/proof/test-results-offline-$browser" \
     --trace=retain-on-failure \
@@ -295,6 +315,8 @@ for screenshot in \
   pwa-offline-start-webkit.png \
   pwa-offline-queue-chromium.png \
   pwa-offline-queue-webkit.png \
+  pwa-offline-decision-chromium.png \
+  pwa-offline-decision-webkit.png \
   pwa-error-chromium-390.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "pwa-test: ERROR: browser evidence is missing: $screenshot" >&2

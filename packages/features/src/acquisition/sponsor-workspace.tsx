@@ -15,7 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import {
   ApiError,
@@ -40,7 +40,19 @@ import {
   useHotkeys,
 } from "@leonaid/ui";
 
+import {
+  resolveDraftSponsor,
+  resolveKeptNothing,
+  resumeDraftCheck,
+} from "../offline/draft-check";
 import { PendingCaptures } from "../offline/pending-captures";
+import type { SponsorDraftEntry } from "../offline/queue";
+import {
+  useOfflineRuntime,
+  useOnline,
+  useQueueSnapshot,
+} from "../offline/runtime";
+import { OfflineSponsorDraft } from "../offline/sponsor-draft";
 import { formatDateTime, relativeDay, shortDate } from "../shared/dates";
 import { navigateInPage, useLocationHref } from "../shared/location";
 import { ContactSheet, channelLabels, outcomeLabels } from "./contact-sheet";
@@ -684,19 +696,42 @@ function MatchResult({
   );
 }
 
+/** The assignment's revision, read again while the CRM write settles. */
+async function assignmentRevision(
+  client: LeonAidApiClient,
+  actionId: string,
+  assignmentId: string,
+): Promise<number | null> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const board = await client
+      .getAcquisitionActivityBoard(actionId, { limit: 100 })
+      .catch(() => null);
+    const item = board?.workItems.find(
+      (work) => work.assignmentId === assignmentId,
+    );
+    if (item) return item.revision;
+    await new Promise((resolve) => setTimeout(resolve, 1_000 * (attempt + 1)));
+  }
+  return null;
+}
+
 function NewSponsor({
   actionId,
   client,
+  draftEntry,
   identity,
   onAssigned,
 }: {
   readonly actionId: string;
   readonly client: LeonAidApiClient;
+  /** A sponsor saved offline, checked now (offline queue §10.4). */
+  readonly draftEntry?: SponsorDraftEntry;
   readonly identity: CurrentIdentityResponse;
   readonly onAssigned: () => Promise<unknown>;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
-  const [mode, setMode] = useState<SponsorMode>("company");
+  const { queue } = useOfflineRuntime();
+  const [mode, setMode] = useState<SponsorMode>(draftEntry?.mode ?? "company");
   const [match, setMatch] = useState<SponsorMatchResponse | null>(null);
   const [draft, setDraft] = useState<SponsorDraftRequest | null>(null);
   const [commandId, setCommandId] = useState<string | null>(null);
@@ -716,7 +751,9 @@ function NewSponsor({
     onSuccess: (result, nextDraft) => {
       setDraft(nextDraft);
       setMatch(result);
-      setCommandId(crypto.randomUUID());
+      // §10.4: a draft resolves with its own command id, so a repeated
+      // check after a lost answer replays instead of creating again.
+      setCommandId(draftRef.current?.commandId ?? crypto.randomUUID());
       setResolution(null);
       setSelectedId(
         result.status === "single_match"
@@ -725,26 +762,108 @@ function NewSponsor({
       );
     },
   });
+  /** Core resolved the sponsor: a draft's captures follow it (§9.2). */
+  async function settle(result: SponsorResolutionResponse) {
+    setResolution(result);
+    const pending = draftRef.current;
+    if (pending && queue) {
+      // The captures of the draft take the resolved sponsor and the
+      // assignment's real revision, then go out. Without it they keep
+      // waiting; the draft keeps Core's answer, so opening it again only
+      // reads the revision (#132 N1).
+      const revision = await assignmentRevision(
+        client,
+        actionId,
+        result.assignmentId,
+      );
+      if (revision === null) {
+        setFormError(
+          "Der Sponsor ist angelegt, aber noch nicht in deiner Liste. Öffne den Entwurf gleich noch einmal; die wartenden Einträge gehen dann los.",
+        );
+      } else {
+        await queue.resolveDraft(pending.entryId, {
+          assignmentId: result.assignmentId,
+          displayName: result.displayName,
+          partyId: result.twentyId,
+          partyKind: result.partyKind,
+          revision,
+        });
+        draftRef.current = undefined;
+      }
+    }
+    await onAssigned();
+  }
   const resolve = useMutation({
     mutationFn: async () => {
       if (!draft || !match || !commandId) throw new Error("missing-match");
       const selected = match.candidates.find(
         (candidate) => candidate.twentyId === selectedId,
       );
-      return client.resolveSponsorMatch(actionId, {
+      const request = {
         commandId,
         // Only the acquirer's own tick confirms a shared assignment.
         confirmExistingAssignments: confirmed,
         expectedStatus: match.status,
         selectedTwentyId: selected?.twentyId ?? null,
         sponsor: draft,
-      });
+      };
+      const pending = draftRef.current;
+      // A draft keeps the exact body before it goes out (#132 N1).
+      return pending && queue
+        ? resolveDraftSponsor(client, queue, actionId, pending.entryId, request)
+        : client.resolveSponsorMatch(actionId, request);
     },
-    onSuccess: async (result) => {
-      setResolution(result);
-      await onAssigned();
+    onError: (error) => {
+      const pending = draftRef.current;
+      if (!pending || !queue || !resolveKeptNothing(error)) return;
+      // Refused: the draft took a new command id for the next check.
+      const fresh = queue.snapshot.entries.find(
+        (entry) => entry.entryId === pending.entryId,
+      );
+      if (fresh?.kind === "sponsor-draft") {
+        draftRef.current = fresh;
+        setCommandId(fresh.commandId);
+      }
+    },
+    onSuccess: settle,
+  });
+  // The draft as it was when the check opened; it leaves the queue once
+  // resolved, while this form still shows the result.
+  const draftRef = useRef(draftEntry);
+  // An earlier check of this draft sent a body or got an answer: finish
+  // that one first; a new check would meet idempotency_conflict (#132 N1).
+  const [resumeNeeded] = useState(() =>
+    Boolean(draftEntry?.resolution || draftEntry?.resolveRequest),
+  );
+  const resume = useMutation({
+    mutationFn: async () => {
+      const pending = draftRef.current;
+      if (!pending || !queue) throw new Error("missing-draft");
+      return resumeDraftCheck(client, queue, actionId, pending);
+    },
+    onSuccess: async (check) => {
+      const pending = draftRef.current;
+      if (check.state === "resolved") {
+        await settle(check.resolution);
+      } else if (check.state === "check" && pending) {
+        // Core kept nothing of it: a normal check under a new command id.
+        draftRef.current = {
+          ...pending,
+          commandId: check.commandId,
+          resolveRequest: null,
+        };
+      }
     },
   });
+  const startResume = resume.mutate;
+  useEffect(() => {
+    if (resumeNeeded) startResume();
+  }, [resumeNeeded, startResume]);
+  const resumeWaiting =
+    resumeNeeded &&
+    !resolution &&
+    resume.data?.state !== "check" &&
+    resume.data?.state !== "resolved";
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
@@ -803,6 +922,7 @@ function NewSponsor({
     setFormError(null);
   }
   const formLocked =
+    resumeWaiting ||
     preview.isPending ||
     resolve.isPending ||
     match !== null ||
@@ -819,6 +939,43 @@ function NewSponsor({
         onSubmit={submit}
         ref={formRef}
       >
+        {resumeWaiting ? (
+          <StatusMessage
+            tone={
+              resume.isError || resume.data?.state === "unknown"
+                ? "warning"
+                : "info"
+            }
+          >
+            <div className="stack" data-testid="sponsor-draft-resume">
+              {resume.isError || resume.data?.state === "unknown" ? (
+                <>
+                  <p>
+                    Die CRM-Prüfung dieses Entwurfs von vorhin hat noch keine
+                    Antwort. Versuche es gleich noch einmal; es entsteht kein
+                    zweiter Sponsor.
+                  </p>
+                  <Button
+                    loading={resume.isPending}
+                    onClick={() => resume.mutate()}
+                    variant="secondary"
+                  >
+                    Erneut versuchen
+                  </Button>
+                </>
+              ) : (
+                <p>Die CRM-Prüfung dieses Entwurfs von vorhin wird beendet …</p>
+              )}
+            </div>
+          </StatusMessage>
+        ) : draftRef.current && !match && !resolution ? (
+          <StatusMessage tone="info">
+            <span data-testid="sponsor-draft-check">
+              Dein Entwurf von unterwegs. Ergänze bei Bedarf die Straße und
+              prüfe den Sponsor dann im CRM.
+            </span>
+          </StatusMessage>
+        ) : null}
         <fieldset className="pwa-fieldset stack" disabled={formLocked}>
           <legend className="sr-only">Sponsor-Daten</legend>
           <div
@@ -851,6 +1008,7 @@ function NewSponsor({
                 data-testid="sponsor-company"
                 id="sponsor-company"
                 maxLength={300}
+                defaultValue={draftEntry?.request.companyName ?? undefined}
                 name="companyName"
                 required
               />
@@ -866,6 +1024,7 @@ function NewSponsor({
               autoComplete="given-name"
               id="sponsor-given-name"
               maxLength={200}
+              defaultValue={draftEntry?.request.givenName ?? undefined}
               name="givenName"
               required={mode === "person"}
             />
@@ -880,6 +1039,7 @@ function NewSponsor({
               autoComplete="family-name"
               id="sponsor-family-name"
               maxLength={200}
+              defaultValue={draftEntry?.request.familyName ?? undefined}
               name="familyName"
               required={mode === "person"}
             />
@@ -889,6 +1049,7 @@ function NewSponsor({
               autoComplete="email"
               id="sponsor-email"
               maxLength={320}
+              defaultValue={draftEntry?.request.email ?? undefined}
               name="email"
               type="email"
             />
@@ -909,6 +1070,7 @@ function NewSponsor({
                     autoComplete="postal-code"
                     id="sponsor-postal-code"
                     maxLength={40}
+                    defaultValue={draftEntry?.request.postalCode ?? undefined}
                     name="postalCode"
                   />
                 </Field>
@@ -917,6 +1079,7 @@ function NewSponsor({
                     autoComplete="address-level2"
                     id="sponsor-city"
                     maxLength={200}
+                    defaultValue={draftEntry?.request.city ?? undefined}
                     name="city"
                   />
                 </Field>
@@ -981,6 +1144,17 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
   const href = useLocationHref();
   const query = new URLSearchParams(href.split("?")[1] ?? "");
   const view = query.get("view") === "new" ? "new" : "list";
+  // Offline queue (§10.4): offline, "Neu" saves a draft; ?draft= checks one.
+  const runtime = useOfflineRuntime();
+  const online = useOnline();
+  const offlineCapture = runtime.enabled && runtime.queue !== null;
+  const draftId = query.get("draft");
+  const queueSnapshot = useQueueSnapshot();
+  const queueLoaded = queueSnapshot.loaded;
+  const draftEntry = queueSnapshot.entries.find(
+    (entry): entry is SponsorDraftEntry =>
+      entry.kind === "sponsor-draft" && entry.entryId === draftId,
+  );
   const assignmentId = query.get("assignment");
   const requestedStatus = query.get("status");
   const status = isAssignmentStatus(requestedStatus) ? requestedStatus : null;
@@ -1011,13 +1185,22 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
           Neuer Sponsor
         </h1>
         {choice}
-        <NewSponsor
-          actionId={actionId}
-          client={client}
-          identity={identity}
-          key={actionId}
-          onAssigned={() => board.refetch()}
-        />
+        {offlineCapture && !online ? (
+          <OfflineSponsorDraft actionId={actionId} client={client} />
+        ) : draftId && offlineCapture && !queueLoaded ? (
+          <BoardLoading label="Entwurf wird geladen" />
+        ) : (
+          <NewSponsor
+            actionId={actionId}
+            client={client}
+            draftEntry={draftEntry}
+            identity={identity}
+            // The URL's draft keeps the form mounted when the resolved
+            // draft leaves the queue.
+            key={`${actionId}:${draftId ?? ""}`}
+            onAssigned={() => board.refetch()}
+          />
+        )}
       </>
     );
   }

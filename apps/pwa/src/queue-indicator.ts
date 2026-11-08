@@ -23,11 +23,18 @@ function entries(count: number) {
 }
 
 export function queueIndicator(snapshot: QueueSnapshot): QueueIndicator {
+  const sendable = snapshot.entries.filter(
+    (entry) => entry.kind !== "sponsor-draft" && !entry.dependsOn,
+  );
+  const drafts = snapshot.entries.filter(
+    (entry) => entry.kind === "sponsor-draft",
+  ).length;
   const count = (states: readonly string[]) =>
-    snapshot.entries.filter((entry) => states.includes(entry.state)).length;
+    sendable.filter((entry) => states.includes(entry.state)).length;
   const waiting = count(["queued", "sending"]);
   const failed = count(["failed"]);
-  const decision = count(["conflict"]);
+  // A sponsor draft needs the acquirer's check (§10.4), whatever its state.
+  const decision = count(["conflict"]) + drafts;
   const settled = count(["blocked", "expired"]);
   if (failed) {
     return {

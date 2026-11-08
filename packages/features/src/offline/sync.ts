@@ -278,5 +278,8 @@ export async function sendEntry(
           options,
         ),
       };
+    case "sponsor-draft":
+      // nextSendable never offers a draft; the match step resolves it.
+      throw new Error("A sponsor draft is resolved, not sent");
   }
 }

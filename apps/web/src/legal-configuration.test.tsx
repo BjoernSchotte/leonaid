@@ -536,6 +536,9 @@ describe("LegalConfigurationPage four-eyes flow", () => {
       "dein Name, deine Aktionen und deine Rollen",
     );
     expect(notice.value).toContain("Bestellungen mit Rechnungsadresse");
+    expect(notice.value).toContain(
+      "neue Sponsoren als Entwurf mit Name, Ansprechperson, E-Mail-Adresse, PLZ und Ort",
+    );
     expect(notice.value).toContain("nur auf diesem Gerät, verschlüsselt");
     expect(notice.value).toContain("Endet deine Mitarbeit in einer Aktion");
     // The device section describes the offline queue: the club must decide

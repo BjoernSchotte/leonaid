@@ -122,6 +122,7 @@ function queuedToast(outcome: SubmitOutcome | null) {
 export function ContactSheet({
   actionId,
   client,
+  dependsOn = null,
   item,
   onClose,
   open,
@@ -129,6 +130,8 @@ export function ContactSheet({
 }: {
   readonly actionId: string;
   readonly client: LeonAidApiClient;
+  /** A sponsor draft this contact waits for (offline queue §9.2). */
+  readonly dependsOn?: string | null;
   readonly item: AcquisitionActivityWorkItemResponse;
   readonly onClose: () => void;
   readonly open: boolean;
@@ -188,6 +191,7 @@ export function ContactSheet({
         actionId,
         assignmentId: item.assignmentId,
         base: { assignmentRevision: body.revision },
+        dependsOn,
         kind: "activity",
         party: {
           displayName: item.partyDisplayName,

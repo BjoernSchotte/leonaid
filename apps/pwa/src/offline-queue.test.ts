@@ -422,6 +422,7 @@ describe("queue indicator (§12.2)", () => {
   const snapshot = (states: QueueEntry["state"][], sending = false) => ({
     entries: states.map((state, index) => activity(index + 1, "a", { state })),
     evictable: false,
+    loaded: true,
     paused: false,
     sending,
     sent: [],

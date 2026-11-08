@@ -5,7 +5,9 @@
 // sign-out. Runs against the real stack (tools/pwa/test.sh switches the
 // flag on before and off after this spec); no request is intercepted.
 import { analyzeAccessibility } from "./axe.mjs";
-import { expect, test } from "./csp-guard.mjs";
+import { expect as baseExpect, test } from "./csp-guard.mjs";
+
+const expect = baseExpect.configure({ timeout: 60_000 });
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
@@ -28,6 +30,10 @@ const SECOND_ACQUIRER = {
 function sessionFor(userId) {
   return `poc062-${userId}-server-session-token-value`;
 }
+
+// The board reads the CRM, which Core limits to 100 requests a minute for
+// the whole installation; after the heavier specs a first load can wait.
+test.describe.configure({ timeout: 240_000 });
 
 test.use({
   ignoreHTTPSErrors: true,
@@ -141,7 +147,6 @@ test("the PWA starts offline from the encrypted device copy", async ({
   context,
   page,
 }) => {
-  test.setTimeout(120_000);
   await authenticate(context, annaSession);
   await page.goto(`${baseUrl}/app/sponsors`);
   await expect(
@@ -315,7 +320,6 @@ test("account switch and sign-out delete the device copy (D6, §8.5)", async ({
   context,
   page,
 }) => {
-  test.setTimeout(120_000);
   const second = SECOND_ACQUIRER[browserName];
   test.skip(!second, "No second acquirer persona for this browser.");
   await authenticate(context, annaSession);
@@ -337,6 +341,36 @@ test("account switch and sign-out delete the device copy (D6, §8.5)", async ({
   expect(
     await page.evaluate(() => localStorage.getItem("leonaid-pwa-active-user")),
   ).toBe(second.id);
+
+  // §12.5: a capture still on the device makes sign-out ask first.
+  await controlled(page);
+  await expect
+    .poll(async () => (await rawDatabase(page, second.id))?.cacheIds.length, {
+      timeout: 30_000,
+    })
+    .toBe(2);
+  await context.setOffline(true);
+  await page.getByTestId("sponsor-row").first().click();
+  await page.getByTestId("contact-open").click();
+  await page.locator("#activity-note").fill("Vor dem Abmelden");
+  await page.getByTestId("activity-submit").click();
+  await page.getByTestId("pwa-menu").click();
+  await page.getByTestId("logout").click();
+  const warning = page.getByRole("alertdialog", { name: "Abmelden?" });
+  await expect(warning).toContainText(
+    "Noch 1 Eintrag nicht gesendet. Wenn du dich jetzt abmeldest, wird er von diesem Gerät gelöscht.",
+  );
+  // Offline there is nothing to send first.
+  await expect(warning.getByTestId("sign-out-send-first")).toBeDisabled();
+  await warning.getByRole("button", { name: "Abbrechen" }).click();
+  await expect(warning).toBeHidden();
+  // Back online the queue sends by itself; then sign-out asks nothing.
+  await page.keyboard.press("Escape");
+  await context.setOffline(false);
+  await expect(page.getByTestId("network-state")).toHaveAttribute(
+    "data-queue-state",
+    "empty",
+  );
 
   // Sign-out deletes everything the PWA kept.
   await page.getByTestId("pwa-menu").click();
@@ -388,9 +422,9 @@ test("the admin web app clears the device copy too (D6, §8.5)", async ({
   await expect(page).toHaveTitle("LeonAid ist offline");
   await context.setOffline(false);
 
-  // Sign-out in the admin web app deletes the copy as well. Klara has no
-  // acquirer role, so a copy of hers with an empty queue is planted the way
-  // the PWA lays it out (an unreadable one would make sign-out ask).
+  // Sign-out in the admin web app asks while captures wait (§12.5) and then
+  // deletes the copy as well. Klara has no acquirer role, so a copy of hers
+  // with one queued record is planted the way the PWA lays it out.
   await page.goto(`${baseUrl}/admin/`);
   await expect(page.getByTestId("display-name")).toHaveText(/Klara/);
   await page.evaluate(async (id) => {
@@ -408,6 +442,7 @@ test("the admin web app clears the device copy too (D6, §8.5)", async ({
         queue.createIndex("dependsOn", "dependsOn");
         database.createObjectStore("cache", { keyPath: "id" });
         database.createObjectStore("meta", { keyPath: "name" });
+        queue.put({ entryId: "planted", sequence: 1, state: "queued" });
       };
       request.onsuccess = () => {
         request.result.close();
@@ -418,6 +453,14 @@ test("the admin web app clears the device copy too (D6, §8.5)", async ({
   }, KLARA_ID);
   expect(await databaseNames(page)).toEqual([`leonaid-pwa-v1-${KLARA_ID}`]);
   await page.getByTestId("logout").click();
+  const warning = page.getByRole("alertdialog", { name: "Abmelden?" });
+  await expect(warning).toContainText(
+    "In der Akquise-App auf diesem Gerät ist noch 1 Eintrag nicht gesendet.",
+  );
+  await warning.getByRole("button", { name: "Abbrechen" }).click();
+  expect(await databaseNames(page)).toEqual([`leonaid-pwa-v1-${KLARA_ID}`]);
+  await page.getByTestId("logout").click();
+  await warning.getByTestId("sign-out-anyway").click();
   await expect(page).toHaveURL(/\/login/);
   await expect.poll(() => databaseNames(page)).toEqual([]);
   await context.setOffline(true);

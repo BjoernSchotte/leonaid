@@ -37,10 +37,26 @@ export function useOfflineRuntime(): OfflineRuntime {
 const EMPTY_SNAPSHOT: QueueSnapshot = {
   entries: [],
   evictable: false,
+  loaded: false,
   paused: false,
   sending: false,
   sent: [],
 };
+
+/** navigator.onLine, following the `online`/`offline` events. */
+export function useOnline(): boolean {
+  return useSyncExternalStore(
+    (listener) => {
+      window.addEventListener("online", listener);
+      window.addEventListener("offline", listener);
+      return () => {
+        window.removeEventListener("online", listener);
+        window.removeEventListener("offline", listener);
+      };
+    },
+    () => navigator.onLine,
+  );
+}
 
 /** The queue's current state; empty without a queue. */
 export function useQueueSnapshot(): QueueSnapshot {

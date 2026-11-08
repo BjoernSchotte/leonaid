@@ -263,4 +263,34 @@ describe("QueueController", () => {
     await expect.poll(async () => (await store.list()).length).toBe(0);
     expect(keys).toEqual([`pwa-q:${outcome.entryId}`]);
   });
+
+  it("never deletes a dependent the discard confirmation did not name (#132 N2)", async () => {
+    const { queue, store } = controller(async (entry) => accepted(entry));
+    const sponsor = await queue.saveDraft({
+      actionId: "action",
+      mode: "company",
+      request: { companyName: "Neue Bäckerei" } as never,
+    });
+    const dependent = (note: string) =>
+      ({
+        ...draft(sponsor.party.id),
+        assignmentId: sponsor.assignmentId,
+        dependsOn: sponsor.entryId,
+        request: { ...draft(sponsor.party.id).request, note },
+      }) as QueueDraft;
+    const first = await queue.submit(dependent("eins"));
+    const shown = (await queue.dependents(sponsor.entryId)).map(
+      (entry) => entry.entryId,
+    );
+    expect(shown).toEqual([first.entryId]);
+    // Another tab captures a second contact for the draft meanwhile.
+    await queue.submit(dependent("zwei"));
+    expect(await queue.discard(sponsor.entryId, shown)).toBe("changed");
+    expect(await store.list()).toHaveLength(3);
+    const again = (await queue.dependents(sponsor.entryId)).map(
+      (entry) => entry.entryId,
+    );
+    expect(await queue.discard(sponsor.entryId, again)).toBe("discarded");
+    expect(await store.list()).toEqual([]);
+  });
 });

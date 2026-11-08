@@ -6,6 +6,11 @@
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import type {
+  CommitmentCaptureContextResponse,
+  LeonAidApiClient,
+} from "@leonaid/api-client";
+
 import {
   Button,
   ConfirmDialog,
@@ -16,11 +21,50 @@ import {
 
 import { formatDateTime } from "../shared/dates";
 import { conflictText } from "./conflicts";
-import { entryTitle, queueStateLabel, queueStateShape } from "./labels";
+import type { DeviceStore } from "./device-store";
+import { EntryChoices } from "./entry-choices";
+import { entryStateLabel, entryTitle, queueStateShape } from "./labels";
 import type { QueueEntry } from "./queue";
 import { useOfflineRuntime, useQueueSnapshot } from "./runtime";
 
 const IOS_HINT_KEY = "leonaid-pwa-ios-hint-shown";
+
+/** The device copies of the order context, for the window choices. */
+function useCaptureContexts(
+  store: DeviceStore | null,
+  open: boolean,
+  actionIds: readonly string[],
+): ReadonlyMap<string, CommitmentCaptureContextResponse> {
+  const [contexts, setContexts] = useState<
+    ReadonlyMap<string, CommitmentCaptureContextResponse>
+  >(new Map());
+  const key = [...new Set(actionIds)].sort().join(",");
+  useEffect(() => {
+    if (!open || !store || !key) return;
+    let cancelled = false;
+    void Promise.all(
+      key.split(",").map(async (actionId) => {
+        const cached = await store
+          .getCache<CommitmentCaptureContextResponse>("capture", actionId)
+          .catch(() => undefined);
+        return [actionId, cached?.value] as const;
+      }),
+    ).then((pairs) => {
+      if (cancelled) return;
+      setContexts(
+        new Map(
+          pairs.flatMap(([actionId, value]) =>
+            value ? [[actionId, value] as const] : [],
+          ),
+        ),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [key, open, store]);
+  return contexts;
+}
 
 /** D1: the contact itself already reached Core (§11.4). */
 function isStoredAtCore(entry: QueueEntry) {
@@ -52,6 +96,7 @@ function useIosHint(open: boolean): boolean {
 
 export function QueueSheet({
   actionNames,
+  client,
   loginHref,
   onClose,
   online,
@@ -59,16 +104,33 @@ export function QueueSheet({
 }: {
   /** Action id → name, for the copy of §10.2. */
   readonly actionNames: ReadonlyMap<string, string>;
+  readonly client: LeonAidApiClient;
   readonly loginHref: string;
   readonly onClose: () => void;
   readonly online: boolean;
   readonly open: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
-  const { queue } = useOfflineRuntime();
+  const { queue, store } = useOfflineRuntime();
   const snapshot = useQueueSnapshot();
+  const contexts = useCaptureContexts(
+    store,
+    open,
+    snapshot.entries.map((entry) => entry.actionId),
+  );
   const iosHint = useIosHint(open);
-  const [discarding, setDiscarding] = useState<QueueEntry | null>(null);
+  const waitingFor = (draftId: string) =>
+    snapshot.entries.filter((entry) => entry.dependsOn === draftId).length;
+  // The confirmation names the dependents the store holds (#132 N2).
+  const [discarding, setDiscarding] = useState<{
+    readonly entry: QueueEntry;
+    readonly dependents: readonly QueueEntry[];
+  } | null>(null);
+  const askDiscard = (entry: QueueEntry) => {
+    void (queue?.dependents(entry.entryId) ?? Promise.resolve([])).then(
+      (dependents) => setDiscarding({ dependents, entry }),
+    );
+  };
 
   useEffect(() => {
     const dialog = ref.current;
@@ -77,8 +139,12 @@ export function QueueSheet({
     if (!open && dialog.open) dialog.close();
   }, [open]);
 
+  // Drafts and what waits for them do not wait for the network (§10.4).
   const waiting = snapshot.entries.filter(
-    (entry) => entry.state === "queued" || entry.state === "sending",
+    (entry) =>
+      (entry.state === "queued" || entry.state === "sending") &&
+      entry.kind !== "sponsor-draft" &&
+      !entry.dependsOn,
   ).length;
 
   return (
@@ -171,40 +237,33 @@ export function QueueSheet({
                     size={16}
                     status={queueStateShape[entry.state]}
                   />
-                  {queueStateLabel[entry.state]}
+                  {entryStateLabel(entry)}
                 </span>
-                {entry.state === "conflict" ||
-                entry.state === "failed" ||
-                entry.state === "blocked" ||
-                entry.state === "expired" ? (
+                {entry.kind === "sponsor-draft" ? (
+                  <p className="small" data-testid="queue-reason">
+                    {`Neuer Sponsor ${entry.party.displayName} wartet auf deine Prüfung.`}
+                    {waitingFor(entry.entryId)
+                      ? ` ${waitingFor(entry.entryId)} ${waitingFor(entry.entryId) === 1 ? "Eintrag wartet" : "Einträge warten"} darauf.`
+                      : ""}
+                  </p>
+                ) : entry.state === "conflict" ||
+                  entry.state === "failed" ||
+                  entry.state === "blocked" ||
+                  entry.state === "expired" ? (
                   <p className="small" data-testid="queue-reason">
                     {conflictText(entry, actionNames.get(entry.actionId) ?? "")}
                   </p>
                 ) : null}
-                <div className="pwa-queue-actions">
-                  {(entry.state === "failed" &&
-                    entry.lastError?.code !== "idempotency_conflict") ||
-                  entry.state === "blocked" ? (
-                    <Button
-                      disabled={!online}
-                      onClick={() => void queue?.retry(entry.entryId)}
-                      size="sm"
-                      variant="secondary"
-                    >
-                      Erneut versuchen
-                    </Button>
-                  ) : null}
-                  {entry.state !== "sending" ? (
-                    <Button
-                      data-testid="queue-discard"
-                      onClick={() => setDiscarding(entry)}
-                      size="sm"
-                      variant="ghost"
-                    >
-                      Verwerfen
-                    </Button>
-                  ) : null}
-                </div>
+                {queue ? (
+                  <EntryChoices
+                    client={client}
+                    context={contexts.get(entry.actionId) ?? null}
+                    entry={entry}
+                    onDiscard={() => askDiscard(entry)}
+                    online={online}
+                    queue={queue}
+                  />
+                ) : null}
               </li>
             ))}
             {snapshot.sent.map((entry) => (
@@ -228,15 +287,29 @@ export function QueueSheet({
         confirmLabel="Verwerfen"
         description={
           discarding
-            ? isStoredAtCore(discarding)
-              ? `${entryTitle(discarding)} ist bei LeonAid gespeichert. Verwerfen löscht nur den Hinweis auf diesem Gerät; der Rest wird nicht übernommen.`
-              : `${entryTitle(discarding)} wird von diesem Gerät gelöscht und nicht gesendet.`
+            ? [
+                isStoredAtCore(discarding.entry)
+                  ? `${entryTitle(discarding.entry)} ist bei LeonAid gespeichert. Verwerfen löscht nur den Hinweis auf diesem Gerät; der Rest wird nicht übernommen.`
+                  : `${entryTitle(discarding.entry)} wird von diesem Gerät gelöscht und nicht gesendet.`,
+                ...discarding.dependents.map(
+                  (entry) => `Mit gelöscht: ${entryTitle(entry)}.`,
+                ),
+              ].join(" ")
             : ""
         }
         onConfirm={() => {
-          const entry = discarding;
+          const shown = discarding;
           setDiscarding(null);
-          if (entry) void queue?.discard(entry.entryId);
+          if (!shown || !queue) return;
+          void queue
+            .discard(
+              shown.entry.entryId,
+              shown.dependents.map((entry) => entry.entryId),
+            )
+            // Another tab added a capture meanwhile: ask again, naming it.
+            .then((outcome) => {
+              if (outcome === "changed") askDiscard(shown.entry);
+            });
         }}
         onOpenChange={(next) => {
           if (!next) setDiscarding(null);
