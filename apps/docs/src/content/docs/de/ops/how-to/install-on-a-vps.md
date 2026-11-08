@@ -307,9 +307,7 @@ mit 404. Eine Aktion ohne aktive Domain ist nicht öffentlich erreichbar.
 Ohne öffentlichen Host entfallen: die Startseite mit allen aktiven Aktionen,
 Aktionsseiten unter `club.org/campaigns/…`, das Kontaktformular außerhalb der
 Kampagnenseiten und jede Bestellseite einer Aktion ohne veröffentlichte
-Kampagnenseite im CMS (die Domain zeigt nur CMS-Seiten). Bis der
-Stack-Nachweis dieses Modus in der CI grün ist, lehnt der
-Deployment-Vertrag `Caddyfile.admin-only` ab.
+Kampagnenseite im CMS (die Domain zeigt nur CMS-Seiten).
 
 ### Auf einen Verwaltungshost umstellen
 
