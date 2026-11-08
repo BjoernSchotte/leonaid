@@ -32,6 +32,18 @@ function offlineStartKey() {
  * so the admin web app can switch it off too.
  */
 export async function setOfflineStart(enabled: boolean): Promise<void> {
+  // The service worker writes its own setting (WebKit does not always
+  // share a page's Cache Storage write with it); the registration is found
+  // by the PWA's scope, also from an admin page it does not control.
+  if ("serviceWorker" in navigator) {
+    try {
+      const registration =
+        await navigator.serviceWorker.getRegistration(PWA_BASE);
+      registration?.active?.postMessage({ type: "OFFLINE_START", enabled });
+    } catch {
+      // No service worker: nothing starts offline anyway.
+    }
+  }
   if (typeof caches === "undefined") return;
   try {
     const settings = await caches.open(SETTINGS_CACHE);
