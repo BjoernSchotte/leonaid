@@ -4531,9 +4531,8 @@ case "$command" in
     /bin/sh "$root/tools/seed/test.sh" "$root"
     /bin/sh "$root/tools/schema/test.sh" "$root"
     /bin/sh "$root/tools/outbox/test.sh" "$root"
-    /bin/sh "$root/tools/twenty/test.sh" "$root"
     /bin/sh "$root/tools/mail_relay/test.sh" "$root"
-    run_feature_tests tools/openapi/test.sh tools/twenty/gateway_test.sh tools/twenty/import_test.sh tools/policy/test.sh tools/templates/test.sh tools/storage/test.sh tools/documents/test.sh tools/typst/test.sh tools/testkit/test.sh
+    run_feature_tests tools/openapi/test.sh tools/twenty/test.sh tools/twenty/gateway_test.sh tools/twenty/import_test.sh tools/policy/test.sh tools/templates/test.sh tools/storage/test.sh tools/documents/test.sh tools/typst/test.sh tools/testkit/test.sh
     ;;
   test-e2e)
     run_feature_tests tools/identity/test.sh tools/invitations/test.sh tools/sessions/test.sh tools/actions/test.sh tools/action_admin/test.sh tools/matching/test.sh tools/assignments/test.sh tools/activities/test.sh tools/pwa/test.sh tools/public_actions/test.sh tools/commitments/test.sh tools/public_orders/test.sh tools/activity_feed/test.sh tools/invoices/test.sh tools/invoice_delivery/test.sh tools/invoice_settlements/test.sh tools/feature_flags/test.sh tools/operations/test.sh tools/ui_system/test.sh tools/dashboard/test.sh tools/ux_acceptance/test.sh tools/security/test.sh tools/privacy/test.sh

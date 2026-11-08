@@ -107,17 +107,19 @@ FLAGS = ("contract", "golden", "surveys", "api", "pins")
 # measured test-step durations of PR run 42360553738 (2026-11-07); refresh
 # them from `gh run view <id> --json jobs` when a shard grows a lot.
 INTEGRATION_SECONDS = {
-    # Run 42508593075: compose 296 s (now with the Core smoke), seed-reset
-    # 273 s (now with the idempotent second seed of the former seed-cold).
+    # Run 42508593075: compose 296 s (now with the Core smoke). seed-reset
+    # 424 s in run 42521057525, minus about 155 s: its second seed is the
+    # golden.py data step, not `./leonaid seed` with a full stack start.
     "compose": 300,
-    "seed-reset": 295,
+    "seed-reset": 270,
     "typst": 119,
     "storage": 142,
     "documents": 149,
     "profiles": 127,
     "crm-gateway": 129,
     "crm-import": 100,
-    "twenty-install": 133,
+    # On the prepared fixture: about 75 s less than its cold Twenty start.
+    "twenty-install": 60,
     # On the prepared fixture: about 35 s import, 25 s contract.
     "policy": 75,
     "schema-outbox": 199,
@@ -157,14 +159,13 @@ EMDASH_BINS = (
     ("campaign-edge", "static"),
 )
 EMDASH_SECONDS = {
-    # Measured on PR #145 run 42511933095: commerce half 458 s, deadline
-    # half 413 s, redirect-aliases 147 s; campaign-hosts 160 s plus its
-    # admin-only round on the same stack (about 60 s, estimate).
-    # Chromium-only orders and deadlines (E-026): estimates −64 s and −100 s.
-    "krapfentaxi-orders": 395,
-    "krapfentaxi-deadlines": 315,
-    "campaign-edge": 370,
-    "static": 107,
+    # Run 42521057525: orders 420 s, deadlines 364 s, campaign-edge 377 s,
+    # static 106 s. Orders and deadlines minus about 85 s: Twenty's cold
+    # start now overlaps the editor phases.
+    "krapfentaxi-orders": 335,
+    "krapfentaxi-deadlines": 280,
+    "campaign-edge": 377,
+    "static": 106,
 }
 TARGET_SECONDS = 600
 # ci.yml timeout-minutes of each leg kind (workflow_contract.py keeps them

@@ -136,6 +136,8 @@ jobs:
       # Stops the suite 5 minutes before timeout-minutes, so the evidence
       # is still collected and uploaded (tools/ci/capture-command.sh).
       LEONAID_CI_STEP_SECONDS: "2400"
+      # Nightly, seed-reset's second seed is the full `./leonaid seed`.
+      LEONAID_SEED_CLI: ${{ github.event_name == 'schedule' }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
