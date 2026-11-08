@@ -1,0 +1,49 @@
+name: Refresh mirrored gates
+
+# A title edit or a push to a draft starts gate-only runs whose gates fail
+# fast (tools/ci/gate.py). GitHub keeps the check runs of such a failed run
+# blocking the pull request even after the real run's gates passed. When a
+# pull-request run of a required workflow completes, this re-runs the failed
+# gate-only runs of the same workflow and commit; they then mirror the real
+# result (red stays red). tools/ci/rerun_stale_gates.py.
+#
+# workflow_run executes this file from main with the repository token; it
+# never checks out pull-request code and only re-runs existing runs.
+on:
+  workflow_run:
+    workflows:
+      [
+        LeonAid CI,
+        Survey acceptance,
+        API contract,
+        Dependency pins,
+        Documentation,
+      ]
+    types: [completed]
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: refresh-gates-${{ github.event.workflow_run.workflow_id }}-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Re-run failed mirror gates
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: tools/ci
+          # The script talks to the API with GH_TOKEN; git needs no token.
+          persist-credentials: false
+      - name: Re-run the failed gate-only runs of this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: python3 tools/ci/rerun_stale_gates.py

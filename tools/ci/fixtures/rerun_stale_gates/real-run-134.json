@@ -1,0 +1,963 @@
+{
+  "source": "GitHub API, run 42456490871 attempt 1 (trimmed)",
+  "run": {
+    "id": 42456490871,
+    "workflow_id": 320995852,
+    "head_sha": "44c6b227843fdcfd7af1f1158615bdf726b04b3f",
+    "event": "pull_request",
+    "status": "completed",
+    "conclusion": "success",
+    "display_title": "ci: refresh failed mirror gates after a real gate"
+  },
+  "jobs": [
+    {
+      "name": "Lint, types and unit",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Prepare empty-cache runner",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Bootstrap locked Docker toolchains",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run lint, type and contract-generation checks",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run unit tests with real domain objects",
+          "conclusion": "success"
+        },
+        {
+          "name": "Publish lint, type and unit evidence",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "fixture / fixture",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run echo \"value=fixture-v1-$(python3 tools/testing/ci_fixture.py key)\" >> \"$GITHUB_OUTPUT\"",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830",
+          "conclusion": "success"
+        },
+        {
+          "name": "Wait for the same fixture from another workflow of this push",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Start freeing runner disk from unused toolchains",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Run ./.github/actions/build-cache",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Finish freeing runner disk",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Build an isolated synthetic fixture from repository inputs",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Run actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Run actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Back off before retrying the fixture upload",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Run actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "select / Select suites",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run if [ \"$EVENT\" = pull_request ]; then",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "Artifact probe",
+      "conclusion": "skipped",
+      "steps": []
+    },
+    {
+      "name": "Pilot cold rehearsal",
+      "conclusion": "skipped",
+      "steps": []
+    },
+    {
+      "name": "Build",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Start freeing runner disk from unused toolchains",
+          "conclusion": "success"
+        },
+        {
+          "name": "Prepare empty-cache runner",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Bootstrap locked Docker toolchains",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Finish freeing runner disk",
+          "conclusion": "success"
+        },
+        {
+          "name": "Build the canonical Compose application",
+          "conclusion": "success"
+        },
+        {
+          "name": "Publish build evidence",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "EmDash proof 2/2",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Start freeing runner disk from unused toolchains",
+          "conclusion": "success"
+        },
+        {
+          "name": "Prepare empty-cache runner",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Bootstrap locked Docker toolchains",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Finish freeing runner disk",
+          "conclusion": "success"
+        },
+        {
+          "name": "List this leg's shards in the job summary",
+          "conclusion": "success"
+        },
+        {
+          "name": "Start sampling peak runner disk",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run EmDash proof cases",
+          "conclusion": "success"
+        },
+        {
+          "name": "Report peak runner disk of this leg",
+          "conclusion": "success"
+        },
+        {
+          "name": "Publish EmDash proof evidence",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "EmDash proof 1/2",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Start freeing runner disk from unused toolchains",
+          "conclusion": "success"
+        },
+        {
+          "name": "Prepare empty-cache runner",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Bootstrap locked Docker toolchains",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Finish freeing runner disk",
+          "conclusion": "success"
+        },
+        {
+          "name": "List this leg's shards in the job summary",
+          "conclusion": "success"
+        },
+        {
+          "name": "Start sampling peak runner disk",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run EmDash proof cases",
+          "conclusion": "success"
+        },
+        {
+          "name": "Report peak runner disk of this leg",
+          "conclusion": "success"
+        },
+        {
+          "name": "Publish EmDash proof evidence",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "Security",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Report runner disk at job start",
+          "conclusion": "success"
+        },
+        {
+          "name": "Start freeing runner disk from unused toolchains",
+          "conclusion": "success"
+        },
+        {
+          "name": "Prepare empty-cache runner",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Bootstrap locked Docker toolchains",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Use prepared synthetic data",
+          "conclusion": "success"
+        },
+        {
+          "name": "Finish freeing runner disk",
+          "conclusion": "success"
+        },
+        {
+          "name": "Report runner disk after preparation",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run policies, secret scan and critical vulnerability gates",
+          "conclusion": "success"
+        },
+        {
+          "name": "Report runner disk at job end",
+          "conclusion": "success"
+        },
+        {
+          "name": "Publish security evidence",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "E2E 1/1",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Start freeing runner disk from unused toolchains",
+          "conclusion": "success"
+        },
+        {
+          "name": "Prepare empty-cache runner",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Bootstrap locked Docker toolchains",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Use prepared synthetic data",
+          "conclusion": "success"
+        },
+        {
+          "name": "Finish freeing runner disk",
+          "conclusion": "success"
+        },
+        {
+          "name": "List this leg's shards in the job summary",
+          "conclusion": "success"
+        },
+        {
+          "name": "Start sampling peak runner disk",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run real browser leaves",
+          "conclusion": "success"
+        },
+        {
+          "name": "Report peak runner disk of this leg",
+          "conclusion": "success"
+        },
+        {
+          "name": "Publish browser evidence",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "Integration 1/4",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Start freeing runner disk from unused toolchains",
+          "conclusion": "success"
+        },
+        {
+          "name": "Prepare empty-cache runner",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Bootstrap locked Docker toolchains",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Use prepared synthetic data",
+          "conclusion": "success"
+        },
+        {
+          "name": "Finish freeing runner disk",
+          "conclusion": "success"
+        },
+        {
+          "name": "List this leg's shards in the job summary",
+          "conclusion": "success"
+        },
+        {
+          "name": "Start sampling peak runner disk",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run real service integration shards",
+          "conclusion": "success"
+        },
+        {
+          "name": "Report peak runner disk of this leg",
+          "conclusion": "success"
+        },
+        {
+          "name": "Publish integration evidence",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "Integration 2/4",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Start freeing runner disk from unused toolchains",
+          "conclusion": "success"
+        },
+        {
+          "name": "Prepare empty-cache runner",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Bootstrap locked Docker toolchains",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Use prepared synthetic data",
+          "conclusion": "success"
+        },
+        {
+          "name": "Finish freeing runner disk",
+          "conclusion": "success"
+        },
+        {
+          "name": "List this leg's shards in the job summary",
+          "conclusion": "success"
+        },
+        {
+          "name": "Start sampling peak runner disk",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run real service integration shards",
+          "conclusion": "success"
+        },
+        {
+          "name": "Report peak runner disk of this leg",
+          "conclusion": "success"
+        },
+        {
+          "name": "Publish integration evidence",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "Golden installation / repeat",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Start freeing runner disk from unused toolchains",
+          "conclusion": "success"
+        },
+        {
+          "name": "Prepare empty-cache runner",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Bootstrap locked Docker toolchains",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Use prepared synthetic data for the functional rounds",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Finish freeing runner disk",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run complete cross-browser Golden Journey",
+          "conclusion": "success"
+        },
+        {
+          "name": "Publish Golden Journey evidence",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "Integration 4/4",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Start freeing runner disk from unused toolchains",
+          "conclusion": "success"
+        },
+        {
+          "name": "Prepare empty-cache runner",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Bootstrap locked Docker toolchains",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Use prepared synthetic data",
+          "conclusion": "success"
+        },
+        {
+          "name": "Finish freeing runner disk",
+          "conclusion": "success"
+        },
+        {
+          "name": "List this leg's shards in the job summary",
+          "conclusion": "success"
+        },
+        {
+          "name": "Start sampling peak runner disk",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run real service integration shards",
+          "conclusion": "success"
+        },
+        {
+          "name": "Report peak runner disk of this leg",
+          "conclusion": "success"
+        },
+        {
+          "name": "Publish integration evidence",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "Integration 3/4",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Start freeing runner disk from unused toolchains",
+          "conclusion": "success"
+        },
+        {
+          "name": "Prepare empty-cache runner",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Bootstrap locked Docker toolchains",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Use prepared synthetic data",
+          "conclusion": "success"
+        },
+        {
+          "name": "Finish freeing runner disk",
+          "conclusion": "success"
+        },
+        {
+          "name": "List this leg's shards in the job summary",
+          "conclusion": "success"
+        },
+        {
+          "name": "Start sampling peak runner disk",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run real service integration shards",
+          "conclusion": "success"
+        },
+        {
+          "name": "Report peak runner disk of this leg",
+          "conclusion": "success"
+        },
+        {
+          "name": "Publish integration evidence",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "Golden installation / primary",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Start freeing runner disk from unused toolchains",
+          "conclusion": "success"
+        },
+        {
+          "name": "Prepare empty-cache runner",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Bootstrap locked Docker toolchains",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Use prepared synthetic data for the functional rounds",
+          "conclusion": "success"
+        },
+        {
+          "name": "Finish freeing runner disk",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run complete cross-browser Golden Journey",
+          "conclusion": "success"
+        },
+        {
+          "name": "Publish Golden Journey evidence",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Reuse persistent Docker build layers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "Golden journey",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Require both independent installations",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+          "conclusion": "success"
+        },
+        {
+          "name": "Compare deterministic first-round results",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "CI gate",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Require every selected job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "Refresh mirrored gates",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Re-run failed mirror gates of this commit",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "Flake summary",
+      "conclusion": "skipped",
+      "steps": []
+    }
+  ]
+}

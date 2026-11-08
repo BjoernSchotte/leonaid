@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from tools.ci import gate as gate_script  # noqa: E402
+from tools.ci import rerun_stale_gates  # noqa: E402
 from tools.ci import select_suites  # noqa: E402
 
 REQUIRED_JOBS = {
@@ -40,7 +41,12 @@ NO_EVIDENCE = {"select", "gate", "golden-journey", "flake-summary"}
 # matrix leg, and each summary cost a runner slot per run.
 REMOVED_SUMMARIES = ("integration", "e2e-summary", "emdash-proofs")
 # Not part of the gate: dispatch-only probes and the post-gate report.
-OUTSIDE_GATE = {"gate", "pilot-cold-rehearsal", "artifact-probe", "flake-summary"}
+OUTSIDE_GATE = {
+    "gate",
+    "pilot-cold-rehearsal",
+    "artifact-probe",
+    "flake-summary",
+}
 
 # Editor load race (PR #37) and Caddy body drain (PR #38) were only visible here.
 EMDASH_GROUPS = ("krapfentaxi-orders", "krapfentaxi-migration", "static")
@@ -393,8 +399,9 @@ GATE_CONTEXT = (
     "GATE_NAME: ",
 )
 EDIT_GROUP = (
-    "${{ github.event.action == 'edited' && !github.event.changes.base "
-    "&& format('-edit-{0}', github.run_id) || '' }}"
+    "${{ ((github.event.action == 'edited' && !github.event.changes.base) || "
+    "(github.event.pull_request.draft && github.event.action != 'converted_to_draft')) "
+    "&& format('-mirror-{0}', github.run_id) || '' }}"
 )
 
 
@@ -419,8 +426,10 @@ def check_drafts(text: str, name: str) -> list[str]:
     did not change the base. The gate runs anyway: tools/ci/gate.py fails a
     draft, mirrors the commit's real gate result for a title edit and fails
     a stacked result that no longer targets its base. A base change runs
-    the normal selection. A title edit has its own concurrency group, so it
-    never cancels the commit's real run.
+    the normal selection. Title-edit and draft runs (except
+    converted_to_draft, which must cancel the running CI) have their own
+    concurrency group, so neither they nor their re-runs (refresh-gates.yml)
+    cancel another run.
     """
     problems: list[str] = []
     on = triggers(text)
@@ -430,9 +439,9 @@ def check_drafts(text: str, name: str) -> list[str]:
             "and edited."
         )
     gated = name in GATED_WORKFLOWS
-    if gated and EDIT_GROUP not in text[: text.find("\njobs:\n")]:
+    if EDIT_GROUP not in text[: text.find("\njobs:\n")]:
         problems.append(
-            f"{name}: a title edit must not share the PR's concurrency group."
+            f"{name}: title-edit and draft runs must not share the PR's concurrency group."
         )
     for job in jobs_of(text):
         block = job_block(text, job)
@@ -492,6 +501,65 @@ def check_tiers(text: str, name: str) -> list[str]:
         select = job_block(text, "select")
         if "uses: ./.github/workflows/select-suites.yml" not in select:
             problems.append(f"{name}: the select job must use select-suites.yml.")
+    return problems
+
+
+REFRESH = "refresh-gates.yml"
+REFRESH_PERMISSIONS = {
+    ("actions", "write"),
+    ("contents", "read"),
+    ("pull-requests", "read"),
+}
+
+
+def check_refresh(root: Path) -> list[str]:
+    """Failed gate-only runs are re-run when a real run of their workflow ends.
+
+    GitHub keeps the check runs of a failed title-edit or draft run blocking
+    a pull request after the real gates passed; refresh-gates.yml re-runs
+    them (tools/ci/rerun_stale_gates.py) for every required workflow.
+    """
+    workflows = root / ".github/workflows"
+    path = workflows / REFRESH
+    if not path.exists():
+        return [f"{REFRESH}: failed mirror gates must be refreshed after real runs."]
+    text = path.read_text(encoding="utf-8")
+    problems: list[str] = []
+    listened = re.search(r"(?ms)^    workflows:\s*\[([^\]]*)\]$", text)
+    names = {
+        item.strip() for item in (listened.group(1).split(",") if listened else [])
+    } - {""}
+    required = {
+        workflow_name((workflows / name).read_text(encoding="utf-8"))
+        for name in (*GATED_WORKFLOWS, *UNGATED_REQUIRED)
+    }
+    if "\n  workflow_run:" not in triggers(text) or names != required:
+        problems.append(
+            f"{REFRESH}: must run on workflow_run of exactly {', '.join(sorted(required))}"
+        )
+    permissions = re.search(r"(?m)^permissions:\n((?:  .*\n|#.*\n)+)", text)
+    granted = (
+        set(re.findall(r"(?m)^  ([a-z-]+): ([a-z]+)$", permissions.group(1)))
+        if permissions
+        else set()
+    )
+    if granted != REFRESH_PERMISSIONS:
+        problems.append(
+            f"{REFRESH}: permissions must be exactly actions: write, contents: read, pull-requests: read"
+        )
+    if (
+        "python3 tools/ci/rerun_stale_gates.py" not in text
+        or "RUN_ID: ${{ github.event.workflow_run.id }}" not in text
+        or "github.event.workflow_run.event == 'pull_request'" not in text
+        or "ref:" in text
+        or "secrets." in text
+        or "persist-credentials: false" not in text
+    ):
+        problems.append(
+            f"{REFRESH}: must run tools/ci/rerun_stale_gates.py for pull-request runs "
+            "only, from main (no ref:), with GITHUB_TOKEN and without persisted "
+            "git credentials."
+        )
     return problems
 
 
@@ -747,6 +815,14 @@ def check_repository(root: Path) -> list[str]:
         )
     if "tools/ci/select_suites.py --event" not in select:
         problems.append("select-suites.yml must run tools/ci/select_suites.py.")
+    problems.extend(check_refresh(root))
+    for name in GATED_WORKFLOWS:
+        text = (workflows / name).read_text(encoding="utf-8")
+        if f"\n  {rerun_stale_gates.SELECT_JOB_KEY}:\n" not in text:
+            problems.append(
+                f"{name}: the selector job key must be "
+                f"{rerun_stale_gates.SELECT_JOB_KEY!r} (tools/ci/rerun_stale_gates.py)."
+            )
     problems.extend(check_first_attempts(root))
     problems.extend(check_static_gates(root))
     problems.extend(check_pin_drift(root))
