@@ -43,6 +43,17 @@ compose() {
     "$@"
 }
 
+# The data step of `./leonaid seed`; its provisioning and stack start are the
+# same functions the final `./leonaid reset` runs cold.
+golden_seed() {
+  compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+    --env-from-file "$env_file" \
+    --env-from-file "$root/.local/twenty/integration.env" \
+    --volume "$root:/repo:ro" --entrypoint python api \
+    /repo/tools/seed/golden.py seed /repo/tests/fixtures/golden/v1 \
+    /repo/.artifacts/golden-v1/invoices
+}
+
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
@@ -142,12 +153,7 @@ if [ "$seed_part" = reset ]; then
   build_shared_images api
   phase seed-starting-services compose --profile dev-mail up --no-build --detach \
     --wait --wait-timeout 420 core-postgres rustfs mailpit twenty-server twenty-worker
-  phase seed-starting-data compose run --rm --user "$(id -u):$(id -g)" --no-deps \
-    --env-from-file "$env_file" \
-    --env-from-file "$root/.local/twenty/integration.env" \
-    --volume "$root:/repo:ro" --entrypoint python api \
-    /repo/tools/seed/golden.py seed /repo/tests/fixtures/golden/v1 \
-    /repo/.artifacts/golden-v1/invoices
+  phase seed-starting-data golden_seed
   docker run --rm --user "$(id -u):$(id -g)" \
     --env LEONAID_ENV=local -v "$root:/workspace" "$PYTHON_IMAGE" \
     python /workspace/tools/dx/generate_test_logins.py \
@@ -187,7 +193,7 @@ docker run --rm \
   /repo/tests/fixtures/golden/v1
 
 echo "seed-test: running a second idempotent seed"
-"$root/leonaid" seed
+phase seed-second golden_seed
 "$root/leonaid" snapshot poc012-second.json
 docker run --rm \
   -v "$root/.local:/local:ro" \

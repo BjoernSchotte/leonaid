@@ -308,7 +308,8 @@ if [ "$recovery:$orders:$mode" = false:true:migration ]; then
   # krapfentaxi-orders: start Twenty now, without waiting. Its first start
   # (migrations, about 90 s) overlaps the import and editor phases; the order
   # phase below still waits for it to be healthy before it provisions keys.
-  compose up --detach twenty-server twenty-worker
+  # Not the worker: it depends on a healthy server, so Compose would wait.
+  compose up --detach twenty-server
 fi
 if [ "$mode" = emdash-upgrade ]; then
   . "$root/tools/emdash_spike/emdash-upgrade-legacy.sh"
@@ -497,19 +498,19 @@ if [ "$mode" != auth ]; then
         compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
           node tools/emdash_spike/campaign-host-http-proof.mjs "$@" $host_variant
       }
-      host_round() {
+      host_active() {
         host_probe active || {
           compose logs --no-color --tail=80 proxy api >&2
           exit 1
         }
-        fixture /repo/tools/emdash_spike/site_host_fixture.py disable
-        # Ask snapshot 10 s; host caches of both apps and Core origins 30 s:
-        # the lapsed state must show within that bound (the probe polls).
-        host_probe disabled
       }
       fixture /repo/tools/emdash_spike/site_host_fixture.py activate
       host_variant=
-      host_round
+      host_active
+      fixture /repo/tools/emdash_spike/site_host_fixture.py disable
+      # Ask snapshot 10 s; host caches of both apps and Core origins 30 s:
+      # the lapsed state must show within that bound (the probe polls).
+      host_probe disabled
       # The same stack without a general public host (§6.6): proxy is the
       # admin host only, every app runs the admin-only configuration. The
       # recreated processes start with empty host caches.
@@ -526,7 +527,9 @@ if [ "$mode" != auth ]; then
       # The recreated proxy may hold a new internal CA.
       compose cp proxy:/data/caddy/pki/authorities/local/root.crt "$proof/root.crt"
       host_variant=admin-only
-      host_round
+      # The lapse proof (a 30 s cache wait) runs in the first round only;
+      # the host caches are the same code in both configurations.
+      host_active
       exit 0
     fi
     if [ "$mode" = public-media ]; then
