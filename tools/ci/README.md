@@ -184,7 +184,7 @@ failures in the final attempt and failures that were followed by a rerun
 
 A red scheduled or post-merge run has no pull request that shows it.
 `nightly-watchdog.yml` runs after every scheduled and post-merge run of
-`ci.yml`, `surveys.yml`, `pins.yml`, `pin-drift.yml` and `refit-timings.yml`
+`ci.yml`, `surveys.yml`, `pins.yml` and `pin-drift.yml`
 on `main`, and once a day on its own schedule. For each entry it reads the
 latest completed run on `main` (post-merge: the latest that was not
 cancelled):
@@ -195,8 +195,8 @@ cancelled):
   attention`) with the run link and the failed jobs, or adds one comment per
   new failed run;
 - a schedule older than its limit (30 hours for the nightly `ci.yml` and
-  `surveys.yml` runs and `pin-drift.yml`, 8 days for the weekly `pins.yml`
-  and `refit-timings.yml`): the same issue reports a stopped schedule;
+  `surveys.yml` runs and `pin-drift.yml`, 8 days for the weekly `pins.yml`):
+  the same issue reports a stopped schedule;
 - green and current: it closes the issue.
 
 It uses only `GITHUB_TOKEN` with `actions: read` and `issues: write`.
@@ -232,7 +232,7 @@ bootstrap, fixture restore and image pulls before its first test. Most of the
 | Vulnerability gate | 1 | Own images built and scanned with the checkout, both lockfiles and every pinned third-party image; four Trivy lanes on one read-only advisory snapshot |
 | `Integration / <shards>` | 4 | All Integration shards and Contract |
 | `E2E / <leaves>` | 4 | All E2E leaves |
-| `EmDash proof / <groups>` | 2 | `krapfentaxi-orders`; `krapfentaxi-migration` + `static` |
+| `EmDash proof / <groups>` | 3 | `krapfentaxi-orders`; `krapfentaxi-deadlines`; `campaign-edge` + `static` |
 | Golden installation | 2 | Prepared and fresh installation (must stay separate runners) |
 | Golden journey, CI gate | 1 + 1 | Result comparison; the required check |
 
@@ -334,16 +334,12 @@ Then `tools/ci/sanitize_artifacts.py` withholds the excerpt on personal data,
 and a credential keyword still followed by a value withholds it too. Its
 self-test runs in Lint and types.
 
-The heaviest single case, `krapfentaxi-orders` (about 12 minutes of tests),
-sets the wall time of a complete run. `refit-timings.yml` (weekly, Monday 05:29 UTC) keeps the seconds tables
-current: `tools/ci/refit_timings.py` reads the job logs of the last 7
-successful nightly runs, takes per shard the median after dropping values
-outside half to double of it, and opens a pull request (`ci/refit-timings`,
-the required workflows dispatched like `pin-drift.yml`) only for entries
-that moved by more than 15 %. Integration shards come from
-`ci-integration: bin: <shard> passed (<n>s)`, E2E shards from the
-`shared-stack:` / `ci-e2e: own leaf:` lines of their leaf scripts plus 30 s
-of stack preparation, EmDash groups from `ci-emdash: OK: <case> (<n>s)`.
+The heaviest EmDash half, `krapfentaxi-orders` (about 7 minutes of tests),
+sets the wall time of a complete run. The seconds tables in
+`select_suites.py` are measured test-step seconds; the pull request that
+changes a shard updates its entry from the job log
+(`ci-integration: bin: <shard> passed (<n>s)`, `shared-stack:` leaf lines,
+`ci-emdash: OK: <case> (<n>s)`).
 
 Cache write discipline: the shared BuildKit cache is written only by the
 Build job of runs on `main` (post-merge, nightly, dispatch); pull requests
@@ -382,11 +378,8 @@ skip threshold is about eight times the largest growth. CPU is the limit and
 is not measured. If concurrency is revisited: Integration shards only, two at
 a time, first on the nightly run with a load-average sampler.
 
-Refit guards: a shard value changes only with at least 3 observations, never
-below 1 s; no nightly run, no timing line or an unreadable log fails the
-workflow, so the watchdog reports it. The shared cache is written only by
-runs on `main` (schedule or dispatch there); bot dispatches on
-`ci/refit-timings` or `pins/repin-images` only read it.
+The shared cache is written only by runs on `main` (schedule or dispatch
+there); bot dispatches on `pins/repin-images` only read it.
 
 ## Integration and survey shards
 
@@ -437,13 +430,15 @@ The optional campaign site (Compose profile `emdash`) has its own proof cases
 (`./leonaid test-emdash-spike --case <name>`). Two regressions were only visible
 in them: an EmDash editor load race (PR #37) and a Caddy body-drain regression
 (PR #38). PR and main CI therefore run `tools/ci/emdash.sh` in the
-`EmDash proof / <groups>` matrix, gated by `CI gate`. Two legs
-(`EMDASH_BINS`): `krapfentaxi-orders` alone, `krapfentaxi-migration` with `static`.
+`EmDash proof / <groups>` matrix, gated by `CI gate`. Three legs
+(`EMDASH_BINS`): `krapfentaxi-orders` alone, `krapfentaxi-deadlines` alone,
+`campaign-edge` with `static`.
 
 | Group | Cases |
 |---|---|
-| `krapfentaxi-orders` | `krapfentaxi-orders`: Krapfentaxi import, Chromium/Firefox/WebKit editor and order journeys, Core/Twenty order ingress, native order deadlines |
-| `krapfentaxi-migration` | `krapfentaxi-migration`: Krapfentaxi import with original media, three-browser editor and renderer proof, published redirects; `redirect-aliases`: Chromium/Firefox/WebKit redirect alias editor (create, disable/enable, collision, move, remove) under the strict CSP |
+| `krapfentaxi-orders` | `krapfentaxi-orders-commerce`, the commerce half of `krapfentaxi-orders`: the whole `krapfentaxi-migration` case first (Krapfentaxi import with original media, three-browser editor and renderer proof, published redirects), then Chromium/Firefox/WebKit commerce phases, twelve order journeys (every scenario at least once per mode, every engine twice per mode) with Core/Twenty verification, valid order ingress. `krapfentaxi-migration` therefore does not run on its own. |
+| `krapfentaxi-deadlines` | `krapfentaxi-orders-deadlines`, the deadline half on its own stack: import, WebKit editor publication (the state the order proofs read), native and script order deadlines, partial CRM write, Caddy body deadlines. |
+| `campaign-edge` | `campaign-hosts`: a campaign on its own host through the real edge, with and then (same stack, apps recreated) without a general public host; `redirect-aliases`: Chromium/Firefox/WebKit redirect alias editor (create, disable/enable, collision, move, remove) under the strict CSP |
 | `static` | stack-free `dependencies`, `krapfentaxi-source`, `authorization-inventory`, `release-manifest-compatibility`, `release-legacy-boundary`, `release-image-identity`, `closed-runtime`; plus `proxy-routing` (Caddy, public and CMS only, no database) |
 
 The jobs need no prepared fixture: every case builds its own isolated stack and
@@ -455,11 +450,13 @@ workflow retries a failed case, so an intermittent failure stays red and must
 be fixed at its cause. `tools/ci/workflow_contract.py` rejects a missing group,
 a path filter, `continue-on-error` or a retry in the job.
 
-Observed GitHub runtimes (PR #40, run 42360553738): `krapfentaxi-orders`
-12–15 min, `krapfentaxi-migration` 4–6 min, `static` 1–3 min.
-`krapfentaxi-orders` is one stateful case (import, three-browser commerce
-phases, Twenty start, order journeys) and remains the longest job of the run;
-the other legs are packed to finish before it.
+Observed GitHub runtimes (post-merge run 42508593075, before the
+`campaign-edge` regrouping): `krapfentaxi-orders` 719 s, the former
+`krapfentaxi-migration` group 687 s (its own `krapfentaxi-migration` case
+204 s of it), `static` 105 s.
+Both halves start Twenty beside the import (`compose up --detach`) and wait
+for it only before the order phases. Locally `--case krapfentaxi-orders`
+still runs both halves on one stack.
 
 The jobs import the `emdash` BuildKit group; the Build job also exports the
 `campaign-site` cache. On failure the harness stores `compose ps` and the

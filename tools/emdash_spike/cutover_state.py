@@ -115,7 +115,15 @@ async def main() -> None:
                 state = json.loads(STATE.read_text())
                 if mode == "freeze":
                     state["orders"] = await order_state()
-                    assert len(state["orders"]["command_receipt"]) >= 48
+                    # Both browser rounds so far (before recovery, after cutover).
+                    browser_orders = sum(
+                        len(json.loads(Path(name).read_text()))
+                        for name in (
+                            "/proof/pre-recovery-orders.json",
+                            "/proof/after-cutover-orders.json",
+                        )
+                    )
+                    assert len(state["orders"]["command_receipt"]) >= browser_orders
                     state["aliases"] = [
                         json.loads(row["data"])
                         for row in await db.fetch(

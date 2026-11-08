@@ -91,6 +91,21 @@ let timedOutOrders = 0;
 // synthetic visitors eight seconds apart. Targeted real SQL locks exercise
 // deadline recovery separately, without deliberately exhausting CRM capacity.
 let nextOrderAt = 0;
+// Twelve orders, not the full 3 x 2 x 4 cross product: the order scenarios
+// are server logic, the engines and modes are rendering and form submission.
+// Every scenario runs at least once per mode, every engine twice per mode,
+// and the accessibility/CSP scan's Chromium-JS new-company run stays.
+const SCENARIOS = {
+  chromium: {
+    native: ["new-company", "existing-company"],
+    js: ["new-company", "person"],
+  },
+  firefox: { native: ["person", "mixed"], js: ["existing-company", "mixed"] },
+  webkit: {
+    native: ["mixed", "new-company"],
+    js: ["person", "existing-company"],
+  },
+};
 for (const [engineName, engine] of Object.entries({
   chromium,
   firefox,
@@ -103,7 +118,7 @@ for (const [engineName, engine] of Object.entries({
       : [false, true]) {
       for (const scenario of controlledDeadline
         ? [partialCrm ? "new-company" : "person"]
-        : ["new-company", "existing-company", "person", "mixed"]) {
+        : SCENARIOS[engineName][javaScriptEnabled ? "js" : "native"]) {
         const label = `${partialCrm ? "partial-" : controlledDeadline ? "deadline-" : ""}${recoveryPrefix}${engineName}-${javaScriptEnabled ? "js" : "native"}-${scenario}`;
         await new Promise((resolve) =>
           setTimeout(resolve, Math.max(0, nextOrderAt - Date.now())),
