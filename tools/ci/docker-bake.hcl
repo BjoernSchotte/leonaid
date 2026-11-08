@@ -4,6 +4,8 @@ variable "CACHE_WRITE" { default = "false" }
 variable "CACHE_READ" { default = "true" }
 group "default" { targets = ["api", "worker", "proxy", "web", "pwa", "public", "survey-validator"] }
 group "survey-runtime" { targets = ["api", "worker", "proxy", "web", "public", "survey-validator"] }
+// API contract job (api-contract.yml): the API and the validator it waits for.
+group "survey-foundation" { targets = ["api", "survey-validator"] }
 // Optional EmDash profile: the images the spike harness builds for its stacks.
 group "emdash" { targets = ["api", "worker", "proxy", "web", "public", "campaign-site"] }
 // The Build job also exports the CMS cache that EmDash proof jobs import.
