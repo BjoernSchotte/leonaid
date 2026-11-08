@@ -390,15 +390,17 @@ policy (on the prepared fixture). Pilot import includes a
 real backup/restore and runs nightly instead. `bash tools/ci/integration.sh`
 also excludes pilot import by default; that shard remains explicitly selectable.
 
-Survey acceptance defines 39 checks in `tools/surveys/gate.json`: the two foundation diagnostics are separate entries, and the duplicate aggregate adapter run is consolidated.
-PR checks occupy 7 shards of about 8 minutes each (`foundation`, `foundation-acceptance`,
-`runner-permissions`, `editor-authoring`, `analysis-exports`, `lifecycle-contracts`,
-`journeys-responses`), with compatible checks sharing one stack; the six nightly
-shards still contain 13 checks, with no overlap or missing checks. Nightly-only shards are:
+Survey acceptance defines 31 stack checks in `tools/surveys/gate.json` (decision
+E-022). Survey checks without a stack run elsewhere under their own names: the
+`survey-core`, `survey-validation-candidate` and `survey-dependencies` lanes of
+`tools/ci/unit.sh`, and the restore receipts in `tools/ci/security.sh`.
+PR checks occupy 6 shards (`foundation`, `runner-permissions`, `editor-authoring`,
+`analysis-exports`, `lifecycle-contracts`, `journeys-responses`), with compatible
+checks sharing one stack; the five nightly shards contain 12 checks, with no
+overlap or missing checks. Nightly-only shards are:
 
 - recovery-deletion, recovery-retention, recovery-restic and recovery-pilot;
-- exports-recovery, including its state/limit checks;
-- restore-receipts, previously part of foundation.
+- exports-recovery, including its state/limit checks.
 
 `.github/workflows/surveys.yml` runs the nightly selection daily at 01:17 UTC
 (02:17 CET / 03:17 CEST). GitHub schedules start only after the workflow is on

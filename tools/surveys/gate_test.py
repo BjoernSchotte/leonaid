@@ -31,11 +31,10 @@ class GateTests(unittest.TestCase):
             check for name in nightly for check in manifest["ciShards"][name]
         }
         required = {c["id"] for c in manifest["checks"] if c["group"] == "recovery"} | {
-            "restore-receipts",
             "export-recovery",
         }
         self.assertTrue(required <= nightly_checks)
-        self.assertEqual(len(nightly_checks), 13)
+        self.assertEqual(len(nightly_checks), 12)
         with self.assertRaises(ValueError):
             gate.ci_shards(manifest, "unknown")
 
@@ -48,7 +47,6 @@ class GateTests(unittest.TestCase):
         )
         self.assertFalse(
             {
-                "foundation-diagnostics",
                 "migrations",
                 "aggregates",
                 "recovery",
@@ -239,9 +237,9 @@ class GateTests(unittest.TestCase):
                         c for c in manifest["checks"] if c["id"] != "journeys"
                     ]
                 elif change == "recursive":
-                    next(c for c in manifest["checks"] if c["id"] == "core")["argv"][
-                        1
-                    ] = "test-surveys"
+                    next(c for c in manifest["checks"] if c["id"] == "migrations")[
+                        "argv"
+                    ][1] = "test-surveys"
                 elif change == "unassigned":
                     manifest["ciShards"].pop(next(iter(manifest["ciShards"])))
                 else:

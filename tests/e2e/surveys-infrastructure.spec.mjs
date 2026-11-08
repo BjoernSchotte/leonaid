@@ -57,11 +57,6 @@ test("survey infrastructure reaches member and public hosts with real identity",
       path: `${process.env.LEONAID_E2E_ARTIFACT_DIR}/surveys-public.png`,
       fullPage: true,
     });
-    if (process.env.SURVEY_FOUNDATION_FORCE_FAILURE === "1") {
-      expect(`SURVEY_FOUNDATION_SECRET_CANARY:${token}`).toBe(
-        "deliberate failure",
-      );
-    }
   } finally {
     await context.close();
   }
