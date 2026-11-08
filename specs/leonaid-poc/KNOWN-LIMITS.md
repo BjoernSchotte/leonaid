@@ -65,6 +65,10 @@ Punkte sind keine stillschweigenden Produktzusagen.
   - Eine serverseitig widerrufene Sitzung sieht ein Gerät erst online.
   - Abmelden fragt in Akquise-App und Verwaltungsbereich, solange Einträge
     warten; „Trotzdem abmelden“ löscht sie vom Gerät.
+  - Die Straße, die jemand bei der CRM-Prüfung eines Sponsor-Entwurfs
+    ergänzt, bleibt verschlüsselt auf dem Gerät, bis die Prüfung abgeschlossen
+    oder der Entwurf verworfen ist, längstens 14 Tage (E-017): eine
+    wiederholte Prüfung muss genau dieselbe Anfrage senden.
   - Im Ausschalt-Modus halten Einträge mit Entscheidung oder Fehler das Gerät
     bis zu 16 Tage (Ablauf plus Warnfrist); „Nicht mehr möglich“ (keine
     Berechtigung mehr) hält es, bis die Person den Eintrag verwirft.

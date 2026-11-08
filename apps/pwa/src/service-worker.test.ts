@@ -70,6 +70,7 @@ class MemoryCacheStorage {
 interface WorkerEvent {
   readonly request?: Request;
   readonly data?: unknown;
+  readonly ports?: readonly { postMessage: (message: unknown) => void }[];
   respondWith?: (response: Promise<Response> | Response) => void;
   waitUntil: (promise: Promise<unknown>) => void;
 }
@@ -191,6 +192,23 @@ describe("service worker", () => {
     });
     const answer = await worker.navigate(`${BASE}sponsors`);
     expect(await answer?.text()).toBe(`cached ${BASE}offline.html`);
+  });
+
+  it("reports its own offline start setting to a page that asks", async () => {
+    const answers: unknown[] = [];
+    const port = { postMessage: (message: unknown) => answers.push(message) };
+    await worker.dispatch("message", {
+      data: { type: "OFFLINE_START_STATUS" },
+      ports: [port],
+    });
+    await worker.dispatch("message", {
+      data: { type: "OFFLINE_START", enabled: true },
+    });
+    await worker.dispatch("message", {
+      data: { type: "OFFLINE_START_STATUS" },
+      ports: [port],
+    });
+    expect(answers).toEqual([{ enabled: false }, { enabled: true }]);
   });
 
   it("covers every screen the PWA routes from the device copy", () => {

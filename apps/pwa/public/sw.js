@@ -66,6 +66,14 @@ self.addEventListener("message", (event) => {
   if (event.data?.type === "OFFLINE_START") {
     event.waitUntil(setOfflineStart(event.data.enabled === true));
   }
+  // The worker's own view of the setting: what a navigation without
+  // network will do (the page's Cache Storage may differ in WebKit).
+  if (event.data?.type === "OFFLINE_START_STATUS" && event.ports[0]) {
+    const port = event.ports[0];
+    event.waitUntil(
+      offlineStartEnabled().then((enabled) => port.postMessage({ enabled })),
+    );
+  }
 });
 
 async function setOfflineStart(enabled) {

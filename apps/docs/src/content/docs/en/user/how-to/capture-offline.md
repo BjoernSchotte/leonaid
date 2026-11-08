@@ -108,7 +108,9 @@ asking before it shows their workspace.
 - Offline you can use sponsors, follow-ups, contacts and orders only. The
   start page with the campaign status, tasks, materials, knowledge, inbox and
   the delivery board need a connection.
-- Your sponsors' street addresses are not kept on the device. For an order
+- Your sponsors' street addresses are not kept on the device. If you add
+  the street while checking a draft, it stays encrypted on the device until
+  the check is done, at most 14 days. For an order
   you enter the address.
 - Two devices do not know of each other: if you capture the same contact on
   both, it appears twice in the history.

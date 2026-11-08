@@ -206,6 +206,19 @@ export const MAX_UNKNOWN_ATTEMPTS = 5;
 export const SEND_TIMEOUT_MS = 15_000;
 
 /**
+ * E-017: what a draft's CRM check kept (the exact body, which may carry a
+ * street added during the check, and Core's answer) is due to go: 14 days
+ * after the capture, in every state, also "Nicht mehr möglich".
+ */
+export function draftCheckOutlived(entry: QueueEntry, now: Date): boolean {
+  return (
+    entry.kind === "sponsor-draft" &&
+    Boolean(entry.resolveRequest || entry.resolution) &&
+    now.getTime() - Date.parse(entry.capturedAt) > QUEUE_KEEP_DAYS * DAY_MS
+  );
+}
+
+/**
  * D5: an entry past 14 days expires, and an expired entry is deleted 2 days
  * after the warning. An entry that may already be at Core (`everSent`)
  * keeps trying until the end of those 2 days, so Core can replay it (the

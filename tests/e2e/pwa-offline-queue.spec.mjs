@@ -74,6 +74,35 @@ async function deviceCopyReady(page) {
       { timeout: 30_000 },
     )
     .toEqual(["board", "capture"]);
+  await offlineStartReady(page);
+}
+
+/**
+ * The service worker itself reports that `/app/` may start offline (§8.1):
+ * the setting reaches it after the current page load prepared the device,
+ * which a copy left by an earlier load does not show.
+ */
+async function offlineStartReady(page) {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async () => {
+          const registration = await navigator.serviceWorker.getRegistration();
+          const worker = registration?.active;
+          if (!worker) return false;
+          return new Promise((resolve) => {
+            const channel = new MessageChannel();
+            channel.port1.onmessage = (event) =>
+              resolve(event.data?.enabled === true);
+            worker.postMessage({ type: "OFFLINE_START_STATUS" }, [
+              channel.port2,
+            ]);
+            setTimeout(() => resolve(false), 2_000);
+          });
+        }),
+      { timeout: 30_000 },
+    )
+    .toBe(true);
 }
 
 async function controlled(page) {
