@@ -4880,7 +4880,8 @@ case "$command" in
     pilot_restore "$@"
     ;;
   test-ui-system) run_feature_tests tools/ui_system/test.sh ;;
-  test-dashboard) run_feature_tests tools/dashboard/test.sh ;;
+  # The dashboard spec runs in the UX acceptance leaf since E-043.
+  test-dashboard) run_feature_tests tools/ux_acceptance/test.sh ;;
   test-ux-acceptance) run_feature_tests tools/ux_acceptance/test.sh ;;
   test-security) run_feature_tests tools/security/test.sh ;;
   test-privacy) run_feature_tests tools/privacy/test.sh ;;

@@ -227,8 +227,8 @@ bootstrap, fixture restore and image pulls before its first test. Most of the
 | Build | 1 | Canonical Compose build; the only job that writes the BuildKit cache |
 | Security | 1 | Policy lane (self-tests, pilot, release, pins, migrations, secret scan) beside the security stack test |
 | Vulnerability gate | 1 | Own images built and scanned with the checkout, both lockfiles and every pinned third-party image; four Trivy lanes on one read-only advisory snapshot |
-| `Integration / <shards>` | 4 | All Integration shards and Contract |
-| `E2E / <leaves>` | 6 | All E2E leaves (E-037) |
+| `Integration / <shards>` | 6 | All Integration shards and Contract (E-043) |
+| `E2E / <leaves>` | 8 | All E2E leaves (E-037, E-043) |
 | `EmDash proof / <groups>` | 3 | `krapfentaxi-orders`; `krapfentaxi-deadlines` + `static`; `campaign-edge` |
 | Golden installation | 2 | Prepared and fresh installation (must stay separate runners) |
 | Golden journey, CI gate | 1 + 1 | Result comparison; the required check |
@@ -240,7 +240,7 @@ at most two Integration legs.
 `select_suites.py` packs the selected shards with longest-processing-time-first
 into at most `MAX_BINS` legs per kind, using the measured seconds in
 `INTEGRATION_SECONDS` / `E2E_SECONDS`, and opens a further leg only per
-`TARGET_SECONDS` (300 s) of tests. A pull request that touches two small leaves
+`TARGET_SECONDS` (190 s) of tests. A pull request that touches two small leaves
 gets one E2E leg. Legs have stable names (`Integration 1/4`, `E2E 2/4`,
 `EmDash proof 1/2`) so run histories stay comparable; the shard list is
 in the job summary. The leg id names the artifact (`ci-integration-1`, ...).

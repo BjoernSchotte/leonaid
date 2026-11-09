@@ -55,7 +55,6 @@ class RegressionIsolationTests(unittest.TestCase):
             "feature_flags/test.sh",
             "operations/test.sh",
             "ui_system/test.sh",
-            "dashboard/test.sh",
             "ux_acceptance/test.sh",
             "security/test.sh",
             "privacy/test.sh",
