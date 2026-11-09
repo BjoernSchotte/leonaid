@@ -1,10 +1,10 @@
 #!/bin/sh
-# Live proof of the Twenty kept across leaf resets (decision E-033): three
-# leaves in this order on one golden shared stack (tools/ci/integration.sh
-# twenty-install).
+# Live proof of the Twenty kept across leaf resets (decisions E-033, E-034):
+# three leaves in this order on one golden shared stack (tools/ci/integration.sh
+# twenty-keep).
 #   read   seeds and only reads; the next reset must keep Twenty running.
-#   write  finds the same twenty-server process, then adds a person outside
-#          the Golden rows.
+#   write  finds the same twenty-server process and a seed that wrote no
+#          Golden row, then adds a person outside the Golden rows.
 #   reset  finds Twenty restarted and the extra person gone.
 set -eu
 
@@ -16,6 +16,7 @@ proof=$(mktemp -d)
 person=6b5f4c1e-2f61-4d7a-9c0e-7e3d2a1b0c99
 cleanup() {
   status=$?
+  [ "$status" -eq 0 ] || cat "$proof/seed.log" 2>/dev/null || :
   if [ "${shared_leaf_owned:-false}" = true ]; then
     rmdir "$LEONAID_TEST_STACK/in-use" || status=1
   fi
@@ -31,7 +32,8 @@ fail() {
 marker="$LEONAID_TEST_STACK/twenty-keep-test"
 shared_services="api twenty-worker mailpit"
 . "$root/tools/testing/borrow_stack.sh"
-golden_seed
+golden_seed >"$proof/seed.log"
+cat "$proof/seed.log"
 started=$(docker inspect --format '{{.State.StartedAt}}' "$(compose ps -q twenty-server)")
 crm() {
   compose run --rm --no-deps --user "$(id -u):$(id -g)" \
@@ -51,6 +53,8 @@ case "$mode" in
     [ -f "$marker" ] || fail "the read leaf must run first"
     [ "$started" = "$(cat "$marker")" ] ||
       fail "twenty-server restarted after a leaf that only read"
+    grep -q '^golden-seed: 0 golden CRM rows written' "$proof/seed.log" ||
+      fail "the seed wrote Golden rows into a kept Twenty"
     crm "client.write('people', '$person',
     {'name': {'firstName': 'Keep', 'lastName': 'Probe'}}, exists=False)"
     ;;

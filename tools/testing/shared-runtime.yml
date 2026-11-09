@@ -33,6 +33,8 @@ services:
     # Autovacuum analyzes the fixture's never-analyzed Twenty tables about
     # 20 s after each start: about 20 write transactions that are no leaf's.
     # Off, an idle Twenty keeps one state (tools/testing/twenty_state.py).
+    # Test stacks only; production keeps autovacuum. This replaces the whole
+    # command of infra/compose/compose.yml: copy any flags added there.
     command: ["postgres", "-c", "autovacuum=off"]
     healthcheck:
       interval: 1s

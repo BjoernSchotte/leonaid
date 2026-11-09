@@ -134,24 +134,34 @@ class TwentyKeepTests(unittest.TestCase):
 
     STATE = "snapshot 1519:1519:\nbull:q:id string 10\n"
 
-    def decide(self, baseline, current, leaf_text="golden_seed\n"):
+    def decide(self, baseline, current, leaf_text="golden_seed\n", busy=0):
         stack = module.SharedStack(ROOT, "golden")
         self.addCleanup(shutil.rmtree, stack.directory, True)
         leaf = stack.directory / "leaf.sh"
         leaf.write_text(leaf_text)
         if baseline is not None:
             (stack.directory / "twenty-baseline").write_text(baseline)
-        original = module.twenty_state.read
-        module.twenty_state.read = lambda project: current
-        self.addCleanup(setattr, module.twenty_state, "read", original)
+        cleared = []
+        fakes = {
+            "read": lambda project: current,
+            "settle": lambda project: current,
+            "busy": lambda project: busy,
+            "clear_rate_limits": cleared.append,
+        }
+        for name, fake in fakes.items():
+            self.addCleanup(
+                setattr, module.twenty_state, name, getattr(module.twenty_state, name)
+            )
+            setattr(module.twenty_state, name, fake)
         keep, reason = stack.keep_twenty(f"{leaf} read")
+        self.assertEqual(cleared, [stack.project] if keep else [])
         written = stack.directory / "twenty-baseline"
         return keep, reason, written.read_text() if written.exists() else None
 
     def test_unchanged_state_keeps_twenty_and_becomes_the_next_baseline(self):
-        self.assertEqual(
-            self.decide(self.STATE, self.STATE), (True, "", self.STATE)
-        )
+        self.assertEqual(self.decide(self.STATE, self.STATE), (True, "", self.STATE))
+        redirected = 'golden_seed >"$proof/seed.log"\n'
+        self.assertTrue(self.decide(self.STATE, self.STATE, redirected)[0])
 
     def test_a_write_restores_twenty(self):
         keep, reason, baseline = self.decide(
@@ -162,6 +172,18 @@ class TwentyKeepTests(unittest.TestCase):
             reason, "written: 2 transaction(s), BullMQ keys changed: bull:q:id"
         )
         self.assertIsNone(baseline)
+
+    def test_a_queue_only_change_restores_twenty(self):
+        keep, reason, _ = self.decide(
+            self.STATE, self.STATE + "bull:q:delayed zset 1\n"
+        )
+        self.assertFalse(keep)
+        self.assertIn("bull:q:delayed", reason)
+
+    def test_a_request_in_flight_restores_twenty(self):
+        keep, reason, baseline = self.decide(self.STATE, self.STATE, busy=1)
+        self.assertEqual((keep, baseline), (False, None))
+        self.assertIn("in flight", reason)
 
     def test_no_baseline_stopped_twenty_or_a_non_golden_leaf_restore_twenty(self):
         self.assertFalse(self.decide(None, self.STATE)[0])

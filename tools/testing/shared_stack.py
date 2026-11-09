@@ -47,7 +47,8 @@ TWENTY_SERVICES = frozenset(
     {"twenty-postgres", "twenty-redis", "twenty-server", "twenty-worker"}
 )
 TWENTY_VOLUMES = ("twenty-postgres-data", "twenty-redis-data", "twenty-server-data")
-GOLDEN_SEED_LEAF = re.compile(r"^\s*golden_seed\s*$", re.MULTILINE)
+# A line that runs golden_seed, possibly with a redirection.
+GOLDEN_SEED_LEAF = re.compile(r"^\s*golden_seed(\s.*)?$", re.MULTILINE)
 
 # Content digest per volume: paths, types, sizes, modes, owners, link targets
 # and file contents. Modification times are not part of it.
@@ -630,10 +631,12 @@ class SharedStack:
         """Decide before script: (keep Twenty running, reason when not).
 
         Kept only when the leaf before left a baseline (twenty_state.py),
-        Twenty's stores still hold exactly that state now that every other
-        service is stopped, and script seeds the same Golden rows. The state
-        becomes script's baseline: its seed finds every row in place and
-        writes nothing, so any change by script resets Twenty after it.
+        Twenty's stores still hold exactly that state, settled and with no
+        request in flight, now that every other service is stopped, and
+        script seeds the same Golden rows. The state becomes script's
+        baseline: its seed finds every row in place and writes nothing, so
+        any change by script resets Twenty after it. A kept Twenty starts
+        with fresh rate limits.
         """
         baseline = self.directory / "twenty-baseline"
         try:
@@ -648,8 +651,17 @@ class SharedStack:
         current = twenty_state.read(self.project)
         if current is None:
             return False, "Twenty is not running"
-        if current != expected:
-            return False, "written: " + twenty_state.change(expected, current)
+        try:
+            # A changed state resets at once; an unchanged one must hold still.
+            if current == expected:
+                current = twenty_state.settle(self.project)
+            if current != expected:
+                return False, "written: " + twenty_state.change(expected, current)
+            if busy := twenty_state.busy(self.project):
+                return False, f"{busy} Twenty database request(s) in flight"
+            twenty_state.clear_rate_limits(self.project)
+        except RuntimeError as error:
+            return False, str(error)
         baseline.write_text(current)
         return True, ""
 

@@ -61,6 +61,8 @@ INTEGRATION_SHARDS = (
     "crm-gateway",
     "crm-import",
     "twenty-install",
+    # The live proof of the Twenty kept across leaf resets (E-034).
+    "twenty-keep",
     "policy",
     "schema-outbox",
     "delivery",
@@ -116,8 +118,10 @@ INTEGRATION_SECONDS = {
     "profiles": 90,
     "crm-gateway": 92,
     "crm-import": 66,
-    # 52 s (run 42547017244) plus the kept-Twenty proof (local 75 s).
-    "twenty-install": 125,
+    # 130 s, minus its own cold Twenty start: it runs on the fixture now.
+    "twenty-install": 60,
+    # Run 42552919966: twenty-install with the proof 139 s, without 52 s.
+    "twenty-keep": 90,
     "policy": 54,
     # About 240 s since the renderer API test joined it (#153).
     "schema-outbox": 240,
@@ -185,7 +189,7 @@ LOAD_WARNING = 0.75
 MAX_BINS = {"integration": 4, "e2e": 4}
 # Integration shards that start Twenty: its image (about 40 s of pulls in
 # the policy leg of run 42504505501) is prefetched beside the layer import.
-SEED_BOOTSTRAP = frozenset({"seed-reset", "twenty-install", "policy"})
+SEED_BOOTSTRAP = frozenset({"seed-reset", "twenty-install", "twenty-keep", "policy"})
 
 # Fast tier (pull requests): Integration shards and Contract that a specific
 # rule selects run before the merge, packed into legs of FAST_LEG_SECONDS of
@@ -240,6 +244,18 @@ FAST_REQUIRED: dict[str, tuple[str, ...]] = {
         "tests/integration/test_campaign_renderer_api.py",
         "src/leonaid/adapters/postgres/campaign_aliases.py",
         "src/leonaid/application/campaign_renderer.py",
+    ),
+}
+# Shards that only their own inputs select, in every tier, plus every
+# complete run (nightly, full-ci, dispatch); shared infrastructure and
+# unmapped paths do not (decision E-034).
+OWN_INPUTS: dict[str, tuple[str, ...]] = {
+    "twenty-keep": (
+        "tools/testing/twenty_state.py",
+        "tools/testing/shared_stack.py",
+        "tools/testing/twenty_keep_test.sh",
+        "tools/testing/shared-runtime.yml",
+        "tools/seed/golden.py",
     ),
 }
 # Never in the fast tier: browser suites and multi-minute acceptance runs.
@@ -752,7 +768,8 @@ def everything() -> frozenset[str]:
 
 
 def everything_but_e2e() -> frozenset[str]:
-    return everything() - e2e(*E2E_SHARDS)
+    """What shared infrastructure selects besides E2E leaves (no OWN_INPUTS)."""
+    return everything() - e2e(*E2E_SHARDS) - integration(*OWN_INPUTS)
 
 
 # E2E leaves that own a Python module, by module stem. The stem matches in
@@ -1153,7 +1170,13 @@ def map_paths(changed: Sequence[str], root: Path | None) -> Mapped:
                     f"{reason}; import graph: {', '.join(sorted(owners)) or 'no leaf'}"
                 )
         else:
+            selected -= integration(*OWN_INPUTS)
             specific |= selected
+        own = integration(
+            *(shard for shard, inputs in OWN_INPUTS.items() if matches(path, inputs))
+        )
+        selected |= own
+        specific |= own
         if matches(path, API_PATHS) and not matches(path, API_EXCLUDED):
             # The live API contract rides in an Integration leg.
             selected = selected | {"api", "integration:api-contract"}
@@ -1224,7 +1247,7 @@ def select(
     changed = sorted({p.strip() for p in paths if p.strip()})
     if event == "push" and changed:
         mapped = map_paths(changed, root)
-        full = mapped.suites >= everything()
+        full = mapped.suites >= everything() - integration(*OWN_INPUTS)
         reason = (
             "post-merge: complete suite"
             if full

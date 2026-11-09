@@ -11,7 +11,8 @@ finished changes the listing. The test runtime turns autovacuum off
 still, then writes it: the baseline of a leaf that seeded a freshly restored
 Twenty (owned_teardown.sh golden_seed). Before a leaf on a kept Twenty,
 shared_stack.py writes the baseline itself. It keeps Twenty for the next leaf
-only if the state at the end of a leaf is still its baseline.
+only if the settled state at the end of a leaf is still its baseline and no
+Twenty request is in flight (busy), and then clears the rate limits.
 """
 
 from __future__ import annotations
@@ -45,10 +46,21 @@ return table.concat(lines, '\\n')
 # BullMQ keys of jobs that run now. A delayed job stays part of the state: if
 # it runs later, the state changes and Twenty is reset.
 PENDING = (":wait ", ":active ", ":prioritized ")
-SNAPSHOT = (
-    'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc '
-    '"select pg_current_snapshot()"'
+PSQL = 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "$1"'
+# Client backends other than this query that are not idle: a Twenty request
+# in flight that may write after the check (an open write is in the snapshot).
+BUSY = (
+    "select count(*) from pg_stat_activity where backend_type = 'client backend'"
+    " and pid <> pg_backend_pid() and state is distinct from 'idle'"
 )
+# Twenty's API rate limits (ThrottlerService), namespaced in the cache. Not
+# part of the state: every read uses them. Cleared for a kept Twenty, so a
+# leaf never starts on a bucket the leaf before drained.
+CLEAR_RATE_LIMITS = """
+local keys = redis.call('KEYS', '*token-bucket:*')
+for _, key in ipairs(keys) do redis.call('DEL', key) end
+return #keys
+"""
 
 
 def container(project: str, service: str) -> str | None:
@@ -75,19 +87,33 @@ def read(project: str) -> str | None:
     queue = container(project, "twenty-redis")
     if postgres is None or queue is None:
         return None
-    snapshot = subprocess.run(
-        ["docker", "exec", postgres, "sh", "-c", SNAPSHOT],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    listing = subprocess.run(
-        ["docker", "exec", queue, "valkey-cli", "EVAL", QUEUE_LISTING, "0"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
+    snapshot = run(postgres, "sh", "-c", PSQL, "sh", "select pg_current_snapshot()")
+    listing = run(queue, "valkey-cli", "EVAL", QUEUE_LISTING, "0")
     return f"snapshot {snapshot}\n{listing}\n"
+
+
+def run(name: str, *command: str) -> str:
+    return subprocess.run(
+        ["docker", "exec", name, *command],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def busy(project: str) -> int:
+    """Twenty database requests in flight (BUSY)."""
+    postgres = container(project, "twenty-postgres")
+    if postgres is None:
+        raise RuntimeError("twenty-postgres is not running")
+    return int(run(postgres, "sh", "-c", PSQL, "sh", BUSY))
+
+
+def clear_rate_limits(project: str) -> None:
+    queue = container(project, "twenty-redis")
+    if queue is None:
+        raise RuntimeError("twenty-redis is not running")
+    run(queue, "valkey-cli", "EVAL", CLEAR_RATE_LIMITS, "0")
 
 
 def change(before: str, after: str) -> str:
@@ -100,9 +126,7 @@ def change(before: str, after: str) -> str:
 
     xid_before, keys_before = split(before)
     xid_after, keys_after = split(after)
-    jobs = sorted(
-        {line.split()[0] for line in keys_after ^ keys_before}, key=str
-    )
+    jobs = sorted({line.split()[0] for line in keys_after ^ keys_before}, key=str)
     return f"{xid_after - xid_before} transaction(s), BullMQ keys changed: " + (
         ", ".join(jobs[:5]) + (" ..." if len(jobs) > 5 else "") if jobs else "none"
     )

@@ -119,6 +119,11 @@ selects, the tier decides when it runs):
   `tests/e2e/<feature>.spec.mjs` select their E2E leaf. Helpers imported by
   other suites also select those (`tools/identity` and `tools/public_orders`
   start the EmDash proofs).
+- **Only its own inputs** select a shard in `OWN_INPUTS`, in every tier;
+  shared infrastructure does not. `Integration / twenty-keep` (the live
+  proof of the kept Twenty, E-034) runs when `twenty_state.py`,
+  `shared_stack.py`, `twenty_keep_test.sh`, `shared-runtime.yml` or
+  `tools/seed/golden.py` change, and in every complete run (nightly).
 - API contract and dependency pins keep their former workflow path filters
   (`API_PATHS`, `PINS_PATHS`), now evaluated by the selector so the check
   always reports. Documentation and campaign-site changes no longer start the

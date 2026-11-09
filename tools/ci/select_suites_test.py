@@ -37,12 +37,18 @@ def post(*paths: str) -> s.Selection:
 
 
 def broad(selection: s.Selection, *owners: str) -> bool:
-    """Post-merge, unknown/shared: every non-E2E suite, smoke, mapped leaves."""
+    """Post-merge, unknown/shared: every non-E2E suite, smoke, mapped leaves.
+
+    OWN_INPUTS shards are checked on their own (they follow their inputs).
+    """
+    suites = selection.suites - s.integration(*s.OWN_INPUTS)
     if set(owners) >= set(s.E2E_SHARDS):
-        return full(selection)
-    return not selection.full and selection.suites == s.everything_but_e2e() | {
-        s.SMOKE
-    } | s.e2e(*owners)
+        return selection.full and suites == s.everything() - s.integration(
+            *s.OWN_INPUTS
+        )
+    return not selection.full and suites == s.everything_but_e2e() | {s.SMOKE} | s.e2e(
+        *owners
+    )
 
 
 def full(selection: s.Selection) -> bool:
@@ -136,7 +142,9 @@ PRECISE: tuple[tuple[str, dict[str, Any]], ...] = (
         "tools/ci/integration.sh",
         {
             "contract": True,
-            "integration": sorted([*s.INTEGRATION_SHARDS, "contract"]),
+            "integration": sorted(
+                {*s.INTEGRATION_SHARDS, "contract"} - set(s.OWN_INPUTS)
+            ),
         },
     ),
     ("tools/ci/emdash.sh", {"emdash": sorted(s.EMDASH_GROUPS)}),
@@ -541,6 +549,23 @@ def main() -> int:
             ),
             "a complete run needs no smoke leg",
         )
+        expect(
+            "twenty-keep" in nightly.integration_units(),
+            "the nightly run proves the kept Twenty",
+        )
+    # The kept-Twenty proof runs only for its own inputs (E-034), also on a PR.
+    for path in s.OWN_INPUTS["twenty-keep"]:
+        for selection in (pr(path), post(path)):
+            expect(
+                "twenty-keep" in selection.integration_units(),
+                f"{path} must run Integration / twenty-keep ({selection.tier})",
+            )
+    for path in ("tools/testing/borrow_stack.sh", "tools/ci/integration.sh", "x/y"):
+        for selection in (pr(path), post(path)):
+            expect(
+                "twenty-keep" not in selection.integration_units(),
+                f"{path} must not run Integration / twenty-keep ({selection.tier})",
+            )
     # Docs-only changes still start no stack suite, not even smoke.
     for selection in (pr("README.md"), post("README.md")):
         expect(
