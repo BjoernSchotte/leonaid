@@ -628,14 +628,14 @@ def main() -> int:
     # E-024): with Golden's 2 and the 6 stack-free jobs within 20 runners.
     expect(total <= 11, f"a complete run must stay at 11 stack legs or fewer: {total}")
     # A small PR packs into one leg; packing is deterministic.
-    small = post("tools/pwa/test.sh", "tools/tasks/test.sh")
+    small = post("tools/inbox/test.sh", "tools/tasks/test.sh")
     legs = json.loads(small.outputs()["e2e"])
     expect(
-        len(legs) == 1 and set(legs[0]["shards"].split()) == {"pwa", "tasks"},
+        len(legs) == 1 and set(legs[0]["shards"].split()) == {"inbox", "tasks"},
         f"two small leaves must share one leg: {legs}",
     )
     expect(
-        small.outputs() == post("tools/tasks/test.sh", "tools/pwa/test.sh").outputs(),
+        small.outputs() == post("tools/tasks/test.sh", "tools/inbox/test.sh").outputs(),
         "packing must not depend on path order",
     )
     expect(s.pack([], s.E2E_SECONDS, 4) == [], "nothing selected packs to no leg")
