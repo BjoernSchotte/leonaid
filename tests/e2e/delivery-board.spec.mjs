@@ -190,6 +190,56 @@ async function setToursFlag(request, enabled) {
   expect(updated.ok()).toBe(true);
 }
 
+/** Klara's API session: first day's windows open, all drops open, all Anna's. */
+async function arrangeStart(request) {
+  const api = `${baseUrl}/api/v1/actions/${actionId}`;
+  const headers = { Origin: baseUrl };
+  const read = async (query = "") => {
+    const response = await request.get(`${api}/delivery-board${query}`);
+    expect(response.ok()).toBe(true);
+    return response.json();
+  };
+  const first = await read();
+  const board = await read(`?day=${first.days[0]}`);
+  const anna = board.drivers.find(
+    (item) => item.displayName === "Anna Akquise",
+  );
+  expect(anna).toBeTruthy();
+  for (const window of board.windows.filter((item) => item.closure)) {
+    const reopened = await request.delete(
+      `${api}/delivery-windows/${window.id}/closure`,
+      { headers },
+    );
+    expect(reopened.ok()).toBe(true);
+  }
+  const drops = (await read(`?day=${first.days[0]}`)).windows
+    .flatMap((window) => window.drops)
+    .filter((drop) => drop.orderStatus !== "cancelled");
+  expect(drops.length).toBeGreaterThanOrEqual(4);
+  for (const drop of drops.filter((item) => item.state !== "open")) {
+    const reset = await request.put(
+      `${api}/commitments/${drop.commitmentId}/delivery-state`,
+      {
+        headers,
+        data: {
+          delivered: false,
+          missed: false,
+          expectedRevision: drop.revision,
+        },
+      },
+    );
+    expect(reset.ok()).toBe(true);
+  }
+  const assigned = await request.put(`${api}/delivery-board/drivers`, {
+    headers,
+    data: {
+      commitmentIds: drops.map((drop) => drop.commitmentId),
+      driverUserId: anna.userId,
+    },
+  });
+  expect(assigned.ok()).toBe(true);
+}
+
 test("managers plan a tour; the driver reorders, delivers and sees a later stop as neu", async ({
   browser,
 }) => {
@@ -215,16 +265,9 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
   try {
     await setToursFlag(flagAdmin.context.request, true);
 
-    // The board proof closed the window: Klara reopens it in the list.
-    await page.goto(`${baseUrl}/admin/delivery?action=${actionId}`);
-    await expect(
-      page.getByRole("heading", { name: "Auslieferung", level: 1 }),
-    ).toBeVisible();
-    await page.getByTestId("delivery-day").selectOption({ index: 0 });
-    await page.getByRole("button", { name: "Wieder öffnen" }).first().click();
-    await expect(
-      page.getByTestId("delivery-close-window").first(),
-    ).toBeVisible();
+    // Own start state, whatever ran before: the first day's windows open,
+    // every drop open and driven by Anna.
+    await arrangeStart(planner.context.request);
 
     await page.goto(`${baseUrl}/admin/delivery?action=${actionId}&view=tours`);
     await expect(
@@ -240,8 +283,7 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
     await expect(open_(anna).first()).toBeVisible();
     await expectAccessible(page);
 
-    // The board proof gave every drop to Anna: take three open ones back,
-    // then plan them again.
+    // Take three open stops back from Anna, then plan them again.
     const openCount = await open_(anna).count();
     expect(openCount).toBeGreaterThanOrEqual(3);
     const ids = await open_(anna).evaluateAll((rows) =>
@@ -320,21 +362,45 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
     ).toBeVisible();
     await expect(mobile.getByTestId("tour-reorder-done")).toHaveCount(0);
 
-    // Deliver, undo, deliver again.
+    // Deliver, undo, deliver again. The delivered stop stays in its place,
+    // greyed (D15); "Rückgängig" is the one on the toast just shown.
+    const rows = mobile.locator("ol.tour-rows > li");
     const done = mobile.getByTestId("tour-stop-done");
     const doneBefore = await done.count();
+    const slot = await rows.evaluateAll((items) =>
+      items.findIndex((item) => item.classList.contains("tour-next")),
+    );
+    expect(slot).toBeGreaterThanOrEqual(0);
     await next.getByRole("button", { name: "Zugestellt" }).click();
-    await expect(mobile.getByText(/: zugestellt\.$/).last()).toBeVisible();
+    await expect(mobile.getByText(/: zugestellt\.$/)).toBeVisible();
     await expect(done).toHaveCount(doneBefore + 1);
+    await expect(rows.nth(slot)).toHaveAttribute(
+      "data-testid",
+      "tour-stop-done",
+    );
+    await expect(rows.nth(slot)).toHaveClass(/is-done/);
     await expect(mobile.getByTestId("tour-next-stop")).toBeVisible();
-    await mobile.getByRole("button", { name: "Rückgängig" }).last().click();
-    await expect(mobile.getByText(/ ist wieder offen\.$/).last()).toBeVisible();
+    await mobile.getByRole("button", { name: "Rückgängig" }).click();
+    await expect(mobile.getByText(/ ist wieder offen\.$/)).toBeVisible();
     await expect(done).toHaveCount(doneBefore);
     await mobile
       .getByTestId("tour-next-stop")
       .getByRole("button", { name: "Zugestellt" })
       .click();
     await expect(done).toHaveCount(doneBefore + 1);
+    await expect(rows.nth(slot)).toHaveAttribute(
+      "data-testid",
+      "tour-stop-done",
+    );
+
+    // "Nicht angetroffen" survives a reload (D13).
+    await mobile
+      .getByTestId("tour-next-stop")
+      .getByRole("button", { name: "Nicht angetroffen" })
+      .click();
+    await expect(mobile.getByText(/: nicht angetroffen\.$/)).toBeVisible();
+    await mobile.reload();
+    await expect(done.filter({ hasText: "Nicht angetroffen" })).toHaveCount(1);
     for (const scheme of ["light", "dark"]) {
       await mobile.emulateMedia({ colorScheme: scheme });
       await mobile.screenshot({
@@ -358,7 +424,6 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
 
     // Anna: the new stop is last and marked neu.
     await mobile.reload();
-    const rows = mobile.locator("ol.tour-rows > li");
     await expect(rows.last()).toContainText("neu");
     await expect(mobile.getByText("neu", { exact: true })).toHaveCount(1);
     await expectAccessible(mobile);
