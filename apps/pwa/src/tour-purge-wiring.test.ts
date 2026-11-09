@@ -225,10 +225,9 @@ describe("mid-session (useTourCachePurge)", () => {
             defaultOptions: { queries: { retry: false } },
           }),
         },
-        createElement(
-          FeatureFlagProvider,
-          { cached, client, identity, surface: "pwa" },
-          createElement(
+        createElement(FeatureFlagProvider, {
+          cached,
+          children: createElement(
             OfflineRuntimeContext.Provider,
             {
               value: {
@@ -239,7 +238,10 @@ describe("mid-session (useTourCachePurge)", () => {
             },
             createElement(Purge),
           ),
-        ),
+          client,
+          identity,
+          surface: "pwa",
+        }),
       ),
     );
   }

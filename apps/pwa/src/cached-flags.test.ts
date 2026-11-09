@@ -71,16 +71,13 @@ function setup() {
     createElement(
       QueryClientProvider,
       { client: queries },
-      createElement(
-        FeatureFlagProvider,
-        {
-          cached: new Map([[FEATURE_FLAGS.deliveryTours, true]]),
-          client,
-          identity,
-          surface: "pwa",
-        },
-        createElement(Probe),
-      ),
+      createElement(FeatureFlagProvider, {
+        cached: new Map([[FEATURE_FLAGS.deliveryTours, true]]),
+        children: createElement(Probe),
+        client,
+        identity,
+        surface: "pwa",
+      }),
     ),
   );
   return { answers, evaluated, queries, seen };
