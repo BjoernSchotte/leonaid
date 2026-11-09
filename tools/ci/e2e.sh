@@ -23,21 +23,15 @@ leaves() {
   membership)
     echo golden tools/invitations/test.sh tools/sessions/test.sh
     ;;
-  action-templates)
-    echo golden tools/actions/test.sh tools/templates/test.sh
-    ;;
-  acquisition-management)
-    echo golden tools/assignments/test.sh tools/activities/test.sh
-    ;;
   public-catalog)
-    echo golden tools/public_actions/test.sh tools/activity_feed/test.sh
+    echo golden tools/public_actions/test.sh
     # Admin host + public host on their own stack (specs/multi-domain stage 1).
     echo own tools/multi_host/test.sh
     ;;
-  invitations|sessions|matching|assignments|activities|pwa|templates|commitments|invoices)
+  invitations|sessions|pwa|commitments|invoices)
     echo golden "tools/$1/test.sh"
     ;;
-  action-admin|public-actions|public-orders|activity-feed)
+  action-admin|public-actions|public-orders)
     echo golden "tools/$(printf '%s' "$1" | tr '-' '_')/test.sh"
     ;;
   # Leitsystem shell: tokens, contrast, visual baselines, dashboard, UX gates.
@@ -45,7 +39,7 @@ leaves() {
     echo golden tools/ui_system/test.sh tools/ux_acceptance/test.sh tools/dashboard/test.sh
     ;;
   operations)
-    echo golden tools/operations/test.sh tools/feature_flags/test.sh tools/privacy/test.sh
+    echo golden tools/operations/test.sh tools/feature_flags/test.sh
     ;;
   invoice-flows)
     echo golden tools/invoice_delivery/test.sh tools/invoice_settlements/test.sh
@@ -56,14 +50,8 @@ leaves() {
   tasks|knowledge|inbox)
     echo core "tools/$1/test.sh"
     ;;
-  acquisition)
-    echo golden tools/matching/test.sh tools/assignments/test.sh tools/activities/test.sh tools/pwa/test.sh
-    ;;
-  actions)
-    echo golden tools/actions/test.sh
-    ;;
   public)
-    echo golden tools/public_actions/test.sh tools/public_orders/test.sh tools/activity_feed/test.sh
+    echo golden tools/public_actions/test.sh tools/public_orders/test.sh
     ;;
   # Short smoke leg (LEONAID_E2E_SMOKE=1, set below): one real login, one
   # list view, one public order; each leaf filters its specs to that test.

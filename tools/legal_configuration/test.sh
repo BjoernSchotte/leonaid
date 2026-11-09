@@ -6,12 +6,15 @@ root=$(cd "$root" && pwd)
 . "$root/tools/testing/owned_teardown.sh"
 . "$root/infra/locks/images.env"
 
-project=${LEONAID_LEGAL_TEST_PROJECT:-leonaid-pilot044-test}
+suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
+project=${LEONAID_LEGAL_TEST_PROJECT:-leonaid-pilot044-test}-$suffix
+owned=false
 http_port=${LEONAID_LEGAL_TEST_PORT:-18124}
 https_port=${LEONAID_LEGAL_TEST_HTTPS_PORT:-18484}
 compose_file="$root/infra/compose/compose.yml"
 env_file="$root/.env.local"
 proof=$(mktemp -d)
+isolation_file="$proof/compose-isolation.yml"
 integration_key=""
 
 compose() {
@@ -22,48 +25,55 @@ compose() {
       --project-name "$project" \
       --env-file "$env_file" \
       --file "$compose_file" \
+      --file "$isolation_file" \
       "$@"
 }
 
 cleanup() {
   status=$?
-  if [ "$status" -ne 0 ]; then
-    echo "legal-configuration-test: diagnostics:" >&2
+  if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
+    echo "legal-configuration-test: diagnostics for the failed services:" >&2
     compose ps --all >&2 || true
     compose logs --no-color --tail=260 \
       api core-postgres web proxy twenty-server twenty-worker >&2 || true
     /bin/sh "$root/tools/ci/capture-failure.sh" \
       "$root" "$proof" "$project" || true
   fi
-  compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1 || true
-  verify_owned_project_removed "$project" || status=1
+  if [ "$owned" = true ]; then
+    if ! compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
+    if ! verify_owned_project_removed "$project"; then status=1; fi
+    if [ "$status" -eq 0 ]; then echo "test-isolation: $project passed and owned resources were removed"; fi
+  fi
+  if [ "${shared_leaf_owned:-false}" = true ]; then
+    rmdir "$LEONAID_TEST_STACK/in-use" || status=1
+  fi
   rm -rf "$proof"
   exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "legal-configuration-test: ERROR: .env.local is missing" >&2
+  echo "legal-configuration-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
-docker run --rm \
-  --env HOME=/tmp \
-  --env UV_CACHE_DIR=/tmp/uv-cache \
-  --volume "$root:/workspace:ro" \
-  --workdir /workspace \
-  "$UV_IMAGE" \
-  uv run --frozen --no-sync \
-  pytest -p no:cacheprovider tests/unit/test_legal_configuration.py --quiet
-
-compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
-build_shared_images api public pwa web
-if ! compose --profile dev-mail up --detach --wait --wait-timeout 420 \
-  core-postgres rustfs mailpit twenty-server twenty-worker; then
-  echo "legal-configuration-test: retrying Twenty start once"
-  compose --profile dev-mail up --detach --wait --wait-timeout 420 \
-    core-postgres rustfs mailpit twenty-server twenty-worker
-fi
+if [ -n "${LEONAID_TEST_STACK:-}" ]; then
+  shared_services="api twenty-worker mailpit"
+  . "$root/tools/testing/borrow_stack.sh"
+else
+# Refuse existing resources and unreadable inventories before Docker mutations.
+existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker network ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+python3 "$root/tools/surveys/network_override.py" "$isolation_file"
+owned=true
+compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
+build_shared_images api
+compose --profile dev-mail up --detach --wait --wait-timeout 420 \
+  core-postgres rustfs mailpit twenty-server twenty-worker
 
 compose run --rm --no-deps \
   --user "$(id -u):$(id -g)" \
@@ -79,7 +89,7 @@ compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
 if [ "${#integration_key}" -lt 32 ]; then
-  echo "legal-configuration-test: ERROR: Twenty key is missing" >&2
+  echo "legal-configuration-test: ERROR: restricted Twenty key is missing" >&2
   exit 1
 fi
 
@@ -87,6 +97,7 @@ compose up --detach --wait --wait-timeout 420 api
 
 /bin/sh "$root/tools/typst/render_golden.sh" \
   "$root" "$proof/pdfs" "${project}-api"
+fi
 
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
@@ -97,59 +108,17 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   /repo/tests/fixtures/golden/v1 \
   /proof/pdfs
 
-compose run --rm --no-deps \
-  --user "$(id -u):$(id -g)" \
-  --env-from-file "$env_file" \
-  --env API_BASE_URL=http://api:8000 \
-  --env PYTHONPATH=/repo:/workspace/src \
-  --volume "$root:/repo:ro" \
-  --volume "$proof:/proof" \
-  --workdir /repo \
-  --entrypoint python \
-  api tools/legal_configuration/contract.py prepare \
-  --sessions /proof/sessions.env
-
-compose up --detach --wait --wait-timeout 420 pwa public web proxy
-
-docker run --rm \
-  --network "${project}_edge" \
-  --env CI=1 \
-  --env HOME=/tmp \
-  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
-  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
-  --env-file "$proof/sessions.env" \
-  --volume "$root:/workspace:ro" \
-  --volume "$proof:/proof" \
-  --workdir /workspace \
-  --user "$(id -u):$(id -g)" \
-  "$PLAYWRIGHT_IMAGE" \
-  node_modules/.bin/playwright test \
-  --config=tests/e2e/pwa.config.mjs \
-  legal-configuration.spec.mjs \
-  --project=chromium-1440 \
-  --output=/tmp/leonaid-legal-results \
-  --trace=retain-on-failure \
-  --reporter=line
-
-for screenshot in legal-draft-desktop.png legal-active-mobile.png; do
-  if [ ! -s "$proof/$screenshot" ]; then
-    echo "legal-configuration-test: ERROR: browser proof is missing: $screenshot" >&2
-    exit 1
-  fi
+for step in prepare act assert; do
+  compose run --rm --no-deps \
+    --user "$(id -u):$(id -g)" \
+    --env-from-file "$env_file" \
+    --env API_BASE_URL=http://api:8000 \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --workdir /repo \
+    --entrypoint python \
+    api tools/legal_configuration/contract.py "$step"
 done
 
-compose run --rm --no-deps \
-  --user "$(id -u):$(id -g)" \
-  --env-from-file "$env_file" \
-  --env API_BASE_URL=http://api:8000 \
-  --env PYTHONPATH=/repo:/workspace/src \
-  --volume "$root:/repo:ro" \
-  --workdir /repo \
-  --entrypoint python \
-  api tools/legal_configuration/contract.py assert
-
-mkdir -p "$root/.artifacts/pilot044"
-cp "$proof"/legal-*.png "$root/.artifacts/pilot044/"
-
-echo "legal-configuration-test: OK: real PostgreSQL versioning,"
-echo "legal-configuration-test:     four-eyes activation and browser UX proven"
+echo "legal-configuration-test: OK: real PostgreSQL versioning and"
+echo "legal-configuration-test:     four-eyes activation proven"

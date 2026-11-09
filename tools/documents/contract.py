@@ -287,7 +287,14 @@ async def assert_exact_bytes(
             f"/api/v1/actions/{ACTION_ID}/documents/{row['id']}/download",
             headers=session_headers(token),
         )
+        # The preview link of the invoice pane opens the same bytes inline.
+        preview = await api.get(
+            f"/api/v1/actions/{ACTION_ID}/documents/{row['id']}/download",
+            params={"inline": "true"},
+            headers=session_headers(token),
+        )
         digest = hashlib.sha256(golden).hexdigest()
+        filename = f"filename*=UTF-8''Rechnung-KT26-{sequence:04d}.pdf"
         if (
             response.status_code != 200
             or response.content != golden
@@ -295,10 +302,17 @@ async def assert_exact_bytes(
             or response.headers.get("content-type") != "application/pdf"
             or response.headers.get("x-document-sha256") != digest
             or response.headers.get("x-document-version") != "2"
+            or response.headers.get("content-disposition") != f"attachment; {filename}"
         ):
             raise ContractFailure(
                 "PostgreSQL, RustFS, golden PDF and API are not byte-identical"
             )
+        if (
+            preview.status_code != 200
+            or preview.content != golden
+            or preview.headers.get("content-disposition") != f"inline; {filename}"
+        ):
+            raise ContractFailure("Inline PDF preview differs from the download")
 
 
 async def exercise(

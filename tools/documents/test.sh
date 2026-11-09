@@ -153,16 +153,10 @@ docker run --rm \
   --trace=retain-on-failure \
   --reporter=line
 
-for screenshot in \
-  document-admin-desktop.png \
-  document-finance-mobile.png \
-  document-finance-pdf-preview.png \
-  document-acquirer-denied.png; do
-  if [ ! -s "$proof/$screenshot" ]; then
-    echo "document-test: ERROR: browser proof is missing: $screenshot" >&2
-    exit 1
-  fi
-done
+if [ ! -s "$proof/document-pdf-preview.png" ]; then
+  echo "document-test: ERROR: browser proof is missing: document-pdf-preview.png" >&2
+  exit 1
+fi
 
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \

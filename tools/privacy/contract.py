@@ -68,27 +68,22 @@ def error_code(response: httpx.Response) -> str:
     return str(payload["error"].get("code"))
 
 
-async def seed_sessions(
-    connection: asyncpg.Connection[Any],
-    output: Path,
-) -> dict[str, str]:
+async def seed_sessions(connection: asyncpg.Connection[Any]) -> dict[str, str]:
     now = datetime.now(timezone.utc)
     sessions = (
-        ("SIMONE_SESSION", "simone", SIMONE_ID, now),
-        ("STALE_SIMONE_SESSION", "simone-stale", SIMONE_ID, now - timedelta(hours=1)),
-        ("KLARA_SESSION", "klara", KLARA_ID, now),
-        ("ANNA_SESSION", "anna", ANNA_ID, now),
+        ("simone", SIMONE_ID, now),
+        ("simone-stale", SIMONE_ID, now - timedelta(hours=1)),
+        ("klara", KLARA_ID, now),
+        ("anna", ANNA_ID, now),
     )
     await connection.execute(
         "DELETE FROM user_session WHERE user_id = ANY($1::uuid[])",
         [SIMONE_ID, KLARA_ID, ANNA_ID],
     )
     tokens: dict[str, str] = {}
-    lines: list[str] = []
-    for env_name, label, user_id, fresh_at in sessions:
+    for label, user_id, fresh_at in sessions:
         token = token_for(label, user_id)
         tokens[label] = token
-        lines.append(f"{env_name}={token}\n")
         await connection.execute(
             """
             INSERT INTO user_session (
@@ -105,8 +100,6 @@ async def seed_sessions(
             now,
             fresh_at,
         )
-    output.write_text("".join(lines), encoding="utf-8")
-    output.chmod(0o600)
     return tokens
 
 
@@ -156,10 +149,9 @@ async def seed_inbox_cases(connection: asyncpg.Connection[Any]) -> None:
 
 async def prepare(
     connection: asyncpg.Connection[Any],
-    sessions_path: Path,
     baseline_path: Path,
 ) -> None:
-    tokens = await seed_sessions(connection, sessions_path)
+    tokens = await seed_sessions(connection)
     await seed_inbox_cases(connection)
     baseline_path.write_text(
         json.dumps(await immutable_hashes(connection), indent=2) + "\n",
@@ -179,6 +171,11 @@ async def prepare(
         or evidence["revoked_at"] is not None
     ):
         raise ContractFailure("Golden consent evidence is not deterministic")
+    if await connection.fetchval(
+        "SELECT count(*) FROM suppression_entry WHERE normalized_recipient = $1",
+        EMAIL,
+    ):
+        raise ContractFailure("The subject is suppressed before the revocation")
 
     async with httpx.AsyncClient(
         base_url=require_env("API_BASE_URL").rstrip("/"),
@@ -250,6 +247,8 @@ async def prepare(
         )
         export.raise_for_status()
         serialized = export.text
+        if export.json().get("subjectEmail") != EMAIL:
+            raise ContractFailure("Data export is not the subject's JSON report")
         if (
             "attachment" not in export.headers.get("content-disposition", "")
             or any(canary in serialized for canary in FOREIGN_CANARIES)
@@ -278,6 +277,81 @@ async def prepare(
         )
         if stale.status_code != 401 or error_code(stale) != "fresh_login_required":
             raise ContractFailure("Data export did not require a fresh login")
+
+
+async def act(connection: asyncpg.Connection[Any]) -> None:
+    """The admin's UI steps through the API: revoke the consent, then erase.
+
+    The erasure needs the address typed again exactly; the server enforces
+    it. The client-side disabled button is proven in system-admin.test.tsx.
+    """
+    simone = headers(token_for("simone", SIMONE_ID))
+    async with httpx.AsyncClient(
+        base_url=require_env("API_BASE_URL").rstrip("/"),
+        timeout=60,
+    ) as api:
+        revoked = await api.post(
+            f"/api/v1/admin/privacy/consents/{CONSENT_ID}/revoke",
+            headers=simone,
+            json={"reason": "Kontaktwunsch der betroffenen Person"},
+        )
+        revoked.raise_for_status()
+        if revoked.json().get("revokedAt") is None:
+            raise ContractFailure("Consent revocation returned no revocation time")
+        lookup = await api.post(
+            "/api/v1/admin/privacy/lookup",
+            headers=simone,
+            json={"email": EMAIL},
+        )
+        lookup.raise_for_status()
+        if {
+            (item.get("channel"), item.get("purpose"))
+            for item in lookup.json().get("suppressions", [])
+        } != {("email", "acquisition"), ("email", "marketing")}:
+            raise ContractFailure(
+                "Revocation did not suppress acquisition and marketing"
+            )
+
+        mismatch = await api.post(
+            "/api/v1/admin/privacy/erasures",
+            headers=simone,
+            json={"email": EMAIL, "confirmation": EMAIL[:-1]},
+        )
+        if (
+            mismatch.status_code != 409
+            or error_code(mismatch) != "privacy_erasure_confirmation_mismatch"
+        ):
+            raise ContractFailure("Erasure ran without the exact confirmation")
+        untouched = await connection.fetchrow(
+            """
+            SELECT
+                (SELECT count(*) FROM privacy_erasure_case) AS cases,
+                (SELECT customer_snapshot::text FROM commitment
+                  WHERE id = '80000000-0000-4000-8000-000000000005') AS snapshot,
+                (SELECT erased_at FROM inbox_case WHERE id = $1) AS erased_at
+            """,
+            INBOX_CASE_ID,
+        )
+        if (
+            untouched is None
+            or untouched["cases"] != 0
+            or EMAIL not in str(untouched["snapshot"])
+            or untouched["erased_at"] is not None
+        ):
+            raise ContractFailure("The refused erasure changed data")
+        erased = await api.post(
+            "/api/v1/admin/privacy/erasures",
+            headers=simone,
+            json={"email": EMAIL, "confirmation": EMAIL},
+        )
+        erased.raise_for_status()
+        result = erased.json()
+        if (
+            result.get("status") != "completed_with_retention"
+            or str(INVOICE_ID) not in result.get("retainedInvoiceIds", [])
+            or result.get("anonymizedCommitments", 0) < 1
+        ):
+            raise ContractFailure("Erasure did not retain the invoice or anonymize")
 
 
 async def assert_result(
@@ -426,17 +500,13 @@ async def assert_result(
             raise ContractFailure("Direct API call bypassed the contact suppression")
 
 
-async def run(
-    command: str,
-    sessions_path: Path | None,
-    baseline_path: Path,
-) -> None:
+async def run(command: str, baseline_path: Path) -> None:
     connection = await asyncpg.connect(require_env("CORE_DATABASE_URL"), timeout=10)
     try:
         if command == "prepare":
-            if sessions_path is None:
-                raise ContractFailure("prepare needs a sessions file")
-            await prepare(connection, sessions_path, baseline_path)
+            await prepare(connection, baseline_path)
+        elif command == "act":
+            await act(connection)
         else:
             await assert_result(connection, baseline_path)
     finally:
@@ -445,11 +515,10 @@ async def run(
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=("prepare", "assert"))
-    parser.add_argument("sessions_path", nargs="?", type=Path)
+    parser.add_argument("command", choices=("prepare", "act", "assert"))
     parser.add_argument("--baseline", required=True, type=Path)
     arguments = parser.parse_args()
-    asyncio.run(run(arguments.command, arguments.sessions_path, arguments.baseline))
+    asyncio.run(run(arguments.command, arguments.baseline))
     print(f"privacy-contract: OK: {arguments.command}")
     return 0
 

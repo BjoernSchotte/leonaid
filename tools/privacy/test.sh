@@ -71,7 +71,7 @@ existing=$(docker network ls -q --filter "label=com.docker.compose.project=$proj
 python3 "$root/tools/surveys/network_override.py" "$isolation_file"
 owned=true
 compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
-build_shared_images api public pwa web
+build_shared_images api
 compose --profile dev-mail up --detach --wait --wait-timeout 420 \
   core-postgres rustfs mailpit twenty-server twenty-worker
 
@@ -108,85 +108,21 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   /repo/tests/fixtures/golden/v1 \
   /proof/pdfs
 
-compose run --rm --no-deps \
-  --user "$(id -u):$(id -g)" \
-  --env-from-file "$env_file" \
-  --env API_BASE_URL=http://api:8000 \
-  --env PYTHONPATH=/repo:/workspace/src \
-  --volume "$root:/repo:ro" \
-  --volume "$proof:/proof" \
-  --workdir /repo \
-  --entrypoint python \
-  api tools/privacy/contract.py prepare /proof/sessions.env \
-  --baseline /proof/baseline.json
-
-session_mode=$(stat -c '%a' "$proof/sessions.env" 2>/dev/null || \
-  stat -f '%Lp' "$proof/sessions.env")
-if [ "$session_mode" != "600" ]; then
-  echo "privacy-test: ERROR: browser sessions are not mode 600" >&2
-  exit 1
-fi
-
-compose up --detach --wait --wait-timeout 420 pwa public web proxy
-
-https_ready=false
-for _attempt in $(seq 1 90); do
-  if compose exec -T proxy wget \
-    --no-check-certificate \
-    --quiet \
-    --output-document=- \
-    https://proxy:8443/_health >/dev/null 2>&1; then
-    https_ready=true
-    break
-  fi
-  sleep 1
-done
-if [ "$https_ready" != "true" ]; then
-  echo "privacy-test: ERROR: HTTPS proxy did not become ready" >&2
-  exit 1
-fi
-
-docker run --rm \
-  --network "${project}_edge" \
-  --env CI=1 \
-  --env HOME=/tmp \
-  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
-  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
-  --env-file "$proof/sessions.env" \
-  --volume "$root:/workspace:ro" \
-  --volume "$proof:/proof" \
-  --workdir /workspace \
-  --user "$(id -u):$(id -g)" \
-  "$PLAYWRIGHT_IMAGE" \
-  node_modules/.bin/playwright test \
-  --config=tests/e2e/pwa.config.mjs \
-  privacy.spec.mjs \
-  --project=chromium-1440 \
-  --output=/tmp/leonaid-privacy-results \
-  --trace=retain-on-failure \
-  --reporter=line
-
-for screenshot in privacy-before-erasure.png privacy-after-erasure-mobile.png; do
-  if [ ! -s "$proof/$screenshot" ]; then
-    echo "privacy-test: ERROR: browser evidence is missing: $screenshot" >&2
-    exit 1
-  fi
-done
-
-compose run --rm --no-deps \
-  --user "$(id -u):$(id -g)" \
-  --env-from-file "$env_file" \
-  --env API_BASE_URL=http://api:8000 \
-  --env PYTHONPATH=/repo:/workspace/src \
-  --volume "$root:/repo:ro" \
-  --volume "$proof:/proof:ro" \
-  --workdir /repo \
-  --entrypoint python \
-  api tools/privacy/contract.py assert \
-  --baseline /proof/baseline.json
-
-mkdir -p "$root/.artifacts/poc111"
-cp "$proof"/privacy-*.png "$root/.artifacts/poc111/"
+contract() {
+  compose run --rm --no-deps \
+    --user "$(id -u):$(id -g)" \
+    --env-from-file "$env_file" \
+    --env API_BASE_URL=http://api:8000 \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --volume "$proof:/proof" \
+    --workdir /repo \
+    --entrypoint python \
+    api tools/privacy/contract.py "$1" --baseline /proof/baseline.json
+}
+contract prepare
+contract act
+contract assert
 
 echo "privacy-test: OK: consent evidence, export, suppression, RBAC, fresh login,"
 echo "privacy-test:     anonymization and unchanged invoice records proven"

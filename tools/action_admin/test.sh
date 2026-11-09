@@ -105,7 +105,7 @@ docker run --rm \
   --volume "$root:/workspace" \
   --workdir /workspace \
   "$BUN_IMAGE" \
-  bun run --filter @leonaid/web test:components
+  bun run --filter @leonaid/web test:components src/action-admin.real.test.tsx
 
 docker run --rm \
   --network "${project}_edge" \

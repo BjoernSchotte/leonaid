@@ -66,19 +66,19 @@ INTEGRATION_SHARDS = (
     "delivery",
     # The live OpenAPI contract on the prepared fixture (tools/openapi/test.sh).
     "api-contract",
+    # Browser-free API contracts on the Golden fixture (E-026).
+    "privacy",
+    "acquisition-contracts",
 )
 E2E_SHARDS = (
-    "acquisition-management",
     "public-catalog",
     "membership",
     "invoices",
     "commitments",
     "pwa",
-    "action-templates",
     "action-admin",
     "public-orders",
     "identity",
-    "matching",
     "tasks",
     "knowledge",
     "inbox",
@@ -126,6 +126,12 @@ INTEGRATION_SECONDS = {
     # Local run 171 s incl. fixture restore: generation, typecheck and the
     # live contract, without the former job's Twenty pull and boot.
     "api-contract": 120,
+    # Run 42543440382 leaves: privacy 49 s plus legal-configuration (local
+    # 105 s cold, about 45 s on the fixture).
+    "privacy": 95,
+    # Same run: matching 37, assignments 35, activities 37, activity_feed 36,
+    # actions 32, templates 28 (each about 25 s of stack restart).
+    "acquisition-contracts": 205,
     # The Contract job (tools/ci/contract.sh) rides in an Integration bin.
     "contract": 192,
 }
@@ -133,22 +139,21 @@ E2E_SECONDS = {
     # Leaf sums of run 42537284976 (2026-11-09, after E2E batches 1 and 2).
     # The old table put pwa at 180 s; it takes 451 s (9 browser/viewport
     # projects plus two offline browser runs), so one leg reached 885 s.
-    "acquisition-management": 73,
-    "public-catalog": 207,
+    # Minus activity_feed (36 s), now Integration / acquisition-contracts.
+    "public-catalog": 171,
     "membership": 70,
     "invoices": 61,
     "commitments": 81,
     "pwa": 451,
-    "action-templates": 52,
     "action-admin": 83,
     "public-orders": 87,
     "identity": 40,
-    "matching": 33,
     "tasks": 87,
     "knowledge": 72,
     "inbox": 48,
     "leitsystem-ui": 242,
-    "operations": 196,
+    # Minus privacy (49 s), now Integration / privacy.
+    "operations": 147,
     "invoice-flows": 167,
     # Estimate: three single tests on two prepared stacks.
     SMOKE: 240,
@@ -219,6 +224,17 @@ FAST_REQUIRED: dict[str, tuple[str, ...]] = {
         "infra/compose/**",
         "infra/proxy/**",
         "tools/typst/render_golden.sh",
+    ),
+    # Privacy erasure/suppression and the four-eyes legal activation: no
+    # other proof covers these server rules (rv-177 H1, M2).
+    "privacy": (
+        "tools/privacy/**",
+        "tools/legal_configuration/**",
+        "src/leonaid/application/privacy.py",
+        "src/leonaid/adapters/postgres/privacy.py",
+        "src/leonaid/application/legal_configuration.py",
+        "src/leonaid/adapters/postgres/legal_configuration.py",
+        "src/leonaid/domain/legal_configuration.py",
     ),
     # The campaign renderer switch is system-admin only (cutover and
     # rollback, tests/integration/test_campaign_renderer_api.py, E-028).
@@ -483,13 +499,16 @@ RULES: tuple[Rule, ...] = (
         (
             "tools/operations/**",
             "tools/feature_flags/**",
-            "tools/privacy/**",
             "tests/e2e/operations.spec.mjs",
             "tests/e2e/feature-flags.spec.mjs",
-            "tests/e2e/privacy.spec.mjs",
         ),
         e2e("operations"),
         "operations proofs",
+    ),
+    Rule(
+        ("tools/privacy/**", "tools/legal_configuration/**"),
+        integration("privacy"),
+        "privacy and legal configuration contracts",
     ),
     Rule(
         (
@@ -538,11 +557,6 @@ RULES: tuple[Rule, ...] = (
         e2e("commitments"),
         "commitment proofs",
     ),
-    Rule(
-        ("tools/matching/**",),
-        e2e("matching", "acquisition-management"),
-        "matching proofs",
-    ),
     Rule(("tools/pwa/**", "tests/e2e/pwa*.spec.mjs"), e2e("pwa"), "PWA proofs"),
     Rule(
         (
@@ -585,22 +599,20 @@ RULES: tuple[Rule, ...] = (
         "membership proofs",
     ),
     Rule(
-        ("tools/actions/**", "tools/templates/**"),
-        e2e("action-templates"),
-        "action template proofs",
-    ),
-    Rule(
         (
+            "tools/matching/**",
             "tools/assignments/**",
             "tools/activities/**",
+            "tools/activity_feed/**",
+            "tools/actions/**",
+            "tools/templates/**",
         ),
-        e2e("acquisition-management"),
-        "acquisition management proofs",
+        integration("acquisition-contracts"),
+        "acquisition and action contracts",
     ),
     Rule(
         (
             "tools/public_actions/**",
-            "tools/activity_feed/**",
             "tests/e2e/public-actions.spec.mjs",
             "tests/e2e/public-audit.spec.mjs",
             "tools/multi_host/**",
@@ -658,7 +670,7 @@ RULES: tuple[Rule, ...] = (
     ),
     Rule(
         ("packages/features/src/acquisition/**",),
-        e2e("acquisition-management", "matching") | {"golden"},
+        e2e("pwa") | {"golden"},
         "acquisition UI",
     ),
     Rule(
@@ -754,18 +766,18 @@ E2E_OWNERS: dict[str, tuple[str, ...]] = {
     "materials": ("knowledge",),
     "inbox": ("inbox",),
     "knowledge": ("knowledge",),
-    "acquisition": ("acquisition-management", "matching"),
-    "sponsor_matching": ("matching",),
-    "crm_matching": ("matching",),
-    "activities": ("acquisition-management",),
-    "assignments": ("acquisition-management",),
+    "acquisition": ("pwa",),
+    "sponsor_matching": ("pwa",),
+    "crm_matching": ("pwa",),
+    "activities": ("pwa",),
+    "assignments": ("pwa",),
     "activity_feed": ("public-catalog",),
     "activity_projection": ("public-catalog",),
     "campaign_aliases": ("public-catalog",),
     "campaign_renderer": ("public-catalog",),
-    "action_progress": ("action-templates", "action-admin"),
-    "actions": ("action-templates", "action-admin", "public-catalog"),
-    "action_templates": ("action-templates",),
+    "action_progress": ("action-admin",),
+    "actions": ("action-admin", "public-catalog"),
+    "action_templates": ("action-admin",),
     "commitments": ("commitments",),
     "order_cancellation": ("commitments",),
     "delivery": ("action-admin", "invoices"),
@@ -795,8 +807,7 @@ _MESSAGING = (
     "membership",
     "invoice-flows",
     "public-orders",
-    "matching",
-    "acquisition-management",
+    "pwa",
 )
 ALL_E2E = "*"
 # Modules the reverse import graph cannot reach: LeonAid wires adapters and
@@ -808,7 +819,7 @@ MODULE_OWNERS: tuple[tuple[str, tuple[str, ...] | str], ...] = (
     ("leonaid.adapters.mail", ("membership", "invoice-flows", "public-orders")),
     (
         "leonaid.adapters.twenty",
-        ("matching", "acquisition-management", "public-orders"),
+        ("pwa", "public-orders"),
     ),
     ("leonaid.adapters.typst", ("invoices", "invoice-flows")),
     ("leonaid.adapters.storage", ("knowledge", "inbox", "invoices")),

@@ -72,6 +72,17 @@ case "$shard" in
     # Delivery windows, completion and deterministic booking/retirement races.
     /bin/sh "$root/tools/delivery/test-foundation.sh"
     ;;
+  privacy)
+    # Privacy erasure/suppression and the four-eyes legal activation.
+    python3 "$root/tools/testing/shared_stack.py" golden \
+      tools/privacy/test.sh tools/legal_configuration/test.sh
+    ;;
+  acquisition-contracts)
+    # Browser-free API contracts of acquisition, actions and templates.
+    python3 "$root/tools/testing/shared_stack.py" golden \
+      tools/matching/test.sh tools/assignments/test.sh tools/activities/test.sh \
+      tools/activity_feed/test.sh tools/actions/test.sh tools/templates/test.sh
+    ;;
   policy)
     # On the prepared fixture (Twenty provisioned): the proof is the
     # negative contract, not a cold start; Integration / compose owns that.

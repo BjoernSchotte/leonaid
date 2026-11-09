@@ -441,9 +441,9 @@ def main() -> int:
         ("src/leonaid/bootstrap/api.py", set(s.E2E_SHARDS)),
         ("src/leonaid/configuration.py", set(s.E2E_SHARDS)),
         ("src/leonaid/adapters/mail/smtp.py", {"membership", "invoice-flows"}),
-        ("src/leonaid/adapters/twenty/gateway.py", {"matching"}),
+        ("src/leonaid/adapters/twenty/gateway.py", {"pwa"}),
         ("src/leonaid/adapters/typst/invoice_renderer.py", {"invoices"}),
-        ("src/leonaid/entrypoints/worker/outbox.py", {"membership", "matching"}),
+        ("src/leonaid/entrypoints/worker/outbox.py", {"membership", "pwa"}),
     ):
         mapped = s.e2e_owners(path, ROOT) or set()
         expect(
