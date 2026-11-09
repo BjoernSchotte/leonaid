@@ -2686,7 +2686,7 @@ class DeliveryDropAddressResponse(TransportModel):
 class DeliveryDropContactResponse(TransportModel):
     name: str | None
     phone: str | None
-    driver_note: str | None = None
+    driver_note: str | None
 
 
 class DeliveryDropResponse(TransportModel):

@@ -476,6 +476,35 @@ describe("Meine Tour", () => {
     expect(within(rows[1]!).queryByTestId("driver-note")).toBeNull();
   });
 
+  it("a long driver note folds in the dock behind mehr", async () => {
+    const long = "Hinterhof, zweite Tür links, dann klingeln. "
+      .repeat(4)
+      .trim();
+    await renderTour(
+      fakeClient(
+        myTour({
+          windows: [
+            tourWindow("w1", `${DAY}T07:00:00Z`, `${DAY}T09:00:00Z`, [
+              stop(
+                drop("c1", "Bäckerei Kern", "w1", {
+                  contact: { name: null, phone: null, driverNote: long },
+                }),
+                1,
+              ),
+            ]),
+          ],
+        }),
+      ),
+    );
+    const note = within(card()).getByTestId("driver-note");
+    expect(note.textContent).toContain(long);
+    expect(note.querySelector(".is-folded")).toBeTruthy();
+    fireEvent.click(within(note).getByRole("button", { name: "mehr" }));
+    expect(note.querySelector(".is-folded")).toBeNull();
+    fireEvent.click(within(note).getByRole("button", { name: "weniger" }));
+    expect(note.querySelector(".is-folded")).toBeTruthy();
+  });
+
   it("a tapped open stop shows in the dock until the driver goes back", async () => {
     await renderTour(fakeClient(myTour()));
     fireEvent.click(screen.getByRole("button", { name: /Praxis Süd/ }));

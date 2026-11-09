@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { CommitmentResponse, LeonAidApiClient } from "@leonaid/api-client";
 import { DeliveryCompletion } from "../../../packages/features/src/commitments/delivery-completion";
+import { DeliverySummary } from "../../../packages/features/src/commitments/delivery-fields";
 
 const actionId = "20000000-0000-4000-8000-000000000001";
 
@@ -98,5 +99,20 @@ describe("driver note on the manager completion form", () => {
       }),
       expect.anything(),
     );
+  });
+});
+
+describe("a contact with only a driver note", () => {
+  it("keeps the buyer as the order contact", () => {
+    const order = {
+      buyer: { displayName: "Buyer GmbH", email: "buyer@example.invalid" },
+      deliveryContact: { name: null, phone: null, driverNote: "Hof" },
+      deliveryRecipient: null,
+      deliveryWindowSnapshot: null,
+    } as unknown as CommitmentResponse;
+    render(<DeliverySummary order={order} />);
+    expect(screen.queryByText(/Kein Name angegeben/)).toBeNull();
+    expect(screen.getByText(/Bestellkontakt:/)).toBeTruthy();
+    expect(screen.getByText(/Hinweis für den Fahrer:/)).toBeTruthy();
   });
 });

@@ -513,11 +513,11 @@ export function DeliverySummary({
           "Kein Lieferfenster erfasst."
         )}
       </p>
-      {order.deliveryContact ? (
+      {order.deliveryContact?.name || order.deliveryContact?.phone ? (
         <p>
           <strong>Lieferkontakt:</strong>{" "}
-          {order.deliveryContact.name ?? "Kein Name angegeben"}
-          {order.deliveryContact.phone ? (
+          {order.deliveryContact?.name ?? "Kein Name angegeben"}
+          {order.deliveryContact?.phone ? (
             <> · {order.deliveryContact.phone}</>
           ) : null}
         </p>

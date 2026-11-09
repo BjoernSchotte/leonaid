@@ -69,6 +69,7 @@ import {
   dropQuantities,
   longDay,
 } from "./delivery-shared";
+import { DriverNote } from "./driver-note";
 import {
   canSuggestOrder,
   moveStop,
@@ -78,7 +79,6 @@ import {
   tourLengthKm,
   type TourPoint,
 } from "./tour-model";
-import { DriverNote } from "./driver-note";
 import { driverTone, TourMap, type TourMapPin } from "./tour-map";
 import { useOrderAutosave } from "./use-order-autosave";
 

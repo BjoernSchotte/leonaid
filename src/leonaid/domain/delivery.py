@@ -28,7 +28,9 @@ class DeliveryContactSnapshot:
             if any(character in value for character in "\r\n"):
                 raise DomainInvariantError(
                     "delivery_contact_invalid",
-                    "Bitte den Lieferkontakt einzeilig angeben.",
+                    "Bitte den Hinweis für den Fahrer einzeilig angeben."
+                    if field == "driver_note"
+                    else "Bitte den Lieferkontakt einzeilig angeben.",
                 )
             value = value.strip()
             if len(value) > limit:

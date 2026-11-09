@@ -6396,7 +6396,8 @@
         },
         "required": [
           "name",
-          "phone"
+          "phone",
+          "driverNote"
         ],
         "title": "DeliveryDropContactResponse",
         "type": "object"
