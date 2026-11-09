@@ -116,8 +116,13 @@ owned=true
 compose --profile '*' config --format json | python3 "$checkout_root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
 # Preserve environment interpolation so the real CLI can install its newly provisioned key.
 compose --profile '*' config --no-interpolate --format json >"$proof/operator-compose.json"
-python3 - "$proof/operator-compose.json" "$compose_file" "$project" <<'PY_NETWORKS'
+# The cold start below proves exact host bindings: only the proxy publishes,
+# on two loopback ports that are free while they are chosen; Docker then
+# binds them or fails closed.
+python3 - "$proof/operator-compose.json" "$compose_file" "$project" "$proof/ports" <<'PY_NETWORKS'
 import json
+import socket
+from contextlib import ExitStack
 from pathlib import Path
 import sys
 config = json.loads(Path(sys.argv[1]).read_text())
@@ -125,10 +130,22 @@ project = sys.argv[3]
 for key, network in config["networks"].items():
     assert network["name"] == f"{project}_{key}"
     config["networks"][key] = {"name": network["name"], "external": True}
+with ExitStack() as stack:
+    ports = []
+    for _ in range(2):
+        listener = stack.enter_context(socket.socket())
+        listener.bind(("127.0.0.1", 0))
+        ports.append(listener.getsockname()[1])
+config["services"]["proxy"]["ports"] = [
+    f"127.0.0.1:{ports[0]}:8080",
+    f"127.0.0.1:{ports[1]}:8443",
+]
+Path(sys.argv[4]).write_text(" ".join(map(str, ports)) + "\n")
 path = Path(sys.argv[2])
 path.write_text(json.dumps(config, indent=2) + "\n")
 path.chmod(0o600)
 PY_NETWORKS
+read -r port https_port < "$proof/ports"
 isolation_file=""
 
 echo "seed-test: proving a production DSN is refused before any deletion"
@@ -246,4 +263,76 @@ docker run --rm \
   /repo/.local/snapshots/poc012-first.json \
   /repo/.local/snapshots/poc012-restored.json
 
-echo "seed-test: OK: safety, idempotence, mutation and exact reset proven"
+# The reset above started every default service from empty volumes: the only
+# cold start of the Integration suite (it replaced tools/compose/test.sh).
+echo "seed-test: checking the cold-started stack: services, health, bindings"
+profiles=$(compose config --profiles | sort | tr '\n' ' ')
+if [ "$profiles" != "dev-mail emdash mail-contract mailing observability storage-contract " ]; then
+  echo "seed-test: ERROR: unexpected profiles: $profiles" >&2
+  exit 1
+fi
+expected_services=$(printf '%s\n' \
+  api core-postgres mailpit proxy public pwa rustfs survey-validator twenty-postgres \
+  twenty-redis twenty-server twenty-worker web worker | sort | tr '\n' ' ')
+actual_services=$(compose ps --services --filter status=running | sort | tr '\n' ' ')
+if [ "$actual_services" != "$expected_services" ]; then
+  echo "seed-test: ERROR: running services differ: $actual_services" >&2
+  exit 1
+fi
+# Health and port bindings of every container in one Docker round trip.
+# shellcheck disable=SC2046 # one word per container ID
+docker inspect $(compose ps --quiet) >"$proof/containers.json"
+python3 - "$proof/containers.json" "$port" "$https_port" <<'PYRUNTIME'
+import json
+import sys
+from pathlib import Path
+bindings = []
+for container in json.loads(Path(sys.argv[1]).read_text()):
+    service = container["Config"]["Labels"]["com.docker.compose.service"]
+    assert container["State"]["Health"]["Status"] == "healthy", service
+    for ports in container["NetworkSettings"]["Ports"].values():
+        for port in ports or []:
+            bindings.append((service, port["HostIp"], port["HostPort"]))
+assert sorted(bindings) == sorted([
+    ("proxy", "127.0.0.1", sys.argv[2]),
+    ("proxy", "127.0.0.1", sys.argv[3]),
+]), "Only the proxy may publish the reserved loopback ports"
+print("seed-test: every service healthy; exact loopback bindings verified")
+PYRUNTIME
+# Core: real ASGI server, PostgreSQL, API contract and error format.
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+  --env LEONAID_INTEGRATION_BASE_URL=http://api:8000 \
+  --volume "$root:/repo:ro" \
+  --entrypoint python \
+  api /repo/tools/core/smoke.py
+base_url="http://127.0.0.1:$port"
+test "$(curl --fail --silent "$base_url/_health")" = "ready"
+test "$(curl --fail --insecure --silent "https://localhost:$https_port/_health")" = "ready"
+curl --fail --silent "$base_url/api/health/ready" | grep -q '"status":"ready"'
+curl --fail --silent "$base_url/app/" | grep -q "LeonAid Akquise"
+curl --fail --silent "$base_url/admin/" | grep -q "Charity-Aktionen"
+curl --fail --silent "$base_url/" | grep -q "Engagement, das ankommt"
+curl --fail --silent \
+  --resolve "crm.localhost:$port:127.0.0.1" \
+  "http://crm.localhost:$port/healthz" | grep -q '"status":"ok"'
+
+echo "seed-test: restarting every container; all four systems keep their data"
+twenty_tables() {
+  compose exec -T twenty-postgres sh -ec \
+    'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('"'"'pg_catalog'"'"', '"'"'information_schema'"'"');"'
+}
+twenty_tables_before=$(twenty_tables)
+[ "$twenty_tables_before" -gt 0 ]
+phase seed-restart compose restart
+phase seed-restart-ready compose up --no-build --detach --wait --wait-timeout 420
+"$root/leonaid" snapshot poc012-restarted.json
+docker run --rm \
+  -v "$root/.local:/local:ro" \
+  "$ALPINE_IMAGE" \
+  cmp /local/snapshots/poc012-restored.json /local/snapshots/poc012-restarted.json
+if [ "$(twenty_tables)" != "$twenty_tables_before" ]; then
+  echo "seed-test: ERROR: Twenty schema did not stay stable across restart" >&2
+  exit 1
+fi
+
+echo "seed-test: OK: safety, idempotence, mutation, exact reset, cold start, bindings and restart persistence proven"

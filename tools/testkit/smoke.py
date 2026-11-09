@@ -238,12 +238,6 @@ async def run() -> None:
                 },
             },
         )
-        session_path = output_directory / "persona-session.env"
-        session_path.write_text(
-            f"ANNA_EMAIL={ANNA_EMAIL}\nANNA_SESSION={session.token}\n",
-            encoding="utf-8",
-        )
-        session_path.chmod(0o600)
     finally:
         await twenty.close()
         await api.close()

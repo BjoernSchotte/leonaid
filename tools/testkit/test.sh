@@ -17,7 +17,6 @@ fixture="$root/tests/fixtures/golden/v1"
 proof=$(mktemp -d)
 isolation_file="$proof/compose-isolation.yml"
 integration_key=""
-e2e_spec=${LEONAID_TESTKIT_E2E_SPEC:-testkit.spec.mjs}
 
 compose() {
   LEONAID_HTTP_PORT="$http_port" \
@@ -38,7 +37,7 @@ cleanup() {
     compose ps >&2 || true
     compose logs --no-color --tail=180 \
       api worker core-postgres rustfs mailpit \
-      twenty-server twenty-worker pwa proxy >&2 || true
+      twenty-server twenty-worker >&2 || true
     /bin/sh "$root/tools/ci/capture-failure.sh" \
       "$root" "$proof" "$project" || true
   fi
@@ -74,7 +73,7 @@ existing=$(docker network ls -q --filter "label=com.docker.compose.project=$proj
 python3 "$root/tools/surveys/network_override.py" "$isolation_file"
 owned=true
 compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
-build_shared_images api pwa public web
+build_shared_images api
 compose up --detach --wait --wait-timeout 420 \
   core-postgres rustfs mailpit twenty-server twenty-worker
 
@@ -128,52 +127,15 @@ compose run --rm --no-deps \
   --entrypoint python \
   api tools/testkit/smoke.py
 
-set -a
-. "$proof/persona-session.env"
-set +a
-
-compose up --detach --wait --wait-timeout 420 public pwa web proxy
-
-docker run --rm \
-  --network "${project}_edge" \
-  --env CI=1 \
-  --env HOME=/tmp \
-  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
-  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
-  --env ANNA_SESSION="$ANNA_SESSION" \
-  --volume "$root:/workspace:ro" \
-  --volume "$proof:/proof" \
-  --workdir /workspace \
-  --user "$(id -u):$(id -g)" \
-  "$PLAYWRIGHT_IMAGE" \
-  node_modules/.bin/playwright test \
-  --config=tests/e2e/pwa.config.mjs \
-  "$e2e_spec" \
-  --project=chromium-1440 \
-  --output=/proof/test-results \
-  --trace=retain-on-failure \
-  --reporter=line
-
-compose run --rm --user "$(id -u):$(id -g)" --no-deps \
-  --env PYTHONPATH=/repo/packages/testkit \
-  --env TESTKIT_PROOF_DIR=/proof \
-  --volume "$root:/repo:ro" \
-  --volume "$proof:/proof:ro" \
-  --workdir /repo \
-  --entrypoint python \
-  api tools/testkit/verify_ui.py
-
-for artifact in api-proof.json ui-proof.json testkit-ui.png; do
-  if [ ! -s "$proof/$artifact" ]; then
-    echo "testkit-test: ERROR: proof missing: $artifact" >&2
-    exit 1
-  fi
-done
+# The browser half (the PWA shows the same sponsor) is gone (E-026): the PWA
+# specs render sponsors; this proves the shared clients against real systems.
+if [ ! -s "$proof/api-proof.json" ]; then
+  echo "testkit-test: ERROR: proof missing: api-proof.json" >&2
+  exit 1
+fi
 
 mkdir -p "$root/.artifacts/poc013"
 cp "$proof/api-proof.json" "$root/.artifacts/poc013/"
-cp "$proof/ui-proof.json" "$root/.artifacts/poc013/"
-cp "$proof/testkit-ui.png" "$root/.artifacts/poc013/"
 
 echo "testkit-test: OK: shared real-system clients, magic-link persona,"
-echo "testkit-test:     UI/API/Twenty/SQL ID, SMTP/Mailpit and RustFS hash proven"
+echo "testkit-test:     API/Twenty/SQL ID, SMTP/Mailpit and RustFS hash proven"

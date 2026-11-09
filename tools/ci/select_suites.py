@@ -53,7 +53,6 @@ ROOT = Path(__file__).resolve().parents[2]
 
 # Matrix order is the request order: long jobs first.
 INTEGRATION_SHARDS = (
-    "compose",
     "seed-reset",
     "typst",
     "storage",
@@ -103,32 +102,32 @@ FLAGS = ("contract", "golden", "surveys", "api", "pins")
 # test (checkout, build-layer import, bootstrap, fixture, image pulls), so the
 # selected shards are bin-packed into at most MAX_BINS jobs per kind of about
 # TARGET_SECONDS of test time each. Every shard still runs exactly once, each
-# on its own fresh stack (tools/ci/integration.sh, e2e.sh). Seconds are the
-# measured test-step durations of PR run 42360553738 (2026-11-07); refresh
-# them from `gh run view <id> --json jobs` when a shard grows a lot.
+# on its own fresh stack (tools/ci/integration.sh, e2e.sh). Integration
+# seconds are the bin times of run 42521057525 (2026-11-08), E2E seconds the
+# test-step durations of PR run 42360553738; refresh them from the
+# "ci-integration: bin: <shard> passed (<n>s)" lines when a shard grows a lot.
 INTEGRATION_SECONDS = {
-    # Run 42508593075: compose 296 s (now with the Core smoke). seed-reset
-    # 424 s in run 42521057525, minus about 155 s: its second seed is the
-    # golden.py data step, not `./leonaid seed` with a full stack start.
-    "compose": 300,
-    "seed-reset": 270,
-    "typst": 119,
-    "storage": 142,
-    "documents": 149,
-    "profiles": 127,
-    "crm-gateway": 129,
-    "crm-import": 100,
-    # On the prepared fixture: about 75 s less than its cold Twenty start.
+    # 424 s, minus about 155 s (the second seed is the golden.py data step),
+    # plus about 60 s for the former compose shard's asserts and restart on
+    # the cold-reset stack: the suite's only cold start.
+    "seed-reset": 330,
+    "typst": 42,
+    "storage": 103,
+    "documents": 94,
+    "profiles": 90,
+    "crm-gateway": 92,
+    "crm-import": 66,
+    # 130 s, minus its own cold Twenty start: it runs on the fixture now.
     "twenty-install": 60,
-    # On the prepared fixture: about 35 s import, 25 s contract.
-    "policy": 75,
-    "schema-outbox": 199,
-    "delivery": 30,
+    "policy": 54,
+    # About 240 s since the renderer API test joined it (#153).
+    "schema-outbox": 240,
+    "delivery": 14,
     # Local run 171 s incl. fixture restore: generation, typecheck and the
     # live contract, without the former job's Twenty pull and boot.
     "api-contract": 120,
     # The Contract job (tools/ci/contract.sh) rides in an Integration bin.
-    "contract": 178,
+    "contract": 192,
 }
 E2E_SECONDS = {
     # Leaf sums of run 42537284976 (2026-11-09, after E2E batches 1 and 2).
@@ -157,19 +156,21 @@ E2E_SECONDS = {
 # EmDash bins are fixed: the order proof alone is the longest job of the run.
 EMDASH_BINS = (
     ("krapfentaxi-orders",),
-    ("krapfentaxi-deadlines",),
-    ("campaign-edge", "static"),
+    # The stack-free static group rides with the shortest stack case.
+    ("krapfentaxi-deadlines", "static"),
+    ("campaign-edge",),
 )
 EMDASH_SECONDS = {
-    # Run 42521057525: orders 420 s, deadlines 364 s, campaign-edge 377 s,
-    # static 106 s. Orders and deadlines minus about 85 s: Twenty's cold
-    # start now overlaps the editor phases.
-    "krapfentaxi-orders": 335,
-    "krapfentaxi-deadlines": 280,
-    "campaign-edge": 377,
-    "static": 106,
+    # Run 42530398039 (#163): orders 344 s, deadlines 273 s, campaign-edge
+    # 346 s, static 105 s.
+    "krapfentaxi-orders": 344,
+    "krapfentaxi-deadlines": 273,
+    "campaign-edge": 346,
+    "static": 105,
 }
-TARGET_SECONDS = 600
+# Average test seconds per leg; MAX_BINS caps the count. Integration then
+# fills all its legs, small E2E selections still share one.
+TARGET_SECONDS = 400
 # ci.yml timeout-minutes of each leg kind (workflow_contract.py keeps them
 # equal). A leg's estimate is its shards' seconds plus LEG_SETUP_SECONDS; the
 # selector warns at LOAD_WARNING of the timeout, before a growing shard table
@@ -183,7 +184,7 @@ LOAD_WARNING = 0.75
 MAX_BINS = {"integration": 4, "e2e": 4}
 # Integration shards that start Twenty: its image (about 40 s of pulls in
 # the policy leg of run 42504505501) is prefetched beside the layer import.
-SEED_BOOTSTRAP = frozenset({"compose", "seed-reset", "twenty-install", "policy"})
+SEED_BOOTSTRAP = frozenset({"seed-reset", "twenty-install", "policy"})
 
 # Fast tier (pull requests): Integration shards and Contract that a specific
 # rule selects run before the merge, packed into legs of FAST_LEG_SECONDS of
@@ -503,8 +504,8 @@ RULES: tuple[Rule, ...] = (
     ),
     # Integration shards with their own proof directories.
     Rule(("tools/delivery/**",), integration("delivery"), "delivery proofs"),
-    Rule(("tools/compose/**",), integration("compose", "profiles"), "Compose proofs"),
-    Rule(("tools/core/**",), integration("compose"), "Core smoke (in compose)"),
+    Rule(("tools/compose/**",), integration("profiles"), "Compose profiles"),
+    Rule(("tools/core/**",), integration("seed-reset"), "Core smoke (in seed-reset)"),
     Rule(
         (
             "tools/schema/**",
