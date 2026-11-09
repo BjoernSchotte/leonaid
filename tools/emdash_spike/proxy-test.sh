@@ -41,8 +41,9 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
   for(const name of ["proxy","public","campaign-site"]) assert.ok(!services[name].ports?.length);
   console.log("emdash-proxy-proof: no published ports");'
 # Only these real services run; --no-deps avoids starting unrelated stack services.
-compose up --no-deps --build --detach public campaign-site
-compose up --no-deps --detach --wait proxy
+build_shared_images public campaign-site proxy
+compose up --no-deps --no-build --detach public campaign-site
+compose up --no-deps --no-build --detach --wait proxy
 compose cp proxy:/data/caddy/pki/authorities/local/root.crt "$proof/root.crt"
 # Public CA certificate only, never the signing key. The CMS runs as Node UID.
 chmod 644 "$proof/root.crt"
