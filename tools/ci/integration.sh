@@ -31,9 +31,9 @@ case "$shard" in
       /bin/sh "$root/tools/seed/test.sh" "$root"
     fi
     ;;
-  schema-outbox)
-    /bin/sh "$root/tools/schema/test.sh" "$root"
-    /bin/sh "$root/tools/outbox/test.sh" "$root"
+  # Each on its own cold stack: migrations from empty, module contracts.
+  schema|outbox)
+    /bin/sh "$root/tools/$shard/test.sh" "$root"
     ;;
   storage|documents|typst)
     python3 "$root/tools/testing/shared_stack.py" documents \
