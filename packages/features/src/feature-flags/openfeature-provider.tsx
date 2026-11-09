@@ -148,8 +148,12 @@ export function FeatureFlagProvider({
 
   // Once an evaluation failed, the fallback stays until Core answers: a
   // refetch after an error is "pending" again, and gated views must not
-  // fall back to their skeleton (or flicker) while it runs.
-  const failed = evaluations.isError || evaluations.errorUpdateCount > 0;
+  // fall back to their skeleton (or flicker) while it runs. Only while no
+  // answer exists: errorUpdateCount never resets, and an answer that
+  // arrived waits for `applied` (null), never shows the fallback.
+  const failed =
+    (evaluations.isError || evaluations.errorUpdateCount > 0) &&
+    !evaluations.data;
   const settled = applied ?? (failed ? (cached ?? ALL_OFF) : null);
   const evaluated = useMemo(
     () =>

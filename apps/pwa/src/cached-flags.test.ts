@@ -46,7 +46,11 @@ function evaluation(enabled: boolean): FeatureFlagEvaluationListResponse {
   } as unknown as FeatureFlagEvaluationListResponse;
 }
 
-function setup() {
+function setup(
+  cached: ReadonlyMap<string, boolean> | null = new Map([
+    [FEATURE_FLAGS.deliveryTours, true],
+  ]),
+) {
   const answers: ReturnType<
     typeof deferred<FeatureFlagEvaluationListResponse>
   >[] = [];
@@ -72,7 +76,7 @@ function setup() {
       QueryClientProvider,
       { client: queries },
       createElement(FeatureFlagProvider, {
-        cached: new Map([[FEATURE_FLAGS.deliveryTours, true]]),
+        cached,
         children: createElement(Probe),
         client,
         identity,
@@ -101,11 +105,19 @@ describe("cached flags", () => {
       void queries.refetchQueries({ queryKey: ["feature-flags"] });
     });
     await waitFor(() => expect(answers).toHaveLength(2));
-    await act(async () => answers[1].resolve(evaluation(true)));
-    await waitFor(() => expect(evaluated.at(-1)).toBe(true));
+    // The refetch runs: still the cached value, no skeleton.
     await settle();
-    expect(seen.slice(from).length).toBeGreaterThan(0);
-    expect(seen.slice(from).every((value) => value === true)).toBe(true);
+    expect(seen.at(-1)).toBe(true);
+    await act(async () => answers[1].resolve(evaluation(true)));
+    await waitFor(() => expect(seen.at(-1)).toBe(true));
+    // Until Core's answer: the cached value throughout; after it, waiting
+    // for OpenFeature (null) or Core's value, never "off".
+    const answered = evaluated.indexOf(true);
+    expect(answered).toBeGreaterThanOrEqual(from);
+    expect(seen.slice(from, answered).every((value) => value === true)).toBe(
+      true,
+    );
+    expect(seen.slice(answered)).not.toContain(false);
   });
 
   it("Core's answer wins over the cached flags, also when it says off", async () => {
@@ -122,4 +134,31 @@ describe("cached flags", () => {
     await waitFor(() => expect(seen.at(-1)).toBe(false));
     expect(evaluated.at(-1)).toBe(false);
   });
+
+  it.each([
+    ["cached off", new Map([[FEATURE_FLAGS.deliveryTours, false]])],
+    ["no cache", null],
+  ])(
+    "once Core answered, the fallback never shows (%s)",
+    async (_name, cached) => {
+      const { answers, evaluated, queries, seen } = setup(cached);
+      await waitFor(() => expect(answers).toHaveLength(1));
+      await act(async () =>
+        answers[0].reject(new TypeError("Failed to fetch")),
+      );
+      await settle();
+      expect(seen.at(-1)).toBe(false);
+      await act(async () => {
+        void queries.refetchQueries({ queryKey: ["feature-flags"] });
+      });
+      await waitFor(() => expect(answers).toHaveLength(2));
+      await act(async () => answers[1].resolve(evaluation(true)));
+      await waitFor(() => expect(seen.at(-1)).toBe(true));
+      // Every render after Core's answer arrived: waiting (null) or Core's
+      // value, never the fallback's "off".
+      const answered = evaluated.indexOf(true);
+      expect(answered).toBeGreaterThan(-1);
+      expect(seen.slice(answered)).not.toContain(false);
+    },
+  );
 });
