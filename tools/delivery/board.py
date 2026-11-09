@@ -15,6 +15,10 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from leonaid.adapters.feature_flags.openfeature import (
+    LeonAidFeatureProvider,
+    OpenFeatureBooleanEvaluator,
+)
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.delivery import AsyncpgDeliveryRepository
 from leonaid.adapters.postgres.delivery_board import (
@@ -23,10 +27,12 @@ from leonaid.adapters.postgres.delivery_board import (
     order_reference,
     purge_read_audits,
 )
+from leonaid.adapters.postgres.feature_flags import AsyncpgFeatureFlagRepository
 from leonaid.adapters.postgres.identity import AsyncpgIdentityRepository
 from leonaid.application.commitments import CommitmentDraft, CommitmentLineDraft
 from leonaid.application.delivery_board import DeliveryBoardService
 from leonaid.application.errors import Conflict, PermissionDenied
+from leonaid.application.feature_flags import FeatureFlagService
 from leonaid.domain.action_templates import OfferingUnit
 from leonaid.domain.commitments import (
     BuyerSnapshot,
@@ -187,8 +193,13 @@ async def prove_board(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) -> No
         )
     acquirer = await _user(pool, "Akquise")
 
+    flags = FeatureFlagService(
+        AsyncpgFeatureFlagRepository(pool),
+        OpenFeatureBooleanEvaluator(LeonAidFeatureProvider()),
+    )
     with_tasks = DeliveryBoardService(
         AsyncpgDeliveryBoardRepository(pool, lambda _c: TaskDeliveryFollowUp()),
+        flags=flags,
         follow_up_tasks=True,
     )
     admin = _principal(admin_id, action_id, ActionRole.CHARITY_ADMIN)
@@ -626,7 +637,7 @@ async def prove_board(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) -> No
 
     # With the tasks module switched off: same board, no tasks.
     without_tasks = DeliveryBoardService(
-        AsyncpgDeliveryBoardRepository(pool), follow_up_tasks=False
+        AsyncpgDeliveryBoardRepository(pool), flags=flags, follow_up_tasks=False
     )
     assert (
         await without_tasks.close_window(

@@ -289,7 +289,9 @@ describe("delivery board", () => {
     );
     expect(dialog.textContent).toContain("als Aufgabe „Nachliefern“ für Sie");
     fireEvent.click(within(dialog).getByTestId("delivery-close-confirm"));
-    await screen.findByText(/1 offene Lieferungen als Aufgabe angelegt/);
+    await screen.findByText(
+      /1 nicht zugestellte Lieferungen als Aufgabe angelegt/,
+    );
     expect(client.closeDeliveryWindow).toHaveBeenCalledWith(actionId, windowId);
   });
 
@@ -595,7 +597,7 @@ describe("delivery board", () => {
       ),
     );
     await screen.findByText(
-      "Fenster abgeschlossen. 2 offene Lieferungen bleiben mit dem Hinweis „Nachliefern“ auf dieser Tafel.",
+      "Fenster abgeschlossen. 2 nicht zugestellte Lieferungen bleiben mit dem Hinweis „Nachliefern“ auf dieser Tafel.",
     );
   });
 

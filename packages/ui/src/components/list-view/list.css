@@ -325,6 +325,11 @@
   color: inherit;
   box-shadow: none;
 }
+.bulkbar .btn-secondary:hover:not(:disabled, [aria-disabled="true"]),
+.bulkbar .btn-ghost:hover:not(:disabled, [aria-disabled="true"]) {
+  background: oklch(from var(--text-inverse) l c h / 0.14);
+  color: inherit;
+}
 .bulkbar .btn-ghost {
   color: inherit;
 }

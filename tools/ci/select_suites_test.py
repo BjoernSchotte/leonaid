@@ -267,6 +267,23 @@ def main() -> int:
         fast("tools/delivery/foundation.py")["integration"] == ["delivery"],
         "a specifically mapped short Integration shard runs before the merge",
     )
+    # The delivery UI and its component tests select the invoices leaf, plus
+    # the API contract its path filter (API_PATHS) always adds.
+    for path in (
+        "packages/features/src/delivery/my-tour.tsx",
+        "packages/features/src/delivery/tours.css",
+        "apps/web/src/my-tour.test.tsx",
+        "apps/web/src/delivery-tours.test.tsx",
+        "apps/web/src/tour-model.test.ts",
+    ):
+        ui = outputs(path)
+        expect(
+            ui["e2e"] == ["invoices"]
+            and ui["integration"] == ["api-contract"]
+            and ui["emdash"] == []
+            and not post(path).full,
+            f"delivery UI {path}: the invoices leaf only: {ui}",
+        )
     campaign = outputs(
         "apps/campaign-site/emdash-editor-patch.mjs",
         "tools/emdash_spike/auth-patch-proof.mjs",

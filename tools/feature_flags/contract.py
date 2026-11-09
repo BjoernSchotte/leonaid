@@ -27,6 +27,7 @@ SESSION_NAMESPACE = UUID("f7bff30c-b132-43b2-bcb4-26776db4cf83")
 SYSTEM_STATUS_KEY = "admin.system_status_panel"
 PREVIEW_NOTICE_KEY = "admin.preview_notice"
 PWA_OFFLINE_QUEUE_KEY = "pwa.offline_queue"
+DELIVERY_TOURS_KEY = "delivery.tours"
 
 
 class ContractFailure(RuntimeError):
@@ -135,6 +136,7 @@ async def prepare(
             SYSTEM_STATUS_KEY,
             PREVIEW_NOTICE_KEY,
             PWA_OFFLINE_QUEUE_KEY,
+            DELIVERY_TOURS_KEY,
         } or any(
             flag.get("enabled") is not False or flag.get("revision") != 1
             for flag in flags.values()
@@ -223,6 +225,12 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
             "revision": 1,
             "updatedBy": "None",
         },
+        # Untouched by this contract: still the row of migration 0058.
+        DELIVERY_TOURS_KEY: {
+            "enabled": False,
+            "revision": 1,
+            "updatedBy": "None",
+        },
     }
     if persisted != expected:
         raise ContractFailure(f"Persisted flag state differs: {persisted}")
@@ -284,6 +292,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
                 for key in (SYSTEM_STATUS_KEY, PREVIEW_NOTICE_KEY)
             )
             or evaluated.get(PWA_OFFLINE_QUEUE_KEY, {}).get("enabled") is not False
+            or evaluated.get(DELIVERY_TOURS_KEY, {}).get("enabled") is not False
         ):
             raise ContractFailure("Python OpenFeature did not evaluate persisted state")
 

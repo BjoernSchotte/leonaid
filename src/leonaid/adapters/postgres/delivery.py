@@ -426,6 +426,20 @@ async def write_order_delivery(
     contact: DeliveryContactSnapshot | None,
 ) -> None:
     # Caller owns the order transaction. This update never commits independently.
+    # A stop that changes window leaves both tour orders (tours spec D14f);
+    # it runs before the window update, which it compares against.
+    await connection.execute(
+        """UPDATE commitment_delivery AS delivery
+        SET base_position = NULL, driver_position = NULL, driver_ordered_at = NULL
+        FROM commitment
+        WHERE delivery.commitment_id = $1 AND commitment.id = delivery.commitment_id
+          AND commitment.delivery_window_id IS DISTINCT FROM $2
+          AND (delivery.base_position IS NOT NULL
+               OR delivery.driver_position IS NOT NULL
+               OR delivery.driver_ordered_at IS NOT NULL)""",
+        commitment_id,
+        window_id,
+    )
     await connection.execute(
         """UPDATE commitment SET delivery_window_id=$2,
         delivery_window_snapshot=$3::jsonb, delivery_contact_snapshot=$4::jsonb

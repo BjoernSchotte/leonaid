@@ -10,10 +10,13 @@ from fastapi import APIRouter, FastAPI
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.application.order_mails import OrderMailLinkResolver
 from leonaid.adapters.postgres.delivery_board import AsyncpgDeliveryBoardRepository
+from leonaid.adapters.postgres.delivery_tours import AsyncpgDeliveryTourRepository
 from leonaid.adapters.postgres.order_cancellation import (
     AsyncpgOrderCancellationRepository,
 )
 from leonaid.application.delivery_board import DeliveryBoardService
+from leonaid.application.delivery_tours import DeliveryTourService
+from leonaid.application.feature_flags import FeatureFlagService
 from leonaid.application.order_cancellation import OrderCancellationService
 from leonaid.modules.surveys.adapters.postgres.survey_checkpoint_publisher import (
     AsyncpgErasureCheckpointPublisher,
@@ -151,9 +154,12 @@ def build_survey_services(
 
 
 def build_delivery_board_service(
-    pool: asyncpg.Pool[Any], disabled: frozenset[str]
+    pool: asyncpg.Pool[Any], disabled: frozenset[str], flags: FeatureFlagService
 ) -> DeliveryBoardService:
-    """Closing a window creates "Nachliefern" tasks only while tasks is on."""
+    """Closing a window creates "Nachliefern" tasks only while tasks is on.
+
+    A state command with ``missed`` answers 404 while ``delivery.tours`` is off.
+    """
     tasks_enabled = any(
         module.id == "tasks" for module in enabled_api_modules(disabled)
     )
@@ -163,8 +169,16 @@ def build_delivery_board_service(
             pool,
             (lambda _connection: follow_up) if follow_up is not None else None,
         ),
+        flags=flags,
         follow_up_tasks=tasks_enabled,
     )
+
+
+def build_delivery_tour_service(
+    pool: asyncpg.Pool[Any], flags: FeatureFlagService
+) -> DeliveryTourService:
+    """Tours answer 404 while the flag ``delivery.tours`` is off."""
+    return DeliveryTourService(AsyncpgDeliveryTourRepository(pool), flags)
 
 
 def build_order_cancellation_service(

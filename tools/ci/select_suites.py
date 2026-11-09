@@ -671,6 +671,19 @@ RULES: tuple[Rule, ...] = (
         e2e("invoices") | {"golden"},
         "invoice UI",
     ),
+    # The delivery board, the tour planner and "Meine Tour" with their web
+    # component tests; the delivery journeys run in the invoices leaf.
+    Rule(
+        (
+            "packages/features/src/delivery/**",
+            "apps/web/src/delivery-board.test.tsx",
+            "apps/web/src/delivery-tours.test.tsx",
+            "apps/web/src/my-tour.test.tsx",
+            "apps/web/src/tour-model.test.ts",
+        ),
+        e2e("invoices"),
+        "delivery UI",
+    ),
     Rule(
         ("packages/features/src/acquisition/**",),
         e2e(*PWA) | {"golden"},
@@ -789,6 +802,7 @@ E2E_OWNERS: dict[str, tuple[str, ...]] = {
     "order_cancellation": ("commitments",),
     "delivery": ("action-admin", "invoices"),
     "delivery_board": ("invoices",),
+    "delivery_tours": ("invoices",),
     "delivery_completion": ("action-admin", "invoices"),
     "invoices": ("invoices", "invoice-flows"),
     "invoice_documents": ("invoices",),

@@ -146,6 +146,15 @@ export function activeMobileTab(
   return null;
 }
 
+export interface MobileNavigationOptions {
+  /**
+   * Flag `delivery.tours`: the delivery entry is the driver's "Meine Tour".
+   * null while the flag is loading: the entry waits, so its label never
+   * flips from "Auslieferung" to "Meine Tour".
+   */
+  readonly deliveryTours?: boolean | null;
+}
+
 /**
  * Splits the PWA entries of the server navigation into bottom tabs and the
  * "Mehr" sheet. Only entries the server returned appear; `implemented` names
@@ -155,8 +164,13 @@ export function mobileNavigation(
   navigation: readonly NavigationItemResponse[],
   implemented: ReadonlySet<string>,
   location: { readonly pathname: string; readonly search: string },
+  { deliveryTours = false }: MobileNavigationOptions = {},
 ): MobileNavigation {
-  const pwa = navigation.filter((item) => item.surface === "pwa");
+  const pwa = navigation.filter(
+    (item) =>
+      item.surface === "pwa" &&
+      !(item.key === "delivery" && deliveryTours === null),
+  );
   const byKey = new Map(pwa.map((item) => [item.key, item]));
   const tabs: MobileNavTab[] = [];
   for (const definition of TAB_DEFINITIONS) {
@@ -178,7 +192,8 @@ export function mobileNavigation(
       const href = implemented.has(item.key) ? item.href : null;
       return {
         key: item.key,
-        label: item.label,
+        label:
+          deliveryTours && item.key === "delivery" ? "Meine Tour" : item.label,
         icon: zoneForNavKey(item.key)?.icon ?? LayoutDashboard,
         href,
         current: href !== null && under(path, areaOf(href)),

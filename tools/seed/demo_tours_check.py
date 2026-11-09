@@ -16,6 +16,7 @@ from typing import Any
 import asyncpg
 
 from tools.seed.demo_tours import (
+    board_service,
     ACTION_ID,
     DELIVERY_DAY,
     DORA,
@@ -23,8 +24,6 @@ from tools.seed.demo_tours import (
     ORDERS,
     load_principal,
 )
-from leonaid.adapters.postgres.delivery_board import AsyncpgDeliveryBoardRepository
-from leonaid.application.delivery_board import DeliveryBoardService
 
 FINGERPRINT = """
 SELECT md5(concat_ws('|',
@@ -54,7 +53,7 @@ async def fingerprint(pool: asyncpg.Pool[Any]) -> None:
 
 
 async def drivers(pool: asyncpg.Pool[Any]) -> None:
-    service = DeliveryBoardService(AsyncpgDeliveryBoardRepository(pool))
+    service = board_service(pool)
     keys = {
         str(row["idempotency_key"]): str(row["commitment_id"])
         for row in await pool.fetch(

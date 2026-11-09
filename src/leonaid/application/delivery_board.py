@@ -13,11 +13,14 @@ from typing import Any, Protocol
 from uuid import UUID
 
 from leonaid.application.errors import Conflict, PermissionDenied
+from leonaid.application.feature_flags import FeatureFlagService
 from leonaid.domain.delivery_board import (
     DeliveryBoard,
     DeliveryBoardError,
     DeliveryDrop,
 )
+from leonaid.domain.errors import DomainInvariantError
+from leonaid.domain.feature_flags import FeatureFlagKey, FeatureFlagSurface
 from leonaid.domain.identity import ActionRole, IdentityPrincipal
 from leonaid.domain.policies import may_manage_action
 
@@ -71,6 +74,7 @@ class DeliveryBoardRepository(Protocol):
         manager: bool,
         request_id: str,
         occurred_at: datetime,
+        missed: bool = False,
     ) -> DeliveryDrop: ...
 
     async def assign_driver(
@@ -105,11 +109,13 @@ class DeliveryBoardRepository(Protocol):
     ) -> int: ...
 
 
-def _is_driver(actor: IdentityPrincipal, action_id: UUID) -> bool:
-    return ActionRole.DRIVER in actor.roles_for(action_id)
+def is_driver(actor: IdentityPrincipal, action_id: UUID) -> bool:
+    return actor.account.can_authenticate and ActionRole.DRIVER in actor.roles_for(
+        action_id
+    )
 
 
-def _require_manager(actor: IdentityPrincipal, action_id: UUID) -> None:
+def require_manager(actor: IdentityPrincipal, action_id: UUID) -> None:
     if not (actor.account.can_authenticate and may_manage_action(actor, action_id)):
         raise PermissionDenied(
             "delivery_management_required",
@@ -125,9 +131,15 @@ def translate(error: DeliveryBoardError) -> Exception:
 
 class DeliveryBoardService:
     def __init__(
-        self, repository: DeliveryBoardRepository, *, follow_up_tasks: bool = False
+        self,
+        repository: DeliveryBoardRepository,
+        *,
+        flags: FeatureFlagService,
+        follow_up_tasks: bool = False,
     ) -> None:
         self._repository = repository
+        # "Nicht angetroffen" by state command sits behind ``delivery.tours``.
+        self._flags = flags
         # Whether closing a window creates "Nachliefern" tasks.
         self.follow_up_tasks = follow_up_tasks
 
@@ -145,7 +157,7 @@ class DeliveryBoardService:
             )
         if may_manage_action(actor, action_id):
             driver = None
-        elif _is_driver(actor, action_id):
+        elif is_driver(actor, action_id):
             driver = actor.account.id
         else:
             raise PermissionDenied(
@@ -168,19 +180,34 @@ class DeliveryBoardService:
         expected_revision: int,
         request_id: str,
         occurred_at: datetime,
+        missed: bool = False,
     ) -> DeliveryDrop:
+        """Target state: ``delivered``, ``missed`` ("Nicht angetroffen", spec
+        D13) or open when neither is set. ``missed`` answers 404 while the
+        flag ``delivery.tours`` is off."""
+
+        if delivered and missed:
+            raise DomainInvariantError(
+                "delivery_state_invalid",
+                "Eine Lieferung ist entweder zugestellt oder nicht angetroffen.",
+            )
         manager = actor.account.can_authenticate and may_manage_action(actor, action_id)
-        if not manager and not (
-            actor.account.can_authenticate and _is_driver(actor, action_id)
-        ):
+        if not manager and not is_driver(actor, action_id):
             raise PermissionDenied(
                 "delivery_board_forbidden", "Kein Zugriff auf die Auslieferung."
+            )
+        if missed:
+            await self._flags.require_enabled(
+                actor,
+                FeatureFlagKey.DELIVERY_TOURS,
+                surface=FeatureFlagSurface.WEB if manager else FeatureFlagSurface.PWA,
             )
         try:
             return await self._repository.set_state(
                 action_id=action_id,
                 commitment_id=commitment_id,
                 delivered=delivered,
+                missed=missed,
                 expected_revision=expected_revision,
                 actor_user_id=actor.account.id,
                 manager=manager,
@@ -200,7 +227,7 @@ class DeliveryBoardService:
         request_id: str,
         occurred_at: datetime,
     ) -> int:
-        _require_manager(actor, action_id)
+        require_manager(actor, action_id)
         try:
             return await self._repository.assign_driver(
                 action_id=action_id,
@@ -222,7 +249,7 @@ class DeliveryBoardService:
         request_id: str,
         occurred_at: datetime,
     ) -> int:
-        _require_manager(actor, action_id)
+        require_manager(actor, action_id)
         try:
             return await self._repository.close_window(
                 action_id=action_id,
@@ -243,7 +270,7 @@ class DeliveryBoardService:
         request_id: str,
         occurred_at: datetime,
     ) -> int:
-        _require_manager(actor, action_id)
+        require_manager(actor, action_id)
         try:
             return await self._repository.reopen_window(
                 action_id=action_id,

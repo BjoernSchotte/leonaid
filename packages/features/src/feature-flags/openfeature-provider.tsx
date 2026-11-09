@@ -5,7 +5,13 @@ import {
   TypedInMemoryProvider,
   useBooleanFlagValue,
 } from "@openfeature/react-sdk";
-import { useEffect, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 
 import type {
   CurrentIdentityResponse,
@@ -16,6 +22,7 @@ import type {
 export const FEATURE_FLAG_DOMAIN = "leonaid";
 
 export const FEATURE_FLAGS = {
+  deliveryTours: "delivery.tours",
   previewNotice: "admin.preview_notice",
   pwaOfflineQueue: "pwa.offline_queue",
   systemStatusPanel: "admin.system_status_panel",
@@ -44,6 +51,7 @@ function featureConfiguration(
   }
 
   return {
+    [FEATURE_FLAGS.deliveryTours]: configured(FEATURE_FLAGS.deliveryTours),
     [FEATURE_FLAGS.previewNotice]: configured(FEATURE_FLAGS.previewNotice),
     [FEATURE_FLAGS.pwaOfflineQueue]: configured(FEATURE_FLAGS.pwaOfflineQueue),
     [FEATURE_FLAGS.systemStatusPanel]: configured(
@@ -51,6 +59,16 @@ function featureConfiguration(
     ),
   };
 }
+
+/**
+ * The evaluated flags once known: null while the evaluation is loading,
+ * an empty map when it or applying it failed (every flag off). Outside a provider every
+ * flag is settled and off.
+ */
+const ALL_OFF: ReadonlyMap<string, boolean> = new Map();
+const SettledFlagsContext = createContext<ReadonlyMap<string, boolean> | null>(
+  new Map(),
+);
 
 export interface FeatureFlagProviderProps {
   readonly children: ReactNode;
@@ -68,6 +86,9 @@ export function FeatureFlagProvider({
   const evaluations = useQuery({
     queryFn: () => client.getFeatureFlagEvaluations({ surface }),
     queryKey: ["feature-flags", surface],
+    // Offline the request fails instead of pausing, so the flags settle
+    // (all off) and gated views do not wait for a network that is gone.
+    networkMode: "always",
     staleTime: 5_000,
   });
 
@@ -82,19 +103,55 @@ export function FeatureFlagProvider({
     });
   }, [identity, surface]);
 
+  // The values OpenFeature holds. A reload with new values keeps the old
+  // ones until the new ones are in, so gated views do not remount.
+  const [applied, setApplied] = useState<ReadonlyMap<string, boolean> | null>(
+    null,
+  );
   useEffect(() => {
-    if (!evaluations.data) return;
-    const values = new Map(
-      evaluations.data.flags.map((flag) => [flag.key, flag] as const),
+    const data = evaluations.data;
+    if (!data) return;
+    const values = new Map(data.flags.map((flag) => [flag.key, flag] as const));
+    let live = true;
+    // Settled only once OpenFeature holds the same values, so a view that
+    // waits for it never sees a flag still at its default.
+    // If OpenFeature refuses the values, it keeps what it held: the values
+    // applied before, or all off on the first load. Settle on those, so
+    // gated views do not wait forever.
+    void browserProvider.putConfiguration(featureConfiguration(values)).then(
+      () => {
+        if (!live) return;
+        setApplied(new Map(data.flags.map((flag) => [flag.key, flag.enabled])));
+      },
+      () => {
+        if (!live) return;
+        setApplied((current) => current ?? ALL_OFF);
+      },
     );
-    void browserProvider.putConfiguration(featureConfiguration(values));
+    return () => {
+      live = false;
+    };
   }, [evaluations.data]);
+
+  const settled = applied ?? (evaluations.isError ? ALL_OFF : null);
 
   return (
     <OpenFeatureProvider domain={FEATURE_FLAG_DOMAIN}>
-      {children}
+      <SettledFlagsContext.Provider value={settled}>
+        {children}
+      </SettledFlagsContext.Provider>
     </OpenFeatureProvider>
   );
+}
+
+/**
+ * A flag that gates which view renders: null until the evaluation has
+ * arrived (or failed), then its value. Unlike `useLeonAidBooleanFlag`, it
+ * never reports the default first, so a gated view does not flash.
+ */
+export function useLeonAidSettledFlag(key: FeatureFlagKey): boolean | null {
+  const settled = useContext(SettledFlagsContext);
+  return settled ? (settled.get(key) ?? false) : null;
 }
 
 export function useLeonAidBooleanFlag(

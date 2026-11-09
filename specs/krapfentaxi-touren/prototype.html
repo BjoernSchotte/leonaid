@@ -1,0 +1,1027 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Krapfentaxi Touren</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha384-c6Rcwz4e4CITMbu/NBmnNS8yN2sC3cUElMEMfP3vqqKFp7GOYaaBBCqmaWBjmkjb" crossorigin="anonymous" referrerpolicy="no-referrer">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" integrity="sha384-NElt3Op+9NBMCYaef5HxeJmU4Xeard/Lku8ek6hoPTvYkQPh3zLIrJP7KiRocsxO" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<style>
+/* Tokens: packages/ui/src/styles/leitsystem.css (light + dark, verbatim subset). */
+:root {
+  --font-sans: "Barlow", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --fs-2xs: .6875rem; --fs-xs: .75rem; --fs-sm: .8125rem; --fs-md: .9375rem;
+  --fs-lg: 1.0625rem; --fs-xl: 1.3125rem; --fs-2xl: 1.75rem;
+  --lh-tight: 1.2; --lh-ui: 1.4;
+  --fw-medium: 500; --fw-semibold: 600; --fw-bold: 700; --track-caps: .06em;
+  --s-0: 2px; --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px; --s-8: 32px;
+  --r-xs: 4px; --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-pill: 999px; --hair: 1px;
+  --control-h: 32px; --control-h-lg: 44px; --sidebar-w: 248px; --topbar-h: 52px;
+  --ease-out: cubic-bezier(.16, 1, .3, 1); --dur-1: 120ms; --dur-2: 180ms; --dur-3: 260ms;
+  --lions-blue: oklch(.33 .15 262); --lions-gold: oklch(.82 .16 86);
+  --zone-h: 262; --zone-c: .15;
+  --proto-h: 76px;
+  color-scheme: light;
+  --bg: oklch(.985 .004 262); --surface: oklch(1 0 0); --surface-2: oklch(.97 .006 262);
+  --surface-3: oklch(.945 .008 262); --overlay: oklch(.2 .03 262 / .42);
+  --border: oklch(.9 .01 262); --border-strong: oklch(.8 .015 262); --control-border: oklch(.62 .02 262);
+  --text: oklch(.22 .025 262); --text-2: oklch(.42 .02 262); --text-3: oklch(.52 .018 262);
+  --text-inverse: oklch(.99 0 0);
+  --accent: oklch(.45 .18 262); --accent-hover: oklch(.4 .18 262); --accent-soft: oklch(.95 .03 262);
+  --accent-ink: oklch(.38 .16 262); --on-accent: oklch(.99 0 0); --focus: oklch(.55 .22 262);
+  --row-hover: oklch(.965 .008 262); --row-active: oklch(.94 .025 262);
+  --rail-bg: oklch(.27 .11 262); --rail-bg-2: oklch(.32 .12 262); --rail-text: oklch(.93 .02 262);
+  --rail-text-2: oklch(.8 .04 262); --rail-active: oklch(.38 .13 262);
+  --ok: oklch(.5 .13 150); --ok-soft: oklch(.95 .04 150); --warn: oklch(.52 .13 70); --warn-soft: oklch(.96 .05 85);
+  --danger: oklch(.52 .19 27); --danger-soft: oklch(.96 .03 27); --info: oklch(.5 .14 240); --info-soft: oklch(.95 .03 240);
+  --neutral: oklch(.52 .015 262); --neutral-soft: oklch(.95 .006 262);
+  --zl: .52; --zl-ink: .42; --zl-soft: .955; --zl-line: .86; --zk: 1; --zk-ink: .95; --zk-soft: .22; --zk-line: .5;
+  --shadow-1: 0 1px 2px oklch(.2 .03 262 / .06), 0 1px 1px oklch(.2 .03 262 / .04);
+  --shadow-2: 0 8px 24px -6px oklch(.2 .04 262 / .18), 0 2px 6px oklch(.2 .04 262 / .08);
+  --shadow-3: 0 24px 64px -12px oklch(.15 .05 262 / .32), 0 4px 12px oklch(.15 .05 262 / .12);
+  /* Prototype only: one hue per driver (pins, line, avatar). */
+  --drv-klaus: oklch(.5 .16 262); --drv-petra: oklch(.58 .17 40); --drv-jonas: oklch(.52 .13 150); --drv-none: oklch(.6 .01 262);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: oklch(.19 .035 262); --surface: oklch(.225 .035 262); --surface-2: oklch(.205 .032 262);
+    --surface-3: oklch(.27 .038 262); --overlay: oklch(.08 .02 262 / .6);
+    --border: oklch(.32 .035 262); --border-strong: oklch(.4 .03 262); --control-border: oklch(.55 .03 262);
+    --text: oklch(.94 .008 262); --text-2: oklch(.78 .015 262); --text-3: oklch(.68 .018 262); --text-inverse: oklch(.18 .02 262);
+    --accent: oklch(.72 .13 262); --accent-hover: oklch(.78 .12 262); --accent-soft: oklch(.29 .06 262);
+    --accent-ink: oklch(.82 .1 262); --on-accent: oklch(.16 .03 262); --focus: oklch(.78 .14 262);
+    --row-hover: oklch(.255 .038 262); --row-active: oklch(.29 .055 262);
+    --rail-bg: oklch(.28 .11 262); --rail-bg-2: oklch(.33 .12 262); --rail-text: oklch(.92 .02 262);
+    --rail-text-2: oklch(.76 .04 262); --rail-active: oklch(.4 .13 262);
+    --ok: oklch(.76 .13 150); --ok-soft: oklch(.28 .05 150); --warn: oklch(.8 .13 80); --warn-soft: oklch(.3 .05 80);
+    --danger: oklch(.72 .16 27); --danger-soft: oklch(.3 .06 27); --info: oklch(.75 .12 240); --info-soft: oklch(.28 .05 240);
+    --neutral: oklch(.7 .015 262); --neutral-soft: oklch(.27 .015 262);
+    --zl: .74; --zl-ink: .83; --zl-soft: .27; --zl-line: .4; --zk: .85; --zk-ink: .7; --zk-soft: .35; --zk-line: .5;
+    --shadow-1: 0 1px 2px oklch(0 0 0 / .4);
+    --shadow-2: 0 10px 28px -6px oklch(0 0 0 / .55), 0 2px 6px oklch(0 0 0 / .35);
+    --shadow-3: 0 28px 72px -12px oklch(0 0 0 / .7), 0 4px 12px oklch(0 0 0 / .4);
+  }
+}
+:root, [data-zone] {
+  --zone: oklch(var(--zl) calc(var(--zone-c) * var(--zk)) var(--zone-h));
+  --zone-ink: oklch(var(--zl-ink) calc(var(--zone-c) * var(--zk-ink)) var(--zone-h));
+  --zone-soft: oklch(var(--zl-soft) calc(var(--zone-c) * var(--zk-soft)) var(--zone-h));
+  --zone-line: oklch(var(--zl-line) calc(var(--zone-c) * var(--zk-line)) var(--zone-h));
+}
+[data-zone="delivery"] { --zone-h: 205; --zone-c: .13; }
+[data-zone="pwa"] { --zone-h: 48; --zone-c: .16; }
+[data-zone="overview"] { --zone-h: 262; --zone-c: .15; }
+[data-zone="actions"] { --zone-h: 85; --zone-c: .14; }
+[data-zone="orders"] { --zone-h: 48; --zone-c: .16; }
+[data-zone="invoices"] { --zone-h: 145; --zone-c: .13; }
+[data-zone="members"] { --zone-h: 300; --zone-c: .15; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-sans); font-size: var(--fs-md); line-height: var(--lh-ui); }
+h1, h2, h3, p, ul, ol { margin: 0; padding: 0; }
+ul, ol { list-style: none; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+svg.i-lg { width: 20px; height: 20px; }
+
+/* Prototype chrome */
+.proto { position: sticky; top: 0; z-index: 2000; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3);
+  min-height: var(--proto-h); padding: var(--s-2) var(--s-4); background: var(--surface-3); border-bottom: var(--hair) solid var(--border-strong); }
+.proto-note { width: 100%; font-size: var(--fs-xs); color: var(--text-2); }
+.proto-note strong { color: var(--warn); }
+.seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--r-md); background: var(--surface-2); border: var(--hair) solid var(--border); }
+.seg button { display: inline-flex; align-items: center; gap: var(--s-2); height: 30px; padding: 0 var(--s-3); border: 0; border-radius: var(--r-sm); background: none; color: var(--text-2); font-size: var(--fs-sm); font-weight: var(--fw-semibold); }
+.seg button[aria-selected="true"], .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
+.seg button:disabled { opacity: .5; cursor: not-allowed; }
+[hidden], .view[hidden] { display: none !important; }
+
+/* Buttons and badges: packages/ui button.css, badge.css */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2); height: var(--control-h); padding: 0 var(--s-3);
+  border: var(--hair) solid transparent; border-radius: var(--r-sm); font-size: var(--fs-sm); font-weight: var(--fw-semibold); line-height: 1;
+  white-space: nowrap; text-decoration: none; transition: background-color var(--dur-1) var(--ease-out); }
+.btn:disabled { cursor: not-allowed; opacity: .55; }
+.btn-sm { height: 28px; padding: 0 var(--s-2); font-size: var(--fs-xs); }
+.btn-lg { height: var(--control-h-lg); padding: 0 var(--s-5); font-size: var(--fs-md); }
+.btn-primary { background: var(--accent); color: var(--on-accent); }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-secondary { background: var(--surface); border-color: var(--border-strong); color: var(--text); box-shadow: var(--shadow-1); }
+.btn-secondary:hover:not(:disabled) { background: var(--surface-2); }
+.btn-ghost { background: transparent; color: var(--text-2); }
+.btn-ghost:hover:not(:disabled) { background: var(--row-hover); color: var(--text); }
+.btn-zone { background: var(--zone-soft); color: var(--zone-ink); border-color: var(--zone-line); }
+.btn-ok { background: var(--ok); color: var(--text-inverse); }
+.btn-icon { width: var(--control-h); padding: 0; }
+.btn-icon.btn-sm { width: 28px; }
+.badge { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 var(--s-2); border-radius: var(--r-pill); font-size: var(--fs-xs); font-weight: var(--fw-semibold); white-space: nowrap; }
+.tone-neutral { background: var(--neutral-soft); color: var(--text-2); }
+.tone-ok { background: var(--ok-soft); color: var(--ok); }
+.tone-warn { background: var(--warn-soft); color: var(--warn); }
+.tone-info { background: var(--info-soft); color: var(--info); }
+.tone-zone { background: var(--zone-soft); color: var(--zone-ink); }
+.st-open { color: var(--neutral); } .st-delivered { color: var(--ok); } .st-missed { color: var(--warn); }
+.meter { height: 8px; border-radius: var(--r-pill); background: var(--surface-3); overflow: hidden; }
+.meter > span { display: block; height: 100%; background: var(--ok); border-radius: inherit; transition: width var(--dur-3) var(--ease-out); }
+
+/* Admin rail shell: packages/ui shell.css */
+.shell { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); height: calc(100dvh - var(--proto-h)); }
+.rail { display: flex; flex-direction: column; background: var(--rail-bg); color: var(--rail-text); overflow: hidden; }
+.rail-brand { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-4) var(--s-4) var(--s-3); }
+.brand-mark { position: relative; width: 28px; height: 28px; border-radius: 7px; background: var(--rail-bg-2); box-shadow: inset 0 0 0 1px oklch(1 0 0 / .12); }
+.brand-l { position: absolute; left: 8px; top: 6px; width: 4px; height: 16px; border-radius: 1px; background: var(--lions-gold); }
+.brand-l::after { content: ""; position: absolute; left: 0; bottom: 0; width: 13px; height: 4px; border-radius: 1px; background: var(--lions-gold); }
+.brand-dot { position: absolute; right: 6px; top: 7px; width: 6px; height: 6px; border-radius: 50%; background: #fff; }
+.brand-text { display: grid; line-height: 1.15; }
+.brand-name { font-weight: var(--fw-bold); }
+.brand-club, .rail-sub { color: var(--rail-text-2); font-size: var(--fs-xs); }
+.rail-campaign { margin: 0 var(--s-3) var(--s-3); padding: var(--s-2) var(--s-3); border: var(--hair) solid oklch(1 0 0 / .14); border-radius: var(--r-md); background: var(--rail-bg-2); }
+.rail-campaign-label, .rail-group-title { color: var(--rail-text-2); font-size: var(--fs-2xs); font-weight: var(--fw-semibold); letter-spacing: var(--track-caps); text-transform: uppercase; }
+.rail-campaign-name { font-weight: var(--fw-semibold); font-size: var(--fs-sm); }
+.rail-nav { flex: 1; padding: 0 var(--s-2); }
+.rail-group-title { padding: var(--s-2) var(--s-3) var(--s-1); }
+.nav-item { display: flex; align-items: center; gap: var(--s-3); height: 32px; padding: 0 var(--s-3); border-radius: var(--r-sm); color: var(--rail-text); font-size: var(--fs-sm); font-weight: var(--fw-medium); text-decoration: none; }
+.nav-item:hover { background: oklch(1 0 0 / .07); }
+.nav-item:focus-visible { outline-color: var(--lions-gold); }
+.nav-icon { display: grid; place-items: center; width: 22px; height: 22px; border-radius: var(--r-xs); color: oklch(.88 .08 var(--zone-h)); }
+.nav-item.is-active { background: var(--rail-active); color: #fff; }
+.nav-item.is-active .nav-icon { background: oklch(.78 .12 var(--zone-h)); color: oklch(.2 .06 var(--zone-h)); }
+.rail-user { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-4); border-top: var(--hair) solid oklch(1 0 0 / .1); font-size: var(--fs-sm); }
+.avatar { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; flex: none; font-size: var(--fs-xs); font-weight: var(--fw-bold); color: #fff; background: var(--rail-bg-2); }
+.shell-body { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.topbar { position: relative; display: flex; align-items: center; gap: var(--s-2); height: var(--topbar-h); padding: 0 var(--s-6); border-bottom: var(--hair) solid var(--border); background: var(--bg); flex: none; }
+.topbar::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--zone); }
+.zone-mark { display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--r-xs); background: var(--zone-soft); color: var(--zone-ink); }
+.topbar-zone { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-2); }
+
+/* Tour planning page */
+.plan { display: grid; grid-template-rows: auto 1fr; min-height: 0; flex: 1; }
+.page-header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3) var(--s-4); padding: var(--s-4) var(--s-6) var(--s-3); border-bottom: var(--hair) solid var(--border); }
+.page-header h1 { font-size: var(--fs-xl); font-weight: var(--fw-bold); letter-spacing: -.015em; }
+.page-sub { color: var(--text-2); font-size: var(--fs-sm); }
+.field-select { height: var(--control-h); padding: 0 var(--s-2); border: var(--hair) solid var(--control-border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); font: inherit; font-size: var(--fs-sm); }
+.spacer { flex: 1; }
+.plan-body { display: grid; grid-template-columns: minmax(520px, 46%) 1fr; min-height: 0; }
+.lanes-pane { overflow-y: auto; padding: var(--s-3) var(--s-4) var(--s-8); border-right: var(--hair) solid var(--border); }
+.selbar { position: sticky; top: calc(-1 * var(--s-3)); z-index: 5; display: flex; align-items: center; gap: var(--s-2); margin: calc(-1 * var(--s-3)) calc(-1 * var(--s-4)) var(--s-3); padding: var(--s-2) var(--s-4); background: var(--bg); border-bottom: var(--hair) solid var(--border); font-size: var(--fs-sm); min-height: 48px; }
+.selbar .sel-count { color: var(--text-2); }
+.assign-menu { position: relative; }
+.menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 200px; padding: var(--s-1); border: var(--hair) solid var(--border); border-radius: var(--r-md); background: var(--surface); box-shadow: var(--shadow-2); }
+.menu button { display: flex; align-items: center; gap: var(--s-2); width: 100%; height: 36px; padding: 0 var(--s-2); border: 0; border-radius: var(--r-sm); background: none; text-align: left; font-size: var(--fs-sm); }
+.menu button:hover, .menu button:focus-visible { background: var(--row-hover); }
+.lanes { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--s-3); align-items: start; }
+.lane { border: var(--hair) solid var(--border); border-radius: var(--r-lg); background: var(--surface); overflow: hidden; }
+.lane.is-drop { border-color: var(--zone); box-shadow: 0 0 0 2px var(--zone-line); }
+.lane-head { display: grid; gap: var(--s-1); padding: var(--s-3); border-bottom: var(--hair) solid var(--border); border-top: 3px solid var(--lane-c, var(--drv-none)); }
+.lane-title { display: flex; align-items: center; gap: var(--s-2); }
+.lane-title h2 { font-size: var(--fs-md); font-weight: var(--fw-semibold); flex: 1; }
+.lane-meta { color: var(--text-2); font-size: var(--fs-xs); }
+.lane-actions { display: flex; flex-wrap: wrap; gap: var(--s-1); margin-top: var(--s-1); }
+.lane-hint { display: grid; gap: var(--s-1); margin-top: var(--s-1); padding: var(--s-2); border-radius: var(--r-sm); background: var(--info-soft); color: var(--text); font-size: var(--fs-xs); }
+.lane-hint .row { display: flex; gap: var(--s-1); }
+.lane-hint.is-viewing { background: var(--warn-soft); }
+.dirty { color: var(--warn); font-size: var(--fs-xs); font-weight: var(--fw-semibold); }
+.stops { min-height: 44px; }
+.win-head { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-1) var(--s-3); background: var(--surface-2); border-top: var(--hair) solid var(--border); color: var(--text-2); font-size: var(--fs-xs); font-weight: var(--fw-semibold); }
+.win-head .win-count { color: var(--text-3); flex: 1; }
+.win-head .badge svg { width: 12px; height: 12px; }
+.stops > .win-head:first-child { border-top: 0; }
+.note-ic { display: inline-grid; place-items: center; color: var(--info); border-radius: var(--r-xs); }
+.note { display: flex; gap: var(--s-2); padding: var(--s-2) var(--s-3); border-radius: var(--r-md); background: var(--info-soft); font-size: var(--fs-sm); }
+.note svg { color: var(--info); margin-top: 2px; }
+.drv-group { display: grid; gap: var(--s-2); }
+.drv-group > .win-head { border: 0; border-radius: var(--r-sm); font-size: var(--fs-sm); margin: 0; }
+.stops:empty::after { content: attr(data-empty); display: block; padding: var(--s-3); color: var(--text-3); font-size: var(--fs-sm); }
+.stop { position: relative; display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; gap: var(--s-2); padding: var(--s-2) var(--s-2) var(--s-2) var(--s-1); border-top: var(--hair) solid var(--border); background: var(--surface); font-size: var(--fs-sm); }
+.stops > .stop:first-child { border-top: 0; }
+.stop:hover { background: var(--row-hover); }
+.stop.is-selected { background: var(--row-active); }
+.stop.is-dragging { opacity: .4; }
+.stop.drop-before::before { content: ""; position: absolute; left: 0; right: 0; top: -2px; height: 3px; background: var(--zone); border-radius: 2px; }
+.stops.drop-end > .stop:last-child::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 3px; background: var(--zone); }
+.stop input[type="checkbox"] { width: 16px; height: 16px; margin: 0 var(--s-1); accent-color: var(--accent); }
+.grip { cursor: grab; color: var(--text-3); display: grid; place-items: center; width: 18px; }
+.pos { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 4px; border-radius: var(--r-pill); background: var(--lane-c, var(--drv-none)); color: #fff; font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; }
+.stop-main { min-width: 0; display: grid; gap: 1px; cursor: pointer; }
+.stop-name { display: flex; align-items: center; gap: var(--s-1); font-weight: var(--fw-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stop-sub { color: var(--text-2); font-size: var(--fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stop-nopin { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1); color: var(--warn); font-size: var(--fs-xs); font-weight: var(--fw-semibold); }
+.linkish { border: 0; background: none; padding: 0; color: var(--accent-ink); text-decoration: underline; font-size: inherit; font-weight: var(--fw-semibold); }
+.stop-tools { display: flex; align-items: center; gap: 2px; }
+.map-pane { position: relative; min-height: 0; }
+.map { position: absolute; inset: 0; background: var(--surface-3); }
+.map.is-picking { cursor: crosshair; }
+.map-banner[hidden] { display: none; }
+.map-banner { position: absolute; z-index: 800; left: var(--s-3); right: var(--s-3); top: var(--s-3); display: flex; align-items: center; gap: var(--s-2); padding: var(--s-2) var(--s-3); border-radius: var(--r-md); background: var(--surface); box-shadow: var(--shadow-2); font-size: var(--fs-sm); }
+.map-legend { position: absolute; z-index: 800; left: var(--s-3); bottom: var(--s-5); display: grid; gap: 2px; padding: var(--s-2) var(--s-3); border-radius: var(--r-md); background: var(--surface); box-shadow: var(--shadow-1); font-size: var(--fs-xs); }
+.map-legend span { display: flex; align-items: center; gap: var(--s-2); }
+.map-legend i { width: 10px; height: 10px; border-radius: 50%; }
+
+/* Leaflet pins */
+.pin { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #fff; box-shadow: 0 1px 4px oklch(0 0 0 / .4); }
+.pin b { transform: rotate(45deg); color: #fff; font: 600 11px/1 var(--font-mono); }
+.pin.is-done { opacity: .55; }
+.pin.is-sel { outline: 3px solid var(--lions-gold); outline-offset: 1px; }
+.pin.is-new::after { content: ""; position: absolute; top: -4px; right: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--lions-gold); border: 2px solid #fff; }
+.start-pin { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-sm); background: var(--lions-blue); color: var(--lions-gold); border: 2px solid #fff; box-shadow: 0 1px 4px oklch(0 0 0 / .4); }
+.leaflet-container { font-family: var(--font-sans); }
+.leaflet-container :focus-visible { outline: 3px solid var(--lions-gold); }
+
+/* Driver app: packages/ui mobile-shell.css inside a phone frame */
+.stage { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: var(--s-8); min-height: calc(100dvh - var(--proto-h)); padding: var(--s-6) var(--s-4); background: var(--surface-3); }
+.phone { position: relative; display: flex; flex-direction: column; width: 390px; height: min(820px, calc(100dvh - var(--proto-h) - 48px)); min-height: 600px; border: 10px solid oklch(.2 .02 262); border-radius: 36px; overflow: hidden; background: var(--bg); box-shadow: var(--shadow-3); font-size: 1rem; }
+.pwa-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); min-height: 56px; padding: 0 var(--s-2) 0 var(--s-4); background: var(--rail-bg); color: var(--rail-text); flex: none; }
+.pwa-campaign { display: grid; line-height: 1.2; min-width: 0; }
+.pwa-campaign-name { font-weight: var(--fw-bold); }
+.pwa-campaign-sub { color: var(--rail-text-2); font-size: var(--fs-xs); }
+.pwa-net { display: grid; place-items: center; width: 44px; height: 44px; color: var(--rail-text); }
+.pwa-net.is-offline { color: var(--lions-gold); }
+.pwa-offline { display: flex; gap: var(--s-2); padding: var(--s-3) var(--s-4); background: var(--warn-soft); font-size: var(--fs-sm); flex: none; }
+.pwa-offline svg { color: var(--warn); margin-top: 2px; }
+.pwa-main { position: relative; flex: 1; min-height: 0; overflow-y: auto; }
+.pwa-main.is-map { overflow: hidden; display: flex; flex-direction: column; }
+.tour-head { display: grid; gap: var(--s-2); padding: var(--s-4) var(--s-4) var(--s-3); background: var(--bg); border-bottom: var(--hair) solid var(--border); flex: none; }
+.tour-head-row { display: flex; align-items: center; gap: var(--s-2); }
+.tour-head h1 { font-size: var(--fs-xl); font-weight: var(--fw-bold); flex: 1; }
+.tour-head .field-select { height: 44px; font-size: var(--fs-md); width: 100%; }
+.tour-progress { display: flex; justify-content: space-between; font-size: var(--fs-sm); color: var(--text-2); }
+.tour-progress strong { color: var(--text); }
+.phone .seg button { height: 40px; min-width: 44px; }
+.pwa-screen { display: grid; gap: var(--s-4); padding: var(--s-4); }
+.next-card { display: grid; gap: var(--s-3); padding: var(--s-4); border: var(--hair) solid var(--zone-line); border-left: 4px solid var(--zone); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-1); }
+.eyebrow { color: var(--zone-ink); font-size: var(--fs-2xs); font-weight: var(--fw-bold); letter-spacing: var(--track-caps); text-transform: uppercase; display: flex; align-items: center; gap: var(--s-2); }
+.eyebrow .badge { text-transform: none; letter-spacing: 0; }
+.next-card h2 { font-size: var(--fs-lg); font-weight: var(--fw-bold); line-height: var(--lh-tight); }
+.addr { font-size: var(--fs-md); }
+.contact { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) 0; border-top: var(--hair) solid var(--border); border-bottom: var(--hair) solid var(--border); }
+.contact-text { flex: 1; min-width: 0; font-size: var(--fs-sm); }
+.contact-text span { display: block; color: var(--text-2); }
+.qty { font-weight: var(--fw-semibold); }
+.card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2); }
+.card-actions .btn { min-height: 48px; font-size: var(--fs-md); }
+.card-actions .wide { grid-column: 1 / -1; }
+.phone .btn { min-height: 44px; }
+.phone .btn-icon { min-width: 44px; }
+.list-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); }
+.list-head h2 { font-size: var(--fs-md); font-weight: var(--fw-semibold); }
+.rows { border: var(--hair) solid var(--border); border-radius: var(--r-lg); background: var(--surface); overflow: hidden; }
+.row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--s-3); min-height: 56px; padding: var(--s-2) var(--s-3); border-top: var(--hair) solid var(--border); width: 100%; background: none; border-left: 0; border-right: 0; border-bottom: 0; text-align: left; }
+.rows > .row:first-child, .rows > li:first-child > .row { border-top: 0; }
+.row.is-dragging { opacity: .4; }
+.row-main { min-width: 0; display: grid; }
+.row-name { font-weight: var(--fw-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; gap: var(--s-1); align-items: center; }
+.row-sub { color: var(--text-2); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .pos { background: var(--drv-petra); }
+.row.is-done .pos { background: var(--neutral); }
+.row.is-done .row-name { color: var(--text-2); }
+.row-tools { display: flex; gap: var(--s-1); }
+.row-tools .btn { width: 44px; height: 44px; padding: 0; }
+.row .grip { width: 28px; height: 44px; }
+details.done > summary { display: flex; align-items: center; gap: var(--s-2); min-height: 44px; padding: 0 var(--s-1); cursor: pointer; font-weight: var(--fw-semibold); }
+details.done > summary::marker { content: ""; }
+details.done > summary::before { content: "▸"; color: var(--text-3); }
+details.done[open] > summary::before { content: "▾"; }
+.edit-bar { position: sticky; top: 0; z-index: 5; display: grid; gap: var(--s-2); padding: var(--s-3); border-radius: var(--r-md); background: var(--zone-soft); font-size: var(--fs-sm); }
+.edit-bar .btns { display: flex; gap: var(--s-2); }
+.edit-bar .btns .btn { flex: 1; }
+.is-map .tour-head > .field-select, .is-map .tour-head > .meter { display: none; }
+.tour-map { position: relative; flex: 1; min-height: 0; }
+.tour-map .map { inset: 0; }
+.locate { position: absolute; z-index: 800; right: var(--s-3); bottom: 28px; }
+.pwa-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: var(--s-1) var(--s-1) var(--s-2); border-top: var(--hair) solid var(--border); background: var(--surface); flex: none; }
+.pwa-tab { display: grid; justify-items: center; gap: 2px; min-height: 56px; align-content: center; color: var(--text-2); font-size: var(--fs-2xs); font-weight: var(--fw-semibold); text-decoration: none; }
+.pwa-tab-icon { display: grid; place-items: center; width: 44px; height: 28px; border-radius: var(--r-pill); }
+.pwa-tab.is-active { color: var(--text); }
+.pwa-tab.is-active .pwa-tab-icon { background: var(--zone-soft); color: var(--zone-ink); }
+.sheet-wrap { position: absolute; inset: 0; z-index: 1500; display: flex; flex-direction: column; justify-content: flex-end; background: var(--overlay); }
+.sheet { max-height: 85%; overflow-y: auto; padding: var(--s-2) var(--s-4) var(--s-5); border-radius: var(--r-lg) var(--r-lg) 0 0; background: var(--surface); box-shadow: var(--shadow-3); animation: up var(--dur-3) var(--ease-out); }
+.sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--s-2); }
+.sheet-head h2 { font-size: var(--fs-lg); }
+.sheet .next-card { border: 0; box-shadow: none; padding: 0; }
+@keyframes up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.toaster { position: fixed; right: var(--s-4); bottom: var(--s-4); z-index: 2100; display: grid; gap: var(--s-2); width: min(380px, calc(100vw - 32px)); }
+.phone .toaster { position: absolute; left: var(--s-3); right: var(--s-3); bottom: 76px; width: auto; }
+.toast { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4); border: var(--hair) solid var(--border); border-radius: var(--r-md); background: var(--surface); box-shadow: var(--shadow-2); font-size: var(--fs-sm); animation: up var(--dur-2) var(--ease-out); position: relative; overflow: hidden; }
+.toast .toast-text { flex: 1; }
+.toast > svg { color: var(--ok); }
+.toast-action svg { color: var(--text-3); }
+.toast-action { min-width: 44px; min-height: 44px; border: 0; background: none; color: var(--accent-ink); font-weight: var(--fw-semibold); }
+.toast-timer { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--accent); animation: drain linear forwards; }
+@keyframes drain { from { width: 100%; } to { width: 0; } }
+.controls { width: 300px; display: grid; gap: var(--s-3); padding: var(--s-4); border: var(--hair) solid var(--border); border-radius: var(--r-lg); background: var(--surface); font-size: var(--fs-sm); }
+.controls h2 { font-size: var(--fs-md); }
+.controls label { display: flex; gap: var(--s-2); align-items: flex-start; }
+.controls p { color: var(--text-2); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 1ms !important; transition: none !important; } }
+@media (max-width: 1100px) { .shell { grid-template-columns: 72px minmax(0, 1fr); } .rail .hide-narrow { display: none; } .plan-body { grid-template-columns: 1fr; grid-template-rows: 1fr 340px; } .lanes-pane { border-right: 0; border-bottom: var(--hair) solid var(--border); } }
+</style>
+</head>
+<body>
+<div class="proto">
+  <div class="seg" role="tablist" aria-label="Ansicht wählen">
+    <button role="tab" id="tab-plan" aria-controls="view-plan" aria-selected="true">Planer (Web-Admin)</button>
+    <button role="tab" id="tab-drv" aria-controls="view-drv" aria-selected="false">Fahrer (App)</button>
+  </div>
+  <span class="page-sub">Beide Ansichten teilen denselben Zustand im Speicher.</span>
+  <label class="page-sub" for="clock">Uhrzeit (simuliert)</label>
+  <select class="field-select" id="clock"><option value="565">Sa 05.12., 09:25</option><option value="640">Sa 05.12., 10:40</option><option value="770">Sa 05.12., 12:50</option></select>
+  <span class="spacer"></span>
+  <button class="btn btn-ghost btn-sm" id="reset">Zurücksetzen</button>
+  <p class="proto-note"><strong>Prototyp – Daten erfunden, nichts wird gespeichert.</strong> Diskussionsgrundlage für specs/krapfentaxi-touren/PLAN.md §6 und §7.</p>
+</div>
+
+<!-- ============ Planer ============ -->
+<section class="view" id="view-plan" role="tabpanel" aria-labelledby="tab-plan">
+  <div class="shell" data-zone="delivery">
+    <aside class="rail" aria-label="Navigation">
+      <div class="rail-brand"><span class="brand-mark" aria-hidden="true"><span class="brand-l"></span><span class="brand-dot"></span></span>
+        <span class="brand-text hide-narrow"><span class="brand-name">LeonAid</span><span class="brand-club">LC Bad Tölz-Isarwinkel</span></span></div>
+      <div class="rail-campaign hide-narrow"><div class="rail-campaign-label">Aktion</div><div class="rail-campaign-name">Krapfentaxi 2026</div></div>
+      <nav class="rail-nav" id="rail-nav"></nav>
+      <div class="rail-user"><span class="avatar">MS</span><span class="hide-narrow">Maria Seidl<br><span class="rail-sub">Aktionsleitung</span></span></div>
+    </aside>
+    <div class="shell-body">
+      <header class="topbar"><span class="zone-mark" data-icon="truck"></span><span class="topbar-zone">Auslieferung</span></header>
+      <main class="plan">
+        <div class="page-header">
+          <div><h1>Auslieferung</h1><p class="page-sub">Eine Tour je Fahrer und Liefertag. Abholung morgens in der Bäckerei, dann alle Fenster nacheinander.</p></div>
+          <span class="spacer"></span>
+          <label class="sr-only" for="plan-day">Liefertag wählen</label>
+          <select class="field-select" id="plan-day"><option>Sa 05.12. · 3 Fenster, 08–14 Uhr</option><option disabled>So 06.12. (im Prototyp leer)</option></select>
+          <div class="seg" role="group" aria-label="Ansicht">
+            <button aria-pressed="false" disabled title="Heutige Liste, im Prototyp nicht ausgebaut">Liste</button>
+            <button aria-pressed="true">Touren</button>
+          </div>
+        </div>
+        <div class="plan-body">
+          <div class="lanes-pane">
+            <div class="selbar" id="selbar"></div>
+            <div class="lanes" id="lanes"></div>
+          </div>
+          <div class="map-pane">
+            <div class="map" id="plan-map" role="region" aria-label="Karte aller Stopps"></div>
+            <div class="map-banner" id="pick-banner" hidden></div>
+            <div class="map-legend" id="legend" aria-hidden="true"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Fahrer ============ -->
+<section class="view" id="view-drv" role="tabpanel" aria-labelledby="tab-drv" hidden>
+  <div class="stage">
+    <div class="phone" data-zone="pwa" id="phone">
+      <header class="pwa-bar">
+        <div class="pwa-campaign"><span class="pwa-campaign-name">Krapfentaxi 2026</span><span class="pwa-campaign-sub">LC Bad Tölz-Isarwinkel · Petra Hainz</span></div>
+        <span class="pwa-net" id="net" role="img" aria-label="Online"></span>
+      </header>
+      <div class="pwa-offline" id="offline-banner" role="status" hidden></div>
+      <main class="pwa-main" id="drv-main"></main>
+      <nav class="pwa-tabs" aria-label="App-Bereiche">
+        <a class="pwa-tab" href="#" data-noop><span class="pwa-tab-icon" data-icon="home"></span><span>Übersicht</span></a>
+        <a class="pwa-tab" href="#" data-noop><span class="pwa-tab-icon" data-icon="building"></span><span>Betriebe</span></a>
+        <a class="pwa-tab is-active" href="#" aria-current="page" data-noop><span class="pwa-tab-icon" data-icon="truck"></span><span>Meine Tour</span></a>
+        <a class="pwa-tab" href="#" data-noop><span class="pwa-tab-icon" data-icon="user"></span><span>Du</span></a>
+      </nav>
+      <div class="toaster" id="drv-toaster" aria-live="polite"></div>
+      <div id="sheet-host"></div>
+    </div>
+    <aside class="controls" aria-label="Prototyp-Steuerung">
+      <h2>Steuerung (nur Prototyp)</h2>
+      <p>Du bist <strong>Petra</strong>. Was du hier umsortierst oder abhakst, sieht der Planer sofort, und umgekehrt.</p>
+      <label><input type="checkbox" id="offline-toggle"> <span>Offline (Stufe 2, §9): Banner zeigen, Änderungen in die Warteschlange</span></label>
+      <button class="btn btn-secondary" id="append-new">Planer hängt einen Stopp an</button>
+      <p>Hängt einen offenen, nicht zugeordneten Stopp an Petras Tour an. Er erscheint am Ende seines Fensters mit „neu“. Die Uhrzeit oben steuert „noch … min“ und „Fenster vorbei“.</p>
+    </aside>
+  </div>
+</section>
+
+<div class="toaster" id="plan-toaster" aria-live="polite"></div>
+
+<script>
+"use strict";
+/* ---------- Icons (Lucide paths) ---------- */
+const ICONS = {
+  phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
+  nav: '<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  grip: '<circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/>',
+  up: '<path d="m18 15-6-6-6 6"/>', down: '<path d="m6 9 6 6 6-6"/>',
+  map: '<path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15M9 3.236v15"/>',
+  list: '<path d="M3 12h.01M3 18h.01M3 6h.01M8 12h13M8 18h13M8 6h13"/>',
+  wifi: '<path d="M12 20h.01M2 8.82a15 15 0 0 1 20 0M5 12.859a10 10 0 0 1 14 0M8.5 16.429a5 5 0 0 1 7 0"/>',
+  wifioff: '<path d="M12 20h.01M8.5 16.429a5 5 0 0 1 7 0M5 12.859a10 10 0 0 1 5.17-2.69M19 12.859a10 10 0 0 0-2.007-1.523M2 8.82a15 15 0 0 1 4.177-2.643M22 8.82a15 15 0 0 0-11.288-3.764M2 2l20 20"/>',
+  truck: '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2M15 18H9M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/>',
+  pin: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
+  open: '<circle cx="12" cy="12" r="9"/>',
+  delivered: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  missed: '<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/>',
+  home: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  building: '<rect width="16" height="20" x="4" y="2" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/>',
+  user: '<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>',
+  bag: '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/>',
+  megaphone: '<path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
+  invoice: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M16 13H8M16 17H8"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+  sort: '<path d="m3 16 4 4 4-4M7 20V4M21 8l-4-4-4 4M17 4v16"/>',
+  locate: '<circle cx="12" cy="12" r="7"/><path d="M22 12h-3M5 12H2M12 5V2M12 22v-3"/>',
+  warn: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 2-1.73Z"/><path d="M12 9v4M12 17h.01"/>',
+  note: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M13 8H7M17 12H7"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  store: '<path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4M2 7h20"/>'
+};
+const icon = (n, cls = "") => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const $ = (sel, root = document) => root.querySelector(sel);
+document.querySelectorAll("[data-icon]").forEach((el) => { el.innerHTML = icon(el.dataset.icon); });
+
+/* ---------- Data (invented; real street names in Bad Tölz) ---------- */
+const START = { label: "Bäckerei Krapfenglück", address: "Salzstraße 12, 83646 Bad Tölz", lat: 47.7614, lon: 11.5593 };
+const DRIVERS = [
+  { id: "klaus", name: "Klaus Berner", short: "Klaus", color: "var(--drv-klaus)" },
+  { id: "petra", name: "Petra Hainz", short: "Petra", color: "var(--drv-petra)" },
+  { id: "jonas", name: "Jonas Wild", short: "Jonas", color: "var(--drv-jonas)" }
+];
+/* D1/D11: a tour is driver × delivery day; stops stay grouped by window. */
+const WINDOWS = [
+  { id: 0, label: "08–10", start: 480, end: 600 },
+  { id: 1, label: "10–12", start: 600, end: 720 },
+  { id: 2, label: "12–14", start: 720, end: 840 }
+];
+const ME = "petra";
+// id, name, street, contact, phone, krapfen, boxes, lat, lon, driver, status, window, driver note (§5.1)
+const SEED = [
+  ["s1", "Kanzlei Huber & Partner", "Marktstraße 44", "Sabine Wörle", "0151 23456781", 24, 2, 47.7601, 11.5577, "petra", "delivered", 0, ""],
+  ["s2", "Physiotherapie Isarwinkel", "Bahnhofstraße 8", "Tobias Kreuzer", "08041 790112", 12, 1, 47.7629, 11.5656, "petra", "delivered", 0, ""],
+  ["s3", "Autohaus Brandlmeier", "Königsdorfer Straße 30", "Empfang", "08041 4410", 36, 3, 47.7688, 11.5561, "petra", "delivered", 0, ""],
+  ["s16", "Apotheke am Stadtbrunnen", "Marktstraße 30", "Claudia Rainer", "08041 2020", 12, 1, 47.7607, 11.5590, "petra", "delivered", 0, ""],
+  ["s4", "Zahnarztpraxis Dr. Lindner", "Ludwigstraße 5", "Anja Pfister", "08041 2233", 18, 2, 47.7586, 11.5546, "petra", "open", 0, "Praxiseingang im Hof, nicht über die Ludwigstraße"],
+  ["s17", "Fahrschule Lechner", "Wachterstraße 2", "Stefan Lechner", "0172 3344556", 12, 1, 47.7650, 11.5530, "petra", "open", 0, ""],
+  ["s5", "Gärtnerei Moosrainer", "Lenggrieser Straße 61", "Florian Moosrainer", "0170 8812345", 12, 1, 47.7521, 11.5641, "petra", "open", 1, ""],
+  ["s6", "Kita Sonnenschein", "Schützenweg 3", "Leitung Frau Gruber", "08041 5566", 30, 3, 47.7571, 11.5689, "petra", "open", 1, "Lieferung an die Küche, Seiteneingang links"],
+  ["s18", "Familie Hofmann", "Arzbacher Straße 7", "Thomas Hofmann", "0157 1122334", 6, 1, 47.7540, 11.5565, "petra", "open", 1, "Klingel „Hofmann“, Hintereingang"],
+  ["s7", "Schreinerei Gaßner", "Sachsenkamer Straße 22", "Michael Gaßner", "", 12, 1, 47.7652, 11.5719, "petra", "open", 1, ""],
+  ["s8", "Hotel Alpenwinkel", "Buchener Straße 15", "Rezeption", "08041 77070", 48, 4, 47.7551, 11.5481, "petra", "open", 1, ""],
+  ["s9", "Familie Rieger", "Wachterstraße 9", "Monika Rieger", "0160 4433221", 6, 1, 47.7662, 11.5521, "petra", "open", 2, "Bitte bei der Nachbarin (Nr. 11) abgeben, falls niemand öffnet"],
+  ["s19", "Raumausstatter Feichtl", "Bairawieser Straße 18", "Gabi Feichtl", "08041 6677", 18, 2, 47.7680, 11.5640, "petra", "open", 2, ""],
+  ["s20", "Familie Demmel", "Benediktbeurer Straße 4", "Karin Demmel", "0151 7788990", 6, 1, 47.7600, 11.5452, "petra", "open", 2, ""],
+  ["s10", "Steuerbüro Kerschl", "Badstraße 2", "Lena Kerschl", "08041 6061", 12, 1, 47.7579, 11.5492, "klaus", "open", 0, ""],
+  ["s11", "Metzgerei Oberhauser", "Marktstraße 12", "Hans Oberhauser", "08041 3131", 24, 2, 47.7616, 11.5606, "klaus", "open", 1, ""],
+  ["s12", "Architekturbüro Weiß", "Am Kalvarienberg 3a", "Dr. Eva Weiß", "0171 5550123", 12, 1, null, null, "klaus", "open", 1, ""],
+  ["s13", "Gasthaus Zum Isarsteg", "Fröhlichgasse 6", "Küche", "08041 9090", 60, 5, 47.7597, 11.5584, "jonas", "open", 0, "Lieferanteneingang Fröhlichgasse"],
+  ["s21", "Kfz-Werkstatt Schöttl", "Sachsenkamer Straße 40", "Werkstatt", "08041 8181", 18, 2, 47.7662, 11.5762, "jonas", "open", 2, ""],
+  ["s14", "TSV Isarwinkel, Geschäftsstelle", "Säggasse 3", "Rita Stadler", "08041 4321", 18, 2, 47.7636, 11.5589, null, "open", 1, ""],
+  ["s15", "Café Bergblick", "Lenggrieser Straße 12", "Josef Baur", "0152 9988776", 24, 2, 47.7561, 11.5601, null, "open", 2, "Klingel „Baur“, 1. Stock"]
+];
+function freshState() {
+  const stops = {};
+  for (const [id, name, street, contact, phone, krapfen, boxes, lat, lon, driver, status, win, note] of SEED) {
+    stops[id] = { id, name, street, zip: "83646", city: "Bad Tölz", contact, phone, krapfen, boxes, lat, lon, driver, status, win, note, isNew: id === "s9" };
+  }
+  const tour = (base, driverOrder = null, driverSince = null) => ({ base, draft: null, driverOrder, driverSince, viewDriver: false });
+  return {
+    stops,
+    tours: {
+      klaus: tour(["s10", "s11", "s12"], ["s10", "s12", "s11"], "08:12"),
+      petra: tour(["s1", "s2", "s3", "s16", "s4", "s17", "s5", "s6", "s18", "s7", "s8", "s9", "s19", "s20"]),
+      jonas: tour(["s13", "s21"])
+    },
+    clock: 565, selected: new Set(), picking: null, menuOpen: false, offline: false, queued: 0,
+    drv: { mode: "list", edit: null, sheet: null, doneOpen: false }
+  };
+}
+let S = freshState();
+
+/* ---------- Domain helpers ---------- */
+const driverOf = (id) => DRIVERS.find((d) => d.id === id);
+const colorOf = (driverId) => (driverId ? driverOf(driverId).color : "var(--drv-none)");
+const effective = (d) => S.tours[d].driverOrder || S.tours[d].base;
+const planned = (d) => S.tours[d].draft || S.tours[d].base;
+const shown = (d) => (S.tours[d].viewDriver && S.tours[d].driverOrder) || planned(d);
+const qtyText = (s) => `${s.krapfen} Krapfen, ${s.boxes} ${s.boxes === 1 ? "Kiste" : "Kisten"}`;
+const fullAddr = (s) => `${s.street}, ${s.zip} ${s.city}`;
+const hasPin = (s) => s.lat != null && s.lon != null;
+const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+const now = () => hhmm(S.clock);
+const sameOrder = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+/** Time hint of a window group against the (simulated) clock. */
+function winState(w) {
+  if (S.clock < w.start) return { k: "future", text: `ab ${hhmm(w.start)}` };
+  if (S.clock < w.end) { const r = w.end - S.clock; return { k: "running", text: `noch ${r >= 60 ? `${Math.floor(r / 60)} h ${r % 60} min` : `${r} min`}` }; }
+  return { k: "past", text: "vorbei" };
+}
+const overdue = (s) => s.status === "open" && S.clock >= WINDOWS[s.win].end;
+const overdueBadge = (s) => (overdue(s) ? '<span class="badge tone-warn">Fenster vorbei</span>' : "");
+const noteIcon = (s) => (s.note ? `<span class="note-ic" tabindex="0" role="img" aria-label="Hinweis für den Fahrer: ${esc(s.note)}" title="Hinweis für den Fahrer: ${esc(s.note)}">${icon("note")}</span>` : "");
+/** §5: windows come first; positions only rank stops inside their window (stable sort). */
+const normalize = (order) => order && order.map((id, i) => [id, i]).sort((a, b) => S.stops[a[0]].win - S.stops[b[0]].win || a[1] - b[1]).map((x) => x[0]);
+/** Index of the neighbour in the same window, or -1 at a group boundary. */
+function neighbour(order, id, dir) {
+  const j = order.indexOf(id) + dir;
+  return j >= 0 && j < order.length && S.stops[order[j]].win === S.stops[id].win ? j : -1;
+}
+function swapped(order, id, dir) {
+  const out = order.slice(), i = out.indexOf(id), j = neighbour(out, id, dir);
+  if (j >= 0) [out[i], out[j]] = [out[j], out[i]];
+  return out;
+}
+function haversine(a, b) {
+  const R = 6371, rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad, dLon = (b.lon - a.lon) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function lengthKm(ids) {
+  let prev = START, km = 0;
+  for (const id of ids) { const s = S.stops[id]; if (!hasPin(s)) continue; km += haversine(prev, s); prev = s; }
+  return km;
+}
+const kmText = (km) => `<span class="num">${km.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span> km Luftlinie`;
+/** §6.3 per window group: nearest next stop, starting at the start point and
+    carrying on from the last stop of the previous window. Stops without a pin go last in their group. */
+function nearestNeighbour(ids) {
+  const out = [];
+  let cur = START;
+  for (const w of WINDOWS) {
+    const group = ids.filter((id) => S.stops[id].win === w.id);
+    const rest = group.filter((id) => hasPin(S.stops[id]));
+    while (rest.length) {
+      let best = 0, bestD = Infinity;
+      rest.forEach((id, i) => { const d = haversine(cur, S.stops[id]); if (d < bestD) { bestD = d; best = i; } });
+      const [id] = rest.splice(best, 1);
+      out.push(id); cur = S.stops[id];
+    }
+    out.push(...group.filter((id) => !hasPin(S.stops[id])));
+  }
+  return out;
+}
+const without = (arr, id) => (arr ? arr.filter((x) => x !== id) : arr);
+/** Today's assign_driver: positions of the stop reset; it joins the end of its window group. */
+function assign(id, to) {
+  const s = S.stops[id];
+  if (s.driver === to) return;
+  if (s.driver) {
+    const t = S.tours[s.driver];
+    t.base = without(t.base, id); t.draft = without(t.draft, id); t.driverOrder = without(t.driverOrder, id);
+  }
+  s.driver = to;
+  s.isNew = Boolean(to);
+  if (to) {
+    const t = S.tours[to];
+    t.base = normalize(t.base.concat(id));
+    if (t.draft) t.draft = normalize(t.draft.concat(id));
+    if (t.driverOrder) t.driverOrder = normalize(t.driverOrder.concat(id));
+  }
+}
+function setDraft(d, order) {
+  const t = S.tours[d], o = normalize(order);
+  t.draft = sameOrder(o, t.base) ? null : o;
+}
+/** Drop before `beforeId` if it is in the same window, else at the end of the stop's window group. */
+function moveInDraft(d, id, beforeId) {
+  const order = planned(d).filter((x) => x !== id);
+  const at = beforeId && S.stops[beforeId].win === S.stops[id].win ? order.indexOf(beforeId) : order.length;
+  order.splice(at, 0, id);
+  setDraft(d, order);
+}
+
+/* ---------- Rail ---------- */
+$("#rail-nav").innerHTML = `<div class="rail-group-title hide-narrow">Arbeit</div>` + [
+  ["overview", "home", "Übersicht"], ["actions", "megaphone", "Aktionen"], ["orders", "bag", "Bestellungen"],
+  ["delivery", "truck", "Auslieferung"], ["invoices", "invoice", "Rechnungen"], ["members", "users", "Mitglieder"]
+].map(([z, ic, label]) => `<a href="#" data-noop class="nav-item${z === "delivery" ? " is-active" : ""}" data-zone="${z}"${z === "delivery" ? ' aria-current="page"' : ""}><span class="nav-icon">${icon(ic)}</span><span class="hide-narrow">${label}</span></a>`).join("");
+document.addEventListener("click", (e) => { if (e.target.closest("[data-noop]")) e.preventDefault(); });
+
+/* ---------- Toasts ---------- */
+function toast(hostId, text, opts = {}) {
+  const host = document.getElementById(hostId);
+  const el = document.createElement("div");
+  el.className = "toast";
+  const ms = opts.undo ? 10000 : 4000;
+  el.innerHTML = `${icon(opts.icon || "check")}<span class="toast-text">${esc(text)}</span>` +
+    (opts.undo ? `<button class="toast-action" type="button" data-t="undo">Rückgängig</button><span class="toast-timer" style="animation-duration:${ms}ms"></span>` : "") +
+    `<button class="toast-action" type="button" data-t="close" aria-label="Hinweis schließen">${icon("x")}</button>`;
+  const close = () => { clearTimeout(timer); el.remove(); };
+  const timer = setTimeout(close, ms);
+  el.querySelector('[data-t="undo"]')?.addEventListener("click", () => { opts.undo(); close(); });
+  el.querySelector('[data-t="close"]').addEventListener("click", close);
+  host.replaceChildren(el);
+}
+
+/* ---------- Window groups (shared by both views) ---------- */
+function winHead(w, count, tag = "li") {
+  const st = winState(WINDOWS[w]);
+  const badge = `<span class="badge ${st.k === "past" ? "tone-neutral" : st.k === "running" ? "tone-info" : "tone-neutral"}">${icon("clock")}${st.text}</span>`;
+  return `<${tag} class="win-head" data-win="${w}"><span>${WINDOWS[w].label} Uhr</span><span class="num win-count">${count}</span>${badge}</${tag}>`;
+}
+function grouped(ids, rowFn) {
+  let html = "", cur = -1;
+  ids.forEach((id, i) => {
+    const w = S.stops[id].win;
+    if (w !== cur) { cur = w; html += winHead(w, ids.filter((x) => S.stops[x].win === w).length); }
+    html += rowFn(id, i);
+  });
+  return html;
+}
+
+/* ---------- Planner: lanes ---------- */
+let focusKey = null;
+function stopRow(id, lane, index, order, readOnly) {
+  const s = S.stops[id];
+  const sel = S.selected.has(id);
+  const pos = lane === "none" ? "·" : String(index + 1);
+  const status = s.status === "open" ? "" : `<span class="${s.status === "delivered" ? "st-delivered" : "st-missed"}" title="${s.status === "delivered" ? "Zugestellt" : "Nicht angetroffen"}">${icon(s.status)}</span>`;
+  const sub = hasPin(s)
+    ? `<span class="stop-sub">${esc(s.street)} · ${esc(qtyText(s))}</span>`
+    : `<span class="stop-nopin">${icon("warn")} Adresse nicht gefunden – <button class="linkish" data-act="pick" data-id="${id}">Pin setzen</button></span>`;
+  const tools = lane === "none" || readOnly ? "" : `<span class="stop-tools">
+      <button class="btn btn-ghost btn-icon btn-sm" data-act="up" data-id="${id}" data-fk="up-${id}" aria-label="${esc(s.name)} nach oben" ${neighbour(order, id, -1) < 0 ? "disabled" : ""}>${icon("up")}</button>
+      <button class="btn btn-ghost btn-icon btn-sm" data-act="down" data-id="${id}" data-fk="down-${id}" aria-label="${esc(s.name)} nach unten" ${neighbour(order, id, 1) < 0 ? "disabled" : ""}>${icon("down")}</button></span>`;
+  return `<li class="stop${sel ? " is-selected" : ""}" data-id="${id}" data-win="${s.win}" draggable="${readOnly ? "false" : "true"}" style="--lane-c:${colorOf(s.driver)}">
+    <input type="checkbox" data-act="sel" data-id="${id}" data-fk="sel-${id}" ${sel ? "checked" : ""} aria-label="${esc(s.name)} auswählen">
+    <span class="grip" title="Ziehen zum Verschieben (innerhalb des Fensters)" aria-hidden="true">${readOnly ? "" : icon("grip")}</span>
+    <span class="stop-main" data-act="row" data-id="${id}"><span class="stop-name"><span class="pos">${pos}</span>${esc(s.name)} ${noteIcon(s)} ${s.isNew && s.driver ? '<span class="badge tone-zone">neu</span>' : ""} ${status} ${overdueBadge(s)}</span>${sub}</span>
+    ${tools}</li>`;
+}
+function renderLanes() {
+  const unassigned = normalize(Object.values(S.stops).filter((s) => !s.driver).map((s) => s.id).sort((a, b) => S.stops[a].name.localeCompare(S.stops[b].name, "de")));
+  let html = `<section class="lane" data-lane="none" aria-labelledby="lane-none-h"><div class="lane-head"><div class="lane-title"><h2 id="lane-none-h">Nicht zugeordnet</h2><span class="badge tone-neutral num">${unassigned.length}</span></div>
+    <p class="lane-meta">Wähle Stopps aus und ordne sie einem Fahrer zu, oder zieh sie in eine Spalte.</p></div>
+    <ul class="stops" data-lane="none" data-empty="Alles zugeordnet.">${grouped(unassigned, (id, i) => stopRow(id, "none", i, unassigned, false))}</ul></section>`;
+  for (const d of DRIVERS) {
+    const t = S.tours[d.id];
+    const viewing = t.viewDriver && t.driverOrder;
+    const ids = shown(d.id);
+    const first = ids[0] ? S.stops[ids[0]].name : "–", last = ids.length ? S.stops[ids[ids.length - 1]].name : "–";
+    const done = ids.filter((id) => S.stops[id].status !== "open").length;
+    const hint = t.driverOrder ? `<div class="lane-hint${viewing ? " is-viewing" : ""}" role="status"><span>${viewing ? `Du siehst ${d.short}s eigene Reihenfolge (seit ${t.driverSince}). Sie ist nur lesbar.` : `Fahrer hat eigene Reihenfolge (seit ${t.driverSince}).`}</span>
+      <span class="row"><button class="btn btn-secondary btn-sm" data-act="viewdrv" data-d="${d.id}" data-fk="viewdrv-${d.id}">${viewing ? "Planung anzeigen" : "anzeigen"}</button><button class="btn btn-ghost btn-sm" data-act="dropdrv" data-d="${d.id}">verwerfen</button></span></div>` : "";
+    html += `<section class="lane" data-lane="${d.id}" style="--lane-c:${d.color}" aria-labelledby="lane-${d.id}-h"><div class="lane-head">
+      <div class="lane-title"><span class="avatar" style="background:${d.color}" aria-hidden="true">${d.short[0]}</span><h2 id="lane-${d.id}-h">${esc(d.name)}</h2><span class="badge tone-neutral num" title="Stopps">${ids.length}</span></div>
+      <p class="lane-meta">${kmText(lengthKm(ids))} ab ${esc(START.label)} · ${done} erledigt</p>
+      <p class="lane-meta">Erster: ${esc(first)} · Letzter: ${esc(last)}</p>${hint}
+      <div class="lane-actions"><button class="btn btn-secondary btn-sm" data-act="sort" data-d="${d.id}" ${viewing || ids.length < 2 ? "disabled" : ""}>${icon("sort")} Vorschlag sortieren</button>
+        <button class="btn ${t.draft ? "btn-primary" : "btn-secondary"} btn-sm" data-act="save" data-d="${d.id}" ${t.draft ? "" : "disabled"}>Reihenfolge speichern</button>
+        ${t.draft ? `<button class="btn btn-ghost btn-sm" data-act="undraft" data-d="${d.id}">Änderung verwerfen</button><span class="dirty" role="status">Nicht gespeichert</span>` : ""}</div></div>
+      <ol class="stops" data-lane="${d.id}" data-empty="Noch keine Stopps. Zieh welche hierher." aria-label="Reihenfolge ${esc(d.short)}">${grouped(ids, (id, i) => stopRow(id, d.id, i, ids, viewing))}</ol></section>`;
+  }
+  $("#lanes").innerHTML = html;
+  const n = S.selected.size;
+  $("#selbar").innerHTML = `<span class="sel-count">${n ? `<strong class="num">${n}</strong> ausgewählt` : "Klick auf einen Stopp oder Pin wählt ihn aus."}</span>
+    <span class="assign-menu"><button class="btn btn-primary btn-sm" data-act="menu" data-fk="menu" aria-haspopup="true" aria-expanded="${S.menuOpen}" ${n ? "" : "disabled"}>${icon("users")} Fahrer zuordnen</button>
+    ${S.menuOpen ? `<div class="menu" role="menu">${DRIVERS.map((d) => `<button role="menuitem" data-act="assign" data-d="${d.id}"><span class="avatar" style="background:${d.color};width:20px;height:20px">${d.short[0]}</span>${esc(d.name)}</button>`).join("")}<button role="menuitem" data-act="assign" data-d="">Kein Fahrer</button></div>` : ""}</span>
+    ${n ? `<button class="btn btn-ghost btn-sm" data-act="clearsel">Auswahl aufheben</button>` : ""}`;
+  if (focusKey) { const el = document.querySelector(`[data-fk="${focusKey}"]`); (el && !el.disabled ? el : document.querySelector(`[data-fk="${focusKey.replace(/^(up|down)/, (m) => (m === "up" ? "down" : "up"))}"]`))?.focus(); focusKey = null; }
+}
+
+$("#lanes").addEventListener("click", onPlanClick);
+$("#selbar").addEventListener("click", onPlanClick);
+function onPlanClick(e) {
+  const b = e.target.closest("[data-act]");
+  if (!b) return;
+  const { act, id, d } = b.dataset;
+  if (act === "row" || act === "sel") { toggleSel(id, act === "sel" ? b.checked : undefined); focusKey = `sel-${id}`; }
+  else if (act === "up" || act === "down") { const drv = S.stops[id].driver; setDraft(drv, swapped(planned(drv), id, act === "up" ? -1 : 1)); focusKey = b.dataset.fk; }
+  else if (act === "sort") { setDraft(d, nearestNeighbour(planned(d))); toast("plan-toaster", `Vorschlag für ${driverOf(d).short}: je Fenster der nächste Stopp zuerst, ab ${START.label}. Speichern nicht vergessen.`, { icon: "sort" }); }
+  else if (act === "save") { S.tours[d].base = S.tours[d].draft; S.tours[d].draft = null; toast("plan-toaster", `Reihenfolge für ${driverOf(d).short} gespeichert.`); }
+  else if (act === "undraft") { S.tours[d].draft = null; }
+  else if (act === "viewdrv") { S.tours[d].viewDriver = !S.tours[d].viewDriver; focusKey = `viewdrv-${d}`; }
+  else if (act === "dropdrv") { const t = S.tours[d]; t.driverOrder = null; t.driverSince = null; t.viewDriver = false; toast("plan-toaster", `Eigene Reihenfolge von ${driverOf(d).short} verworfen. Es gilt wieder die Planung.`); }
+  else if (act === "menu") { S.menuOpen = !S.menuOpen; renderPlan(); $(".menu button")?.focus(); return; }
+  else if (act === "assign") {
+    const to = d || null, n = S.selected.size;
+    S.selected.forEach((sid) => assign(sid, to)); S.selected.clear(); S.menuOpen = false; focusKey = "menu";
+    toast("plan-toaster", to ? `${n} ${n === 1 ? "Stopp" : "Stopps"} ${driverOf(to).short} zugewiesen. Sie stehen am Ende ihres Fensters.` : "Fahrer entfernt.");
+  }
+  else if (act === "clearsel") { S.selected.clear(); }
+  else if (act === "pick") { S.picking = id; }
+  else return;
+  renderAll();
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    if (S.menuOpen) { S.menuOpen = false; focusKey = "menu"; renderPlan(); }
+    if (S.picking) { S.picking = null; renderPlan(); }
+    if (S.drv.sheet) closeSheet();
+    return;
+  }
+  // Alt+↑/↓ on a focused stop moves it inside its window, as in the Leitsystem lists.
+  const row = e.target.closest?.(".stop[data-id]");
+  if (row && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+    const btn = row.querySelector(`[data-act="${e.key === "ArrowUp" ? "up" : "down"}"]`);
+    if (btn && !btn.disabled) { e.preventDefault(); btn.click(); }
+  }
+});
+function toggleSel(id, on) {
+  const want = on === undefined ? !S.selected.has(id) : on;
+  if (want) S.selected.add(id); else S.selected.delete(id);
+}
+
+/* Drag and drop between and within lanes (HTML5 DnD, mouse). Inside a lane only within the window group. */
+let dragId = null;
+const lanesEl = $("#lanes");
+lanesEl.addEventListener("dragstart", (e) => {
+  const li = e.target.closest(".stop[draggable='true']");
+  if (!li) return;
+  dragId = li.dataset.id; li.classList.add("is-dragging");
+  e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", dragId);
+});
+lanesEl.addEventListener("dragend", () => { dragId = null; clearDropMarks(); renderPlan(); });
+function clearDropMarks() { lanesEl.querySelectorAll(".drop-before,.drop-end,.is-drop").forEach((el) => el.classList.remove("drop-before", "drop-end", "is-drop")); }
+/** First row of the dragged stop's window below the pointer, or null for the end of the group. */
+function dropTarget(list, y) {
+  const win = S.stops[dragId].win;
+  const rows = [...list.querySelectorAll(`.stop[data-win="${win}"]:not(.is-dragging)`)];
+  return rows.find((r) => { const b = r.getBoundingClientRect(); return y < b.top + b.height / 2; }) || null;
+}
+lanesEl.addEventListener("dragover", (e) => {
+  const lane = e.target.closest(".lane");
+  if (!dragId || !lane) return;
+  const d = lane.dataset.lane;
+  if (d !== "none" && S.tours[d].viewDriver && S.tours[d].driverOrder) return;
+  e.preventDefault();
+  clearDropMarks(); lane.classList.add("is-drop");
+  if (d === "none") return;
+  dropTarget(lane.querySelector(".stops"), e.clientY)?.classList.add("drop-before");
+});
+lanesEl.addEventListener("drop", (e) => {
+  const lane = e.target.closest(".lane");
+  if (!dragId || !lane) return;
+  e.preventDefault();
+  const d = lane.dataset.lane, s = S.stops[dragId];
+  if (d === "none") { assign(dragId, null); toast("plan-toaster", "Fahrer entfernt."); }
+  else {
+    const before = dropTarget(lane.querySelector(".stops"), e.clientY)?.dataset.id;
+    if (s.driver !== d) { assign(dragId, d); toast("plan-toaster", `${s.name} ${driverOf(d).short} zugewiesen (Fenster ${WINDOWS[s.win].label}).`); }
+    moveInDraft(d, dragId, before);
+  }
+  dragId = null; renderAll();
+});
+
+/* ---------- Maps ---------- */
+const TILE = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const ATTR = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap-Mitwirkende</a>';
+function makeMap(el) {
+  const m = L.map(el, { zoomControl: true }).setView([START.lat, START.lon], 15);
+  L.tileLayer(TILE, { maxZoom: 19, attribution: ATTR }).addTo(m);
+  m.attributionControl.setPrefix(false);
+  return m;
+}
+const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const pinIcon = (label, color, cls = "") => L.divIcon({ className: "", iconSize: [28, 28], iconAnchor: [14, 28], html: `<span class="pin ${cls}" style="background:${color}"><b>${label}</b></span>` });
+const startIcon = L.divIcon({ className: "", iconSize: [30, 30], iconAnchor: [15, 15], html: `<span class="start-pin">${icon("store")}</span>` });
+const planMap = makeMap($("#plan-map"));
+const planLayer = L.layerGroup().addTo(planMap);
+let drvMap = null, drvLayer = null;
+
+function renderPlanMap() {
+  planLayer.clearLayers();
+  L.marker([START.lat, START.lon], { icon: startIcon, title: `Start: ${START.label}`, keyboard: false }).bindTooltip(`Start: ${START.label} – Abholung am Morgen`).addTo(planLayer);
+  const placeLane = (ids, d) => {
+    const pts = [[START.lat, START.lon]];
+    ids.forEach((id, i) => {
+      const s = S.stops[id];
+      if (!hasPin(s)) return;
+      pts.push([s.lat, s.lon]);
+      const cls = [s.status !== "open" && "is-done", S.selected.has(id) && "is-sel", s.isNew && d && "is-new"].filter(Boolean).join(" ");
+      L.marker([s.lat, s.lon], { icon: pinIcon(d ? i + 1 : "·", colorOf(d), cls), title: `${d ? `${i + 1}. ` : ""}${s.name}, ${s.street} (${WINDOWS[s.win].label})`, alt: s.name, riseOnHover: true })
+        .on("click", () => { toggleSel(id); renderAll(); document.querySelector(`.stop[data-id="${id}"]`)?.scrollIntoView({ block: "nearest" }); })
+        .addTo(planLayer);
+    });
+    // One line per tour from the start point through all stops, across the windows.
+    if (d && pts.length > 1) L.polyline(pts, { color: cssVar(`--drv-${d}`) || "#335", weight: 3, opacity: .75, dashArray: S.tours[d].draft ? "6 6" : null }).addTo(planLayer);
+  };
+  placeLane(Object.values(S.stops).filter((s) => !s.driver).map((s) => s.id), null);
+  DRIVERS.forEach((d) => placeLane(shown(d.id), d.id));
+  const banner = $("#pick-banner");
+  $("#plan-map").classList.toggle("is-picking", Boolean(S.picking));
+  banner.hidden = !S.picking;
+  if (S.picking) banner.innerHTML = `${icon("pin")}<span style="flex:1">Klick auf die Karte, um den Pin für <strong>${esc(S.stops[S.picking].name)}</strong> (${esc(S.stops[S.picking].street)}) zu setzen.</span><button class="btn btn-ghost btn-sm" id="pick-cancel">Abbrechen</button>`;
+  $("#legend").innerHTML = DRIVERS.map((d) => `<span><i style="background:${d.color}"></i>${esc(d.short)}</span>`).join("") + `<span><i style="background:var(--drv-none)"></i>Nicht zugeordnet</span><span>Gestrichelt: nicht gespeichert</span>`;
+}
+$("#pick-banner").addEventListener("click", (e) => { if (e.target.closest("#pick-cancel")) { S.picking = null; renderPlan(); } });
+planMap.on("click", (e) => {
+  if (!S.picking) return;
+  const s = S.stops[S.picking];
+  s.lat = +e.latlng.lat.toFixed(6); s.lon = +e.latlng.lng.toFixed(6);
+  toast("plan-toaster", `Pin für ${s.name} gesetzt (manuell).`, { icon: "pin" });
+  S.picking = null; renderAll();
+});
+
+/* ---------- Driver app ---------- */
+function navHref(s) {
+  const ua = navigator.userAgent, q = encodeURIComponent(fullAddr(s));
+  if (/Android/i.test(ua)) return hasPin(s) ? `geo:${s.lat},${s.lon}?q=${s.lat},${s.lon}(${q})` : `geo:0,0?q=${q}`;
+  if (/iPhone|iPad/i.test(ua)) return `maps://?daddr=${hasPin(s) ? `${s.lat},${s.lon}` : q}`;
+  return hasPin(s) ? `https://www.openstreetmap.org/directions?route=%3B${s.lat}%2C${s.lon}` : `https://www.openstreetmap.org/search?query=${q}`;
+}
+function stopCard(id, eyebrow) {
+  const s = S.stops[id], n = effective(ME).indexOf(id) + 1;
+  const phone = s.phone
+    ? `<a class="btn btn-secondary btn-icon" href="tel:${s.phone.replace(/\s/g, "")}" aria-label="${esc(s.contact)} anrufen">${icon("phone")}</a>`
+    : `<span class="badge tone-neutral">Keine Nummer</span>`;
+  const done = s.status !== "open";
+  return `<article class="next-card" aria-labelledby="card-${id}">
+    <p class="eyebrow"><span class="pos num" style="background:var(--drv-petra)">${n}</span>${esc(eyebrow)} · ${WINDOWS[s.win].label} Uhr ${s.isNew ? '<span class="badge tone-zone">neu</span>' : ""} ${overdueBadge(s)}</p>
+    <h2 id="card-${id}">${esc(s.name)}</h2>
+    <p class="addr">${esc(s.street)}<br>${esc(s.zip)} ${esc(s.city)}${hasPin(s) ? "" : '<br><span class="badge tone-warn">Kein Pin – Navigation mit Adresse</span>'}</p>
+    ${s.note ? `<p class="note">${icon("note")}<span><strong>Hinweis:</strong> ${esc(s.note)}</span></p>` : ""}
+    <div class="contact"><div class="contact-text">${esc(s.contact)}<span>${s.phone ? esc(s.phone) : "Lieferkontakt ohne Telefon"}</span></div>${phone}</div>
+    <p class="qty">${esc(qtyText(s))}</p>
+    <div class="card-actions">
+      <a class="btn btn-secondary wide" href="${esc(navHref(s))}" target="_blank" rel="noopener">${icon("nav")} Navigation</a>
+      ${done ? `<p class="wide">${s.status === "delivered" ? "Zugestellt." : "Nicht angetroffen."} <button class="linkish" data-act="reopen" data-id="${id}">Wieder öffnen</button></p>`
+        : `<button class="btn btn-ok" data-act="delivered" data-id="${id}">${icon("check")} Zugestellt</button><button class="btn btn-secondary" data-act="missed" data-id="${id}">${icon("x")} Nicht angetroffen</button>`}
+    </div></article>`;
+}
+function drvRow(id, edit, list) {
+  const s = S.stops[id], n = effective(ME).indexOf(id) + 1;
+  const label = s.status === "delivered" ? "Zugestellt" : s.status === "missed" ? "Nicht angetroffen" : "Offen";
+  if (edit) {
+    return `<li class="row" data-id="${id}" data-win="${s.win}" draggable="true"><span class="grip" aria-hidden="true">${icon("grip")}</span><span class="row-main"><span class="row-name">${esc(s.name)}</span><span class="row-sub">${esc(s.street)}</span></span>
+      <span class="row-tools"><button class="btn btn-secondary" data-act="eup" data-id="${id}" data-fk="eup-${id}" aria-label="${esc(s.name)} nach oben" ${neighbour(list, id, -1) < 0 ? "disabled" : ""}>${icon("up")}</button><button class="btn btn-secondary" data-act="edown" data-id="${id}" data-fk="edown-${id}" aria-label="${esc(s.name)} nach unten" ${neighbour(list, id, 1) < 0 ? "disabled" : ""}>${icon("down")}</button></span></li>`;
+  }
+  return `<li><button class="row${s.status !== "open" ? " is-done" : ""}" data-act="open" data-id="${id}"><span class="pos num">${n}</span><span class="row-main"><span class="row-name">${esc(s.name)} ${s.note ? `<span class="note-ic" title="Mit Hinweis">${icon("note")}<span class="sr-only">mit Hinweis</span></span>` : ""} ${s.isNew ? '<span class="badge tone-zone">neu</span>' : ""}</span><span class="row-sub">${esc(s.street)} · ${s.krapfen} Krapfen ${overdueBadge(s)}</span></span><span class="st-${s.status}" title="${label}">${icon(s.status, "i-lg")}<span class="sr-only">${label}</span></span></button></li>`;
+}
+/** Open stops of my tour, one block per window: heading with time hint, then rows. */
+function drvGroups(ids, edit) {
+  return WINDOWS.map((w) => {
+    const g = ids.filter((id) => S.stops[id].win === w.id);
+    if (!g.length) return "";
+    return `<section class="drv-group" aria-label="Fenster ${w.label} Uhr">${winHead(w.id, g.length, "h3")}<ol class="rows" data-win="${w.id}"${edit ? ' data-edit="1"' : ""}>${g.map((id) => drvRow(id, edit, ids)).join("")}</ol></section>`;
+  }).join("");
+}
+function renderDrv() {
+  const main = $("#drv-main"), D = S.drv, t = S.tours[ME];
+  const eff = effective(ME);
+  const open = eff.filter((id) => S.stops[id].status === "open"), done = eff.filter((id) => S.stops[id].status !== "open");
+  const delivered = eff.filter((id) => S.stops[id].status === "delivered").length;
+  const pct = eff.length ? Math.round((delivered / eff.length) * 100) : 0;
+  const head = `<div class="tour-head"><div class="tour-head-row"><h1>Meine Tour</h1>
+      <div class="seg" role="group" aria-label="Darstellung"><button aria-pressed="${D.mode === "list"}" data-act="mode" data-m="list" data-fk="mode-list">${icon("list")} Liste</button><button aria-pressed="${D.mode === "map"}" data-act="mode" data-m="map" data-fk="mode-map">${icon("map")} Karte</button></div></div>
+      <label class="sr-only" for="drv-day">Liefertag</label><select class="field-select" id="drv-day"><option>Sa 05.12. (heute) · 08–14 Uhr</option><option disabled>So 06.12. (keine Stopps)</option></select>
+      <div class="tour-progress"><span><strong class="num">${delivered}</strong> von <strong class="num">${eff.length}</strong> zugestellt</span><span>${t.driverOrder ? "Eigene Reihenfolge" : "Reihenfolge der Planung"}</span></div>
+      <div class="meter" role="progressbar" aria-label="Fortschritt" aria-valuemin="0" aria-valuemax="${eff.length}" aria-valuenow="${delivered}"><span style="width:${pct}%"></span></div></div>`;
+  main.classList.toggle("is-map", D.mode === "map");
+  if (drvMap) { drvMap.remove(); drvMap = null; }
+  if (D.mode === "map") {
+    main.innerHTML = head + `<div class="tour-map"><div class="map" id="drv-map" role="region" aria-label="Karte meiner Tour"></div><button class="btn btn-secondary locate" data-act="locate">${icon("locate")} Mein Standort</button></div>`;
+    drvMap = makeMap($("#drv-map")); drvLayer = L.layerGroup().addTo(drvMap);
+    L.marker([START.lat, START.lon], { icon: startIcon, title: `Start: ${START.label}`, keyboard: false }).addTo(drvLayer);
+    const pts = [[START.lat, START.lon]];
+    eff.forEach((id, i) => {
+      const s = S.stops[id];
+      if (!hasPin(s)) return;
+      if (s.status === "open") pts.push([s.lat, s.lon]);
+      L.marker([s.lat, s.lon], { icon: pinIcon(s.status === "open" ? i + 1 : "✓", s.status === "open" ? "var(--drv-petra)" : "var(--neutral)", [s.status !== "open" && "is-done", s.isNew && "is-new"].filter(Boolean).join(" ")), title: `${i + 1}. ${s.name} (${WINDOWS[s.win].label})`, alt: s.name })
+        .on("click", () => openSheet(id)).addTo(drvLayer);
+    });
+    if (pts.length > 1) L.polyline(pts, { color: cssVar("--drv-petra"), weight: 4, opacity: .8 }).addTo(drvLayer);
+    const pinned = eff.map((id) => S.stops[id]).filter(hasPin);
+    if (pinned.length) drvMap.fitBounds(L.latLngBounds(pinned.map((s) => [s.lat, s.lon]).concat([[START.lat, START.lon]])), { padding: [30, 30] });
+    setTimeout(() => drvMap && drvMap.invalidateSize(), 0);
+  } else if (D.edit) {
+    main.innerHTML = head + `<div class="pwa-screen"><div class="edit-bar" role="region" aria-label="Reihenfolge ändern"><span>Zieh die Stopps an den Griffen oder nutze die Pfeile. Sortieren geht nur innerhalb eines Fensters.</span>
+      <span class="btns"><button class="btn btn-primary" data-act="editdone">Fertig</button><button class="btn btn-secondary" data-act="editreset">Zurück zur Planung</button></span></div>
+      ${drvGroups(D.edit, true)}
+      <button class="btn btn-ghost" data-act="editcancel">Abbrechen</button></div>`;
+  } else {
+    const next = open[0];
+    main.innerHTML = head + `<div class="pwa-screen">
+      ${next ? stopCard(next, "Nächster Stopp") : `<div class="next-card"><p class="eyebrow">Tour</p><h2>Alles erledigt</h2><p>Gib der Aktionsleitung Bescheid, dass du fertig bist.</p></div>`}
+      <div class="list-head"><h2>Danach <span class="badge tone-neutral num">${Math.max(open.length - 1, 0)}</span></h2><button class="btn btn-ghost" data-act="edit" ${open.length < 2 ? "disabled" : ""}>${icon("sort")} Reihenfolge ändern</button></div>
+      ${drvGroups(open.slice(1), false) || '<p class="row-sub">Keine weiteren Stopps.</p>'}
+      ${done.length ? `<details class="done"${D.doneOpen ? " open" : ""}><summary>Erledigt <span class="badge tone-ok num">${done.length}</span></summary><ol class="rows">${done.map((id) => drvRow(id, false)).join("")}</ol></details>` : ""}
+    </div>`;
+    main.querySelector("details.done")?.addEventListener("toggle", (e) => { D.doneOpen = e.target.open; });
+  }
+  const off = S.offline;
+  $("#net").classList.toggle("is-offline", off);
+  $("#net").innerHTML = icon(off ? "wifioff" : "wifi", "i-lg");
+  $("#net").setAttribute("aria-label", off ? "Offline" : "Online");
+  const banner = $("#offline-banner");
+  banner.hidden = !off;
+  banner.innerHTML = off ? `${icon("wifioff")}<span>Keine Verbindung. Deine Tour ist auf diesem Gerät gespeichert. ${S.queued ? `<strong class="num">${S.queued}</strong> ${S.queued === 1 ? "Änderung wartet" : "Änderungen warten"} auf Versand.` : "Änderungen werden gesendet, sobald du wieder online bist."}</span>` : "";
+  if (focusKey) { const el = document.querySelector(`[data-fk="${focusKey}"]`); (el && !el.disabled ? el : document.querySelector(`[data-fk="${focusKey.replace(/^e(up|down)/, (m) => (m === "eup" ? "edown" : "eup"))}"]`))?.focus(); focusKey = null; }
+}
+function setStatus(id, status) {
+  const s = S.stops[id], prev = s.status;
+  s.status = status;
+  if (status !== "open") s.isNew = false;
+  if (S.offline) S.queued++;
+  closeSheet(false);
+  renderAll();
+  const txt = status === "delivered" ? `${s.name}: zugestellt.` : status === "missed" ? `${s.name}: nicht angetroffen.` : `${s.name} ist wieder offen.`;
+  toast("drv-toaster", txt + (S.offline ? " Wird gesendet, sobald du online bist." : ""), {
+    icon: status === "missed" ? "x" : "check",
+    undo: () => { s.status = prev; if (S.offline) S.queued = Math.max(0, S.queued - 1); renderAll(); }
+  });
+}
+let sheetReturn = null;
+function openSheet(id) {
+  S.drv.sheet = id;
+  $("#sheet-host").innerHTML = `<div class="sheet-wrap" data-act="sheetbg"><div class="sheet" role="dialog" aria-modal="true" aria-label="Stopp ${esc(S.stops[id].name)}">
+    <div class="sheet-head"><h2>Stopp</h2><button class="btn btn-ghost btn-icon" data-act="sheetclose" aria-label="Schließen">${icon("x")}</button></div>${stopCard(id, S.stops[id].status === "open" ? "Stopp" : "Erledigt")}</div></div>`;
+  $("#sheet-host .sheet [data-act='sheetclose']").focus();
+}
+function closeSheet(restore = true) {
+  if (!S.drv.sheet) return;
+  S.drv.sheet = null; $("#sheet-host").innerHTML = "";
+  if (restore && sheetReturn && sheetReturn.isConnected) sheetReturn.focus();
+}
+$("#phone").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-act]");
+  if (!b) return;
+  const { act, id } = b.dataset, D = S.drv;
+  if (act === "sheetbg" && e.target !== b) return;
+  if (act === "mode") { D.mode = b.dataset.m; D.edit = null; focusKey = `mode-${D.mode}`; renderDrv(); }
+  else if (act === "delivered" || act === "missed") setStatus(id, act);
+  else if (act === "reopen") setStatus(id, "open");
+  else if (act === "open") { sheetReturn = b; openSheet(id); }
+  else if (act === "sheetclose" || act === "sheetbg") closeSheet();
+  else if (act === "edit") { D.edit = effective(ME).filter((x) => S.stops[x].status === "open"); renderDrv(); $("#drv-main [data-edit] button:not(:disabled)")?.focus(); }
+  else if (act === "eup" || act === "edown") { D.edit = swapped(D.edit, id, act === "eup" ? -1 : 1); focusKey = b.dataset.fk; renderDrv(); }
+  else if (act === "editdone") {
+    // Done stops keep their slots; the open slots take the edited order (same set, same windows).
+    const t = S.tours[ME], cur = effective(ME), openNow = cur.filter((x) => S.stops[x].status === "open");
+    let k = 0;
+    const order = sameOrder([...openNow].sort(), [...D.edit].sort())
+      ? cur.map((x) => (S.stops[x].status === "open" ? D.edit[k++] : x))
+      : normalize(D.edit.concat(cur.filter((x) => !D.edit.includes(x))));
+    if (sameOrder(order, t.driverOrder || t.base)) { D.edit = null; renderDrv(); toast("drv-toaster", "Reihenfolge unverändert."); return; }
+    t.driverOrder = order; t.driverSince = now(); D.edit = null;
+    if (S.offline) S.queued++;
+    renderAll();
+    toast("drv-toaster", "Deine Reihenfolge ist gespeichert. Die Planung sieht sie.");
+  }
+  else if (act === "editreset") { const t = S.tours[ME]; t.driverOrder = null; t.driverSince = null; t.viewDriver = false; D.edit = null; if (S.offline) S.queued++; renderAll(); toast("drv-toaster", "Es gilt wieder die Reihenfolge der Planung."); }
+  else if (act === "editcancel") { D.edit = null; renderDrv(); }
+  else if (act === "locate") {
+    if (!navigator.geolocation) { toast("drv-toaster", "Dein Gerät kann den Standort nicht bestimmen.", { icon: "warn" }); return; }
+    navigator.geolocation.getCurrentPosition(
+      (p) => { if (!drvMap) return; L.circleMarker([p.coords.latitude, p.coords.longitude], { radius: 8, color: "#fff", weight: 3, fillColor: "#2a7de1", fillOpacity: 1 }).bindTooltip("Du").addTo(drvLayer); drvMap.panTo([p.coords.latitude, p.coords.longitude]); },
+      () => toast("drv-toaster", "Standort nicht freigegeben. Die Karte geht auch ohne.", { icon: "warn" }),
+      { timeout: 8000 }
+    );
+  }
+});
+/* Driver edit mode: mouse drag inside one window group. Touch drag is not built in the prototype; the arrows cover it. */
+let drvDrag = null;
+const phoneEl = $("#phone");
+phoneEl.addEventListener("dragstart", (e) => { const li = e.target.closest("[data-edit] .row"); if (!li) return; drvDrag = li.dataset.id; li.classList.add("is-dragging"); e.dataTransfer.setData("text/plain", drvDrag); });
+const sameGroup = (list) => list && drvDrag && Number(list.dataset.win) === S.stops[drvDrag].win;
+phoneEl.addEventListener("dragover", (e) => { if (sameGroup(e.target.closest("[data-edit]"))) e.preventDefault(); });
+phoneEl.addEventListener("drop", (e) => {
+  const list = e.target.closest("[data-edit]");
+  if (!sameGroup(list)) return;
+  e.preventDefault();
+  const rows = [...list.querySelectorAll(".row:not(.is-dragging)")];
+  const beforeId = rows.find((r) => { const b = r.getBoundingClientRect(); return e.clientY < b.top + b.height / 2; })?.dataset.id;
+  const order = S.drv.edit.filter((x) => x !== drvDrag);
+  const lastInGroup = order.reduce((at, x, i) => (S.stops[x].win === S.stops[drvDrag].win ? i + 1 : at), 0);
+  order.splice(beforeId ? order.indexOf(beforeId) : lastInGroup, 0, drvDrag);
+  S.drv.edit = normalize(order); drvDrag = null; renderDrv();
+});
+phoneEl.addEventListener("dragend", () => { drvDrag = null; $("#phone .is-dragging")?.classList.remove("is-dragging"); });
+$("#offline-toggle").addEventListener("change", (e) => { S.offline = e.target.checked; if (!S.offline && S.queued) { toast("drv-toaster", `${S.queued} ${S.queued === 1 ? "Änderung" : "Änderungen"} gesendet.`); S.queued = 0; } renderDrv(); });
+$("#append-new").addEventListener("click", () => {
+  const cand = Object.values(S.stops).find((s) => !s.driver && s.status === "open");
+  if (!cand) { toast("drv-toaster", "Kein nicht zugeordneter Stopp mehr übrig.", { icon: "warn" }); return; }
+  assign(cand.id, ME); renderAll();
+  toast("drv-toaster", `Neuer Stopp am Ende von ${WINDOWS[cand.win].label}: ${cand.name}.`, { icon: "pin" });
+});
+$("#clock").addEventListener("change", (e) => { S.clock = Number(e.target.value); renderAll(); });
+
+/* ---------- Shell ---------- */
+function renderPlan() { renderLanes(); renderPlanMap(); }
+function renderAll() { renderPlan(); renderDrv(); }
+const tabs = [$("#tab-plan"), $("#tab-drv")];
+function showTab(i, focus) {
+  tabs.forEach((t, j) => { t.setAttribute("aria-selected", String(i === j)); t.tabIndex = i === j ? 0 : -1; document.getElementById(t.getAttribute("aria-controls")).hidden = i !== j; });
+  if (focus) tabs[i].focus();
+  if (i === 0) setTimeout(() => planMap.invalidateSize(), 0); else renderDrv();
+}
+tabs.forEach((t, i) => {
+  t.addEventListener("click", () => showTab(i));
+  t.addEventListener("keydown", (e) => { if (e.key === "ArrowRight" || e.key === "ArrowLeft") { e.preventDefault(); showTab(1 - i, true); } });
+});
+$("#reset").addEventListener("click", () => { S = freshState(); $("#offline-toggle").checked = false; $("#clock").value = String(S.clock); closeSheet(false); renderAll(); toast("plan-toaster", "Prototyp zurückgesetzt."); });
+const params = new URLSearchParams(location.search);
+if (params.get("clock")) { S.clock = Number(params.get("clock")); $("#clock").value = params.get("clock"); }
+renderAll();
+planMap.fitBounds(L.latLngBounds(SEED.filter((r) => r[7] != null).map((r) => [r[7], r[8]])), { padding: [40, 40] });
+showTab(params.get("view") === "fahrer" ? 1 : 0);
+if (params.get("mode") === "map") { S.drv.mode = "map"; renderDrv(); }
+</script>
+</body>
+</html>
