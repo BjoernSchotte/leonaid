@@ -18,6 +18,7 @@ from leonaid.bootstrap.worker import build_worker, module_switch_problems
 from leonaid.configuration import (
     ConfigurationError,
     load_mail_transport_settings,
+    load_map_settings,
     load_module_settings,
     load_retention_settings,
 )
@@ -51,7 +52,11 @@ def configuration_problems() -> list[str]:
         for name in REQUIRED_ENVIRONMENT
         if not os.environ.get(name, "").strip()
     ]
-    for load in (load_mail_transport_settings, load_retention_settings):
+    for load in (
+        load_mail_transport_settings,
+        load_retention_settings,
+        load_map_settings,
+    ):
         try:
             load()
         except ConfigurationError as error:

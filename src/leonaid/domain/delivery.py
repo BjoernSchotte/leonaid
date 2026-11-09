@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import re
+import unicodedata
 from datetime import date, datetime, time, timezone
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from leonaid.domain.calendar import INSTALLATION_TIME_ZONE
+from leonaid.domain.delivery_geo import GeoPoint
 from leonaid.domain.errors import DomainInvariantError
 
 
@@ -134,6 +136,64 @@ class DeliveryWindow:
         }
 
 
+def _one_line(value: str, limit: int) -> str | None:
+    """The trimmed value, or None if it is empty, too long or not one line."""
+
+    if any(
+        unicodedata.category(character) in ("Cc", "Zl", "Zp") for character in value
+    ):
+        return None
+    text = value.strip()
+    return text if 1 <= len(text) <= limit else None
+
+
+@dataclass(frozen=True, slots=True)
+class DeliveryStartPoint:
+    """Where the drivers pick up the Krapfen in the morning (D11).
+
+    ``point`` is None until the worker found the address or the manager set
+    a pin. ``locating``: the worker will still look the address up; it is
+    read from the store and ignored on save.
+    """
+
+    label: str
+    address: str
+    point: GeoPoint | None = None
+    locating: bool = False
+
+    def __post_init__(self) -> None:
+        label = _one_line(self.label, 80)
+        address = _one_line(self.address, 200)
+        if label is None or address is None:
+            raise DomainInvariantError(
+                "delivery_start_invalid",
+                "Startpunkt: Bezeichnung (bis 80 Zeichen) und Adresse (bis 200"
+                " Zeichen) jeweils einzeilig angeben.",
+            )
+        object.__setattr__(self, "label", label)
+        object.__setattr__(self, "address", address)
+
+
+def merged_start(
+    stored: DeliveryStartPoint | None, requested: DeliveryStartPoint | None
+) -> DeliveryStartPoint | None:
+    """The start point to store.
+
+    A request without a point keeps the stored point of the same address,
+    whether the geocoder found it or the manager set it. A new address
+    without a point has none until the worker looks it up.
+    """
+
+    if (
+        requested is None
+        or requested.point is not None
+        or stored is None
+        or stored.address != requested.address
+    ):
+        return requested
+    return replace(requested, point=stored.point)
+
+
 @dataclass(frozen=True, slots=True)
 class DeliveryConfiguration:
     action_id: UUID
@@ -141,6 +201,7 @@ class DeliveryConfiguration:
     timezone: str = INSTALLATION_TIME_ZONE.key
     revision: int = 1
     windows: tuple[DeliveryWindow, ...] = ()
+    start: DeliveryStartPoint | None = None
 
     def __post_init__(self) -> None:
         local_instant(date(2026, 1, 1), time(12), self.timezone)

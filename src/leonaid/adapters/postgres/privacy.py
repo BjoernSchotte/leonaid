@@ -32,6 +32,10 @@ from leonaid.domain.privacy import (
     SuppressionEntry,
     subject_digest,
 )
+from leonaid.domain.delivery_geo import GeoPoint
+
+# The placeholder an erasure writes into an order's address snapshots.
+ERASED_RECIPIENT_NAME = "Anonymisiert"
 
 
 def _consent(row: asyncpg.Record) -> ConsentRecord:
@@ -139,8 +143,14 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
                 id, action_id, status,
                 COALESCE(public_reference, id::text) AS label,
                 twenty_company_id, twenty_person_id,
-                delivery_window_id, delivery_window_snapshot, delivery_contact_snapshot
+                delivery_window_id, delivery_window_snapshot, delivery_contact_snapshot,
+                geo.lat AS geo_lat, geo.lon AS geo_lon
             FROM commitment
+            LEFT JOIN LATERAL (
+                SELECT lat, lon FROM delivery_geo
+                WHERE delivery_geo.commitment_id = commitment.id
+                  AND delivery_geo.outcome = 'found'
+            ) AS geo ON true
             WHERE lower(COALESCE(customer_snapshot ->> 'email', '')) = $1
                OR lower(COALESCE(invoice_recipient_snapshot ->> 'email', '')) = $1
                OR lower(COALESCE(delivery_recipient_snapshot ->> 'email', '')) = $1
@@ -233,6 +243,11 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
                     ),
                     delivery_contact=decode_contact_snapshot(
                         row["delivery_contact_snapshot"]
+                    ),
+                    coordinates=(
+                        GeoPoint(row["geo_lat"], row["geo_lon"])
+                        if row["geo_lat"] is not None
+                        else None
                     ),
                 )
                 for row in commitments
@@ -468,7 +483,7 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
                     ),
                     json.dumps(
                         {
-                            "recipientName": "Anonymisiert",
+                            "recipientName": ERASED_RECIPIENT_NAME,
                             "streetLine1": "Entfernt",
                             "postalCode": "00000",
                             "city": "Entfernt",
@@ -477,6 +492,11 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
                         }
                     ),
                     occurred_at,
+                )
+                # Coordinates locate the person's address (spec §5).
+                await connection.execute(
+                    "DELETE FROM delivery_geo WHERE commitment_id = ANY($1::uuid[])",
+                    commitment_ids,
                 )
                 # The free-text note may name people; the reason stays, as
                 # the invoice cancellation reason does (ADR-0009).

@@ -12,6 +12,8 @@ root=$(cd "$root" && pwd)
 
 # Generated files must match their route table (tools/proxy/caddyfiles.py).
 python3 "$root/tools/proxy/caddyfiles.py" --root "$root" --check
+# Policy guards on the rendered files (CSP tile origin, dev-only test tiles).
+python3 "$root/tools/proxy/caddyfiles_test.py"
 
 count=0
 # Each split file is checked without and with public-host aliases; Caddy

@@ -9,6 +9,7 @@ from leonaid.configuration import (
     ConfigurationError,
     MailTransportSettings,
     Settings,
+    load_map_settings,
     load_settings,
 )
 
@@ -397,3 +398,71 @@ def test_site_host_check_settings_are_validated_at_startup() -> None:
         ).host_check_settings.public_resolvers
         == ()
     )
+
+
+MAP_VARIABLES = (
+    "LEONAID_MAP_TILE_URL",
+    "LEONAID_MAP_TILE_ORIGIN",
+    "LEONAID_MAP_ATTRIBUTION",
+    "LEONAID_GEOCODER_URL",
+    "LEONAID_GEOCODER_USER_AGENT",
+    "LEONAID_GEOCODING_INTERVAL_SECONDS",
+)
+
+
+def test_map_settings_defaults_and_origin_mismatch(monkeypatch) -> None:
+    """specs/krapfentaxi-touren §5 and §8: OSM tiles, public Nominatim."""
+    for name in MAP_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("LEONAID_PUBLIC_BASE_URL", "https://portal.leonaid.org/")
+    settings = load_map_settings()
+    assert settings.tile_url == "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+    assert settings.tile_origin == "https://tile.openstreetmap.org"
+    assert settings.attribution == "© OpenStreetMap-Mitwirkende"
+    assert settings.geocoder_url == "https://nominatim.openstreetmap.org/search"
+    assert settings.geocoder_user_agent == "LeonAid (https://portal.leonaid.org)"
+    assert settings.geocoding_interval_seconds == 60
+    # Compose passes unset variables as empty strings.
+    monkeypatch.setenv("LEONAID_MAP_TILE_URL", "")
+    monkeypatch.setenv("LEONAID_GEOCODING_INTERVAL_SECONDS", " ")
+    assert load_map_settings() == settings
+    monkeypatch.delenv("LEONAID_PUBLIC_BASE_URL")
+    with raises(ConfigurationError, match="LEONAID_GEOCODER_USER_AGENT:missing"):
+        load_map_settings()
+    monkeypatch.setenv("LEONAID_PUBLIC_BASE_URL", "https://portal.leonaid.org/")
+
+    # A provider with its own host must name that host for the CSP.
+    monkeypatch.setenv(
+        "LEONAID_MAP_TILE_URL", "https://tiles.example.org/{z}/{x}/{y}.png"
+    )
+    with raises(ConfigurationError, match="LEONAID_MAP_TILE_ORIGIN:mismatch"):
+        load_map_settings()
+    monkeypatch.setenv("LEONAID_MAP_TILE_ORIGIN", "https://tiles.example.org")
+    assert load_map_settings().tile_origin == "https://tiles.example.org"
+    # A self-hosted path on the own host needs no origin.
+    monkeypatch.setenv("LEONAID_MAP_TILE_URL", "/tiles/{z}/{x}/{y}.png")
+    assert load_map_settings().tile_url == "/tiles/{z}/{x}/{y}.png"
+
+    monkeypatch.setenv(
+        "LEONAID_GEOCODER_USER_AGENT", "Lions Club Test (it@club.example)"
+    )
+    assert (
+        load_map_settings().geocoder_user_agent == "Lions Club Test (it@club.example)"
+    )
+
+    for name, value in (
+        ("LEONAID_MAP_TILE_URL", "http://tiles.example.org/{z}/{x}/{y}.png"),
+        ("LEONAID_MAP_TILE_URL", "https://tiles.example.org/{z}/{y}.png"),
+        ("LEONAID_MAP_TILE_ORIGIN", "https://tiles.example.org/path"),
+        ("LEONAID_MAP_ATTRIBUTION", "<b>OSM</b>"),
+        ("LEONAID_MAP_ATTRIBUTION", "x" * 201),
+        ("LEONAID_GEOCODER_URL", "ftp://geo.example.org/search"),
+        ("LEONAID_GEOCODER_USER_AGENT", "LeonAid\r\nX-Injected: 1"),
+        ("LEONAID_GEOCODING_INTERVAL_SECONDS", "0"),
+    ):
+        with monkeypatch.context() as scoped:
+            scoped.setenv(name, value)
+            with raises(ConfigurationError, match=name) as error:
+                load_map_settings()
+            # Diagnostics name the variable, never its value.
+            assert value not in str(error.value)

@@ -17,11 +17,16 @@ from leonaid.adapters.operations import structured_event
 from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.security import AsyncpgSecurityRateLimitRepository
-from leonaid.bootstrap.worker import background_loops, build_worker
+from leonaid.bootstrap.worker import (
+    background_loops,
+    build_geocoding_job,
+    build_worker,
+)
 from leonaid.entrypoints.worker.health import LoopHealth, error_location
 from leonaid.bootstrap.registry import RegistrationError
 from leonaid.configuration import (
     ConfigurationError,
+    load_map_settings,
     load_module_settings,
     load_retention_settings,
 )
@@ -58,6 +63,27 @@ retention_health = LoopHealth(
 )
 
 
+# Lookups per run; a full batch runs the next one after a second.
+GEOCODING_BATCH = 30
+# Worst case of one run: every lookup waits for its timeout (10 s) plus the
+# one-second gap of the public Nominatim.
+GEOCODING_RUN_SECONDS = GEOCODING_BATCH * 11
+
+
+def _geocoding_interval_seconds() -> float:
+    try:
+        return load_map_settings().geocoding_interval_seconds
+    except ConfigurationError:
+        return 60.0
+
+
+geocoding_health = LoopHealth(
+    "geocoding",
+    stall_after_seconds=_geocoding_interval_seconds() + GEOCODING_RUN_SECONDS + 60,
+)
+GEOCODING_LOOKUPS = {"total": 0}
+
+
 def _module_loops() -> tuple[BackgroundLoop, ...]:
     # Module loops need only the database URL and the module switches. Invalid
     # values stop the worker at startup in configuration_problems; until then
@@ -74,7 +100,13 @@ MODULE_LOOP_HEALTH = tuple(
     LoopHealth(loop.name, stall_after_seconds=loop.stall_after_seconds)
     for loop in MODULE_LOOPS
 )
-LOOPS = (postgres_health, outbox_health, *MODULE_LOOP_HEALTH, retention_health)
+LOOPS = (
+    postgres_health,
+    outbox_health,
+    *MODULE_LOOP_HEALTH,
+    retention_health,
+    geocoding_health,
+)
 if len({loop.name for loop in LOOPS}) != len(LOOPS):
     raise RuntimeError("Worker loop names must be unique.")
 RETENTION_DELETED = {
@@ -152,6 +184,13 @@ def metrics_document() -> str:
     lines.extend(
         f'leonaid_worker_retention_deleted_total{{table="{table}"}} {count}'
         for table, count in RETENTION_DELETED.items()
+    )
+    lines.extend(
+        [
+            "# HELP leonaid_worker_geocoding_lookups_total Geocoder lookups since worker start.",
+            "# TYPE leonaid_worker_geocoding_lookups_total counter",
+            f"leonaid_worker_geocoding_lookups_total {GEOCODING_LOOKUPS['total']}",
+        ]
     )
     return "\n".join(lines) + "\n"
 
@@ -321,10 +360,49 @@ async def retention_loop() -> None:
                 await pool.close()
 
 
+async def geocoding_loop() -> None:
+    """Coordinates for upcoming deliveries while ``delivery.tours`` is on.
+
+    Every interval (default 60 s) one bounded run; a full batch continues
+    after a second. Logged by count only, never with an address.
+    """
+    settings = load_map_settings()
+    while True:
+        pool = None
+        geocoder = None
+        try:
+            pool = await create_pool(os.environ["CORE_DATABASE_URL"], maximum_size=2)
+            job, geocoder = build_geocoding_job(pool, settings)
+            while True:
+                looked_up = await job.run_once(
+                    now=datetime.now(timezone.utc), limit=GEOCODING_BATCH
+                )
+                record_success(geocoding_health)
+                if looked_up:
+                    GEOCODING_LOOKUPS["total"] += looked_up
+                    print(
+                        structured_event("worker.geocoding.ran", lookups=looked_up),
+                        flush=True,
+                    )
+                await asyncio.sleep(
+                    1.0
+                    if looked_up == GEOCODING_BATCH
+                    else settings.geocoding_interval_seconds
+                )
+        except Exception as error:
+            delay = record_failure(geocoding_health, error)
+            await asyncio.sleep(delay)
+        finally:
+            if geocoder is not None:
+                await geocoder.close()
+            if pool is not None:
+                await pool.close()
+
+
 async def service_loop() -> None:
     """Runs every loop; SIGTERM drains the outbox worker and stops the rest.
 
-    The sweeps (readiness, module loops, retention) work in short database
+    The sweeps (readiness, module loops, retention, geocoding) work in short database
     transactions, so cancelling them rolls back at most one batch. Only the
     outbox worker holds a job that must not be cut off; it stops claiming and
     finishes the job in hand (compose.yml stop_grace_period covers the
@@ -340,6 +418,7 @@ async def service_loop() -> None:
             for loop, health in zip(MODULE_LOOPS, MODULE_LOOP_HEALTH, strict=True)
         ),
         asyncio.create_task(retention_loop()),
+        asyncio.create_task(geocoding_loop()),
     ]
     # The loops never return on their own: the first one to finish is the
     # drained worker after SIGTERM, or a loop that crashed.

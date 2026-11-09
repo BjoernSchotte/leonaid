@@ -25,12 +25,21 @@ import {
   type ReactNode,
 } from "react";
 
-/** Mouse, touch (long press) and keyboard (space, arrows) for ordering. */
-export function useOrderingSensors() {
+/**
+ * How a touch on the grip starts a drag. "press": after a long press (small
+ * grips, where a scroll may start on them). "handle": after a few pixels of
+ * movement, no wait; for a large grip with `touch-action: none`, while the
+ * row body still scrolls the list.
+ */
+export type OrderingTouch = "press" | "handle";
+
+/** Mouse, touch and keyboard (space, arrows) for ordering. */
+export function useOrderingSensors(touch: OrderingTouch = "press") {
   return useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, {
-      activationConstraint: { delay: 220, tolerance: 6 },
+      activationConstraint:
+        touch === "handle" ? { distance: 4 } : { delay: 220, tolerance: 6 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -69,9 +78,11 @@ export function TaskOrdering({
   noun = "Aufgabe",
   onCancel,
   onMove,
+  touch = "press",
 }: {
   readonly children: ReactNode;
   readonly ids: readonly string[];
+  readonly touch?: OrderingTouch;
   /** What a row is, for the screen reader announcements ("Stopp"). */
   readonly noun?: string;
   readonly onCancel: () => void;
@@ -82,7 +93,7 @@ export function TaskOrdering({
     side: "before" | "after",
   ) => void;
 }) {
-  const sensors = useOrderingSensors();
+  const sensors = useOrderingSensors(touch);
   const finish = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return;
     const from = ids.indexOf(String(active.id));

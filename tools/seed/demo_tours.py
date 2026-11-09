@@ -3,7 +3,9 @@
 Local and test instances only. Adds two drivers (Dora and Emil Fahrer) and
 14 confirmed orders in Bad Tölz for Saturday 2026-12-05, spread over the
 windows 08-10, 10-12 and 12-14 (5/5/4): Dora drives 7 (2 already delivered),
-Emil 4, 3 have no driver yet. The versioned Golden Dataset stays unchanged.
+Emil 4, 3 have no driver yet. The start point is the bakery "Bäckerei" in
+the Marktstraße; the worker geocodes it (no coordinates are written here).
+The versioned Golden Dataset stays unchanged.
 
 Orders, windows, driver assignments and the delivered ticks go through the
 same application services and repositories as the app. Accounts, driver
@@ -50,7 +52,11 @@ from leonaid.domain.commitments import (
     DeliveryRecipientSnapshot,
     InvoiceRecipientSnapshot,
 )
-from leonaid.domain.delivery import DeliveryContactSnapshot, DeliveryWindow
+from leonaid.domain.delivery import (
+    DeliveryContactSnapshot,
+    DeliveryStartPoint,
+    DeliveryWindow,
+)
 from leonaid.domain.delivery_board import DeliveryBoard, DropState
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import (
@@ -74,6 +80,10 @@ WINDOW_HOURS = ((8, 10), (10, 12), (12, 14))
 REQUEST_ID = "demo-tours"
 CITY = "Bad Tölz"
 POSTAL_CODE = "83646"
+# Where Dora and Emil pick up the Krapfen (D11): a bakery in the Marktstraße
+# (Bäckerei Büttner, public business address). The worker finds the point.
+START_LABEL = "Bäckerei"
+START_ADDRESS = f"Marktstraße 50, {POSTAL_CODE} {CITY}"
 
 # A demo offering priced per Krapfen, so orders of 6 to 48 pieces exist.
 # It is active only while this seed books new orders: the public order form
@@ -346,7 +356,8 @@ async def ensure_drivers(pool: asyncpg.Pool[Any]) -> None:
 async def ensure_windows(
     pool: asyncpg.Pool[Any], manager: IdentityPrincipal
 ) -> dict[int, UUID]:
-    """The demo windows, enabled; returns the delivery day's by start hour."""
+    """The demo windows, enabled, and the start point; returns the delivery
+    day's windows by start hour."""
 
     service = DeliveryService(AsyncpgDeliveryRepository(pool))
     configuration = await service.get(manager, ACTION_ID)
@@ -383,6 +394,16 @@ async def ensure_windows(
                 configuration,
                 enabled=True,
                 windows=configuration.windows + additions,
+            ),
+            request_id=REQUEST_ID,
+        )
+    start = configuration.start
+    if start is None or (start.label, start.address) != (START_LABEL, START_ADDRESS):
+        # The configuration path of the app; a repeated run changes nothing.
+        configuration = await service.save(
+            manager,
+            replace(
+                configuration, start=DeliveryStartPoint(START_LABEL, START_ADDRESS)
             ),
             request_id=REQUEST_ID,
         )
@@ -561,6 +582,7 @@ def report(board: DeliveryBoard, orders: dict[str, UUID]) -> None:
     names = {driver.id: driver.display_name for driver in DRIVERS}
     zone = ZoneInfo(board.timezone)
     print("demo-tours: OK: Krapfentaxi 2026, Sa 05.12.2026")
+    print(f"  start    {START_LABEL}, {START_ADDRESS} (the worker geocodes it)")
     for driver in DRIVERS:
         print(f"  account  {driver.email}  ({driver.display_name}, driver)")
     for window in board.windows:

@@ -121,6 +121,52 @@ describe("mobile navigation", () => {
     expect(label(null)).toBeUndefined();
   });
 
+  it("puts Tour first for drivers while delivery tours are on", () => {
+    const withDelivery = new Set([...implemented, "delivery"]);
+    const nav = (options: Parameters<typeof mobileNavigation>[3]) =>
+      mobileNavigation(acquirer, withDelivery, at("/app/delivery"), options);
+
+    const both = nav({ deliveryTours: true, driver: true });
+    expect(both.tabs.map((tab) => [tab.key, tab.label])).toEqual([
+      ["delivery", "Tour"],
+      ["overview-pwa", "Start"],
+      ["sponsors", "Sponsoren"],
+      ["sponsor-new", "Neu"],
+      ["follow-ups", "Wiedervorlagen"],
+      ["activities", "Neues"],
+    ]);
+    expect(both.active).toBe("delivery");
+    expect(both.menu.map((entry) => entry.key)).not.toContain("delivery");
+
+    // Driving only: /app/ opens the tour, so "Start" goes.
+    const driverNav = [
+      item("overview-pwa", "/app/", "Übersicht"),
+      item("delivery", "/app/delivery", "Auslieferung"),
+    ];
+    const only = mobileNavigation(
+      driverNav,
+      withDelivery,
+      at("/app/delivery"),
+      {
+        deliveryTours: true,
+        driverOnly: true,
+      },
+    );
+    expect(only.tabs.map((tab) => tab.key)).toEqual(["delivery"]);
+    expect(only.menu).toEqual([]);
+
+    // Flag off or loading, or no driver: as before.
+    expect(
+      nav({ deliveryTours: false, driver: true }).tabs.map((tab) => tab.key),
+    ).not.toContain("delivery");
+    expect(
+      nav({ deliveryTours: null, driver: true }).tabs.map((tab) => tab.key),
+    ).not.toContain("delivery");
+    expect(
+      nav({ deliveryTours: true }).tabs.map((tab) => tab.key),
+    ).not.toContain("delivery");
+  });
+
   it("picks the active tab from path and view", () => {
     const { tabs } = mobileNavigation(acquirer, implemented, at("/app/"));
     expect(activeMobileTab(tabs, "/app", "")).toBe("overview-pwa");

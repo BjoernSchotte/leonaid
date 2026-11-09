@@ -38,7 +38,8 @@ command that the system administrator runs on a workstation before opening
 `http://localhost:PORT`.
 Databases, the Valkey queue store, S3, and internal APIs stay inside Compose
 networks. In the pilot, only the worker and the Twenty worker join the `mail-egress`
-network, the only route to the external SMTP relay. Twenty sends mail only with
+network, the only route to the external SMTP relay and, for the worker, to the
+geocoder. Twenty sends mail only with
 `MAIL_SMTP_MODE=tls` (implicit TLS on port 465), because its SMTP client cannot
 enforce STARTTLS. With `starttls` the Twenty containers start with the logger
 mail driver and send nothing; `pilot-doctor` warns but does not block.
@@ -67,6 +68,37 @@ start with `worker.configuration.invalid`. The metric
 outbox counters under **System › Hintergrundaufgaben** (`/admin/system/jobs`) therefore show completed jobs of the
 retention window only. `docker compose run --rm worker python -m
 leonaid.entrypoints.worker.outbox retention-sweep` runs one sweep by hand.
+
+## Geocoding of delivery addresses
+
+The worker runs a `geocoding` loop for the map of delivery tours. It works only
+while the feature flag `delivery.tours` is on, and only for orders whose
+delivery day is today or later. Once per `LEONAID_GEOCODING_INTERVAL_SECONDS`
+(default `60`) it looks up at most 30 addresses at `LEONAID_GEOCODER_URL`
+(default: the public Nominatim, `https://nominatim.openstreetmap.org/search`),
+one request per second. It sends only street, postal code, city and country,
+never names or contacts, with the User-Agent `LEONAID_GEOCODER_USER_AGENT`
+(default `LeonAid (<LEONAID_PUBLIC_BASE_URL>)`). The result is cached per
+order in `delivery_geo`; an address that is not found is not asked again,
+and a timeout or provider error is retried at most three times, an hour
+apart. A changed address is looked up again. The same loop looks up the
+start point of each action (where the drivers pick up the Krapfen) once per
+address; the API never asks the geocoder. A start address must read
+"Street 1, 12345 Town", otherwise it counts as not found and the manager sets
+the pin. Logs carry only counts; the metric
+`leonaid_worker_geocoding_lookups_total` counts lookups. In the pilot the
+worker reaches the geocoder through the `mail-egress` network; the dev stack
+gives it the network `geocoder-egress` (`compose.dev-local.yml`). Test stacks
+have no egress, so lookups there end as failures. The map tiles come
+from `LEONAID_MAP_TILE_URL` (default OpenStreetMap) with
+`LEONAID_MAP_ATTRIBUTION`; a tile URL on another host must name its origin
+in `LEONAID_MAP_TILE_ORIGIN`. Invalid values stop the worker at start with
+`worker.configuration.invalid`. The proxy opens the Content-Security-Policy
+`img-src` for exactly that origin (default `https://tile.openstreetmap.org`);
+the test stacks load plain tiles from `/e2e-tiles/` on their own host. Pages
+of the member apps may ask for the device location (`geolocation=(self)`): the
+driver's map shows it only after the driver allows it, and it stays in the
+browser.
 
 ## Club name
 

@@ -9,3 +9,11 @@ services:
     volumes:
       - ../../.local/dev/caddy.d:/etc/caddy/local.d:ro
       - ../../.local/dev/static:/srv/local-static:ro
+  # The dev worker geocodes delivery addresses against the public Nominatim
+  # (specs/krapfentaxi-touren §8.2, D8): a dev-only egress network, like the
+  # pilot's `mail-egress`. Test stacks keep their internal-only networks.
+  worker:
+    networks:
+      - geocoder-egress
+networks:
+  geocoder-egress: {}

@@ -37,6 +37,7 @@ function configuration(fullyBooked: boolean): DeliveryConfigurationResponse {
     actionId,
     enabled: true,
     revision: 2,
+    startPoint: null,
     timezone: "Europe/Berlin",
     windows: [
       {

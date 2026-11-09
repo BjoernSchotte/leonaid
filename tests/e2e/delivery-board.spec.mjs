@@ -240,6 +240,17 @@ async function arrangeStart(request) {
   expect(assigned.ok()).toBe(true);
 }
 
+/** The map's numbered pins as [commitment id, number], sorted by id. */
+async function mapPins(map) {
+  return (
+    await map
+      .locator(".tour-pin[data-pin-id]")
+      .evaluateAll((pins) =>
+        pins.map((pin) => [pin.dataset.pinId, pin.textContent]),
+      )
+  ).sort(([a], [b]) => a.localeCompare(b));
+}
+
 test("managers plan a tour; the driver reorders, delivers and sees a later stop as neu", async ({
   browser,
 }) => {
@@ -273,6 +284,8 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
     await expect(
       page.getByRole("heading", { name: "Auslieferung", level: 1 }),
     ).toBeVisible();
+    // The columns first: the day picker renders with them.
+    await expect(page.getByTestId("tour-unassigned")).toBeVisible();
     const day = page.getByTestId("tour-day");
     if (await day.count()) await day.selectOption({ index: 0 });
     const anna = page
@@ -306,7 +319,8 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
     await expect(page.getByText("Fahrer entfernt (3 Stopps).")).toBeVisible();
     await expect(unassigned.locator("li.tour-stop")).toHaveCount(3);
 
-    // Two go back to Anna at the end; Klara moves the second one up and saves.
+    // Two go back to Anna at the end; Klara moves the second one up, and
+    // the move saves on its own (D19 2a).
     const [first, second, third] = lastThree;
     await assign(unassigned, [first, second], "Anna Akquise");
     await expect(
@@ -318,9 +332,7 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
     await stop(anna, second)
       .getByRole("button", { name: /nach oben/ })
       .click();
-    const order = anna.getByTestId("tour-save-order");
-    await expect(order).toBeEnabled();
-    await order.click();
+    await expect(anna.getByTestId("tour-save-order")).toHaveCount(0);
     await expect(
       page.getByText("Reihenfolge für Anna Akquise gespeichert."),
     ).toBeVisible();
@@ -328,6 +340,61 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
       rows.map((row) => row.getAttribute("data-commitment-id")),
     );
     expect(planned.slice(-2)).toEqual([second, first]);
+
+    // The map (§6.1, §6.4): the test stack cannot geocode, so Klara sets
+    // two of Anna's pins by a click on the map. Pins stay between runs.
+    const plannerMap = page.getByTestId("tour-plan-map");
+    const plannerCanvas = plannerMap.getByTestId("tour-map-canvas");
+    await expect(plannerCanvas).toHaveAttribute("data-ready", "true");
+    const noPin = anna.getByTestId("tour-set-pin");
+    for (const x of [0.4, 0.6]) {
+      const missing = await noPin.count();
+      if (!missing) break;
+      await noPin.first().click();
+      await expect(plannerMap.getByRole("status")).toContainText(
+        "Klicken Sie in die Karte",
+      );
+      const box = await plannerCanvas.boundingBox();
+      await page.mouse.click(box.x + box.width * x, box.y + box.height * 0.5);
+      await expect(noPin).toHaveCount(missing - 1);
+    }
+    // The day on screen (no picker: the only day, which the API picks too).
+    const shownDay = (await day.count()) ? await day.inputValue() : null;
+    const tours = await page.request.get(
+      `${baseUrl}/api/v1/actions/${actionId}/delivery-board/tours${
+        shownDay ? `?day=${shownDay}` : ""
+      }`,
+    );
+    expect(tours.ok()).toBe(true);
+    const body = await tours.json();
+    const located = [
+      ...body.unassigned,
+      ...body.tours.flatMap((tour) => tour.windows),
+    ]
+      .flatMap((window) => window.stops)
+      .filter((item) => item.lat !== null && item.lon !== null);
+    expect(located.length).toBeGreaterThanOrEqual(2);
+    await expect(plannerMap.locator(".tour-pin[data-pin-id]")).toHaveCount(
+      located.length,
+    );
+    // Tiles come from the test proxy under 'self', never from outside.
+    const tileSources = await plannerCanvas
+      .locator("img.leaflet-tile")
+      .evaluateAll((tiles) => tiles.map((tile) => tile.src));
+    expect(tileSources.length).toBeGreaterThan(0);
+    for (const source of tileSources) {
+      expect(source.startsWith(`${baseUrl}/e2e-tiles/`)).toBe(true);
+    }
+    const annaIds = await anna
+      .locator("li.tour-stop")
+      .evaluateAll((rows) =>
+        rows.map((row) => row.getAttribute("data-commitment-id")),
+      );
+    const annaPins = (await mapPins(plannerMap)).filter(([id]) =>
+      annaIds.includes(id),
+    );
+    expect(annaPins.length).toBeGreaterThanOrEqual(2);
+    await expectAccessible(page);
     await page.screenshot({
       animations: "disabled",
       path: `${artifactDirectory}/delivery-tours-1440-light.png`,
@@ -339,39 +406,141 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
     });
     await page.emulateMedia({ colorScheme: "light" });
 
-    // Anna: the large card is Klara's first open stop.
-    await mobile.goto(`${baseUrl}/app/delivery?action=${actionId}`);
+    // Anna: the dock holds Klara's first open stop; "Tour" leads the tabs.
+    const tourPage = await mobile.goto(
+      `${baseUrl}/app/delivery?action=${actionId}`,
+    );
+    // The CSP opens img-src for the tile origin only (D3, §8.1).
+    const policy = tourPage.headers()["content-security-policy"];
+    expect(policy).toContain(
+      "img-src 'self' data: blob: https://tile.openstreetmap.org;",
+    );
+    expect(policy).toContain("connect-src 'self';");
+    expect(policy).toContain("script-src 'self';");
+    await expect(mobile.getByTestId("tour-bar-sub")).toContainText(
+      "Meine Tour",
+    );
     await expect(
-      mobile.getByRole("heading", { name: "Meine Tour", level: 1 }),
-    ).toBeVisible();
+      mobile.locator('.pwa-tab[data-nav-key="delivery"]'),
+    ).toHaveAttribute("aria-current", "page");
     const next = mobile.getByTestId("tour-next-stop");
     await expect(next).toBeVisible();
-    await expect(mobile.getByTestId("tour-stop")).toHaveCount(openCount - 2);
+    await expect(mobile.getByTestId("tour-stop")).toHaveCount(openCount - 1);
+    await expect(mobile.getByText("Reihenfolge ändern")).toHaveCount(0);
     await expectAccessible(mobile);
 
-    // She moves her first open stop down and finishes the edit.
-    await mobile.getByTestId("tour-reorder").click();
-    await mobile
-      .getByTestId("tour-stop")
-      .first()
-      .getByRole("button", { name: /nach unten/ })
-      .click();
-    await mobile.getByTestId("tour-reorder-done").click();
+    // The dock's still map (D17) for the next stop, when it has a pin.
+    // Long names and the map never widen the dock past the screen.
+    expect(
+      await mobile
+        .getByTestId("tour-dock")
+        .evaluate((dock) => dock.scrollWidth <= dock.clientWidth),
+    ).toBe(true);
+    for (const scheme of ["light", "dark"]) {
+      await mobile.emulateMedia({ colorScheme: scheme });
+      await mobile.screenshot({
+        animations: "disabled",
+        path: `${artifactDirectory}/delivery-tours-dock-390-${scheme}.png`,
+      });
+    }
+    await mobile.emulateMedia({ colorScheme: "light" });
+
+    // "Karte" (§7.2): the same numbered pins as on Klara's map.
+    const mapToggle = mobile.getByRole("button", {
+      name: "Karte",
+      exact: true,
+    });
+    await mapToggle.click();
+    const mapView = mobile.getByTestId("tour-mapview");
+    await expect(mapView.getByTestId("tour-map-canvas")).toHaveAttribute(
+      "data-ready",
+      "true",
+    );
+    await expect(mapView.locator(".tour-pin[data-pin-id]")).toHaveCount(
+      annaPins.length,
+    );
+    expect(await mapPins(mapView)).toEqual(annaPins);
+    // 44 px targets for pins and zoom buttons (WCAG 2.5.5, car mount).
+    for (const target of [
+      mapView.locator(".tour-pin[data-pin-id]").first(),
+      mapView.locator(".leaflet-control-zoom-in"),
+      mapView.locator(".leaflet-control-zoom-out"),
+    ]) {
+      const box = await target.boundingBox();
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+    await expectAccessible(mobile);
+    for (const scheme of ["light", "dark"]) {
+      await mobile.emulateMedia({ colorScheme: scheme });
+      await mobile.screenshot({
+        animations: "disabled",
+        path: `${artifactDirectory}/delivery-tours-map-390-${scheme}.png`,
+      });
+    }
+    await mobile.emulateMedia({ colorScheme: "light" });
+    // A pin opens its stop as a sheet with the dock's buttons.
+    await mapView.locator(".tour-pin[data-pin-id]").first().click();
     await expect(
-      mobile.getByText("Deine Reihenfolge ist gespeichert."),
+      mobile.getByTestId("tour-dock").or(mobile.getByTestId("tour-done-sheet")),
     ).toBeVisible();
-    await expect(mobile.getByTestId("tour-reorder-done")).toHaveCount(0);
+    await mapToggle.click();
+    await expect(mapView).toHaveCount(0);
+
+    // She moves an open stop down at its grip; the move saves at once (D16).
+    // A stop whose next row in the window is open too, so down can move.
+    const movable = await mobile
+      .locator("ol.tour-rows > li[data-testid='tour-stop']")
+      .evaluateAll((rows) =>
+        rows
+          .find(
+            (row) =>
+              row.querySelector(".task-order-handle") &&
+              row.nextElementSibling?.getAttribute("data-testid") ===
+                "tour-stop",
+          )
+          ?.getAttribute("data-commitment-id"),
+      );
+    expect(movable).toBeTruthy();
+    const moved = mobile.locator(`li[data-commitment-id="${movable}"]`);
+    const below = moved.locator("xpath=following-sibling::li[1]");
+    const grip = await moved
+      .getByRole("button", { name: /^Stopp verschieben: / })
+      .boundingBox();
+    const target = await below.boundingBox();
+    const belowId = await below.getAttribute("data-commitment-id");
+    expect(grip && target && belowId).toBeTruthy();
+    // Drag at the grip onto the lower half of the next row.
+    await mobile.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await mobile.mouse.down();
+    await mobile.mouse.move(
+      grip.x + grip.width / 2,
+      target.y + target.height * 0.75,
+      { steps: 12 },
+    );
+    await mobile.mouse.up();
+    await expect(
+      moved.locator("xpath=preceding-sibling::li[1]"),
+    ).toHaveAttribute("data-commitment-id", belowId);
+    await expect(mobile.getByText("Reihenfolge gespeichert.")).toBeVisible();
+    await expect(mobile.getByTestId("tour-bar-sub")).toContainText(
+      "Eigene Reihenfolge",
+    );
 
     // Deliver, undo, deliver again. The delivered stop stays in its place,
-    // greyed (D15); "Rückgängig" is the one on the toast just shown.
+    // greyed (D15), and the dock moves on without scrolling (critique P0-1);
+    // "Rückgängig" is the one on the toast just shown.
     const rows = mobile.locator("ol.tour-rows > li");
     const done = mobile.getByTestId("tour-stop-done");
     const doneBefore = await done.count();
     const slot = await rows.evaluateAll((items) =>
-      items.findIndex((item) => item.classList.contains("tour-next")),
+      items.findIndex((item) => item.classList.contains("is-current")),
     );
     expect(slot).toBeGreaterThanOrEqual(0);
-    await next.getByRole("button", { name: "Zugestellt" }).click();
+    const docked = await next.getByRole("heading").textContent();
+    const deliver = next.getByRole("button", { name: "Zugestellt" });
+    const scrolled = await mobile.evaluate(() => window.scrollY);
+    await deliver.click();
     await expect(mobile.getByText(/: zugestellt\.$/)).toBeVisible();
     await expect(done).toHaveCount(doneBefore + 1);
     await expect(rows.nth(slot)).toHaveAttribute(
@@ -379,8 +548,17 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
       "tour-stop-done",
     );
     await expect(rows.nth(slot)).toHaveClass(/is-done/);
-    await expect(mobile.getByTestId("tour-next-stop")).toBeVisible();
-    await mobile.getByRole("button", { name: "Rückgängig" }).click();
+    await expect(next.getByRole("heading")).not.toHaveText(docked ?? "");
+    await expect(
+      next.getByRole("button", { name: "Zugestellt" }),
+    ).toBeInViewport();
+    expect(await mobile.evaluate(() => window.scrollY)).toBe(scrolled);
+    // The order toast may still show its own "Rückgängig": take the stop's.
+    await mobile
+      .locator(".toast")
+      .filter({ hasText: /: zugestellt\./ })
+      .getByRole("button", { name: "Rückgängig" })
+      .click();
     await expect(mobile.getByText(/ ist wieder offen\.$/)).toBeVisible();
     await expect(done).toHaveCount(doneBefore);
     await mobile
@@ -400,7 +578,11 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
       .click();
     await expect(mobile.getByText(/: nicht angetroffen\.$/)).toBeVisible();
     await mobile.reload();
-    await expect(done.filter({ hasText: "Nicht angetroffen" })).toHaveCount(1);
+    await expect(
+      done.filter({
+        has: mobile.getByRole("img", { name: "Nicht angetroffen" }),
+      }),
+    ).toHaveCount(1);
     for (const scheme of ["light", "dark"]) {
       await mobile.emulateMedia({ colorScheme: scheme });
       await mobile.screenshot({

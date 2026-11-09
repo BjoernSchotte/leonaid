@@ -1,86 +1,237 @@
+@import "leaflet/dist/leaflet.css";
+
 /*
- * Delivery tours. "Meine Tour" (PWA, spec krapfentaxi-touren §7) is scoped
- * to .tour, the web planner "Touren" (§6) to .tour-plan; both sit on
- * .delivery for the board's filters, stamp and helpers. PWA touch targets
- * are 44 px (--control-h-lg); focus uses --focus.
+ * Delivery tours. "Meine Tour" (PWA, spec krapfentaxi-touren §7, critique
+ * §3) is scoped to .tour, the web planner "Touren" (§6) to .tour-plan; both
+ * sit on .delivery for the board's filters, stamp and helpers. Sizes for a
+ * phone in a car mount: rows 56/48 px, labels 32 px, secondary 48 px,
+ * "Zugestellt" 64 px. Colours from leitsystem.css only.
  */
 .tour {
   display: grid;
-  gap: var(--s-4);
+  gap: 0;
   align-content: start;
   max-width: 720px;
+  /* The list scrolls clear of the fixed dock (height from useDockHeight). */
+  padding-bottom: calc(var(--tour-dock-h, 0px) + var(--s-4));
 }
-.tour .page-header {
-  margin-bottom: 0;
+/* The tour runs edge to edge under the app bar. */
+.pwa-screen:has(> .tour) {
+  padding-top: 0;
 }
-.tour-sub {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-}
-.tour .btn-icon.btn-lg {
-  width: var(--control-h-lg);
-}
-.tour-list-head {
-  display: flex;
-  justify-content: flex-end;
-}
-.tour-list-head .btn {
-  height: var(--control-h-lg);
+.tour > .empty-state,
+.tour > .skeleton-rows,
+.tour > [role="alert"] {
+  margin-top: var(--s-5);
 }
 
-/* ---------- edit mode ---------- */
-.tour-edit-bar {
+/* ---------- bar (critique §3 A) ---------- */
+.tour-bar-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tour-bar-count {
+  padding-inline: var(--s-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.tour-bar-menu {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.tour-bar-menu:hover {
+  background: var(--rail-bg-2);
+}
+/* The meter is the bar's 4 px lower edge. */
+.tour-bar-meter {
+  position: absolute;
+  inset: auto 0 0;
+}
+.tour-bar-meter .meter,
+.pwa .tour-bar-meter .meter {
+  height: 4px;
+  border-radius: 0;
+  background: var(--rail-bg-2);
+}
+/* Outside the PWA shell (tests, previews): the page's own bar. */
+.tour-bar.is-inline {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: 56px;
+  padding: 0 var(--s-2) 0 var(--s-4);
+  background: var(--rail-bg);
+  color: var(--rail-text);
+}
+.tour-bar-title {
+  display: grid;
+  min-width: 0;
+  line-height: 1.2;
+}
+.tour-bar-name {
+  overflow: hidden;
+  font-weight: var(--fw-bold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tour-bar.is-inline .tour-bar-sub {
+  color: var(--rail-text-2);
+  font-size: var(--fs-xs);
+}
+.tour-bar-end {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+.tour-menu {
   display: grid;
   gap: var(--s-3);
-  padding: var(--s-4);
-  border: var(--hair) solid var(--zone-line);
-  border-radius: var(--r-lg);
-  background: var(--zone-soft);
-  color: var(--zone-ink);
-  font-size: var(--fs-sm);
+  min-width: 240px;
+  padding: var(--s-3);
 }
-.tour-edit-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
+.tour-menu-field {
+  display: grid;
+  gap: var(--s-1);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.tour-menu-field .input {
+  min-height: 48px;
 }
 
-/* ---------- window groups ---------- */
-.tour-window {
-  border: var(--hair) solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  overflow: hidden;
+/* ---------- list (critique §3 B) ---------- */
+.tour-list {
+  margin-inline: calc(-1 * var(--s-4));
 }
-.tour-window.is-closed {
-  background: var(--surface-2);
+.tour-window + .tour-window {
+  border-top: var(--hair) solid var(--border);
 }
-.tour-window-head {
+.tour-label {
+  position: sticky;
+  top: 0;
+  z-index: 3;
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--s-1) var(--s-3);
-  padding: var(--s-3) var(--s-4);
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 32px;
+  padding: 0 var(--s-4);
   border-bottom: var(--hair) solid var(--border);
-}
-.tour-window-head h2 {
-  margin-inline-end: auto;
-  font-size: var(--fs-md);
+  background: var(--bg);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
   font-weight: var(--fw-semibold);
   line-height: var(--lh-tight);
 }
+.pwa .tour-label {
+  top: calc(var(--pwa-bar-h) + env(safe-area-inset-top));
+}
+.tour-label-hint {
+  margin-inline-start: auto;
+  font-weight: var(--fw-medium);
+}
+.tour-label-hint.is-warn {
+  color: var(--warn);
+  font-weight: var(--fw-semibold);
+}
+.tour-label .stamp {
+  margin-inline-start: auto;
+}
+.tour-label-toggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.tour-label-chevron {
+  flex: none;
+  color: var(--text-3);
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.tour-label-toggle[aria-expanded="true"] .tour-label-chevron {
+  transform: rotate(180deg);
+}
+.tour-label-toggle:focus-visible,
+.tour-row-main:focus-visible,
+.tour-dock-grip:focus-visible,
+.tour-dock-back:focus-visible,
+.tour-map-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
 .tour-rows > li + li {
   border-top: var(--hair) solid var(--border);
 }
+.tour .row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--s-2);
+  min-height: 56px;
+  padding: 0 var(--s-4) 0 0;
+  border-bottom: 0;
+  background: var(--surface);
+  /* The zone line of the stop in the dock, kept as space on the others. */
+  border-inline-start: 4px solid transparent;
+}
+.tour .row:hover {
+  background: var(--surface);
+}
+.tour-row.is-current {
+  border-inline-start-color: var(--zone-line);
+  background: var(--zone-soft);
+}
+.tour .row[data-dragging] {
+  position: relative;
+  z-index: 4;
+  box-shadow: var(--shadow-2);
+  cursor: grabbing;
+}
 
-/* The position number: the same chip in card, row and edit row. */
+/* The grip: always there on open rows (D16), 44 × 56, only it drags. */
+.tour .task-order-handle {
+  width: 44px;
+  height: 56px;
+  margin: 0;
+  border-radius: 0;
+  color: var(--text-3);
+  touch-action: none;
+}
+.tour .task-order-handle svg {
+  width: 18px;
+  height: 18px;
+}
+.tour-handle-space {
+  flex: none;
+  width: 44px;
+}
+
+/* The position chip: the same in rows and dock. */
 .tour-pos {
   display: inline-grid;
   place-items: center;
   flex: none;
-  min-width: 26px;
-  height: 26px;
+  min-width: 28px;
+  height: 28px;
   padding: 0 6px;
   border-radius: var(--r-pill);
   background: var(--zone-soft);
@@ -88,232 +239,371 @@
   font-size: var(--fs-sm);
   font-weight: var(--fw-bold);
 }
+.tour-row.is-current .tour-pos {
+  background: var(--zone);
+  color: var(--on-accent);
+}
 
-/* ---------- rows ---------- */
-.tour .row {
-  display: block;
-  min-height: 0;
-  padding: 0;
-  border-bottom: 0;
-}
-.tour .row:hover {
-  background: var(--surface);
-}
-.tour-row-line {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  min-height: 56px;
-  padding: var(--s-2) var(--s-3) var(--s-2) var(--s-4);
-}
 .tour-row-main {
-  flex: 1;
-  min-width: 0;
   display: grid;
+  flex: 1;
+  align-content: center;
   gap: 2px;
-}
-/* Two stacked 44 px targets: the name opens the card, the street opens
-   OpenStreetMap (D15). The gap keeps a slip of the thumb off the other. */
-.tour-row-main:has(.tour-row-map) {
-  gap: var(--s-2);
-}
-.tour-row-toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  min-height: var(--control-h-lg);
+  min-width: 0;
+  min-height: 56px;
   padding: 0;
   border: 0;
-  border-radius: var(--r-sm);
   background: none;
   color: inherit;
   font: inherit;
   text-align: start;
   cursor: pointer;
 }
-.tour-row-toggle:focus-visible,
-.tour-address:focus-visible,
-.tour-row-map:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+.tour-row-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
 }
 .tour-row-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 1rem;
   font-weight: var(--fw-semibold);
-  overflow-wrap: anywhere;
+  line-height: var(--lh-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.tour-row-chevron {
+.tour-row-head .badge {
   flex: none;
-  color: var(--text-3);
-  transition: transform var(--dur-1) var(--ease-out);
 }
-.tour-row.is-expanded .tour-row-chevron {
-  transform: rotate(180deg);
-}
-.tour-row-sub {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-1) var(--s-2);
+.tour-row-street {
+  overflow: hidden;
   color: var(--text-2);
   font-size: var(--fs-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.tour-row-map {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: var(--control-h-lg);
-  padding-inline-end: var(--s-2);
-  border-radius: var(--r-sm);
-  color: var(--accent-ink);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.tour-row-map > svg {
+.tour-row-qty {
   flex: none;
-}
-.tour-row-state {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex: none;
-  color: var(--text-2);
-  font-size: var(--fs-xs);
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
   font-weight: var(--fw-semibold);
 }
-.tour-row-tools {
-  display: inline-flex;
-  gap: var(--s-1);
-  flex: none;
-}
-.tour-row.is-editing .task-order-handle {
-  width: var(--control-h-lg);
-  height: var(--control-h-lg);
-  margin-inline-start: calc(-1 * var(--s-2));
-}
-.tour .row[data-dragging] {
-  position: relative;
-  z-index: 2;
-  background: var(--surface);
-  box-shadow: var(--shadow-2);
-  cursor: grabbing;
-}
 
-/* Done stops stay in place: one greyed line (D15). */
-.tour-row.is-done .tour-row-line {
+/* Done stops stay in place: one grey 48 px line (D15). */
+.tour .row.is-done {
   min-height: 48px;
   background: var(--surface-2);
 }
-.tour-row.is-done .tour-row-name,
-.tour-row.is-done .tour-pos {
+.tour-row.is-done .tour-row-main {
+  min-height: 48px;
+}
+.tour-row.is-done .tour-row-name {
   color: var(--text-3);
+  font-weight: var(--fw-medium);
 }
 .tour-row.is-done .tour-pos {
   background: var(--surface-3);
+  color: var(--text-3);
 }
 .tour-row.is-cancelled .tour-row-name {
-  color: var(--text-3);
   text-decoration: line-through;
 }
-.tour-row.is-expanded .tour-card {
-  margin: 0 var(--s-3) var(--s-3);
+.tour-row-state {
+  display: inline-flex;
+  flex: none;
 }
-
-/* ---------- the stop card ---------- */
-.tour-card {
+.tour-done-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--s-3);
-  padding: var(--s-4);
-  border: var(--hair) solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-}
-.tour-next {
-  padding: var(--s-3);
-  background: var(--zone-soft);
-}
-.tour-card.is-next {
-  border-color: var(--zone-line);
-  box-shadow: var(--shadow-1);
-}
-.tour-card-eyebrow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-2);
+  flex-basis: 100%;
+  gap: var(--s-1);
+  padding: 0 0 var(--s-3) calc(44px + 28px + var(--s-2) * 2);
   color: var(--text-2);
   font-size: var(--fs-sm);
+}
+.tour-done-state {
+  color: var(--text);
   font-weight: var(--fw-semibold);
 }
-.tour-card.is-next .tour-pos {
-  background: var(--zone);
-  color: var(--on-accent);
+.tour-done-undo.btn {
+  justify-self: start;
+  height: 48px;
+  margin-top: var(--s-2);
 }
-.tour-card h3 {
-  font-size: var(--fs-xl);
-  font-weight: var(--fw-bold);
-  line-height: var(--lh-tight);
-  overflow-wrap: anywhere;
+
+/* ---------- dock (critique §3 C) ---------- */
+.tour-dock {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  z-index: 35;
+  box-sizing: border-box;
+  width: min(100%, 480px);
+  padding: 0 var(--s-4) var(--s-3);
+  transform: translateX(-50%);
+  border-radius: 16px 16px 0 0;
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
 }
-.tour-card-buyer,
-.tour-card-muted {
-  color: var(--text-2);
-  font-size: var(--fs-sm);
+/* Above the tab bar: its 60 px tabs, 4 px padding and hairline. */
+.pwa:has(.pwa-tabs) .tour-dock {
+  bottom: calc(
+    var(--pwa-tab-h) + var(--s-1) + var(--hair) + env(safe-area-inset-bottom)
+  );
 }
-.tour-address {
-  display: flex;
-  align-items: flex-start;
+.pwa:not(:has(.pwa-tabs)) .tour-dock {
+  padding-bottom: calc(var(--s-3) + env(safe-area-inset-bottom));
+}
+/* Toasts ("…: zugestellt", "Rückgängig") sit above the dock, not on it. */
+html:has(.tour-dock) .toaster {
+  bottom: calc(
+    var(--tour-dock-h, 0px) + var(--pwa-tab-h) + var(--s-3) +
+      env(safe-area-inset-bottom)
+  );
+}
+.tour-dock-grip {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  touch-action: none;
+}
+.tour-dock-grip > span {
+  width: 36px;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--border-strong);
+}
+.tour-dock-body {
+  display: grid;
+  /* One column at the dock's width: a long name or the map never widens it. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s-2);
-  border-radius: var(--r-sm);
-  color: var(--accent-ink);
-  font-size: var(--fs-md);
-  line-height: var(--lh-ui);
+  animation: tour-dock-in 150ms var(--ease-out);
 }
-.tour-address > svg {
-  flex: none;
-  margin-top: 3px;
+.tour-dock-done {
+  padding-top: var(--s-4);
 }
-.tour-contact {
+@keyframes tour-dock-in {
+  from {
+    opacity: 0;
+  }
+}
+.tour-dock-eyebrow {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--s-3);
-  padding: var(--s-3);
-  border-radius: var(--r-md);
-  background: var(--surface-2);
-}
-.tour-contact-text {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-  font-size: var(--fs-sm);
-}
-.tour-contact-text span {
+  gap: var(--s-2);
   color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.tour-dock-back {
+  min-height: 44px;
+  padding: 0 var(--s-1);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--accent-ink);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.tour-dock-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 48px;
+}
+.tour-dock-head .tour-pos {
+  background: var(--zone);
+  color: var(--on-accent);
+}
+.tour-dock-title {
+  flex: 1;
+  min-width: 0;
+}
+.tour-dock-title h2 {
+  overflow: hidden;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tour-dock-title h2:focus {
+  outline: none;
+}
+.tour-dock-title h2:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 .tour-qty {
+  flex: none;
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-md);
+  background: var(--zone-soft);
+  color: var(--zone-ink);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xl);
   font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
 }
-.tour-card-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.tour-dock-muted {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.tour-dock-done-title {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+}
+.tour-dock-done-title:focus {
+  outline: none;
+}
+.tour-dock-reason {
+  padding: var(--s-3) 0;
+}
+.tour-dock-flags {
+  display: flex;
   gap: var(--s-2);
 }
-.tour-card-actions .btn {
-  width: 100%;
-  padding-inline: var(--s-2);
+.tour-dock-address {
+  overflow: hidden;
+  font-size: var(--fs-lg);
+  line-height: var(--lh-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.tour-card-actions .btn > svg {
-  flex: none;
+
+/* The map in the dock (critique §3 C3): 140 px, no pan or zoom; a tap
+   opens the map view. Without a pin, one muted line. */
+.tour-map {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
 }
-.tour-wide {
-  grid-column: 1 / -1;
+.tour-map-frame {
+  position: relative;
+  height: 140px;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
 }
-.tour-card-state {
+.tour-map-frame .tour-map-canvas {
+  height: 100%;
+}
+/* Over the still map: one target for "open the map". */
+.tour-map-open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.tour-map-open:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.tour-map-none {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+.tour-map-link {
   display: inline-flex;
   align-items: center;
+  justify-self: start;
+  gap: 6px;
+  min-height: 44px;
+  border-radius: var(--r-sm);
+  color: var(--accent-ink);
+  font-size: var(--fs-sm);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tour-dock-actions {
+  display: flex;
   gap: var(--s-2);
-  font-weight: var(--fw-semibold);
+}
+.tour-dock-actions .btn {
+  height: 48px;
+  min-height: 48px;
+}
+.tour-nav.btn {
+  flex: 1;
+  min-width: 0;
+}
+.tour-call.btn {
+  width: 48px;
+  min-width: 48px;
+}
+.tour-missed.btn {
+  padding-inline: var(--s-3);
+}
+/* "Zugestellt": 64 px, full width, 16 px clear of the row above, a
+   saturated fill with light text in both themes (critique P1-2). */
+.tour-go.btn {
+  width: 100%;
+  height: 64px;
+  margin-top: var(--s-2);
+  font-size: var(--fs-lg);
+}
+.tour-go.btn > svg {
+  width: 22px;
+  height: 22px;
+}
+:root[data-theme="dark"] .tour-go.btn {
+  background: var(--rail-active);
+  color: var(--rail-text);
+}
+:root[data-theme="dark"] .tour-go.btn:hover:not(:disabled) {
+  background: var(--rail-bg-2);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tour-go.btn {
+    background: var(--rail-active);
+    color: var(--rail-text);
+  }
+  :root:not([data-theme="light"]) .tour-go.btn:hover:not(:disabled) {
+    background: var(--rail-bg-2);
+  }
+}
+
+/* Folded: name, quantity and "Zugestellt" for scanning the list. */
+.tour-dock-body.is-folded {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-3);
+}
+.tour-dock-body.is-folded .tour-dock-head {
+  gap: var(--s-2);
+}
+.tour-dock-body.is-folded .tour-dock-title h2,
+.tour-dock-body.is-folded .tour-qty {
+  font-size: var(--fs-lg);
+}
+.tour-dock-body.is-folded .tour-go.btn {
+  width: auto;
+  height: 56px;
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-dock-body,
+  .tour .row,
+  .tour-label-chevron {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 /* ================= web planner "Touren" (§6) ================= */
@@ -330,11 +620,6 @@
 }
 .tour-plan .bulkbar {
   margin: 0 0 var(--s-4);
-}
-.tour-plan-hint {
-  margin-bottom: var(--s-4);
-  color: var(--text-2);
-  font-size: var(--fs-sm);
 }
 
 /* Columns side by side; with many drivers the row scrolls, not the page. */
@@ -358,9 +643,6 @@
 }
 .tour-lane.is-unassigned {
   background: var(--surface-2);
-}
-.tour-lane.is-dirty {
-  border-color: var(--warn);
 }
 .tour-lane.is-over {
   border-color: var(--zone);
@@ -394,6 +676,13 @@
   color: var(--text-2);
   font-size: var(--fs-sm);
   overflow-wrap: anywhere;
+}
+/* Load per window, one line each: "08–10: 3 Stopps, 42 Stk". */
+.tour-lane-load {
+  display: grid;
+  gap: 2px;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
 }
 .tour-lane-hint {
   display: grid;
@@ -500,13 +789,27 @@
   font-size: var(--fs-xs);
   overflow-wrap: anywhere;
 }
-.tour-stop.is-done .tour-stop-name > span:first-child {
-  color: var(--text-2);
+/* Delivered and missed stops stay in place, dimmed as in the driver view. */
+.tour-plan .tour-stop.is-done {
+  background: var(--surface-2);
+}
+.tour-stop.is-done .tour-stop-name > span:first-child,
+.tour-stop.is-done .tour-stop-sub {
+  color: var(--text-3);
+}
+.tour-stop.is-done .tour-pos {
+  background: var(--surface-3);
+  color: var(--text-3);
 }
 .tour-stop-tools {
   display: inline-flex;
   flex: none;
   gap: 2px;
+}
+/* The end of a window: no arrow, the same space, so the others line up. */
+.tour-stop-tools-space {
+  display: inline-block;
+  width: 28px;
 }
 
 @media (max-width: 720px) {
@@ -528,7 +831,8 @@
     width: 20px;
     height: 20px;
   }
-  .tour-stop-tools .btn-icon {
+  .tour-stop-tools .btn-icon,
+  .tour-stop-tools-space {
     width: var(--control-h-lg);
     height: var(--control-h-lg);
   }
@@ -541,4 +845,356 @@
   .tour-lane {
     transition: none !important;
   }
+}
+
+/* ================= map (§6.1, §7.2, §8.1) ================= */
+/* Leaflet's panes carry z-indexes up to 1000: isolate them, so popovers,
+   toasts and the dock stay above the map. */
+.tour-map-canvas {
+  position: relative;
+  isolation: isolate;
+  min-height: 0;
+}
+.tour-map-host {
+  width: 100%;
+  height: 100%;
+}
+.tour-map-canvas .leaflet-container {
+  background: var(--surface-2);
+  font: inherit;
+  font-size: var(--fs-xs);
+}
+.tour-map-canvas.is-placing .leaflet-container {
+  cursor: crosshair;
+}
+.tour-map-canvas.is-static .leaflet-container {
+  cursor: inherit;
+}
+.tour-map-canvas .leaflet-control-attribution {
+  background: color-mix(in oklch, var(--surface) 86%, transparent);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+}
+/* Zoom buttons: 44 px targets for a phone in a car mount. */
+.tour-map-canvas .leaflet-bar a {
+  width: 44px;
+  height: 44px;
+  border-bottom-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 22px;
+  line-height: 44px;
+}
+.tour-map-canvas .leaflet-bar a:hover {
+  background: var(--row-hover);
+}
+.tour-map-canvas .leaflet-bar {
+  border: var(--hair) solid var(--border);
+  box-shadow: var(--shadow-1);
+}
+.tour-map-canvas .leaflet-container:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+/* Tiles are drawn for daylight; dim them a little in dark mode. */
+:root[data-theme="dark"] .tour-map-canvas .leaflet-tile-pane {
+  filter: brightness(0.82) contrast(1.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tour-map-canvas .leaflet-tile-pane {
+    filter: brightness(0.82) contrast(1.05);
+  }
+}
+
+/* Pins: a 44 px target (Leaflet places it by transform and sets its size)
+   around a 28 px numbered disc in the driver's colour. */
+.tour-pin {
+  --pin-h: 205;
+  --pin-c: 0.13;
+  --pin-bg: oklch(var(--zl) calc(var(--pin-c) * var(--zk)) var(--pin-h));
+  --pin-fg: var(--text-inverse);
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+.tour-pin-dot {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--pin-bg);
+  box-shadow: var(--shadow-1);
+  color: var(--pin-fg);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  line-height: 1;
+}
+.tour-pin--driver-1 {
+  --pin-h: 262;
+  --pin-c: 0.15;
+}
+.tour-pin--driver-2 {
+  --pin-h: 27;
+  --pin-c: 0.17;
+}
+.tour-pin--driver-3 {
+  --pin-h: 150;
+  --pin-c: 0.13;
+}
+.tour-pin--driver-4 {
+  --pin-h: 300;
+  --pin-c: 0.15;
+}
+.tour-pin--driver-5 {
+  --pin-h: 60;
+  --pin-c: 0.15;
+}
+.tour-pin--driver-6 {
+  --pin-h: 340;
+  --pin-c: 0.15;
+}
+.tour-pin--driver-7 {
+  --pin-h: 100;
+  --pin-c: 0.12;
+}
+.tour-pin--unassigned {
+  --pin-bg: var(--neutral);
+}
+.tour-pin--done {
+  --pin-bg: var(--surface-3);
+  --pin-fg: var(--text-3);
+}
+.tour-pin--done .tour-pin-dot {
+  box-shadow: none;
+}
+.tour-pin.is-selected .tour-pin-dot {
+  box-shadow:
+    0 0 0 3px var(--focus),
+    var(--shadow-2);
+}
+.tour-pin:focus-visible {
+  outline: none;
+}
+.tour-pin:focus-visible .tour-pin-dot {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.tour-pin--start .tour-pin-dot {
+  width: 30px;
+  height: 30px;
+  border-color: var(--text);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text);
+}
+.tour-pin--me .tour-pin-dot {
+  width: 18px;
+  height: 18px;
+  border-width: 3px;
+  background: var(--info);
+  box-shadow: 0 0 0 6px color-mix(in oklch, var(--info) 30%, transparent);
+}
+.tour-line {
+  fill: none;
+  stroke: var(--text-2);
+  stroke-width: 3px;
+  stroke-opacity: 0.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tour-line.is-dashed {
+  stroke: var(--zone);
+  stroke-dasharray: 6 7;
+  stroke-opacity: 1;
+}
+
+/* ---------- driver map view (§7.2) ---------- */
+.tour-bar-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.tour-bar-toggle[aria-pressed="true"] {
+  background: color-mix(in oklch, currentColor 16%, transparent);
+}
+.tour-bar-toggle:hover {
+  background: color-mix(in oklch, currentColor 10%, transparent);
+}
+.tour-bar-toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+/* Full height between the app bar and the tab bar (fixed, like the dock). */
+.tour-mapview {
+  position: fixed;
+  top: calc(var(--pwa-bar-h) + env(safe-area-inset-top));
+  bottom: 0;
+  left: 50%;
+  z-index: 1;
+  width: min(100%, 480px);
+  transform: translateX(-50%);
+}
+.pwa:has(.pwa-tabs) .tour-mapview {
+  bottom: calc(
+    var(--pwa-tab-h) + var(--s-1) + var(--hair) + env(safe-area-inset-bottom)
+  );
+}
+.tour:has(.tour-mapview) {
+  padding-bottom: 0;
+}
+.tour-mapview > .tour-map-canvas {
+  height: 100%;
+}
+.tour-mapview-tools {
+  position: absolute;
+  top: var(--s-3);
+  right: var(--s-3);
+  z-index: 1;
+  display: grid;
+  gap: var(--s-2);
+}
+.tour-mapview-tools .btn {
+  box-shadow: var(--shadow-2);
+}
+.tour-mapview-empty {
+  position: absolute;
+  top: var(--s-3);
+  left: var(--s-3);
+  right: calc(var(--s-3) + 160px);
+  z-index: 1;
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+/* The map view's sheet: a close button above the stop's head. */
+.tour-dock:has(> .tour-dock-close) {
+  padding-top: 44px;
+}
+.tour-dock-close.btn {
+  position: absolute;
+  top: 0;
+  right: var(--s-2);
+}
+
+/* ---------- planner map (§6.1, §6.4) ---------- */
+.tour-plan-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 32%);
+  gap: var(--s-4);
+  align-items: start;
+}
+.tour-plan-map {
+  position: sticky;
+  top: var(--s-4);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--s-2);
+  height: min(calc(100dvh - 2 * var(--s-4)), 760px);
+}
+.tour-plan-map > .tour-map-canvas {
+  height: 100%;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.tour-plan-map-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 36px;
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.tour-plan-map-bar.is-placing {
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--zone-soft);
+  color: var(--text);
+}
+.tour-plan-map-bar > span {
+  flex: 1 1 200px;
+}
+/* "Adresse nicht gefunden · Pin setzen" gets its own line under the stop,
+   so the name keeps the column's width. */
+.tour-plan .tour-stop:has(> .tour-stop-pin) {
+  flex-wrap: wrap;
+}
+.tour-stop-pin {
+  order: 1;
+  display: flex;
+  flex: 1 0 100%;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-2);
+  color: var(--warn);
+}
+.tour-stop-pin .btn {
+  height: 28px;
+  min-height: 28px;
+}
+@media (max-width: 1100px) {
+  .tour-plan-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tour-plan-map {
+    position: static;
+    order: -1;
+    height: 360px;
+  }
+}
+
+/* Placing a pin by keyboard: the crosshair marks the map centre. */
+.tour-map-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1000;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border: 2px solid var(--zone);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.tour-map-crosshair::before,
+.tour-map-crosshair::after {
+  content: "";
+  position: absolute;
+  background: var(--zone);
+}
+.tour-map-crosshair::before {
+  top: 12px;
+  left: -8px;
+  width: 40px;
+  height: 2px;
+}
+.tour-map-crosshair::after {
+  top: -8px;
+  left: 12px;
+  width: 2px;
+  height: 40px;
+}
+.tour-map-center.btn {
+  position: absolute;
+  bottom: var(--s-4);
+  left: 50%;
+  z-index: 1000;
+  transform: translateX(-50%);
+  box-shadow: var(--shadow-2);
 }

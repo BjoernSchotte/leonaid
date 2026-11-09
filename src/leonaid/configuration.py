@@ -17,6 +17,7 @@ from pydantic import (
     HttpUrl,
     SecretStr,
     ValidationError,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -686,6 +687,139 @@ class RetentionSettings(BaseSettings):
     )
 
 
+DEFAULT_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+DEFAULT_TILE_ORIGIN = "https://tile.openstreetmap.org"
+DEFAULT_ATTRIBUTION = "© OpenStreetMap-Mitwirkende"
+DEFAULT_GEOCODER_URL = "https://nominatim.openstreetmap.org/search"
+_HEADER_TEXT = re.compile(r"[\x20-\x7e]+\Z")
+
+
+def _origin_of(url: str) -> str:
+    parsed = urlparse(url)
+    port = f":{parsed.port}" if parsed.port is not None else ""
+    return f"{parsed.scheme}://{(parsed.hostname or '').casefold()}{port}"
+
+
+class MapSettings(BaseSettings):
+    """Map tiles and the geocoder of the installation (specs/krapfentaxi-touren §8).
+
+    The browser loads tiles from ``tile_url``; the CSP opens ``img-src`` for
+    ``tile_origin`` only, so an absolute tile URL must name that origin. A
+    path (``/tiles/...``) is served by the own host. The worker sends only
+    street, postal code, city and country to ``geocoder_url`` (a Nominatim
+    JSON API) with ``geocoder_user_agent``, as the Nominatim usage policy
+    asks.
+    """
+
+    model_config = SettingsConfigDict(
+        case_sensitive=True,
+        extra="ignore",
+        populate_by_name=True,
+    )
+
+    tile_url: str = Field(default=DEFAULT_TILE_URL, alias="LEONAID_MAP_TILE_URL")
+    tile_origin: str = Field(
+        default=DEFAULT_TILE_ORIGIN, alias="LEONAID_MAP_TILE_ORIGIN"
+    )
+    attribution: str = Field(
+        default=DEFAULT_ATTRIBUTION, alias="LEONAID_MAP_ATTRIBUTION"
+    )
+    geocoder_url: str = Field(
+        default=DEFAULT_GEOCODER_URL, alias="LEONAID_GEOCODER_URL"
+    )
+    geocoder_user_agent_value: str = Field(
+        default="", alias="LEONAID_GEOCODER_USER_AGENT"
+    )
+    public_base_url_value: str = Field(default="", alias="LEONAID_PUBLIC_BASE_URL")
+    geocoding_interval_seconds: float = Field(
+        default=60, ge=5, le=86400, alias="LEONAID_GEOCODING_INTERVAL_SECONDS"
+    )
+
+    @field_validator(
+        "tile_url",
+        "tile_origin",
+        "attribution",
+        "geocoder_url",
+        "geocoding_interval_seconds",
+        mode="before",
+    )
+    @classmethod
+    def blank_means_default(cls, value: object, info: ValidationInfo) -> object:
+        # Compose passes unset variables as empty strings.
+        if isinstance(value, str) and not value.strip():
+            assert info.field_name is not None
+            return cls.model_fields[info.field_name].default
+        return value
+
+    @field_validator("tile_url")
+    @classmethod
+    def tile_url_is_a_template(cls, value: str) -> str:
+        if not value.startswith(("https://", "/")) or value.startswith("//"):
+            raise ValueError("must be an https URL or a path on the own host")
+        if not all(part in value for part in ("{z}", "{x}", "{y}")):
+            raise ValueError("must contain {z}, {x} and {y}")
+        if any(character.isspace() for character in value):
+            raise ValueError("must not contain whitespace")
+        return value
+
+    @field_validator("tile_origin")
+    @classmethod
+    def tile_origin_is_an_origin(cls, value: str) -> str:
+        parsed = urlparse(value)
+        if (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.path
+            or parsed.query
+            or parsed.fragment
+            or parsed.username is not None
+        ):
+            raise ValueError("must be an https origin without a path")
+        return _origin_of(value)
+
+    @field_validator("attribution")
+    @classmethod
+    def attribution_is_plain_text(cls, value: str) -> str:
+        text = " ".join(value.split())
+        if not text or len(text) > 200 or any(char in text for char in "<>"):
+            raise ValueError("must be plain text of 1 to 200 characters")
+        return text
+
+    @field_validator("geocoder_url")
+    @classmethod
+    def geocoder_url_is_http(cls, value: str) -> str:
+        parsed = urlparse(value)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            raise ValueError("must be an http(s) URL")
+        if parsed.query or parsed.fragment or parsed.username is not None:
+            raise ValueError("must not carry a query, fragment or credentials")
+        return value
+
+    @field_validator("geocoder_user_agent_value")
+    @classmethod
+    def user_agent_is_header_text(cls, value: str) -> str:
+        text = value.strip()
+        if text and (len(text) > 200 or not _HEADER_TEXT.fullmatch(text)):
+            raise ValueError("must be printable ASCII of at most 200 characters")
+        return text
+
+    @model_validator(mode="after")
+    def tiles_come_from_the_named_origin(self) -> MapSettings:
+        if self.tile_url.startswith("https://") and (
+            _origin_of(self.tile_url) != self.tile_origin
+        ):
+            raise ConfigurationError("LEONAID_MAP_TILE_ORIGIN:mismatch")
+        if not self.geocoder_user_agent_value and not self.public_base_url_value:
+            raise ConfigurationError("LEONAID_GEOCODER_USER_AGENT:missing")
+        return self
+
+    @property
+    def geocoder_user_agent(self) -> str:
+        if self.geocoder_user_agent_value:
+            return self.geocoder_user_agent_value
+        return f"LeonAid ({self.public_base_url_value.strip().rstrip('/')})"
+
+
 class ModuleSettings(BaseSettings):
     """Per-installation module switches, shared by the API and the worker.
 
@@ -772,3 +906,26 @@ def load_retention_settings() -> RetentionSettings:
         raise ConfigurationError(
             "LeonAid retention configuration is invalid: " + ", ".join(diagnostics)
         ) from None
+
+
+def load_map_settings() -> MapSettings:
+    try:
+        return MapSettings()
+    except ConfigurationError:
+        raise
+    except ValidationError as error:
+        diagnostics = sorted(
+            {
+                f"{_alias_of(item['loc'])}:{item['type']}"
+                for item in error.errors(include_url=False, include_input=False)
+            }
+        )
+        raise ConfigurationError(
+            "LeonAid map configuration is invalid: " + ", ".join(diagnostics)
+        ) from None
+
+
+def _alias_of(location: tuple[int | str, ...]) -> str:
+    name = ".".join(str(part) for part in location)
+    field = MapSettings.model_fields.get(name)
+    return field.alias if field is not None and field.alias else name

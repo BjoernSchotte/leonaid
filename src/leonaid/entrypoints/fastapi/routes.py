@@ -20,7 +20,14 @@ from fastapi.responses import PlainTextResponse
 from leonaid.application.delivery import DeliveryService
 from leonaid.application.delivery_board import DeliveryBoardService
 from leonaid.application.delivery_tours import DeliveryTourService
-from leonaid.domain.delivery_tours import DayTours, DriverTour, MyTour, TourWindow
+from leonaid.domain.delivery_tours import (
+    DayTours,
+    DriverTour,
+    MapTiles,
+    MyTour,
+    TourStopView,
+    TourWindow,
+)
 from leonaid.domain.delivery_board import DeliveryBoard, DeliveryDrop
 from leonaid.application.delivery_completion import (
     DeliveryCompletionDraft,
@@ -30,11 +37,16 @@ from leonaid.application.delivery_completion import (
 from leonaid.domain.calendar import local_day
 from leonaid.domain.delivery import (
     DeliveryConfiguration,
+    DeliveryStartPoint,
     DeliveryWindow,
     DeliveryContactSnapshot,
 )
+from leonaid.domain.delivery_geo import GeoPoint
 from leonaid.entrypoints.fastapi.schemas import (
     DeliveryConfigurationRequest,
+    DeliveryPinRequest,
+    DeliveryStartPointResponse,
+    MapTilesResponse,
     DeliveryWindowFullyBookedRequest,
     DeliveryBoardDriverResponse,
     DeliveryBoardResponse,
@@ -5360,6 +5372,41 @@ async def confirm_email_change(
     return EmailChangeConfirmationResponse.model_validate(confirmed)
 
 
+def delivery_start_point_response(
+    start: DeliveryStartPoint | None,
+) -> DeliveryStartPointResponse | None:
+    if start is None:
+        return None
+    return DeliveryStartPointResponse(
+        label=start.label,
+        address=start.address,
+        lat=None if start.point is None else float(start.point.lat),
+        lon=None if start.point is None else float(start.point.lon),
+        locating=start.locating,
+    )
+
+
+def requested_start_point(
+    body: DeliveryConfigurationRequest, current: DeliveryConfiguration
+) -> DeliveryStartPoint | None:
+    """Absent keeps the stored start point; null removes it."""
+
+    if "start_point" not in body.model_fields_set:
+        return current.start
+    start = body.start_point
+    if start is None:
+        return None
+    return DeliveryStartPoint(
+        label=start.label,
+        address=start.address,
+        point=(
+            None
+            if start.lat is None or start.lon is None
+            else GeoPoint.parse(start.lat, start.lon)
+        ),
+    )
+
+
 def delivery_configuration_response(
     configuration: DeliveryConfiguration,
     *,
@@ -5370,6 +5417,12 @@ def delivery_configuration_response(
         enabled=configuration.enabled,
         timezone=configuration.timezone,
         revision=configuration.revision,
+        # The start point is for managers and drivers, not the order form.
+        start_point=(
+            None
+            if available_only
+            else delivery_start_point_response(configuration.start)
+        ),
         windows=[
             DeliveryWindowResponse.model_validate(window)
             for window in configuration.windows
@@ -5438,6 +5491,7 @@ async def save_delivery_configuration(
         enabled=body.enabled,
         timezone=body.timezone,
         revision=body.expected_revision,
+        start=requested_start_point(body, current),
         windows=tuple(
             DeliveryWindow(
                 id=window.id or uuid4(),
@@ -5700,17 +5754,24 @@ def delivery_tour_window_response(window: TourWindow) -> DeliveryTourWindowRespo
         starts_at=window.starts_at,
         ends_at=window.ends_at,
         closed=window.closed,
-        stops=[
-            DeliveryTourStopResponse(
-                drop=delivery_drop_response(stop.drop),
-                base_rank=stop.base_rank,
-                driver_rank=stop.driver_rank,
-                effective_rank=stop.effective_rank,
-                new_for_driver=stop.new_for_driver,
-            )
-            for stop in window.stops
-        ],
+        stops=[delivery_tour_stop_response(stop) for stop in window.stops],
     )
+
+
+def delivery_tour_stop_response(stop: TourStopView) -> DeliveryTourStopResponse:
+    return DeliveryTourStopResponse(
+        drop=delivery_drop_response(stop.drop),
+        base_rank=stop.base_rank,
+        driver_rank=stop.driver_rank,
+        effective_rank=stop.effective_rank,
+        new_for_driver=stop.new_for_driver,
+        lat=None if stop.point is None else float(stop.point.lat),
+        lon=None if stop.point is None else float(stop.point.lon),
+    )
+
+
+def map_tiles_response(tiles: MapTiles) -> MapTilesResponse:
+    return MapTilesResponse(tile_url=tiles.tile_url, attribution=tiles.attribution)
 
 
 def delivery_tour_response(tour: DriverTour) -> DeliveryTourResponse:
@@ -5724,7 +5785,7 @@ def delivery_tour_response(tour: DriverTour) -> DeliveryTourResponse:
     )
 
 
-def day_tours_response(tours: DayTours) -> DeliveryDayToursResponse:
+def day_tours_response(tours: DayTours, tiles: MapTiles) -> DeliveryDayToursResponse:
     return DeliveryDayToursResponse(
         action_id=tours.action_id,
         action_name=tours.action_name,
@@ -5739,16 +5800,20 @@ def day_tours_response(tours: DayTours) -> DeliveryDayToursResponse:
             )
             for driver in tours.drivers
         ],
+        start_point=delivery_start_point_response(tours.start),
+        map=map_tiles_response(tiles),
     )
 
 
-def my_tour_response(mine: MyTour) -> MyTourResponse:
+def my_tour_response(mine: MyTour, tiles: MapTiles) -> MyTourResponse:
     return MyTourResponse(
         action_id=mine.action_id,
         action_name=mine.action_name,
         timezone=mine.timezone,
         days=list(mine.days),
         tour=delivery_tour_response(mine.tour) if mine.tour else None,
+        start_point=delivery_start_point_response(mine.start),
+        map=map_tiles_response(tiles),
     )
 
 
@@ -5766,11 +5831,12 @@ async def get_delivery_tours(
     day: date | None = None,
 ) -> DeliveryDayToursResponse:
     actor = await identity_service(request).authenticate(session_token(request))
-    tours = await delivery_tour_service(request).day_tours(
+    service = delivery_tour_service(request)
+    tours = await service.day_tours(
         actor, action_id, day=day, viewed_at=datetime.now(timezone.utc)
     )
     response.headers["Cache-Control"] = "private, no-store"
-    return day_tours_response(tours)
+    return day_tours_response(tours, service.tiles)
 
 
 @router.put(
@@ -5843,11 +5909,12 @@ async def get_my_tour(
     day: date | None = None,
 ) -> MyTourResponse:
     actor = await identity_service(request).authenticate(session_token(request))
-    mine = await delivery_tour_service(request).my_tour(
+    service = delivery_tour_service(request)
+    mine = await service.my_tour(
         actor, action_id, day=day, viewed_at=datetime.now(timezone.utc)
     )
     response.headers["Cache-Control"] = "private, no-store"
-    return my_tour_response(mine)
+    return my_tour_response(mine, service.tiles)
 
 
 @router.put(
@@ -5875,3 +5942,35 @@ async def save_my_tour_order(
     )
     response.headers["Cache-Control"] = "private, no-store"
     return delivery_tour_response(tour)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/delivery-geo/{commitment_id}",
+    operation_id="setDeliveryPin",
+    response_model=DeliveryTourStopResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def set_delivery_pin(
+    action_id: UUID,
+    commitment_id: UUID,
+    body: DeliveryPinRequest,
+    request: Request,
+    response: Response,
+) -> DeliveryTourStopResponse:
+    """The manager's pin for a stop whose address was not found (spec §6.4).
+
+    409 only when concurrent tour writes exhaust the serialization retries.
+    """
+    actor = await identity_service(request).authenticate(session_token(request))
+    stop = await delivery_tour_service(request).set_pin(
+        actor,
+        action_id,
+        commitment_id,
+        lat=body.lat,
+        lon=body.lon,
+        request_id=request_id(request),
+        occurred_at=datetime.now(timezone.utc),
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    return delivery_tour_stop_response(stop)

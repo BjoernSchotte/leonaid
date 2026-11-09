@@ -16,7 +16,9 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from uuid import UUID
 
+from leonaid.domain.delivery import DeliveryStartPoint
 from leonaid.domain.delivery_board import BoardDriver, DeliveryBoardError, DeliveryDrop
+from leonaid.domain.delivery_geo import GeoPoint
 
 TOUR_CHANGED_MESSAGE = "Die Tour wurde inzwischen geändert."
 WINDOW_CLOSED_MESSAGE = "Dieses Lieferfenster ist abgeschlossen."
@@ -45,6 +47,8 @@ class TourStopView:
     effective_rank: int
     # Joined after the driver made their own order ("neu").
     new_for_driver: bool
+    # Coordinates of the current address; None until found or pinned.
+    point: GeoPoint | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +82,7 @@ class DayTours:
     unassigned: tuple[TourWindow, ...]
     tours: tuple[DriverTour, ...]
     drivers: tuple[BoardDriver, ...]
+    start: DeliveryStartPoint | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +94,15 @@ class MyTour:
     timezone: str
     days: tuple[date, ...]
     tour: DriverTour | None
+    start: DeliveryStartPoint | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MapTiles:
+    """Tile URL template and attribution of the installation (spec §8.1, D14 b)."""
+
+    tile_url: str
+    attribution: str
 
 
 def tour_order_stale() -> DeliveryBoardError:
@@ -206,7 +220,9 @@ def planned_positions(
 
 
 def stop_views(
-    stops: Sequence[TourStop], drops: Mapping[UUID, DeliveryDrop]
+    stops: Sequence[TourStop],
+    drops: Mapping[UUID, DeliveryDrop],
+    points: Mapping[UUID, GeoPoint],
 ) -> tuple[TourStopView, ...]:
     """Read models of a tour's stops in effective order, with dense ranks."""
 
@@ -222,6 +238,7 @@ def stop_views(
             driver_rank=own.get(stop.commitment_id),
             effective_rank=effective[stop.commitment_id],
             new_for_driver=driver_set and stop.driver_position is None,
+            point=points.get(stop.commitment_id),
         )
         for stop in ordered
     )

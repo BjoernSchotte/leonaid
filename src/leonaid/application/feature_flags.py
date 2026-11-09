@@ -95,6 +95,19 @@ class FeatureFlagService:
         context = FeatureEvaluationContext.for_principal(actor, surface)
         return self._evaluator.evaluate_boolean(definition, context).enabled
 
+    async def installation_enabled(self, key: FeatureFlagKey) -> bool:
+        """The stored switch, for work without a user (worker loops).
+
+        Flags carry no targeting rules (one boolean per installation), so
+        this is the value every principal sees.
+        """
+
+        states = await self._refresh()
+        state = states.get(key)
+        if state is None:
+            return feature_flag_definition(key).default_enabled
+        return state.enabled
+
     async def require_enabled(
         self,
         actor: IdentityPrincipal,

@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from leonaid.domain.delivery_board import DeliveryBoardError, DeliveryDrop, DropState
+from leonaid.domain.delivery_geo import GeoPoint
 from leonaid.domain.delivery_tours import (
     TourStop,
     base_order,
@@ -78,7 +79,7 @@ def views(stops: list[TourStop]) -> dict[UUID, tuple[int, int | None, int, bool]
             view.effective_rank,
             view.new_for_driver,
         )
-        for view in stop_views(stops, drops)
+        for view in stop_views(stops, drops, {})
     }
 
 
@@ -163,8 +164,12 @@ def test_stop_views_come_in_effective_order() -> None:
     late = stop(3, window=LATE, base=1, driver=1)
     stops = [late, early, early_two]
     drops = {item.commitment_id: drop_for(item) for item in stops}
-    ordered = [view.drop.commitment_id for view in stop_views(stops, drops)]
+    point = GeoPoint.parse("47.76", "11.56")
+    shown = stop_views(stops, drops, {early.commitment_id: point})
+    ordered = [view.drop.commitment_id for view in shown]
     assert ordered == ids((early_two, early, late))
+    # Each stop carries its own coordinates; the others have none yet.
+    assert [view.point for view in shown] == [None, point, None]
 
 
 def test_planned_positions_rank_within_each_window() -> None:

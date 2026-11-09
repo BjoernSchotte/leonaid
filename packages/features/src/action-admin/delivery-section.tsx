@@ -1,10 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CalendarRange, Ban, Plus } from "lucide-react";
+import { AlertTriangle, CalendarRange, Ban, MapPin, Plus } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 
 import {
   ApiError,
   type DeliveryConfigurationResponse,
+  type DeliveryStartPointRequest,
+  type DeliveryStartPointResponse,
   type DeliveryWindowRequest,
   type DeliveryWindowResponse,
   type LeonAidApiClient,
@@ -28,6 +30,10 @@ import {
   useOptionalToast,
 } from "@leonaid/ui";
 
+import {
+  FEATURE_FLAGS,
+  useLeonAidSettledFlag,
+} from "../feature-flags/openfeature-provider";
 import { actionErrorMessage } from "./errors";
 
 interface Props {
@@ -197,6 +203,7 @@ function DeliveryWindows({
 }) {
   const cache = useQueryClient();
   const toast = useOptionalToast();
+  const tours = useLeonAidSettledFlag(FEATURE_FLAGS.deliveryTours);
   const [adding, setAdding] = useState(false);
   const [pausing, setPausing] = useState<DeliveryWindowResponse>();
   const [enabling, setEnabling] = useState(false);
@@ -237,13 +244,17 @@ function DeliveryWindows({
     }
   }
 
-  /** Saves the configuration; false when it failed (message shown). */
+  /**
+   * Saves the configuration; false when it failed (message shown). Without
+   * `startPoint` the server keeps the stored start point.
+   */
   async function save(
     change: Partial<
       Pick<DeliveryConfigurationResponse, "enabled" | "timezone">
     >,
     nextWindows: DeliveryWindowRequest[],
     done: string,
+    start?: { readonly startPoint: DeliveryStartPointRequest | null },
   ): Promise<boolean> {
     setPending(true);
     setError(undefined);
@@ -253,6 +264,7 @@ function DeliveryWindows({
         enabled: change.enabled ?? config.enabled,
         timezone: change.timezone ?? config.timezone,
         windows: nextWindows,
+        ...start,
       });
       cache.setQueryData(queryKey, result);
       await cache.invalidateQueries({
@@ -464,6 +476,18 @@ function DeliveryWindows({
         </div>
       )}
 
+      {tours && !disabled ? (
+        <StartPointForm
+          // A saved or reloaded start point resets the inputs.
+          key={config.revision}
+          onSave={(startPoint, done) =>
+            save({}, config.windows.map(windowRequest), done, { startPoint })
+          }
+          pending={pending}
+          stored={config.startPoint}
+        />
+      ) : null}
+
       <WindowModal
         endsOn={endsOn}
         lockedTimezone={windows.length > 0 ? config.timezone : undefined}
@@ -527,6 +551,129 @@ function DeliveryWindows({
         pending={pending}
         title="Lieferplanung aktivieren?"
       />
+    </section>
+  );
+}
+
+function startStatus(start: DeliveryStartPointResponse) {
+  if (start.lat !== null) return "Auf der Karte eingetragen.";
+  if (start.locating)
+    return "Die Adresse wird gesucht; der Pin erscheint in wenigen Minuten.";
+  return "Startpunkt nicht gefunden – Pin auf der Karte setzen";
+}
+
+/**
+ * Startpunkt der Touren (D11): where the drivers pick up the Krapfen. The
+ * server looks the address up; without a result the manager sets the pin
+ * on the tour map.
+ */
+function StartPointForm({
+  onSave,
+  pending,
+  stored,
+}: {
+  readonly onSave: (
+    start: DeliveryStartPointRequest | null,
+    done: string,
+  ) => Promise<boolean>;
+  readonly pending: boolean;
+  readonly stored: DeliveryStartPointResponse | null;
+}) {
+  const formId = useId();
+  const [label, setLabel] = useState(stored?.label ?? "");
+  const [address, setAddress] = useState(stored?.address ?? "");
+  const [submitted, setSubmitted] = useState(false);
+  const labelError = label.trim() ? "" : "Bitte eine Bezeichnung angeben.";
+  const addressError = address.trim() ? "" : "Bitte eine Adresse angeben.";
+
+  return (
+    <section
+      aria-labelledby={`${formId}-heading`}
+      className="stack delivery-start"
+      data-testid="delivery-start"
+    >
+      <h3 className="tab-h2" id={`${formId}-heading`}>
+        Startpunkt der Touren
+      </h3>
+      <p className="muted small">
+        Hier holen die Fahrer morgens die Krapfen ab. Die Karte der Touren
+        beginnt an diesem Punkt.
+      </p>
+      {stored ? (
+        <p
+          className={
+            stored.lat === null && !stored.locating
+              ? "callout tone-warn"
+              : "small subtle"
+          }
+          data-testid="delivery-start-status"
+          role="status"
+        >
+          {stored.lat === null && !stored.locating ? (
+            <Icon icon={MapPin} size={16} />
+          ) : null}
+          {startStatus(stored)}
+        </p>
+      ) : null}
+      <form
+        className="form-grid"
+        id={formId}
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          setSubmitted(true);
+          if (labelError || addressError) return;
+          void onSave(
+            { label: label.trim(), address: address.trim() },
+            "Startpunkt gespeichert.",
+          );
+        }}
+      >
+        <div className="form-row">
+          <Field error={submitted ? labelError : undefined} label="Bezeichnung">
+            <Input
+              data-testid="delivery-start-label"
+              maxLength={80}
+              onChange={(event) => setLabel(event.target.value)}
+              placeholder="Bäckerei"
+              value={label}
+            />
+          </Field>
+          <Field
+            error={submitted ? addressError : undefined}
+            hint="Straße und Hausnummer, Postleitzahl und Ort, zum Beispiel „Marktstraße 50, 83646 Bad Tölz“."
+            label="Adresse"
+          >
+            <Input
+              autoComplete="street-address"
+              data-testid="delivery-start-address"
+              maxLength={200}
+              onChange={(event) => setAddress(event.target.value)}
+              value={address}
+            />
+          </Field>
+        </div>
+        <div className="tab-head">
+          <Button
+            data-testid="delivery-start-save"
+            loading={pending}
+            type="submit"
+            variant="primary"
+          >
+            Startpunkt speichern
+          </Button>
+          {stored ? (
+            <Button
+              data-testid="delivery-start-remove"
+              disabled={pending}
+              onClick={() => void onSave(null, "Startpunkt entfernt.")}
+              variant="ghost"
+            >
+              Startpunkt entfernen
+            </Button>
+          ) : null}
+        </div>
+      </form>
     </section>
   );
 }

@@ -94,12 +94,15 @@ services:
   worker:
     image: ${LEONAID_CORE_IMAGE:?LEONAID_CORE_IMAGE is missing}
     build: !reset null
-    # Every network of the base stack is internal. The external SMTP relay is
-    # only reachable through this dedicated egress network.
+    # Every network of the base stack is internal. The external SMTP relay
+    # and the geocoder are only reachable through this dedicated egress
+    # network.
     networks:
       - mail-egress
     environment:
       LEONAID_ENV: production
+      # The geocoder's User-Agent names the installation (Nominatim policy).
+      LEONAID_PUBLIC_BASE_URL: ${LEONAID_PUBLIC_BASE_URL:?LEONAID_PUBLIC_BASE_URL is missing}
       MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:?MAIL_SMTP_HOST is missing}
       MAIL_SMTP_PORT: ${MAIL_SMTP_PORT:?MAIL_SMTP_PORT is missing}
       MAIL_FROM: ${MAIL_FROM:?MAIL_FROM is missing}

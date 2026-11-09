@@ -276,10 +276,14 @@ async def prove() -> None:
         await prove_follow_up_list_race(pool, action.id)
         from tools.delivery.tours import prove_tours
 
-        await prove_tours(pool, action.id, admin_id)
+        await prove_tours(pool, action.id, admin_id, other.id)
         from tools.delivery.privacy import prove_privacy
 
         await prove_privacy(pool, admin_id)
+        from tools.delivery.geocoding import prove_geocoding
+
+        # After the privacy proof: its erasure needs the active legal version.
+        await prove_geocoding(pool, action.id, admin_id)
         from tools.delivery.legacy_replay import prove_legacy_replay
 
         await prove_legacy_replay(pool, admin_id)

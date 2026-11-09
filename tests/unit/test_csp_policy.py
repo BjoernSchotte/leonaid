@@ -98,6 +98,11 @@ def test_astro_policy_matches_caddy_except_hashed_sources(config: str) -> None:
     caddy = _directives(_snippet_policy(CADDYFILES[0], "leonaid_headers")[1])
     caddy.pop("script-src")
     caddy.pop("style-src")
+    # The map tile origin (krapfentaxi-touren §8.1) is for the member apps;
+    # the Astro pages show no map and keep img-src on their own host.
+    tile_origin = " {$LEONAID_MAP_TILE_ORIGIN:https://tile.openstreetmap.org}"
+    assert caddy["img-src"].endswith(tile_origin)
+    caddy["img-src"] = caddy["img-src"].removesuffix(tile_origin)
     assert _astro_directives(config) == caddy
 
 

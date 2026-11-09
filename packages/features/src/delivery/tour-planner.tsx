@@ -14,14 +14,15 @@ import {
   Eye,
   EyeOff,
   MailPlus,
+  MapPin,
+  MapPinPlus,
   Route,
-  Save,
   Truck,
   Undo2,
   UserRound,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 
 import {
   ApiError,
@@ -48,7 +49,6 @@ import {
   StatusIcon,
   StatusMessage,
   cn,
-  useDiscardDialog,
   useLeaveGuard,
   useOptionalToast,
 } from "@leonaid/ui";
@@ -61,10 +61,12 @@ import {
   TaskOrderHandle,
   useOrderingSensors,
 } from "../tasks/task-ordering";
+import { quantityLabel, type OfferingUnit } from "../commitments/quantities";
 import {
   BOARD_POLL_MS,
   clockMinutes,
   deliveryTimeRange,
+  dropQuantities,
   longDay,
 } from "./delivery-shared";
 import {
@@ -72,16 +74,23 @@ import {
   moveStop,
   nearestNextOrder,
   placeStop,
+  reconcileOrder,
   tourLengthKm,
   type TourPoint,
 } from "./tour-model";
+import { driverTone, TourMap, type TourMapPin } from "./tour-map";
+import { useOrderAutosave } from "./use-order-autosave";
 
 /*
  * "Touren" (spec krapfentaxi-touren §6): the manager's view of one delivery
  * day. "Nicht zugeordnet" and one column per driver; each column groups its
- * stops by window, and stops are ordered only inside their window. A moved
- * column keeps a local draft until "Reihenfolge speichern". Web only, "Sie".
- * The map (§6.1, right side) and pins come with geocoding (stage 1b).
+ * stops by window, and stops are ordered only inside their window. Every
+ * move saves at once with "Rückgängig" on the toast, as in the driver view
+ * (D16, D19 2a). Web only, "Sie".
+ * The map on the right (§6.1): every stop of the day, coloured by driver,
+ * numbered by effective order; list and pins select each other. A move
+ * still saving shows as a dashed line. A stop without coordinates gets its
+ * pin by a click on the map (§6.4).
  */
 
 /** The column key of the stops without a driver. */
@@ -94,7 +103,7 @@ const copy = {
   unassigned: "Nicht zugeordnet",
   unassignedHint:
     "Wählen Sie Stopps aus und ordnen Sie sie einem Fahrer zu, oder ziehen Sie sie in eine Spalte.",
-  allAssigned: "Alles zugeordnet.",
+  allAssigned: "Alle Stopps zugeordnet.",
   emptyLane:
     "Noch keine Stopps. Ziehen Sie welche hierher oder nutzen Sie „Fahrer zuordnen“.",
   assign: "Fahrer zuordnen",
@@ -102,9 +111,20 @@ const copy = {
   suggest: "Vorschlag sortieren",
   suggestMissing: "Für den Vorschlag fehlen Koordinaten.",
   suggestHint: "Je Fenster der nächste Stopp zuerst, nach Luftlinie.",
-  save: "Reihenfolge speichern",
-  discardDraft: "Änderung verwerfen",
-  unsaved: "Nicht gespeichert",
+  mapLabel: "Karte der Touren",
+  mapHint: "Wählen Sie Stopps in der Liste oder auf der Karte.",
+  noPins:
+    "Noch kein Stopp hat einen Kartenpunkt. Die Adressen werden gerade gesucht, oder Sie setzen die Pins selbst.",
+  notFound: "Adresse nicht gefunden",
+  setPin: "Pin setzen",
+  movePin: "Pin versetzen",
+  placing: (name: string) => `Klicken Sie in die Karte, wo ${name} liegt.`,
+  placeAtCenter: "Pin in Kartenmitte setzen",
+  cancelPlacing: "Abbrechen",
+  pinSet: (name: string) => `Pin für ${name} gesetzt.`,
+  saved: (lane: string) => `Reihenfolge für ${lane} gespeichert.`,
+  undone: (lane: string) =>
+    `Vorherige Reihenfolge für ${lane} wiederhergestellt.`,
   driverOrder: (since: string) =>
     `Fahrer hat eigene Reihenfolge (seit ${since})`,
   viewingDriverOrder: (since: string) =>
@@ -134,7 +154,7 @@ const copy = {
 
 type ErrorCode = keyof typeof copy.codes;
 
-/** Answers that mean "what you see is old": drop the draft and reload. */
+/** Answers that mean "what you see is old": reload the columns. */
 const STALE_CODES: ReadonlySet<string> = new Set([
   "delivery_state_conflict",
   "tour_revision_conflict",
@@ -146,6 +166,15 @@ interface PlanStop {
   readonly window: DeliveryTourWindowResponse;
   readonly lane: string;
   readonly newForDriver: boolean;
+  readonly lat: number | null;
+  readonly lon: number | null;
+}
+
+/** Where a move was made: its save and cache update stay there. */
+interface PlanContext {
+  readonly day: string;
+  readonly laneName: string;
+  readonly queryKey: readonly unknown[];
 }
 
 interface PlanLane {
@@ -158,12 +187,6 @@ interface PlanLane {
   readonly base: readonly string[];
   /** What the driver sees: their own order where set, else the base. */
   readonly effective: readonly string[];
-}
-
-interface Draft {
-  readonly ids: readonly string[];
-  /** The tour revision the draft started from; saving sends it. */
-  readonly revision: string;
 }
 
 const byStart = (
@@ -222,6 +245,8 @@ function planModel(data: DeliveryDayToursResponse | undefined) {
         stops.set(stop.drop.commitmentId, {
           drop: stop.drop,
           lane: lane.key,
+          lat: stop.lat,
+          lon: stop.lon,
           newForDriver: stop.newForDriver,
           window,
         });
@@ -234,34 +259,36 @@ function planModel(data: DeliveryDayToursResponse | undefined) {
 const sameOrder = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && a.every((id, index) => id === b[index]);
 
-/** A draft kept to the tour's current stops; stops added since go last in their window. */
-const reconcile = (
-  draft: readonly string[],
-  base: readonly string[],
-  windowOf: (id: string) => string,
-) => {
-  // Window by window, in the base's window order: a stop added since the
-  // draft goes to the end of its own window, not of the whole tour.
-  const windows = [...new Set(base.map(windowOf))];
-  return windows.flatMap((window) => {
-    const current = base.filter((id) => windowOf(id) === window);
-    const known = draft.filter((id) => current.includes(id));
-    return [...known, ...current.filter((id) => !known.includes(id))];
-  });
-};
-
-const boxes = (count: number) => `${count} ${count === 1 ? "Box" : "Boxen"}`;
 const stopCount = (count: number) =>
   `${count} ${count === 1 ? "Stopp" : "Stopps"}`;
 
-/** "12,4 km", or "–" while fewer than two stops have coordinates. */
+/** "12,4 km", or null while fewer than two stops have coordinates. */
 function lengthLabel(points: readonly TourPoint[]) {
   const located = points.filter(
     (point) => point.lat !== null && point.lon !== null,
   );
-  if (located.length < 2) return "–";
+  if (located.length < 2) return null;
   const km = tourLengthKm(points, null);
   return `${new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 }).format(km)} km`;
+}
+
+/** "3 Stopps, 2 Boxen, 42 Stk": the load of one window in a column. */
+function windowLoad(drops: readonly DeliveryDropResponse[]) {
+  const live = drops.filter((drop) => drop.orderStatus !== "cancelled");
+  const totals = new Map<OfferingUnit, number>();
+  for (const drop of live) {
+    const items = drop.quantities.length
+      ? drop.quantities
+      : [{ quantity: drop.totalBoxes, unit: "box" as const }];
+    for (const item of items) {
+      totals.set(item.unit, (totals.get(item.unit) ?? 0) + item.quantity);
+    }
+  }
+  const units = [...totals].map(
+    ([unit, quantity]) =>
+      `${quantity} ${unit === "piece" ? "Stk" : quantityLabel(quantity, unit)}`,
+  );
+  return [stopCount(live.length), ...units].join(", ");
 }
 
 export interface TourPlannerProps {
@@ -270,7 +297,7 @@ export interface TourPlannerProps {
   /** The delivery day (ISO); null lets the server pick the next one. */
   readonly day: string | null;
   readonly onDayChange: (day: string) => void;
-  /** The "Liste" / "Touren" switch; leaving with a draft asks first. */
+  /** The "Liste" / "Touren" switch; a waiting move is sent first. */
   readonly onShowList?: () => void;
 }
 
@@ -283,40 +310,18 @@ export function TourPlanner({
 }: TourPlannerProps) {
   const queries = useQueryClient();
   const toast = useOptionalToast();
-  const { confirmDiscard, dialog: discardDialog } = useDiscardDialog("Sie");
   const sensors = useOrderingSensors();
 
-  /** Changed columns only: a draft equal to the base order is dropped. */
-  const [drafts, setDrafts] = useState<Readonly<Record<string, Draft>>>({});
   const [viewing, setViewing] = useState<ReadonlySet<string>>(new Set());
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [assignOpen, setAssignOpen] = useState(false);
   const [discarding, setDiscarding] = useState<string | null>(null);
+  /** The stop whose pin the next map click sets (§6.4). */
+  const [placing, setPlacing] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const assignAnchor = useRef<HTMLButtonElement | null>(null);
 
-  const dirty = Object.keys(drafts).length > 0;
-  useLeaveGuard(dirty);
-
   const queryKey = ["delivery-tours", actionId, day] as const;
-  const toursQuery = useQuery({
-    enabled: Boolean(actionId),
-    queryFn: () => client.getDeliveryTours(actionId, { day }),
-    queryKey,
-    // As the list: follow the drivers' ticks, but never under a draft, so
-    // the columns do not move while the manager orders them.
-    refetchInterval: dirty ? false : BOARD_POLL_MS,
-    refetchIntervalInBackground: false,
-    refetchOnWindowFocus: !dirty,
-    retry: false,
-  });
-  const data = toursQuery.data;
-  const zone = data?.timezone ?? "Europe/Berlin";
-  const model = useMemo(() => planModel(data), [data]);
-  const lanes = model.lanes;
-  const laneByKey = new Map(lanes.map((lane) => [lane.key, lane]));
-  const windowOf = (id: string) => model.stops.get(id)?.window.windowId ?? "";
-
   const mutationOptions = { mutationKey: ["delivery-tours", actionId] };
   const refresh = () =>
     Promise.all([
@@ -333,81 +338,98 @@ export function TourPlanner({
   const showError = (error: unknown) =>
     toast?.show({ title: errorText(error), tone: "error" });
 
-  /** The draft of a column, kept to its current stops, or null. */
-  const draftOf = (lane: PlanLane) => {
-    const draft = drafts[lane.key];
-    return draft ? reconcile(draft.ids, lane.base, windowOf) : null;
+  // Save on drop (D19 2a): each move saves after a short pause, with the
+  // revision it started from, for the day and cache entry it was made in
+  // (a day switch sends it first); a conflict reloads the columns.
+  const autosave = useOrderAutosave<DeliveryTourResponse, PlanContext>({
+    save: (key, ids, revision, context) =>
+      client.saveDeliveryTourOrder(actionId, key, {
+        commitmentIds: [...ids],
+        day: context.day,
+        expectedRevision: revision,
+      }),
+    revisionOf: (saved) => saved.revision,
+    onSaved: (_key, updated, context) => {
+      queries.setQueryData<DeliveryDayToursResponse>(
+        context.queryKey,
+        (current) =>
+          current && current.day === updated.day
+            ? {
+                ...current,
+                tours: current.tours.map((tour) =>
+                  tour.driverUserId === updated.driverUserId ? updated : tour,
+                ),
+              }
+            : current,
+      );
+      void queries.invalidateQueries({
+        queryKey: ["delivery-board", actionId],
+      });
+    },
+    onFailed: (_key, error, context) => {
+      showError(error);
+      if (isStale(error)) {
+        void Promise.all([
+          queries.invalidateQueries({ queryKey: context.queryKey }),
+          queries.invalidateQueries({ queryKey: ["delivery-board", actionId] }),
+        ]);
+      }
+    },
+    savedText: (_key, context) => copy.saved(context.laneName),
+    undoneText: (_key, context) => copy.undone(context.laneName),
+  });
+  const saving = autosave.dirty;
+  useLeaveGuard(saving);
+
+  const toursQuery = useQuery({
+    enabled: Boolean(actionId),
+    queryFn: () => client.getDeliveryTours(actionId, { day }),
+    queryKey,
+    // As the list: follow the drivers' ticks, but not while a move saves,
+    // so the columns do not jump back under the manager's hand.
+    refetchInterval: saving ? false : BOARD_POLL_MS,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: !saving,
+    retry: false,
+  });
+  const data = toursQuery.data;
+  const zone = data?.timezone ?? "Europe/Berlin";
+  const model = useMemo(() => planModel(data), [data]);
+  const lanes = model.lanes;
+  const laneByKey = new Map(lanes.map((lane) => [lane.key, lane]));
+  const windowOf = (id: string) => model.stops.get(id)?.window.windowId ?? "";
+
+  const shownOf = (lane: PlanLane) => {
+    if (viewing.has(lane.key) && lane.tour?.driverOrderedAt) {
+      return lane.effective;
+    }
+    const pending = autosave.orderOf(lane.key);
+    return pending ? reconcileOrder(pending, lane.base, windowOf) : lane.base;
   };
-  const shownOf = (lane: PlanLane) =>
-    viewing.has(lane.key) && lane.tour?.driverOrderedAt
-      ? lane.effective
-      : (draftOf(lane) ?? lane.base);
   const isViewingDriver = (lane: PlanLane) =>
     viewing.has(lane.key) && Boolean(lane.tour?.driverOrderedAt);
 
-  const setDraft = (lane: PlanLane, ids: readonly string[]) => {
+  const moveTo = (lane: PlanLane, next: readonly string[], id?: string) => {
     if (!lane.tour) return;
-    const revision = drafts[lane.key]?.revision ?? lane.tour.revision;
-    setDrafts((current) => {
-      const next = { ...current };
-      if (sameOrder(ids, lane.base)) delete next[lane.key];
-      else next[lane.key] = { ids, revision };
-      return next;
+    const current = shownOf(lane);
+    if (sameOrder(next, current)) return;
+    autosave.move(lane.key, next, current, lane.tour.revision, {
+      day: lane.tour.day,
+      laneName: lane.name,
+      queryKey,
     });
-  };
-  const dropDraft = (key: string) =>
-    setDrafts((current) => {
-      if (!(key in current)) return current;
-      const next = { ...current };
-      delete next[key];
-      return next;
-    });
-  /**
-   * After the manager's own change to a column (assign, discard), its
-   * draft follows the new revision; a change by someone else still
-   * conflicts on save.
-   */
-  const rebase = (keys: Iterable<string>) => {
-    const fresh = queries.getQueryData<DeliveryDayToursResponse>(queryKey);
-    const revisions = new Map(
-      fresh?.tours.map((tour) => [tour.driverUserId, tour.revision]) ?? [],
-    );
-    setDrafts((current) => {
-      let changed = false;
-      const next = { ...current };
-      for (const key of keys) {
-        const draft = next[key];
-        const revision = revisions.get(key);
-        if (draft && revision && revision !== draft.revision) {
-          next[key] = { ...draft, revision };
-          changed = true;
-        }
-      }
-      return changed ? next : current;
-    });
-  };
-
-  const moveInDraft = (lane: PlanLane, next: string[], id: string) => {
-    setDraft(lane, next);
-    const stop = model.stops.get(id);
-    if (stop) {
+    const stop = id ? model.stops.get(id) : undefined;
+    if (stop && id) {
       setAnnouncement(
         `${stop.drop.buyerName} ist jetzt Stopp ${next.indexOf(id) + 1} bei ${lane.name}.`,
       );
     }
   };
 
-  /** Asks before an unsaved draft is dropped, then runs `leave`. */
+  /** Sends waiting moves first, then runs `leave` (day or view change). */
   const guarded = (leave: () => void) => {
-    if (!dirty) {
-      leave();
-      return;
-    }
-    void confirmDiscard().then((discard) => {
-      if (!discard) return;
-      setDrafts({});
-      leave();
-    });
+    for (const lane of lanes) void autosave.release(lane.key);
+    leave();
   };
 
   const assign = useMutation({
@@ -435,60 +457,7 @@ export function TourPlanner({
       });
     },
     onError: showError,
-    onSettled: async (_result, _error, { ids, driverUserId }) => {
-      const touched = new Set<string>(driverUserId ? [driverUserId] : []);
-      for (const id of ids) {
-        const lane = model.stops.get(id)?.lane;
-        if (lane) touched.add(lane);
-      }
-      await refresh();
-      rebase(touched);
-    },
-  });
-
-  const saveOrder = useMutation({
-    ...mutationOptions,
-    mutationFn: ({
-      lane,
-      ids,
-      draft,
-    }: {
-      lane: PlanLane;
-      ids: readonly string[];
-      draft: Draft;
-    }) =>
-      client.saveDeliveryTourOrder(actionId, lane.key, {
-        commitmentIds: [...ids],
-        day: lane.tour!.day,
-        expectedRevision: draft.revision,
-      }),
-    onSuccess: (updated, { lane }) => {
-      queries.setQueryData<DeliveryDayToursResponse>(queryKey, (current) =>
-        current
-          ? {
-              ...current,
-              tours: current.tours.map((tour) =>
-                tour.driverUserId === updated.driverUserId ? updated : tour,
-              ),
-            }
-          : current,
-      );
-      dropDraft(lane.key);
-      toast?.show({
-        title: `Reihenfolge für ${lane.name} gespeichert.`,
-        tone: "success",
-      });
-      void refresh();
-    },
-    onError: (error, { lane }) => {
-      showError(error);
-      // A changed tour: show the current one. Other failures (network)
-      // keep the draft for another try.
-      if (isStale(error)) {
-        dropDraft(lane.key);
-        void refresh();
-      }
-    },
+    onSettled: () => refresh(),
   });
 
   const discardDriverOrder = useMutation({
@@ -513,10 +482,20 @@ export function TourPlanner({
       setDiscarding(null);
       showError(error);
     },
-    onSettled: async (_updated, _error, lane) => {
-      await refresh();
-      rebase([lane.key]);
+    onSettled: () => refresh(),
+  });
+
+  const setPin = useMutation({
+    ...mutationOptions,
+    mutationFn: ({ id, lat, lon }: { id: string; lat: number; lon: number }) =>
+      client.setDeliveryPin(actionId, id, { lat, lon }),
+    onSuccess: (_stop, { id }) => {
+      setPlacing(null);
+      const name = model.stops.get(id)?.drop.buyerName ?? "den Stopp";
+      toast?.show({ title: copy.pinSet(name), tone: "success" });
     },
+    onError: showError,
+    onSettled: () => refresh(),
   });
 
   const finishDrag = ({ active, over }: DragEndEvent) => {
@@ -543,8 +522,7 @@ export function TourPlanner({
     const ids = shownOf(lane);
     const side = ids.indexOf(id) < ids.indexOf(overId) ? "after" : "before";
     // placeStop ignores a target in another window.
-    const next = placeStop(ids, id, overId, side, windowOf);
-    if (!sameOrder(next, ids)) moveInDraft(lane, next, id);
+    moveTo(lane, placeStop(ids, id, overId, side, windowOf), id);
   };
 
   const toggleSelected = (id: string) =>
@@ -572,6 +550,70 @@ export function TourPlanner({
     { value: UNASSIGNED, label: "Kein Fahrer" },
   ];
 
+  // The map: every stop with coordinates, by lane colour and effective
+  // order; the lane with a move still saving draws its draft dashed, else
+  // the lane of the chosen stops its effective order.
+  const driverIndex = new Map(
+    lanes
+      .filter((lane) => lane.key !== UNASSIGNED)
+      .map((lane, index) => [lane.key, index]),
+  );
+  const pins: TourMapPin[] = lanes.flatMap((lane) =>
+    lane.effective.flatMap((id, index) => {
+      const stop = model.stops.get(id);
+      if (!stop || stop.lat === null || stop.lon === null) return [];
+      const unassigned = lane.key === UNASSIGNED;
+      const done =
+        stop.drop.state !== "open" || stop.drop.orderStatus === "cancelled";
+      return [
+        {
+          id,
+          label: unassigned
+            ? `${stop.drop.buyerName}, ${copy.unassigned}`
+            : `${lane.name}, Stopp ${index + 1}: ${stop.drop.buyerName}`,
+          lat: stop.lat,
+          lon: stop.lon,
+          rank: unassigned ? 0 : index + 1,
+          selected: selected.has(id),
+          tone: unassigned
+            ? ("unassigned" as const)
+            : done
+              ? ("done" as const)
+              : driverTone(driverIndex.get(lane.key) ?? 0),
+        },
+      ];
+    }),
+  );
+  const draftLane = lanes.find(
+    (lane) => lane.tour && autosave.orderOf(lane.key),
+  );
+  const chosenLane =
+    onlyLane && onlyLane !== UNASSIGNED ? laneByKey.get(onlyLane) : undefined;
+  const mapLine = draftLane
+    ? { ids: shownOf(draftLane), dashed: true }
+    : chosenLane
+      ? { ids: chosenLane.effective, dashed: false }
+      : null;
+  const start =
+    data?.startPoint &&
+    data.startPoint.lat !== null &&
+    data.startPoint.lon !== null
+      ? {
+          lat: data.startPoint.lat,
+          lon: data.startPoint.lon,
+          label: data.startPoint.label,
+        }
+      : null;
+  const placingStop = placing ? model.stops.get(placing) : undefined;
+  const choosePin = (id: string) => {
+    const stop = model.stops.get(id);
+    if (!stop) return;
+    if (!stop.window.closed) toggleSelected(id);
+    [...document.querySelectorAll<HTMLElement>("li.tour-stop")]
+      .find((row) => row.dataset.commitmentId === id)
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  };
+
   const notEnabled =
     toursQuery.error instanceof ApiError &&
     ["delivery_not_enabled", "feature_flag_disabled"].includes(
@@ -590,7 +632,10 @@ export function TourPlanner({
               <span className="page-count">{longDay(data.day)}</span>
             ) : null}
           </div>
-          <p className="page-sub">{copy.intro}</p>
+          {/* One hint line: what to do while stops wait, else the rule. */}
+          <p className="page-sub" data-testid="tour-plan-hint">
+            {unassignedCount ? copy.unassignedHint : copy.intro}
+          </p>
         </div>
         <div className="delivery-filters">
           {data && data.days.length > 1 ? (
@@ -719,9 +764,7 @@ export function TourPlanner({
                 {copy.clearSelection}
               </Button>
             </div>
-          ) : (
-            <p className="tour-plan-hint">{copy.unassignedHint}</p>
-          )}
+          ) : null}
           <p aria-live="polite" className="sr-only" role="status">
             {announcement}
           </p>
@@ -733,54 +776,79 @@ export function TourPlanner({
             onDragEnd={finishDrag}
             sensors={sensors}
           >
-            <div className="tour-lanes">
-              {lanes.map((lane) => (
-                <Lane
-                  busy={assign.isPending || saveOrder.isPending}
-                  draft={draftOf(lane)}
-                  key={lane.key}
-                  lane={lane}
-                  onDiscardDraft={() => dropDraft(lane.key)}
-                  onDiscardDriverOrder={() => setDiscarding(lane.key)}
-                  onMove={(id, direction) =>
-                    moveInDraft(
-                      lane,
-                      moveStop(shownOf(lane), id, direction, windowOf),
-                      id,
-                    )
+            <div className="tour-plan-body">
+              <div className="tour-lanes">
+                {lanes.map((lane) => (
+                  <Lane
+                    busy={assign.isPending}
+                    key={lane.key}
+                    lane={lane}
+                    onDiscardDriverOrder={() => setDiscarding(lane.key)}
+                    onPlacePin={(id) =>
+                      setPlacing((current) => (current === id ? null : id))
+                    }
+                    placing={placing}
+                    onMove={(id, direction) =>
+                      moveTo(
+                        lane,
+                        moveStop(shownOf(lane), id, direction, windowOf),
+                        id,
+                      )
+                    }
+                    onSuggest={(ids) => moveTo(lane, ids)}
+                    onToggleSelected={toggleSelected}
+                    onToggleViewing={() =>
+                      setViewing((current) => {
+                        const next = new Set(current);
+                        if (next.has(lane.key)) next.delete(lane.key);
+                        else next.add(lane.key);
+                        return next;
+                      })
+                    }
+                    selected={selected}
+                    shown={shownOf(lane)}
+                    start={start}
+                    stops={model.stops}
+                    viewingDriver={isViewingDriver(lane)}
+                    zone={zone}
+                  />
+                ))}
+              </div>
+              <aside className="tour-plan-map" data-testid="tour-plan-map">
+                {placingStop ? (
+                  <p className="tour-plan-map-bar is-placing" role="status">
+                    <span>{copy.placing(placingStop.drop.buyerName)}</span>
+                    <Button
+                      onClick={() => setPlacing(null)}
+                      size="sm"
+                      variant="ghost"
+                    >
+                      {copy.cancelPlacing}
+                    </Button>
+                  </p>
+                ) : (
+                  <p className="tour-plan-map-bar">
+                    {pins.length ? copy.mapHint : copy.noPins}
+                  </p>
+                )}
+                <TourMap
+                  label={copy.mapLabel}
+                  line={mapLine}
+                  onPlace={
+                    placing && !setPin.isPending
+                      ? (lat, lon) => setPin.mutate({ id: placing, lat, lon })
+                      : undefined
                   }
-                  onSave={() => {
-                    const draft = drafts[lane.key];
-                    const ids = draftOf(lane);
-                    if (draft && ids) saveOrder.mutate({ lane, ids, draft });
+                  onSelect={choosePin}
+                  pins={pins}
+                  placeAtCenterLabel={copy.placeAtCenter}
+                  start={start}
+                  tiles={{
+                    url: data.map.tileUrl,
+                    attribution: data.map.attribution,
                   }}
-                  onSuggest={(ids) => {
-                    setDraft(lane, ids);
-                    toast?.show({
-                      title: `Vorschlag für ${lane.name}: ${copy.suggestHint} Speichern Sie, um ihn zu übernehmen.`,
-                      tone: "info",
-                    });
-                  }}
-                  onToggleSelected={toggleSelected}
-                  onToggleViewing={() =>
-                    setViewing((current) => {
-                      const next = new Set(current);
-                      if (next.has(lane.key)) next.delete(lane.key);
-                      else next.add(lane.key);
-                      return next;
-                    })
-                  }
-                  saving={
-                    saveOrder.isPending &&
-                    saveOrder.variables?.lane.key === lane.key
-                  }
-                  selected={selected}
-                  shown={shownOf(lane)}
-                  stops={model.stops}
-                  viewingDriver={isViewingDriver(lane)}
-                  zone={zone}
                 />
-              ))}
+              </aside>
             </div>
           </DndContext>
         </>
@@ -820,7 +888,6 @@ export function TourPlanner({
         title="Fahrerreihenfolge verwerfen?"
         tone="danger"
       />
-      {discardDialog}
     </div>
   );
 }
@@ -828,37 +895,36 @@ export function TourPlanner({
 interface LaneProps {
   readonly lane: PlanLane;
   readonly shown: readonly string[];
-  readonly draft: readonly string[] | null;
   readonly stops: ReadonlyMap<string, PlanStop>;
   readonly selected: ReadonlySet<string>;
   readonly viewingDriver: boolean;
   readonly busy: boolean;
-  readonly saving: boolean;
   readonly zone: string;
   readonly onMove: (id: string, direction: -1 | 1) => void;
-  readonly onSave: () => void;
-  readonly onDiscardDraft: () => void;
   readonly onSuggest: (ids: string[]) => void;
   readonly onToggleSelected: (id: string) => void;
   readonly onToggleViewing: () => void;
   readonly onDiscardDriverOrder: () => void;
+  readonly onPlacePin: (id: string) => void;
+  /** The stop whose pin the map is placing, if any. */
+  readonly placing: string | null;
+  readonly start: { readonly lat: number; readonly lon: number } | null;
 }
 
-/** One column: head with count, ends, length and actions, then the windows. */
+/** One column: head with count, load per window and actions, then the windows. */
 function Lane({
   busy,
-  draft,
   lane,
-  onDiscardDraft,
   onDiscardDriverOrder,
   onMove,
-  onSave,
+  onPlacePin,
   onSuggest,
   onToggleSelected,
   onToggleViewing,
-  saving,
+  placing,
   selected,
   shown,
+  start,
   stops,
   viewingDriver,
   zone,
@@ -871,17 +937,14 @@ function Lane({
     disabled: count > 0,
   });
   const headingId = `tour-lane-${lane.key}`;
-  const dirty = draft !== null;
-  // Coordinates arrive with geocoding (stage 1b); until then none.
   const points: TourPoint[] = shown.map((id) => ({
     id,
     windowId: stops.get(id)?.window.windowId ?? "",
-    lat: null,
-    lon: null,
+    lat: stops.get(id)?.lat ?? null,
+    lon: stops.get(id)?.lon ?? null,
   }));
   const suggestable = canSuggestOrder(points);
-  const nameOf = (id: string | undefined) =>
-    id ? (stops.get(id)?.drop.buyerName ?? "") : "";
+  const length = lengthLabel(points);
   const done = shown.filter(
     (id) => stops.get(id)?.drop.state !== "open",
   ).length;
@@ -896,7 +959,6 @@ function Lane({
       className={cn(
         "tour-lane",
         unassigned && "is-unassigned",
-        dirty && "is-dirty",
         isOver && "is-over",
       )}
       data-driver={unassigned ? undefined : lane.key}
@@ -925,17 +987,32 @@ function Lane({
         {unassigned ? null : count ? (
           <>
             <p className="tour-lane-meta">
-              <span data-testid="tour-length">
-                Strecke {lengthLabel(points)}
-              </span>
-              <span aria-hidden="true">·</span>
+              {length ? (
+                <>
+                  <span data-testid="tour-length">Strecke {length}</span>
+                  <span aria-hidden="true">·</span>
+                </>
+              ) : null}
               <span className="num">
                 {done} von {count} erledigt
               </span>
             </p>
-            <p className="tour-lane-meta" data-testid="tour-ends">
-              Erster: {nameOf(shown[0])} · Letzter: {nameOf(shown.at(-1))}
-            </p>
+            <ul className="tour-lane-load" data-testid="tour-load">
+              {lane.windows.map((window) => {
+                const drops = shown
+                  .map((id) => stops.get(id))
+                  .filter(
+                    (stop): stop is PlanStop =>
+                      stop?.window.windowId === window.windowId,
+                  )
+                  .map((stop) => stop.drop);
+                return drops.length ? (
+                  <li className="num" key={window.windowId}>
+                    {deliveryTimeRange(window, zone)}: {windowLoad(drops)}
+                  </li>
+                ) : null;
+              })}
+            </ul>
           </>
         ) : null}
         {since ? (
@@ -979,38 +1056,13 @@ function Lane({
               disabled={!suggestable || viewingDriver || busy}
               focusableWhenDisabled
               icon={Route}
-              onClick={() => onSuggest(nearestNextOrder(points, null))}
+              onClick={() => onSuggest(nearestNextOrder(points, start))}
               size="sm"
               title={suggestable ? copy.suggestHint : copy.suggestMissing}
               variant="secondary"
             >
               {copy.suggest}
             </Button>
-            <Button
-              data-testid="tour-save-order"
-              disabled={!dirty || viewingDriver}
-              focusableWhenDisabled
-              icon={Save}
-              loading={saving}
-              onClick={onSave}
-              size="sm"
-              variant={dirty ? "primary" : "secondary"}
-            >
-              {copy.save}
-            </Button>
-            {dirty ? (
-              <>
-                <Button
-                  disabled={saving}
-                  onClick={onDiscardDraft}
-                  size="sm"
-                  variant="ghost"
-                >
-                  {copy.discardDraft}
-                </Button>
-                <Badge tone="warn">{copy.unsaved}</Badge>
-              </>
-            ) : null}
           </div>
         ) : null}
       </header>
@@ -1036,7 +1088,9 @@ function Lane({
                   last={index === ids.length - 1}
                   movable={movable}
                   onMove={(direction) => onMove(id, direction)}
+                  onPlacePin={() => onPlacePin(id)}
                   onToggleSelected={() => onToggleSelected(id)}
+                  placing={placing === id}
                   orderable={editable && !window.closed}
                   position={unassigned ? null : shown.indexOf(id) + 1}
                   selected={selected.has(id)}
@@ -1084,8 +1138,10 @@ function StopRow({
   last,
   movable,
   onMove,
+  onPlacePin,
   onToggleSelected,
   orderable,
+  placing,
   position,
   selected,
   showNew,
@@ -1099,6 +1155,8 @@ function StopRow({
   readonly orderable: boolean;
   readonly onMove: (direction: -1 | 1) => void;
   readonly onToggleSelected: () => void;
+  readonly onPlacePin: () => void;
+  readonly placing: boolean;
   readonly position: number | null;
   readonly selected: boolean;
   readonly showNew: boolean;
@@ -1118,6 +1176,17 @@ function StopRow({
         ? "Nicht angetroffen"
         : null;
   const choosable = !stop.window.closed;
+  // A row moved to a window edge loses that arrow: focus goes to the other
+  // one, so a keyboard user keeps their place.
+  const up = useRef<HTMLButtonElement | null>(null);
+  const down = useRef<HTMLButtonElement | null>(null);
+  const pressed = useRef<-1 | 1 | null>(null);
+  useEffect(() => {
+    const direction = pressed.current;
+    pressed.current = null;
+    if (direction === -1 && first) down.current?.focus();
+    if (direction === 1 && last) up.current?.focus();
+  });
   return (
     <li
       className={cn(
@@ -1173,27 +1242,73 @@ function StopRow({
         <span className="tour-stop-sub">
           {recipient ? `${recipient}, ` : ""}
           {drop.address?.streetLine1 ?? "Keine Lieferadresse"} ·{" "}
-          {boxes(drop.totalBoxes)}
+          {dropQuantities(drop)}
         </span>
       </label>
+      {/* Ruling 18: a pin that is there can move; the click writes a manual pin. */}
+      {stop.lat !== null && stop.lon !== null ? (
+        <IconButton
+          aria-pressed={placing}
+          className="tour-stop-move-pin"
+          data-testid="tour-move-pin"
+          icon={MapPin}
+          label={`${copy.movePin}: ${name}`}
+          onClick={onPlacePin}
+          size="sm"
+          variant={placing ? "primary" : "ghost"}
+        />
+      ) : null}
+      {drop.address && (stop.lat === null || stop.lon === null) ? (
+        <span className="tour-stop-pin" data-testid="tour-stop-no-pin">
+          <span className="small">{copy.notFound}</span>
+          <Button
+            aria-label={`${copy.setPin}: ${name}`}
+            aria-pressed={placing}
+            data-testid="tour-set-pin"
+            icon={MapPinPlus}
+            onClick={onPlacePin}
+            size="sm"
+            variant={placing ? "primary" : "secondary"}
+          >
+            {copy.setPin}
+          </Button>
+        </span>
+      ) : null}
       {orderable ? (
         <span className="tour-stop-tools">
-          <IconButton
-            disabled={busy || first}
-            focusableWhenDisabled
-            icon={ArrowUp}
-            label={`${name} nach oben`}
-            onClick={() => onMove(-1)}
-            size="sm"
-          />
-          <IconButton
-            disabled={busy || last}
-            focusableWhenDisabled
-            icon={ArrowDown}
-            label={`${name} nach unten`}
-            onClick={() => onMove(1)}
-            size="sm"
-          />
+          {/* No arrow at a window edge: nothing to reach or to focus. */}
+          {first ? (
+            <span aria-hidden="true" className="tour-stop-tools-space" />
+          ) : (
+            <IconButton
+              disabled={busy}
+              focusableWhenDisabled
+              icon={ArrowUp}
+              label={`${name} nach oben`}
+              onClick={() => {
+                pressed.current = -1;
+                onMove(-1);
+              }}
+              ref={up}
+              size="sm"
+            />
+          )}
+          {last ? (
+            <span aria-hidden="true" className="tour-stop-tools-space" />
+          ) : (
+            <IconButton
+              disabled={busy}
+              focusableWhenDisabled
+              icon={ArrowDown}
+              label={`${name} nach unten`}
+              onClick={() => {
+                pressed.current = 1;
+                onMove(1);
+              }}
+              ref={down}
+              size="sm"
+            />
+          )}
         </span>
       ) : null}
     </li>
