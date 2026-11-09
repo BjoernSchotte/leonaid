@@ -323,7 +323,13 @@ twenty_tables() {
 }
 twenty_tables_before=$(twenty_tables)
 [ "$twenty_tables_before" -gt 0 ]
-phase seed-restart compose restart
+# twenty-server and twenty-worker keep no state of their own: Twenty's data
+# lives in twenty-postgres and twenty-redis, which restart. Both stay up and
+# must survive the restart of their stores (E-033); a Twenty boot saves no
+# proof, only about a minute.
+# shellcheck disable=SC2046 # one word per service
+phase seed-restart compose restart $(compose config --services |
+  grep -v -x -e twenty-server -e twenty-worker)
 phase seed-restart-ready compose up --no-build --detach --wait --wait-timeout 420
 "$root/leonaid" snapshot poc012-restarted.json
 docker run --rm \
