@@ -136,4 +136,30 @@ def test_offline_queue_flag_ships_off_and_matches_transport_and_schema() -> None
         / "migrations/versions/0057_pwa_offline_queue_flag.py"
     ).read_text(encoding="utf-8")
     for key in FeatureFlagKey:
+        if key is not FeatureFlagKey.DELIVERY_TOURS:
+            assert f"'{key.value}'" in migration
+
+
+def test_delivery_tours_flag_ships_off_and_matches_transport_and_schema() -> None:
+    """specs/krapfentaxi-touren: tours start off; migration 0058 registers them."""
+    from pathlib import Path
+    from typing import get_args
+
+    from leonaid.entrypoints.fastapi.schemas import FeatureFlagKeyValue
+
+    definition = FEATURE_FLAG_DEFINITIONS[FeatureFlagKey.DELIVERY_TOURS]
+    assert definition.key.value == "delivery.tours"
+    assert definition.default_enabled is False
+    assert definition.client_safe is True
+    assert "delivery.tours" in get_args(FeatureFlagKeyValue)
+    migration = (
+        Path(__file__).resolve().parents[2]
+        / "migrations/versions/0058_delivery_tours.py"
+    ).read_text(encoding="utf-8")
+    new_keys = next(
+        line for line in migration.splitlines() if line.startswith("NEW_KEYS")
+    )
+    assert new_keys
+    for key in FeatureFlagKey:
         assert f"'{key.value}'" in migration
+    assert "'delivery.tours', false, 1" in migration

@@ -15,6 +15,7 @@ class FeatureFlagKey(StrEnum):
     SYSTEM_STATUS_PANEL = "admin.system_status_panel"
     PREVIEW_NOTICE = "admin.preview_notice"
     PWA_OFFLINE_QUEUE = "pwa.offline_queue"
+    DELIVERY_TOURS = "delivery.tours"
 
 
 class FeatureFlagSurface(StrEnum):
@@ -73,6 +74,25 @@ FEATURE_FLAG_CATALOG = (
             "Akquisiteure in der PWA speichern Daten auf ihren Geräten. "
             "Ausschalten sendet noch wartende Einträge und löscht danach "
             "die Daten auf den Geräten."
+        ),
+        default_enabled=False,
+        client_safe=True,
+    ),
+    # specs/krapfentaxi-touren: switched on once the privacy notices cover
+    # map tiles (members) and address geocoding (customers).
+    FeatureFlagDefinition(
+        key=FeatureFlagKey.DELIVERY_TOURS,
+        title="Touren für Fahrer",
+        description=(
+            "Planer ordnen die Lieferungen eines Liefertags pro Fahrer zu "
+            "Touren, mit Karte. Fahrer sehen in der Akquise-App „Meine "
+            "Tour“. Vor dem Einschalten müssen die Datenschutzhinweise für "
+            "Mitglieder (Kartenkacheln) und für Kunden (Geokodierung der "
+            "Lieferadresse) ergänzt sein (Rechtliche Angaben)."
+        ),
+        effect=(
+            "Lieferadressen gehen an den eingestellten Geocoder; Karten "
+            "laden Kacheln vom eingestellten Kachel-Server."
         ),
         default_enabled=False,
         client_safe=True,

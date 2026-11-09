@@ -6903,7 +6903,8 @@
             "enum": [
               "admin.system_status_panel",
               "admin.preview_notice",
-              "pwa.offline_queue"
+              "pwa.offline_queue",
+              "delivery.tours"
             ],
             "title": "Key",
             "type": "string"
@@ -6986,7 +6987,8 @@
             "enum": [
               "admin.system_status_panel",
               "admin.preview_notice",
-              "pwa.offline_queue"
+              "pwa.offline_queue",
+              "delivery.tours"
             ],
             "title": "Key",
             "type": "string"

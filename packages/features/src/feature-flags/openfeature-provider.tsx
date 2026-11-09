@@ -16,6 +16,7 @@ import type {
 export const FEATURE_FLAG_DOMAIN = "leonaid";
 
 export const FEATURE_FLAGS = {
+  deliveryTours: "delivery.tours",
   previewNotice: "admin.preview_notice",
   pwaOfflineQueue: "pwa.offline_queue",
   systemStatusPanel: "admin.system_status_panel",
@@ -44,6 +45,7 @@ function featureConfiguration(
   }
 
   return {
+    [FEATURE_FLAGS.deliveryTours]: configured(FEATURE_FLAGS.deliveryTours),
     [FEATURE_FLAGS.previewNotice]: configured(FEATURE_FLAGS.previewNotice),
     [FEATURE_FLAGS.pwaOfflineQueue]: configured(FEATURE_FLAGS.pwaOfflineQueue),
     [FEATURE_FLAGS.systemStatusPanel]: configured(
