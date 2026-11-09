@@ -21,6 +21,8 @@ from leonaid.domain.sessions import (
 
 ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
 DELIVERY_WINDOW_ID = UUID("98000000-0000-4000-8000-000000000002")
+# System admin: switches the delivery.tours flag for the tours proof.
+SIMONE_ID = UUID("10000000-0000-4000-8000-000000000001")
 KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 FINN_ID = UUID("10000000-0000-4000-8000-000000000007")
 # Anna (acquirer) also drives for the delivery board proof.
@@ -181,6 +183,13 @@ async def main() -> None:
             now,
         ),
         (
+            "SIMONE_FLAG_SESSION",
+            SIMONE_ID,
+            "poc090-browser-simone-flag-session-token-value",
+            now,
+            now,
+        ),
+        (
             "FINN_SESSION",
             FINN_ID,
             "poc090-browser-finn-finance-session-token-value",
@@ -192,7 +201,7 @@ async def main() -> None:
     try:
         await connection.execute(
             "DELETE FROM user_session WHERE user_id = ANY($1::uuid[])",
-            [KLARA_ID, FINN_ID, ANNA_ID],
+            [KLARA_ID, FINN_ID, ANNA_ID, SIMONE_ID],
         )
         await connection.execute(
             """
