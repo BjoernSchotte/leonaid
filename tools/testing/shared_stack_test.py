@@ -126,6 +126,41 @@ class VerifiedResetTests(unittest.TestCase):
         self.assertEqual(golden.unused_volumes, frozenset())
 
 
+class InPlaceResetTests(unittest.TestCase):
+    """E-038: any doubt during the in-place reset means the full reset."""
+
+    def stack(self):
+        stack = module.SharedStack(ROOT, "golden")
+        self.addCleanup(shutil.rmtree, stack.directory, True)
+        stack.ready = stack.used = stack.in_place = True
+        stack.armed = {"core-postgres": ("a" * 64, "2026-11-09T00:00:00Z")}
+        self.steps = []
+        stack.call = lambda args, **_: self.steps.append(args[-3])
+        stack.copy_volumes = lambda mode, **kw: self.steps.append((mode, kw))
+        stack.arm = lambda: self.steps.append("arm")
+        return stack
+
+    def test_a_failed_in_place_reset_falls_back_to_the_full_reset(self):
+        stack = self.stack()
+
+        def differs():
+            raise RuntimeError("digest differs from golden in ['core-postgres']")
+
+        stack.reset_in_place = differs
+        stack._prepare()
+        self.assertEqual(self.steps, ["stop", ("restore", {}), "arm"])
+        self.assertEqual(stack.armed, {})
+
+    def test_a_restarted_database_refuses_the_in_place_reset(self):
+        stack = self.stack()
+        stack.running = lambda: [
+            {"Id": "a" * 64, "State": {"Running": True, "StartedAt": "later"}}
+        ]
+        with self.assertRaisesRegex(RuntimeError, "core-postgres stopped or restarted"):
+            stack.reset_in_place()
+        self.assertEqual(self.steps, [])
+
+
 class SurveyTwentyIsolationTests(unittest.TestCase):
     """Survey stacks have no Twenty, so no survey check may use it."""
 

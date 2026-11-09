@@ -2,11 +2,17 @@
 
 The snapshot is synthetic, private and tied to this process and these exact images.
 It is not a backup/recovery acceptance test or a persistent CI data cache.
+
+With --in-place (E2E, decision E-038) the stack stays up between leaves and
+only the data is reset (SharedStack.reset_in_place). Any error or a digest
+that differs from golden falls back to the full stop/restore reset.
 """
 
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
+import hashlib
 import json
 import os
 import queue
@@ -44,6 +50,48 @@ DIGEST_SCRIPT = (
     '&& find . -type f -print0 | sort -z | xargs -0r sha256sum) | sha256sum | cut -d " " -f 1; done'
 )
 
+# In-place reset (E-038). These services keep running between leaves:
+# - DATABASES are reset in place: Postgres from a golden template database,
+#   Valkey with FLUSHALL. A logical digest checks them against golden.
+# - STATELESS hold no data and no cache of it.
+# - twenty-server holds only metadata caches, and no E2E leaf changes Twenty
+#   metadata; its storage volume is digested read-only.
+# Every other container (api, worker, public, twenty-worker, rustfs,
+# mailpit, one-offs) stops, and its volumes are restored from the fixture.
+DATABASES = ("core-postgres", "twenty-postgres", "twenty-redis")
+STATELESS = frozenset({"proxy", "web", "pwa", "survey-validator"})
+TWENTY_DATABASES = frozenset({"twenty-postgres", "twenty-redis"})
+# Started again right after their restore, so their boot overlaps the rest
+# of the reset; only if they ran before it.
+PRESTART = frozenset({"rustfs", "mailpit"})
+# Run against the maintenance database "postgres". The golden copy accepts
+# no connections, so no leaf can change it.
+ARM_SQL = """\\set ON_ERROR_STOP on
+CREATE DATABASE :"golden" TEMPLATE :"db";
+ALTER DATABASE :"golden" WITH ALLOW_CONNECTIONS false;
+"""
+RESET_SQL = """\\set ON_ERROR_STOP on
+DROP DATABASE :"db" WITH (FORCE);
+CREATE DATABASE :"db" TEMPLATE :"golden";
+"""
+# Row count and content checksum per table, sequence states, databases and
+# roles. Run against the reset database.
+DIGEST_SQL = """\\set ON_ERROR_STOP on
+SELECT format('SELECT %L, count(*), md5(coalesce(string_agg(md5(t::text), '''' ORDER BY md5(t::text)), '''')) FROM %s t', c.oid::regclass::text, c.oid::regclass)
+  FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+    AND n.nspname NOT LIKE 'pg\\_toast%' AND n.nspname NOT LIKE 'pg\\_temp%'
+  ORDER BY 1 \\gexec
+SELECT format('SELECT %L, last_value, is_called FROM %s', c.oid::regclass::text, c.oid::regclass)
+  FROM pg_class c WHERE c.relkind = 'S' ORDER BY 1 \\gexec
+SELECT datname, datallowconn, datistemplate FROM pg_database ORDER BY 1;
+SELECT rolname, rolsuper, rolcanlogin FROM pg_roles ORDER BY 1;
+"""
+PSQL = (
+    'exec psql -X -q -At -U "$POSTGRES_USER" -v db="$POSTGRES_DB" '
+    '-v golden="${POSTGRES_DB}_golden" -d "${1:-$POSTGRES_DB}"'
+)
+
 
 class SharedStack:
     def __init__(
@@ -76,6 +124,11 @@ class SharedStack:
         )
         # Set by the local fixture cache after it validated the entry it holds.
         self.fixture_metadata: dict | None = None
+        # In-place reset (E-038): opt-in; armed maps each running database
+        # service to its container (Id, StartedAt), golden to its digest.
+        self.in_place = False
+        self.armed: dict[str, tuple[str, str]] = {}
+        self.golden: dict[str, str] = {}
         self.env = dict(
             os.environ,
             LEONAID_HTTP_PORT="8080",
@@ -485,8 +538,8 @@ class SharedStack:
         )
         return "; ".join(result.stdout.split("\n")).strip("; ") or str(containers)
 
-    def quiesce(self, timeout=60):
-        """Stop every container of the project, or fail closed after timeout.
+    def quiesce(self, timeout=60, keep=frozenset()):
+        """Stop every container of the project but `keep` (Ids), or fail closed after timeout.
 
         `compose stop` covers only the service containers that exist at that
         moment. A container in restart backoff (restart: unless-stopped after
@@ -496,7 +549,11 @@ class SharedStack:
         flag then prevents further restarts.
         """
         deadline = time.monotonic() + timeout
-        while active := self.active_containers():
+        while active := [
+            item
+            for item in self.active_containers()
+            if not any(full.startswith(item) for full in keep)
+        ]:
             details = self.describe(active)
             if time.monotonic() > deadline:
                 raise RuntimeError(
@@ -516,9 +573,18 @@ class SharedStack:
             )
             time.sleep(1)
 
-    def copy_volumes(self, mode):
+    def copy_volumes(self, mode, held=None, skipped=frozenset()):
+        """Save or restore the volumes, then digest them.
+
+        In-place reset: `held` volumes stay mounted by running containers and
+        are only digested read-only; `skipped` ones (the databases) are
+        checked by their logical digest instead.
+        """
         # No live process may hold a database, queue or storage file during copying.
-        self.quiesce()
+        if held is not None:
+            self.require_unheld(held)
+        else:
+            self.quiesce()
         current = self.inventory("volumes")
         if current != self.volumes:
             raise RuntimeError(
@@ -538,28 +604,66 @@ class SharedStack:
         ]
         # Indices stay those of the full inventory, so archive names never shift.
         mounted = set()
+        written = []
         for index, volume in enumerate(self.volumes):
-            if volume in self.unused_volumes:
+            if volume in self.unused_volumes or volume in skipped:
                 continue
             mounted.add(str(index))
-            args += ["--mount", f"type=volume,src={volume},dst=/state/{index}"]
+            readonly = ",readonly" if held and volume in held else ""
+            if not readonly:
+                written.append(str(index))
+            args += [
+                "--mount",
+                f"type=volume,src={volume},dst=/state/{index}{readonly}",
+            ]
         # Names are numeric indices from the guarded inventory, never external paths.
         script = (
             'for d in /state/*; do tar -C "$d" -cf "/fixture/volume-${d##*/}.tar" .; '
             'chown "$FIXTURE_OWNER" "/fixture/volume-${d##*/}.tar"; done; '
             if mode == "save"
-            else 'for d in /state/*; do test -s "/fixture/volume-${d##*/}.tar"; find "$d" -mindepth 1 -delete; tar -C "$d" -xf "/fixture/volume-${d##*/}.tar"; done; '
+            else 'for i in $RESTORE; do d=/state/$i; test -s "/fixture/volume-$i.tar"; find "$d" -mindepth 1 -delete; tar -C "$d" -xf "/fixture/volume-$i.tar"; done; '
         )
         output = self.call(
-            [*args, self.alpine, "sh", "-eu", "-c", script + DIGEST_SCRIPT],
+            [
+                *args,
+                "--env",
+                "RESTORE=" + " ".join(written),
+                self.alpine,
+                "sh",
+                "-eu",
+                "-c",
+                script + DIGEST_SCRIPT,
+            ],
             capture=True,
         )
         self.verify_digests(output, mounted)
         # Fail closed if anything started while the copy ran.
-        if active := self.active_containers():
+        if held is not None:
+            self.require_unheld(held)
+        elif active := self.active_containers():
             raise RuntimeError(
                 f"Fixture {mode} raced with started containers: {self.describe(active)}"
             )
+
+    def running(self):
+        """`docker inspect` of every active container of the project."""
+        active = self.active_containers()
+        return (
+            json.loads(self.call(["docker", "inspect", *active], capture=True))
+            if active
+            else []
+        )
+
+    def require_unheld(self, held):
+        """Fail unless running containers mount exactly `held` volumes, or fewer."""
+        mounted = {
+            mount.get("Name")
+            for container in self.running()
+            for mount in container["Mounts"]
+            if mount.get("Type") == "volume"
+        }
+        if extra := sorted(mounted - set(held)):
+            raise RuntimeError(f"Running containers hold volumes {extra}")
 
     def verify_digests(self, output, mounted):
         """Record the initialized state once; afterwards every reset must match it.
@@ -594,23 +698,200 @@ class SharedStack:
         finally:
             lease.rmdir()
 
+    def say(self, text):
+        print(f"shared-stack: {text}", flush=True, file=self.output)
+
     def _prepare(self):
         if not self.ready:
             self.initialize()
+            self.arm()
         elif self.used:
             start = time.monotonic()
+            if self.armed:
+                try:
+                    steps = self.reset_in_place()
+                    self.say(
+                        f"data reset {time.monotonic() - start:.1f}s (in place: {steps})"
+                    )
+                    self.used = True
+                    return self.leaf_env()
+                except Exception as error:  # Fail closed: the full reset follows.
+                    self.say(f"in-place reset failed, full reset follows: {error}")
+                    self.armed = {}
             self.call([*self.compose, "--profile", "*", "stop", "--timeout", "5"])
             self.copy_volumes("restore")
-            print(
-                f"shared-stack: data reset {time.monotonic() - start:.1f}s",
-                flush=True,
-                file=self.output,
-            )
+            self.say(f"data reset {time.monotonic() - start:.1f}s")
+            self.arm()
         self.used = True
+        return self.leaf_env()
+
+    def leaf_env(self):
         return {
             "LEONAID_TEST_STACK": str(self.directory),
             "LEONAID_TEST_STACK_TOKEN": self.token,
         }
+
+    def database_services(self):
+        # Kinds without CRM leaves (core) or without Twenty (survey) arm
+        # only the core database.
+        if self.kind in {"golden", "documents"}:
+            return DATABASES
+        return ("core-postgres",)
+
+    def exec_in(self, container, command, stdin=None):
+        return subprocess.run(
+            ["docker", "exec", *(["-i"] if stdin else []), container, *command],
+            input=stdin,
+            env=self.env,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    def psql(self, container, sql, database=""):
+        """Run `sql` in the service's own database, or in `database`."""
+        return self.exec_in(container, ["sh", "-c", PSQL, "psql", database], sql)
+
+    def arm(self):
+        """Start the databases on the just restored fixture and copy it to golden.
+
+        Without in-place reset, or if arming fails, every reset stays full.
+        """
+        if not self.in_place:
+            return
+        start = time.monotonic()
+        try:
+            services = self.database_services()
+            self.call(
+                [
+                    *self.compose,
+                    "up",
+                    "--no-build",
+                    "--detach",
+                    "--wait",
+                    "--wait-timeout",
+                    "120",
+                    *services,
+                ]
+            )
+            armed = {
+                container["Config"]["Labels"]["com.docker.compose.service"]: (
+                    container["Id"],
+                    container["State"]["StartedAt"],
+                )
+                for container in self.running()
+            }
+            if sorted(armed) != sorted(services):
+                raise RuntimeError(f"expected {sorted(services)}, running {sorted(armed)}")
+            for service in services:
+                if service == "twenty-redis":
+                    # Golden is an empty Valkey, as in the CI fixture
+                    # (initialize); a local fixture still holds its build's
+                    # caches and finished jobs.
+                    self.exec_in(armed[service][0], ["valkey-cli", "FLUSHALL", "SYNC"])
+                else:
+                    self.psql(armed[service][0], ARM_SQL, "postgres")
+            self.armed = armed
+            self.golden = self.data_digests()
+            self.say(f"in-place reset armed {time.monotonic() - start:.1f}s")
+        except Exception as error:
+            self.armed = {}
+            self.say(f"in-place reset not armed, resets stay full: {error}")
+
+    def data_digests(self):
+        """Logical digest per armed database service."""
+        digests = {}
+        for service, (container, _) in sorted(self.armed.items()):
+            if service == "twenty-redis":
+                keys = self.exec_in(container, ["valkey-cli", "--scan"]).split()
+                # Golden is empty (arm); any key but a metrics counter is a
+                # queue, bucket or cache left over.
+                digests[service] = " ".join(
+                    sorted(key for key in keys if not key.startswith("engine:metrics:"))
+                )
+            else:
+                output = self.psql(container, DIGEST_SQL)
+                digests[service] = hashlib.sha256(output.encode()).hexdigest()
+        return digests
+
+    def reset_in_place(self):
+        """Reset the data of a running stack to the golden state (E-038).
+
+        Raises on any doubt; the caller then runs the full reset. Returns
+        the seconds per step for the log.
+        """
+        steps, mark = {}, time.monotonic()
+
+        def step(name):
+            nonlocal mark
+            now = time.monotonic()
+            steps[name] = f"{now - mark:.1f}"
+            mark = now
+
+        containers = self.running()
+        by_id = {container["Id"]: container for container in containers}
+        for service, (container, started) in self.armed.items():
+            state = by_id.get(container, {}).get("State", {})
+            if state.get("StartedAt") != started or not state.get("Running"):
+                raise RuntimeError(f"{service} stopped or restarted during the leaf")
+        databases = {container for container, _ in self.armed.values()}
+        stateless = STATELESS | (
+            {"twenty-server"} if TWENTY_DATABASES <= set(self.armed) else set()
+        )
+        keep, stop, prestart = set(), [], []
+        for container in containers:
+            labels = container["Config"]["Labels"]
+            service = labels["com.docker.compose.service"]
+            oneoff = labels.get("com.docker.compose.oneoff") == "True"
+            if container["Id"] in databases or (service in stateless and not oneoff):
+                keep.add(container["Id"])
+            else:
+                stop.append(container["Id"])
+                if service in PRESTART and not oneoff:
+                    prestart.append(container["Id"])
+        if stop:
+            # A one-off may vanish (--rm) meanwhile; quiesce checks the result.
+            subprocess.run(
+                ["docker", "stop", "--timeout", "5", *stop],
+                env=self.env,
+                stdout=subprocess.DEVNULL,
+                stderr=self.output,
+            )
+        self.quiesce(keep=keep)
+        step("stop")
+
+        def volumes(ids):
+            return {
+                mount["Name"]
+                for container in containers
+                if container["Id"] in ids
+                for mount in container["Mounts"]
+                if mount.get("Type") == "volume"
+            }
+
+        held, databases = volumes(keep), volumes(databases)
+        self.copy_volumes("restore", held=held, skipped=databases)
+        if prestart:
+            self.call(["docker", "start", *prestart], capture=True)
+        step("volumes")
+        # The databases reset in parallel; the Twenty copy is the largest.
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            for future in [
+                pool.submit(
+                    self.exec_in, container, ["valkey-cli", "FLUSHALL", "SYNC"]
+                )
+                if service == "twenty-redis"
+                else pool.submit(self.psql, container, RESET_SQL, "postgres")
+                for service, (container, _) in self.armed.items()
+            ]:
+                future.result()
+        step("databases")
+        if (digests := self.data_digests()) != self.golden:
+            changed = sorted(key for key in digests if digests[key] != self.golden.get(key))
+            keys = digests.get("twenty-redis", "")[:300]
+            raise RuntimeError(f"digest differs from golden in {changed}; Valkey keys: {keys!r}")
+        step("digest")
+        return " ".join(f"{name} {seconds}s" for name, seconds in steps.items())
 
     def close(self):
         try:
@@ -893,6 +1174,11 @@ def main():
         help="Run every leaf after a failure; exit with the first failure's code",
     )
     parser.add_argument(
+        "--in-place",
+        action="store_true",
+        help="Reset data in the running stack between leaves (E-038); full reset on doubt",
+    )
+    parser.add_argument(
         "kind",
         nargs="?",
         default="documents",
@@ -912,6 +1198,7 @@ def main():
         stack = cache.stack
     else:
         stack = SharedStack(root, args.kind)
+    stack.in_place = args.in_place
     if not args.scripts:
         if cache:
             cache.close()
@@ -962,6 +1249,7 @@ def main():
             extra = SharedStack(root, args.kind, output=log)
             extra.env["LEONAID_CI_FIXTURE"] = str(fixture[0])
             extra.fixture_metadata = fixture[1]
+            extra.in_place = args.in_place
             extra_stacks.append(extra)
         runner = LeafRunner(
             root, [stack, *extra_stacks], args.scripts, args.keep_going, output_lock

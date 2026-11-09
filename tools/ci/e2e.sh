@@ -5,8 +5,10 @@ set -eu
 # shards every shard of the selector runs.
 # Several shards form one CI bin (tools/ci/select_suites.py). Their leaves
 # run on one shared stack per fixture kind: tools/testing/shared_stack.py
-# restores the stopped fixture volumes before every leaf, so each leaf still
-# starts from the identical prepared state. --keep-going runs every leaf even
+# resets the data before every leaf, so each leaf still starts from the
+# identical prepared state. --in-place keeps the stack up and resets only the
+# data (E-038); on any doubt it restores the stopped fixture volumes as
+# before. --keep-going runs every leaf even
 # after a failure; the bin then fails and the log names the failed leaves.
 # CI keeps one stack per fixture kind (parallel_stacks.py: CI set and no
 # LEONAID_TEST_STACKS), so timing and disk use stay comparable between runs.
@@ -121,7 +123,7 @@ shared() {
   for leaf in $leaves; do
     set -- "$@" "$(printf %s "$leaf" | tr : ' ')"
   done
-  step "$kind leaves" python3 "$root/tools/testing/shared_stack.py" --keep-going "$kind" "$@"
+  step "$kind leaves" python3 "$root/tools/testing/shared_stack.py" --keep-going --in-place "$kind" "$@"
 }
 if [ -n "$golden" ]; then
   shared golden "$golden"
