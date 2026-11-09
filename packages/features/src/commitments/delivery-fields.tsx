@@ -16,6 +16,7 @@ export interface DeliveryDraft {
   readonly windowId: string;
   readonly contactName: string;
   readonly contactPhone: string;
+  readonly driverNote: string;
 }
 
 export function deliveryDraft(order?: CommitmentResponse): DeliveryDraft {
@@ -28,6 +29,7 @@ export function deliveryDraft(order?: CommitmentResponse): DeliveryDraft {
     windowId: order?.deliveryWindowId ?? "",
     contactName: order?.deliveryContact?.name ?? "",
     contactPhone: order?.deliveryContact?.phone ?? "",
+    driverNote: order?.deliveryContact?.driverNote ?? "",
   };
 }
 
@@ -63,10 +65,13 @@ export function deliveryPayload(value: DeliveryDraft) {
       : null,
     deliveryWindowId: value.windowId || null,
     deliveryContact:
-      value.contactName.trim() || value.contactPhone.trim()
+      value.contactName.trim() ||
+      value.contactPhone.trim() ||
+      value.driverNote.trim()
         ? {
             name: value.contactName.trim() || null,
             phone: value.contactPhone.trim() || null,
+            driverNote: value.driverNote.trim() || null,
           }
         : null,
   };
@@ -436,6 +441,20 @@ export function DeliveryFields({
             der Bestellkontakt für Rückfragen erhalten.
           </small>
         </div>
+        <div className="commitment-field commitment-field--wide">
+          <label htmlFor={`${prefix}-driver-note`}>
+            Hinweis für den Fahrer (optional)
+          </label>
+          <input
+            id={`${prefix}-driver-note`}
+            maxLength={200}
+            value={value.driverNote}
+            onChange={(event) =>
+              onChange({ ...value, driverNote: event.target.value })
+            }
+          />
+          <small>Zum Beispiel: Klingel defekt, Hintereingang im Hof.</small>
+        </div>
       </div>
       {hasPartialDeliveryAddress(value) ? (
         <p className="commitment-step__intro">
@@ -508,6 +527,12 @@ export function DeliverySummary({
           {order.buyer.email ? ` · ${order.buyer.email}` : ""}
         </p>
       )}
+      {order.deliveryContact?.driverNote ? (
+        <p>
+          <strong>Hinweis für den Fahrer:</strong>{" "}
+          {order.deliveryContact.driverNote}
+        </p>
+      ) : null}
     </section>
   );
 }

@@ -78,6 +78,7 @@ import {
   tourLengthKm,
   type TourPoint,
 } from "./tour-model";
+import { DriverNote } from "./driver-note";
 import { driverTone, TourMap, type TourMapPin } from "./tour-map";
 import { useOrderAutosave } from "./use-order-autosave";
 
@@ -1244,6 +1245,7 @@ function StopRow({
           {drop.address?.streetLine1 ?? "Keine Lieferadresse"} ·{" "}
           {dropQuantities(drop)}
         </span>
+        <DriverNote className="tour-stop-note" drop={drop} />
       </label>
       {/* Ruling 18: a pin that is there can move; the click writes a manual pin. */}
       {stop.lat !== null && stop.lon !== null ? (

@@ -3998,7 +3998,9 @@ async def complete_commitment(
         if address is not None
         else None,
         delivery_window_id=body.delivery_window_id,
-        delivery_contact=DeliveryContactSnapshot(contact.name, contact.phone)
+        delivery_contact=DeliveryContactSnapshot(
+            contact.name, contact.phone, contact.driver_note
+        )
         if contact is not None
         else None,
     )
@@ -4054,7 +4056,9 @@ async def complete_commitment_delivery(
         if address is not None
         else None,
         delivery_window_id=body.delivery_window_id,
-        delivery_contact=DeliveryContactSnapshot(contact.name, contact.phone)
+        delivery_contact=DeliveryContactSnapshot(
+            contact.name, contact.phone, contact.driver_note
+        )
         if contact is not None
         else None,
     )
@@ -5566,7 +5570,9 @@ def delivery_drop_response(drop: DeliveryDrop) -> DeliveryDropResponse:
         ),
         contact=(
             DeliveryDropContactResponse(
-                name=drop.contact.name, phone=drop.contact.phone
+                name=drop.contact.name,
+                phone=drop.contact.phone,
+                driver_note=drop.contact.driver_note,
             )
             if drop.contact
             else None

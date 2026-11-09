@@ -1198,3 +1198,27 @@ html:has(.tour-dock) .toaster {
   transform: translateX(-50%);
   box-shadow: var(--shadow-2);
 }
+
+/* The driver note: one quiet line with a small icon (spec §5.1). */
+.tour-note {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-width: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.tour-note svg {
+  flex: none;
+}
+.tour-note-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tour-stop-note {
+  font-size: var(--fs-xs);
+}
+.tour-stop.is-done .tour-stop-note {
+  color: var(--text-3);
+}

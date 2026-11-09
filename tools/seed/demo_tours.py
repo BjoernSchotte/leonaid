@@ -121,6 +121,7 @@ class DemoOrder:
     delivered: bool = False
     contact_name: str | None = None
     contact_phone: str | None = None
+    driver_note: str | None = None
 
     @property
     def idempotency_key(self) -> str:
@@ -155,7 +156,14 @@ ORDERS = (
         True,
     ),
     DemoOrder(
-        "maria-obermaier", 8, False, "Maria Obermaier", "Marktstraße 48", 6, DORA
+        "maria-obermaier",
+        8,
+        False,
+        "Maria Obermaier",
+        "Marktstraße 48",
+        6,
+        DORA,
+        driver_note="Bei Nachbarin abgeben",
     ),
     DemoOrder(
         "physio-kurpark",
@@ -168,6 +176,7 @@ ORDERS = (
         False,
         "Empfang",
         "+49 8041 990104",
+        driver_note="Klingel defekt, bitte anrufen",
     ),
     DemoOrder(
         "ingenieurbuero-lechner",
@@ -209,6 +218,7 @@ ORDERS = (
         False,
         "Frau Kiefersauer",
         "+49 8041 990108",
+        driver_note="Lieferantentür links",
     ),
     DemoOrder(
         "steuerbuero-wallner",
@@ -231,6 +241,7 @@ ORDERS = (
         False,
         "Herr Fischbacher",
         "+49 8041 990111",
+        driver_note="Hintereingang im Hof",
     ),
     DemoOrder("anna-demmel", 12, False, "Anna Demmel", "Hindenburgstraße 26", 6, DORA),
     DemoOrder(
@@ -420,8 +431,10 @@ def draft_for(order: DemoOrder, window_id: UUID) -> CommitmentDraft:
     kind = CommitmentPartyKind.COMPANY if order.company else CommitmentPartyKind.PERSON
     email = f"demo.{order.slug}@leonaid.invalid"
     contact = (
-        DeliveryContactSnapshot(order.contact_name, order.contact_phone)
-        if order.contact_name or order.contact_phone
+        DeliveryContactSnapshot(
+            order.contact_name, order.contact_phone, order.driver_note
+        )
+        if order.contact_name or order.contact_phone or order.driver_note
         else None
     )
     return CommitmentDraft(

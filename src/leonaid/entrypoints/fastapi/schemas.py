@@ -1117,6 +1117,7 @@ class PublicOrderLineRequest(TransportModel):
 class DeliveryContactRequest(TransportModel):
     name: str | None = Field(default=None, max_length=200)
     phone: str | None = Field(default=None, max_length=40)
+    driver_note: str | None = Field(default=None, max_length=200)
 
 
 class CreatePublicOrderRequest(TransportModel):
@@ -2685,6 +2686,7 @@ class DeliveryDropAddressResponse(TransportModel):
 class DeliveryDropContactResponse(TransportModel):
     name: str | None
     phone: str | None
+    driver_note: str | None = None
 
 
 class DeliveryDropResponse(TransportModel):

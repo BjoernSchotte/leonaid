@@ -14,6 +14,7 @@ const body = new URLSearchParams({
   deliveryWindowId: id,
   deliveryContactName: "Synthetic reception",
   deliveryContactPhone: "+49 123 / 456",
+  deliveryDriverNote: "Hintereingang im Hof",
 });
 const request = (input: URLSearchParams | string) =>
   new Request("https://localhost/", {
@@ -30,6 +31,7 @@ assert.equal(result?.billingSameAsDelivery, false);
 assert.equal(result?.fields.deliveryWindowId, id);
 assert.equal(result?.fields.deliveryContactName, "Synthetic reception");
 assert.equal(result?.fields.deliveryContactPhone, "+49 123 / 456");
+assert.equal(result?.fields.deliveryDriverNote, "Hintereingang im Hof");
 assert.ok(!JSON.stringify(result).includes("not-retained"));
 assert.ok(!JSON.stringify(result).includes("quotedUnitPriceMinor"));
 assert.equal(await readOrderRedisplay(request(body), "foreign"), null);
@@ -44,6 +46,7 @@ body.set("commandId", "invalid");
 body.append("deliveryWindowId", id);
 body.set("deliveryContactName", "x".repeat(201));
 body.set("deliveryContactPhone", "x".repeat(41));
+body.set("deliveryDriverNote", "x".repeat(201));
 const rejected = await readOrderRedisplay(request(body), "krapfentaxi");
 assert.equal(rejected?.fields.givenName, undefined);
 assert.equal(rejected?.fields.phone, undefined);
@@ -52,6 +55,7 @@ assert.equal(rejected?.quantities[id], undefined);
 assert.equal(rejected?.fields.deliveryWindowId, undefined);
 assert.equal(rejected?.fields.deliveryContactName, undefined);
 assert.equal(rejected?.fields.deliveryContactPhone, undefined);
+assert.equal(rejected?.fields.deliveryDriverNote, undefined);
 assert.equal(
   await readOrderRedisplay(request("x".repeat(65537)), "krapfentaxi"),
   null,

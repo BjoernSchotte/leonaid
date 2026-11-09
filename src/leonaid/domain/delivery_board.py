@@ -141,6 +141,7 @@ class DropAddress:
 class DropContact:
     name: str | None
     phone: str | None
+    driver_note: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

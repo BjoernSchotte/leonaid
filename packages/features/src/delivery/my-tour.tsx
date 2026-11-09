@@ -57,6 +57,7 @@ import {
   dropQuantities,
   dropQuantitiesShort,
 } from "./delivery-shared";
+import { DriverNote } from "./driver-note";
 import { TourMap, type TourMapPin } from "./tour-map";
 import { TourMapSlot } from "./tour-map-slot";
 import {
@@ -1336,6 +1337,7 @@ function OpenRow({
         <span className="tour-row-street">
           {drop.address?.streetLine1 ?? copy.noAddress}
         </span>
+        <DriverNote className="tour-row-note" drop={drop} />
       </button>
       <span className="tour-row-qty num">{dropQuantitiesShort(drop)}</span>
     </li>
@@ -1662,7 +1664,7 @@ function DockStop({
       ) : (
         <p className="tour-dock-muted">{copy.noAddress}</p>
       )}
-      {/* The driver note (spec §5.1) joins here with Task 12. */}
+      <DriverNote drop={drop} />
       {address && map ? (
         <TourMapSlot
           address={address}

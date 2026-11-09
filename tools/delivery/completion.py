@@ -93,7 +93,11 @@ async def prove_completion(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) 
             "city": "Test",
         },
         "deliveryWindowId": str(window.id),
-        "deliveryContact": {"name": " Reception ", "phone": "+49 123 / 456"},
+        "deliveryContact": {
+            "name": " Reception ",
+            "phone": "+49 123 / 456",
+            "driverNote": " Klingel defekt ",
+        },
     }
 
     def headers() -> dict[str, str]:
@@ -116,6 +120,7 @@ async def prove_completion(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) 
         assert response.status_code == 201, response.text
         direct = response.json()
         assert direct["deliveryContact"]["name"] == "Reception"
+        assert direct["deliveryContact"]["driverNote"] == "Klingel defekt"
         assert direct["totalMinor"] > 2  # Ignore the client quote.
         draft_headers = headers()
         response = await client.post(path, json=body, headers=draft_headers)
@@ -210,7 +215,9 @@ async def prove_completion(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) 
             "SELECT payload FROM audit_event WHERE entity_id=$1 AND event_type='commitment_completed'",
             UUID(draft["id"]),
         )
+        assert completed["deliveryContact"]["driverNote"] == "Klingel defekt"
         assert len(events) == 1 and "Reception" not in str(events)
+        assert "Klingel" not in str(events)
         assert json.loads(events[0]["payload"]) == {
             "previousStatus": "draft",
             "status": "review_ready",

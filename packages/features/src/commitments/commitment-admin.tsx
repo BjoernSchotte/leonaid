@@ -705,6 +705,14 @@ function OrderDetail({
                     .filter(Boolean)
                     .join(" · "),
             },
+            ...(commitment.deliveryContact?.driverNote
+              ? [
+                  {
+                    label: "Hinweis für den Fahrer",
+                    value: commitment.deliveryContact.driverNote,
+                  },
+                ]
+              : []),
           ]}
         />
       </DetailSection>

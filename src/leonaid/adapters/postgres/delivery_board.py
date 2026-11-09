@@ -218,6 +218,11 @@ async def fetch_drops(
                     DropContact(
                         name=(str(contact["name"]) if contact.get("name") else None),
                         phone=(str(contact["phone"]) if contact.get("phone") else None),
+                        driver_note=(
+                            str(contact["driver_note"])
+                            if contact.get("driver_note")
+                            else None
+                        ),
                     )
                     if contact
                     else None

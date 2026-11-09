@@ -107,7 +107,9 @@ def order(**changes: Any) -> Commitment:
             "timezone": "Europe/Berlin",
         },
         delivery_contact=DeliveryContactSnapshot(
-            name="Pforte Herr Geheim", phone="+49 821 999999"
+            name="Pforte Herr Geheim",
+            phone="+49 821 999999",
+            driver_note="Hofeinfahrt links"
         ),
         message="Bitte am Hintereingang klingeln, Code 4711.",
         public_reference=f"LA-{ORDER_ID.hex.upper()}",
@@ -238,6 +240,7 @@ def test_confirmation_lists_the_order_the_club_and_the_links() -> None:
     # Internal or third-party data never reaches the buyer.
     for forbidden in (
         "Hintereingang",
+        "Hofeinfahrt links",
         "4711",
         "Pforte",
         "999999",

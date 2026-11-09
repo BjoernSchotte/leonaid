@@ -71,6 +71,7 @@ async def drivers(pool: asyncpg.Pool[Any]) -> None:
             [order.idempotency_key for order in ORDERS],
         )
     }
+    assert noted_orders() == 4, "four demo orders carry a driver note"
     for driver in DRIVERS:
         board = await service.board(
             await load_principal(pool, driver.id),
@@ -86,6 +87,18 @@ async def drivers(pool: asyncpg.Pool[Any]) -> None:
             keys[order.idempotency_key] for order in ORDERS if order.driver == driver
         }
         assert seen == wanted, (driver.key, sorted(seen), sorted(wanted))
+        notes = {
+            str(drop.commitment_id): drop.contact.driver_note
+            for window in board.windows
+            for drop in window.drops
+            if drop.contact and drop.contact.driver_note
+        }
+        expected = {
+            keys[order.idempotency_key]: order.driver_note
+            for order in ORDERS
+            if order.driver == driver and order.driver_note
+        }
+        assert notes == expected, (driver.key, notes, expected)
         delivered = sum(
             drop.state.value == "delivered"
             for window in board.windows
@@ -101,6 +114,10 @@ async def drivers(pool: asyncpg.Pool[Any]) -> None:
             f"demo-tours-test: {driver.display_name} sees exactly their"
             f" {len(seen)} stops ({delivered} delivered)"
         )
+
+
+def noted_orders() -> int:
+    return sum(order.driver_note is not None for order in ORDERS)
 
 
 async def main(command: str) -> None:

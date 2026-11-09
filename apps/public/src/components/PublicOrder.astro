@@ -652,6 +652,28 @@ const checkIcon = "M20 6 9 17l-5-5";
                       Nur für Rückfragen am Liefertag. Ohne Angabe gilt der
                       Bestellkontakt.
                     </p>
+                    <div class="field">
+                      <label class="field-label" for="deliveryDriverNote">
+                        Hinweis für den Fahrer
+                        <span class="field-optional"> (optional)</span>
+                      </label>
+                      <input
+                        id="deliveryDriverNote"
+                        class="input"
+                        name="deliveryDriverNote"
+                        maxlength="200"
+                        value={redisplay?.fields.deliveryDriverNote ?? ""}
+                        aria-describedby="deliveryDriverNote-help deliveryDriverNote-error"
+                      />
+                      <p id="deliveryDriverNote-help" class="field-hint">
+                        Zum Beispiel: Klingel defekt, Hintereingang im Hof.
+                      </p>
+                      <p
+                        id="deliveryDriverNote-error"
+                        class="field-error"
+                        data-error-for="deliveryDriverNote"
+                      />
+                    </div>
                   </div>
                 )}
                 {orderForm.allowMessage && (

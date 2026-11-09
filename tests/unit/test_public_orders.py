@@ -20,6 +20,7 @@ from leonaid.domain.commitments import (
     DeliveryRecipientSnapshot,
     InvoiceRecipientSnapshot,
 )
+from leonaid.domain.delivery import DeliveryContactSnapshot
 from leonaid.domain.errors import DomainInvariantError
 
 ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
@@ -142,6 +143,22 @@ def test_public_order_normalizes_party_and_hashes_material_fields() -> None:
     )
 
     assert original != repriced
+
+
+def test_request_hash_changes_with_driver_note_only_when_present() -> None:
+    base = public_order()
+    with_contact = replace(base, delivery_contact=DeliveryContactSnapshot("A", "1"))
+    with_note = replace(
+        base, delivery_contact=DeliveryContactSnapshot("A", "1", "Hof")
+    )
+
+    def digest(order: PublicOrderDraft) -> str:
+        return order.request_hash(action_id=ACTION_ID, public_alias="krapfentaxi")
+
+    assert digest(with_contact) != digest(with_note)
+    assert digest(with_contact) == digest(
+        replace(base, delivery_contact=DeliveryContactSnapshot("A", "1", None))
+    )
 
 
 @pytest.mark.parametrize(
