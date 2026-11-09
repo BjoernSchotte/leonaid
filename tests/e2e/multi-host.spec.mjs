@@ -167,10 +167,10 @@ test("the split proxy routes, refuses and redirects per host", async ({
   });
   expect(inbox.status()).toBe(422);
   expect((await inbox.json()).error?.code).not.toBe("csrf_rejected");
-  const order = await request.post(
-    `${publicUrl}/_actions/createPublicOrder/`,
-    { headers: { Origin: publicUrl }, multipart: { alias: "krapfentaxi" } },
-  );
+  const order = await request.post(`${publicUrl}/_actions/createPublicOrder/`, {
+    headers: { Origin: publicUrl },
+    multipart: { alias: "krapfentaxi" },
+  });
   expect([400, 415]).toContain(order.status());
   // The member API does not exist on the public host.
   expect((await get(`${publicUrl}/api/v1/identity/me`)).status()).toBe(404);
