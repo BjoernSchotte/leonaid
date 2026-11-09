@@ -76,6 +76,7 @@ E2E_SHARDS = (
     "invoices",
     "commitments",
     "pwa",
+    "pwa-offline",
     "action-admin",
     "public-orders",
     "identity",
@@ -132,25 +133,24 @@ INTEGRATION_SECONDS = {
     "contract": 192,
 }
 E2E_SECONDS = {
-    # Leaf sums of run 42537284976 (2026-11-09, after E2E batches 1 and 2).
-    # The old table put pwa at 180 s; it takes 451 s (9 browser/viewport
-    # projects plus two offline browser runs), so one leg reached 885 s.
-    # Minus activity_feed (36 s), now Integration / acquisition-contracts.
-    "public-catalog": 171,
-    "membership": 70,
-    "invoices": 61,
-    "commitments": 81,
-    "pwa": 451,
-    "action-admin": 83,
-    "public-orders": 87,
-    "identity": 40,
-    "tasks": 87,
-    "knowledge": 72,
+    # Leaf sums of run 42552919966 (#179, Twenty kept between golden leaves;
+    # own-stack leaves included, e.g. multi_host 146 s in public-catalog).
+    "public-catalog": 255,
+    "membership": 97,
+    "invoices": 50,
+    "commitments": 41,
+    # The pwa leaf (369 s) by mode: local 69 s + 215 s, plus its setup twice.
+    "pwa": 110,
+    "pwa-offline": 280,
+    "action-admin": 65,
+    "public-orders": 133,
+    "identity": 60,
+    "tasks": 111,
+    "knowledge": 66,
     "inbox": 48,
-    "leitsystem-ui": 242,
-    # Minus privacy (49 s), now Integration / privacy.
-    "operations": 147,
-    "invoice-flows": 167,
+    "leitsystem-ui": 261,
+    "operations": 92,
+    "invoice-flows": 115,
     # Estimate: three single tests on two prepared stacks.
     SMOKE: 240,
 }
@@ -555,7 +555,13 @@ RULES: tuple[Rule, ...] = (
         e2e("commitments"),
         "commitment proofs",
     ),
-    Rule(("tools/pwa/**", "tests/e2e/pwa*.spec.mjs"), e2e("pwa"), "PWA proofs"),
+    Rule(
+        ("tests/e2e/pwa-offline*.spec.mjs",),
+        e2e("pwa-offline"),
+        "PWA offline specs",
+    ),
+    Rule(("tests/e2e/pwa*.spec.mjs",), e2e("pwa"), "PWA specs"),
+    Rule(("tools/pwa/**",), e2e("pwa", "pwa-offline"), "PWA proofs"),
     Rule(
         (
             "tests/e2e/identity.spec.mjs",
@@ -668,7 +674,7 @@ RULES: tuple[Rule, ...] = (
     ),
     Rule(
         ("packages/features/src/acquisition/**",),
-        e2e("pwa") | {"golden"},
+        e2e("pwa", "pwa-offline") | {"golden"},
         "acquisition UI",
     ),
     Rule(
@@ -759,16 +765,18 @@ def everything_but_e2e() -> frozenset[str]:
 # leonaid.application, leonaid.domain, leonaid.adapters.postgres and
 # leonaid.modules.<stem>.*. A changed module selects the owners of every
 # module that imports it, directly or transitively (``e2e_owners``).
+# The PWA leaf runs as two (tools/ci/e2e.sh pwa, pwa-offline).
+PWA = ("pwa", "pwa-offline")
 E2E_OWNERS: dict[str, tuple[str, ...]] = {
     "tasks": ("tasks",),
     "materials": ("knowledge",),
     "inbox": ("inbox",),
     "knowledge": ("knowledge",),
-    "acquisition": ("pwa",),
-    "sponsor_matching": ("pwa",),
-    "crm_matching": ("pwa",),
-    "activities": ("pwa",),
-    "assignments": ("pwa",),
+    "acquisition": PWA,
+    "sponsor_matching": PWA,
+    "crm_matching": PWA,
+    "activities": PWA,
+    "assignments": PWA,
     "activity_feed": ("public-catalog",),
     "activity_projection": ("public-catalog",),
     "campaign_aliases": ("public-catalog",),
@@ -805,7 +813,7 @@ _MESSAGING = (
     "membership",
     "invoice-flows",
     "public-orders",
-    "pwa",
+    *PWA,
 )
 ALL_E2E = "*"
 # Modules the reverse import graph cannot reach: LeonAid wires adapters and
@@ -817,7 +825,7 @@ MODULE_OWNERS: tuple[tuple[str, tuple[str, ...] | str], ...] = (
     ("leonaid.adapters.mail", ("membership", "invoice-flows", "public-orders")),
     (
         "leonaid.adapters.twenty",
-        ("pwa", "public-orders"),
+        (*PWA, "public-orders"),
     ),
     ("leonaid.adapters.typst", ("invoices", "invoice-flows")),
     ("leonaid.adapters.storage", ("knowledge", "inbox", "invoices")),

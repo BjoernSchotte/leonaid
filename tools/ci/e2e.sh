@@ -28,8 +28,15 @@ leaves() {
     # Admin host + public host on their own stack (specs/multi-domain stage 1).
     echo own tools/multi_host/test.sh
     ;;
-  invitations|sessions|pwa|commitments|invoices)
+  invitations|sessions|commitments|invoices)
     echo golden "tools/$1/test.sh"
+    ;;
+  # Two leaves so the packer can put them on different legs (E-033).
+  pwa)
+    echo golden tools/pwa/test.sh:ui
+    ;;
+  pwa-offline)
+    echo golden tools/pwa/test.sh:offline
     ;;
   action-admin|public-actions|public-orders)
     echo golden "tools/$(printf '%s' "$1" | tr '-' '_')/test.sh"
@@ -108,13 +115,21 @@ step() {
     status=1
   fi
 }
-# shellcheck disable=SC2086 # one word per leaf script
+# One shared stack per kind; a leaf "script:mode" runs as "script mode".
+shared() {
+  kind=$1
+  leaves=$2
+  set --
+  for leaf in $leaves; do
+    set -- "$@" "$(printf %s "$leaf" | tr : ' ')"
+  done
+  step "$kind leaves" python3 "$root/tools/testing/shared_stack.py" --keep-going "$kind" "$@"
+}
 if [ -n "$golden" ]; then
-  step "golden leaves" python3 "$root/tools/testing/shared_stack.py" --keep-going golden $golden
+  shared golden "$golden"
 fi
-# shellcheck disable=SC2086
 if [ -n "$core" ]; then
-  step "core leaves" python3 "$root/tools/testing/shared_stack.py" --keep-going core $core
+  shared core "$core"
 fi
 for script in $own; do
   started=$(date +%s)
