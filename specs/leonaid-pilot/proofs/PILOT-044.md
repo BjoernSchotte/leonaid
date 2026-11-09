@@ -84,12 +84,14 @@ Der Test verwendet keine Mocks:
    System-Administration freigeben;
 6. blockiert die Aktivierung wegen offener E-Rechnungsentscheidung und weist
    einen veralteten Revisionsstand zurück;
-7. bearbeitet Version 2 im echten Chromium, lässt sie durch die andere
-   System-Administration freigeben und aktiviert sie;
+7. legt Version 2 über die API an, weist die Freigabe durch die Autorin
+   ab, lässt sie durch die andere System-Administration freigeben und
+   aktiviert sie (seit 2026-11-09 ohne Browser, E-026; die Oberfläche prüft
+   `apps/web/src/legal-configuration.test.tsx`);
 8. prüft die atomare Synchronisierung des bestehenden Rechnungsprofils mit
    der aktiven Version, ohne den laufenden Nummernstand zurückzusetzen;
-9. prüft Desktop, Mobilansicht, schwere Accessibility-Verstöße,
-   Browserfehler, unveränderte Version 1 und die exakte Audit-Sequenz;
+9. prüft die unveränderte Version 1 und die exakte Audit-Sequenz samt
+   handelnder Person;
 10. entfernt das Testprojekt samt Containern, Netzen und Volumes.
 
 Die sichtbare In-App-Browser-Prüfung hat dieselbe Seite zusätzlich im

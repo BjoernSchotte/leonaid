@@ -418,7 +418,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
 
     rows = await connection.fetch(
         """
-        SELECT event_type, payload::text
+        SELECT event_type, actor_user_id, payload::text
         FROM audit_event
         WHERE entity_type = 'legal_configuration'
         ORDER BY occurred_at, id
@@ -432,6 +432,14 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
         "legal_configuration_activated",
     ]:
         raise ContractFailure("Audit sequence is incomplete")
+    if [row["actor_user_id"] for row in rows] != [
+        SIMONE_ID,
+        KLARA_ID,
+        KLARA_ID,
+        SIMONE_ID,
+        SIMONE_ID,
+    ]:
+        raise ContractFailure("Audit names the wrong actor")
     forbidden_fragments = (
         "DE89370400440532013000",
         "@leonaid.invalid",

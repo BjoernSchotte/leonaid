@@ -171,6 +171,11 @@ async def prepare(
         or evidence["revoked_at"] is not None
     ):
         raise ContractFailure("Golden consent evidence is not deterministic")
+    if await connection.fetchval(
+        "SELECT count(*) FROM suppression_entry WHERE normalized_recipient = $1",
+        EMAIL,
+    ):
+        raise ContractFailure("The subject is suppressed before the revocation")
 
     async with httpx.AsyncClient(
         base_url=require_env("API_BASE_URL").rstrip("/"),
@@ -242,6 +247,8 @@ async def prepare(
         )
         export.raise_for_status()
         serialized = export.text
+        if export.json().get("subjectEmail") != EMAIL:
+            raise ContractFailure("Data export is not the subject's JSON report")
         if (
             "attachment" not in export.headers.get("content-disposition", "")
             or any(canary in serialized for canary in FOREIGN_CANARIES)
@@ -272,7 +279,7 @@ async def prepare(
             raise ContractFailure("Data export did not require a fresh login")
 
 
-async def act() -> None:
+async def act(connection: asyncpg.Connection[Any]) -> None:
     """The admin's UI steps through the API: revoke the consent, then erase.
 
     The erasure needs the address typed again exactly; the server enforces
@@ -315,6 +322,23 @@ async def act() -> None:
             or error_code(mismatch) != "privacy_erasure_confirmation_mismatch"
         ):
             raise ContractFailure("Erasure ran without the exact confirmation")
+        untouched = await connection.fetchrow(
+            """
+            SELECT
+                (SELECT count(*) FROM privacy_erasure_case) AS cases,
+                (SELECT customer_snapshot::text FROM commitment
+                  WHERE id = '80000000-0000-4000-8000-000000000005') AS snapshot,
+                (SELECT erased_at FROM inbox_case WHERE id = $1) AS erased_at
+            """,
+            INBOX_CASE_ID,
+        )
+        if (
+            untouched is None
+            or untouched["cases"] != 0
+            or EMAIL not in str(untouched["snapshot"])
+            or untouched["erased_at"] is not None
+        ):
+            raise ContractFailure("The refused erasure changed data")
         erased = await api.post(
             "/api/v1/admin/privacy/erasures",
             headers=simone,
@@ -482,7 +506,7 @@ async def run(command: str, baseline_path: Path) -> None:
         if command == "prepare":
             await prepare(connection, baseline_path)
         elif command == "act":
-            await act()
+            await act(connection)
         else:
             await assert_result(connection, baseline_path)
     finally:

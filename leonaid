@@ -1193,6 +1193,12 @@ check_solver() {
 
 check_frontend() {
   run_bun bun run typecheck &&
+    # The same component tests as the CI frontend lane (tools/ci/lint-types.sh).
+    run_bun bun run test:components &&
+    run_bun bun run test:ui &&
+    run_bun bun run test:pwa &&
+    run_bun bun run test:public &&
+    run_bun bun run test:campaign-site &&
     run_bun bun node_modules/prettier/bin/prettier.cjs --check \
       .github apps/campaign-site apps/public apps/pwa apps/web packages/api-client packages/features packages/ui \
       tools/emdash_spike/*.mjs tools/emdash_spike/*.ts tools/pilot_cms/*.mjs \
@@ -4532,10 +4538,10 @@ case "$command" in
     /bin/sh "$root/tools/schema/test.sh" "$root"
     /bin/sh "$root/tools/outbox/test.sh" "$root"
     /bin/sh "$root/tools/mail_relay/test.sh" "$root"
-    run_feature_tests tools/openapi/test.sh tools/twenty/test.sh tools/twenty/gateway_test.sh tools/twenty/import_test.sh tools/policy/test.sh tools/templates/test.sh tools/storage/test.sh tools/documents/test.sh tools/typst/test.sh tools/testkit/test.sh
+    run_feature_tests tools/openapi/test.sh tools/twenty/test.sh tools/twenty/gateway_test.sh tools/twenty/import_test.sh tools/policy/test.sh tools/storage/test.sh tools/documents/test.sh tools/typst/test.sh tools/testkit/test.sh tools/privacy/test.sh tools/legal_configuration/test.sh tools/matching/test.sh tools/assignments/test.sh tools/activities/test.sh tools/activity_feed/test.sh tools/actions/test.sh tools/templates/test.sh
     ;;
   test-e2e)
-    run_feature_tests tools/identity/test.sh tools/invitations/test.sh tools/sessions/test.sh tools/actions/test.sh tools/action_admin/test.sh tools/matching/test.sh tools/assignments/test.sh tools/activities/test.sh tools/pwa/test.sh tools/public_actions/test.sh tools/commitments/test.sh tools/public_orders/test.sh tools/activity_feed/test.sh tools/invoices/test.sh tools/invoice_delivery/test.sh tools/invoice_settlements/test.sh tools/feature_flags/test.sh tools/operations/test.sh tools/ui_system/test.sh tools/dashboard/test.sh tools/ux_acceptance/test.sh tools/security/test.sh tools/privacy/test.sh
+    run_feature_tests tools/identity/test.sh tools/invitations/test.sh tools/sessions/test.sh tools/action_admin/test.sh tools/pwa/test.sh tools/public_actions/test.sh tools/commitments/test.sh tools/public_orders/test.sh tools/invoices/test.sh tools/invoice_delivery/test.sh tools/invoice_settlements/test.sh tools/feature_flags/test.sh tools/operations/test.sh tools/ui_system/test.sh tools/dashboard/test.sh tools/ux_acceptance/test.sh tools/security/test.sh
     /bin/sh "$root/tools/golden_journey/test.sh" "$root"
     ;;
   test-env-stop) python3 "$root/tools/testing/shared_stack.py" --stop ;;
