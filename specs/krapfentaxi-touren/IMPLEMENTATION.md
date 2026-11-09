@@ -67,7 +67,7 @@ Existing files touched are named per task.
 
 # Slice 1: tours without a map (Stage 1a)
 
-Demo after Task 8: with `delivery.tours` on, the dev instance shows "Touren" in `/admin/delivery` and "Meine Tour" in `/app/delivery`.
+Demo after Task 8a: `./leonaid seed-demo-tours --enable-flag` fills the dev instance. Klara then sees "Touren" in `/admin/delivery`, and Dora and Emil see "Meine Tour" in `/app/delivery`.
 
 ### Task 1: Migration 0058 and the `delivery.tours` flag
 
@@ -356,6 +356,38 @@ Behaviour (§6):
 - [ ] **Step 4: Run** `./leonaid test-e2e invoices`, then `./leonaid test-env-stop`. Expected: PASS.
 - [ ] **Step 5: Commit** `test(e2e): delivery tours journey`
 
+### Task 8a: Dev demo seed for tours
+
+**Model:** standard
+
+**Why not the Golden dataset:** `tests/fixtures/golden/v1` is versioned (`DATASET_VERSION`, `manifest.json`, `expected.json` hashes). 46 test and tool files read it, including the policy contract, the snapshots and the E2E fixtures. Adding drivers or orders there changes expected counts and hashes across many suites. A separate opt-in demo seed touches no existing test and is the KISS choice. It runs only on a local stack, after `./leonaid seed`.
+
+**Files:**
+- Create: `tools/seed/delivery_tours_demo.py`, `tools/seed/delivery_tours_demo_test.py`
+- Modify: `leonaid` (command `seed-demo-tours [--enable-flag]`, run in the `api` container exactly like `run_golden_tool`; plus a `usage` line "Add demo drivers, orders and tours to the local Golden data (dev only)"), `infra/compose/README.md` (short section "Tour demo")
+
+**Interfaces:**
+- Consumes: Golden action `20000000-0000-4000-8000-000000000001` ("Krapfentaxi 2026"), Golden charity admin Klara (actor of every write), its first active offering. `AsyncpgCommitmentRepository.create` with a `CommitmentDraft` (pattern: `order()` in `tools/delivery/board.py:143`). `DeliveryBoardService.assign_driver` and `DeliveryTourService.save_base_order` from Task 3. `FeatureFlagService.update` (as the Golden system admin, so the switch is audited).
+- Produces: `async def seed_demo(pool, *, today: date, enable_flag: bool) -> DemoSummary`, where `DemoSummary(drivers: int, orders: int, assigned: int, day: date)`. It prints one line: `seed-demo-tours: OK: 2 drivers, 14 orders on <day>`.
+
+Content (fixed UUIDs under `96000000-0000-4000-8000-0000000000NN`, so it is idempotent):
+- Accounts `dora.fahrer@leonaid.invalid` ("Dora Fahrer") and `emil.fahrer@leonaid.invalid` ("Emil Fahrer"), active, with an `action_membership` of role `driver` in the action.
+- Delivery stays enabled. Three windows on the demo day D = tomorrow (installation time zone): 08–10, 10–12, 12–14. A rerun moves the windows to the new D only while none of them is closed.
+- 14 orders spread 5 / 5 / 4 over the windows (status `review_ready`, idempotency key `demo-tours:<n>`). Fictitious buyer names. Addresses are public places in one real town (town hall, schools, churches, shops), so the Slice 2 geocoder finds them and no private home is used.
+- Assignment: Dora 5 stops with a saved base order, Emil 4 stops without an order, and 5 unassigned.
+- Refuses with exit 2 unless `LEONAID_ENV=local` and the Golden action exists ("run ./leonaid seed first").
+
+**Switching the flag on the dev instance:** either use `./leonaid seed-demo-tours --enable-flag`, or sign in as `system-admin@leonaid.invalid` → `/admin/system` → tab "Flags" → "Touren für Fahrer" → on. Both go through `FeatureFlagService.update` and are audited. Drivers sign in as Dora or Emil at `/app/`. The code arrives in Mailpit (`/mail/`). After `./leonaid reset`, run `./leonaid seed` and then `seed-demo-tours` again.
+
+- [ ] **Step 1: Write the failing test** `delivery_tours_demo_test.py`, run against the shared test stack like the other `tools/**/_test.py` files:
+  - `test_seed_twice_gives_same_counts`: 2 drivers, 14 orders, 9 assigned on both runs.
+  - `test_refuses_outside_local`: exit 2.
+  - `test_enable_flag_writes_audited_change`
+- [ ] **Step 2: Run** `python3 -m pytest tools/seed/delivery_tours_demo_test.py`. Expected: FAIL.
+- [ ] **Step 3: Implement** the script and the CLI command.
+- [ ] **Step 4: Run** the test again. Expected: PASS. Then, on the main dev instance, run `./leonaid seed-demo-tours --enable-flag`, sign in as Klara and as Dora, and check that the "Touren" and "Meine Tour" screens show the data.
+- [ ] **Step 5: Commit** `feat(dx): dev demo seed for delivery tours`
+
 ---
 
 # Slice 2: map, geocoding, start point (Stage 1b)
@@ -456,6 +488,7 @@ Demo after Task 11: pins, start point and straight lines in both views. Geocodin
 - [ ] **Step 2: Run** `./leonaid test-unit -k delivery_domain`, `./leonaid test-delivery` and `bun run --filter @leonaid/web test:components -- src/manage-action.test.tsx`. Expected: FAIL.
 - [ ] **Step 3: Implement** the changes and regenerate the client.
 - [ ] **Step 4: Run** the same commands and `./leonaid test-api-contract`. Expected: PASS.
+- [ ] **Step 4b: Extend the demo seed** (`tools/seed/delivery_tours_demo.py`): set the start point "Bäckerei" (label, address in the same town) through `DeliveryService.save`. Assert it in `test_seed_twice_gives_same_counts`.
 - [ ] **Step 5: Commit** `feat(delivery): start point, manual pin, coordinates in tours`
 
 ### Task 11: Leaflet map, CSP and map views
@@ -534,6 +567,7 @@ Demo after Task 11: pins, start point and straight lines in both views. Geocodin
 - [ ] **Step 2: Run** `./leonaid test-unit -k "delivery_domain or public_orders or privacy or mail_legs"` and the component tests. Expected: FAIL.
 - [ ] **Step 3: Implement** all of the changes above and regenerate the client.
 - [ ] **Step 4: Run** the same commands, `./leonaid test-delivery` (legacy replay and privacy), `./leonaid test-emdash` and `./leonaid test-api-contract`. Expected: PASS.
+- [ ] **Step 4b: Extend the demo seed**: driver notes on 4 of the 14 orders ("Klingel defekt, bitte anrufen", "Hintereingang im Hof", "Lieferantentür links", "Bei Nachbarin abgeben"). Assert this in `test_seed_twice_gives_same_counts`.
 - [ ] **Step 5: Commit** `feat(orders): driver note on delivery orders`
 
 ---
@@ -659,6 +693,7 @@ Active only while both `pwa.offline_queue` and `delivery.tours` are on; the devi
   | §13 docs | 15 |
 
   The spec's "policy negative contract" moves to the delivery proof (Task 3), and its E2E leaf folds into `invoices` (Task 8).
+  The dev demo data (team-lead addition, not in the spec) is Task 8a, extended in Tasks 10 and 12.
 - **Type consistency:**
   - `expected_revision` is `str` for tours and `int` for drops, kept apart.
   - `DeliveryTourOrderRequest` is used by both PUTs and by `TourOrderEntry`.
