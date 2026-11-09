@@ -12,9 +12,9 @@ import sys
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import caddyfiles  # noqa: E402
+from tools.proxy import caddyfiles  # noqa: E402
 
 TILE_ORIGIN = "{$LEONAID_MAP_TILE_ORIGIN:https://tile.openstreetmap.org}"
 
