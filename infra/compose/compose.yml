@@ -112,6 +112,9 @@ services:
       # only; see infra/compose/README.md "Separate admin and public host".
       LEONAID_ADMIN_DOMAIN: ${LEONAID_ADMIN_DOMAIN:-app.localhost}
       LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:-localhost}
+      # img-src of the CSP names the map tile origin (krapfentaxi-touren
+      # §8.1). Caddy reads an empty value as empty, so the default is here.
+      LEONAID_MAP_TILE_ORIGIN: ${LEONAID_MAP_TILE_ORIGIN:-https://tile.openstreetmap.org}
     ports:
       - "${LEONAID_BIND_ADDRESS:-127.0.0.1}:${LEONAID_HTTP_PORT:-8080}:8080"
       - "${LEONAID_BIND_ADDRESS:-127.0.0.1}:${LEONAID_HTTPS_PORT:-8443}:8443"

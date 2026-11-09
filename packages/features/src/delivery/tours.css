@@ -1,3 +1,5 @@
+@import "leaflet/dist/leaflet.css";
+
 /*
  * Delivery tours. "Meine Tour" (PWA, spec krapfentaxi-touren §7, critique
  * §3) is scoped to .tour, the web planner "Touren" (§6) to .tour-plan; both
@@ -379,6 +381,8 @@ html:has(.tour-dock) .toaster {
 }
 .tour-dock-body {
   display: grid;
+  /* One column at the dock's width: a long name or the map never widens it. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s-2);
   animation: tour-dock-in 150ms var(--ease-out);
 }
@@ -477,20 +481,39 @@ html:has(.tour-dock) .toaster {
   white-space: nowrap;
 }
 
-/* The map slot (Task 11 puts the inline map into the box). */
+/* The map in the dock (critique §3 C3): 140 px, no pan or zoom; a tap
+   opens the map view. Without a pin, one muted line. */
 .tour-map {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0;
 }
-.tour-map-box {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--s-2);
+.tour-map-frame {
+  position: relative;
   height: 140px;
   border: var(--hair) solid var(--border);
   border-radius: var(--r-md);
-  background: var(--surface-2);
+  overflow: hidden;
+}
+.tour-map-frame .tour-map-canvas {
+  height: 100%;
+}
+/* Over the still map: one target for "open the map". */
+.tour-map-open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.tour-map-open:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.tour-map-none {
+  margin: 0;
   color: var(--text-3);
   font-size: var(--fs-sm);
 }
@@ -822,4 +845,337 @@ html:has(.tour-dock) .toaster {
   .tour-lane {
     transition: none !important;
   }
+}
+
+/* ================= map (§6.1, §7.2, §8.1) ================= */
+/* Leaflet's panes carry z-indexes up to 1000: isolate them, so popovers,
+   toasts and the dock stay above the map. */
+.tour-map-canvas {
+  position: relative;
+  isolation: isolate;
+  min-height: 0;
+}
+.tour-map-host {
+  width: 100%;
+  height: 100%;
+}
+.tour-map-canvas .leaflet-container {
+  background: var(--surface-2);
+  font: inherit;
+  font-size: var(--fs-xs);
+}
+.tour-map-canvas.is-placing .leaflet-container {
+  cursor: crosshair;
+}
+.tour-map-canvas.is-static .leaflet-container {
+  cursor: inherit;
+}
+.tour-map-canvas .leaflet-control-attribution {
+  background: color-mix(in oklch, var(--surface) 86%, transparent);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+}
+.tour-map-canvas .leaflet-bar a {
+  width: 36px;
+  height: 36px;
+  border-bottom-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+  line-height: 36px;
+}
+.tour-map-canvas .leaflet-bar a:hover {
+  background: var(--row-hover);
+}
+.tour-map-canvas .leaflet-bar {
+  border: var(--hair) solid var(--border);
+  box-shadow: var(--shadow-1);
+}
+.tour-map-canvas .leaflet-container:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+/* Tiles are drawn for daylight; dim them a little in dark mode. */
+:root[data-theme="dark"] .tour-map-canvas .leaflet-tile-pane {
+  filter: brightness(0.82) contrast(1.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tour-map-canvas .leaflet-tile-pane {
+    filter: brightness(0.82) contrast(1.05);
+  }
+}
+
+/* Pins: a numbered disc in the driver's colour. Leaflet places the element
+   by transform and sets its size, so the pin never sets either itself. */
+.tour-pin {
+  --pin-h: 205;
+  --pin-c: 0.13;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: oklch(var(--zl) calc(var(--pin-c) * var(--zk)) var(--pin-h));
+  box-shadow: var(--shadow-1);
+  color: var(--text-inverse);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  line-height: 1;
+}
+.tour-pin--driver-1 {
+  --pin-h: 262;
+  --pin-c: 0.15;
+}
+.tour-pin--driver-2 {
+  --pin-h: 27;
+  --pin-c: 0.17;
+}
+.tour-pin--driver-3 {
+  --pin-h: 150;
+  --pin-c: 0.13;
+}
+.tour-pin--driver-4 {
+  --pin-h: 300;
+  --pin-c: 0.15;
+}
+.tour-pin--driver-5 {
+  --pin-h: 60;
+  --pin-c: 0.15;
+}
+.tour-pin--driver-6 {
+  --pin-h: 340;
+  --pin-c: 0.15;
+}
+.tour-pin--driver-7 {
+  --pin-h: 100;
+  --pin-c: 0.12;
+}
+.tour-pin--unassigned {
+  background: var(--neutral);
+}
+.tour-pin--done {
+  background: var(--surface-3);
+  color: var(--text-3);
+  box-shadow: none;
+}
+.tour-pin.is-selected {
+  border-color: var(--surface);
+  box-shadow:
+    0 0 0 3px var(--focus),
+    var(--shadow-2);
+}
+.tour-pin:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.tour-pin--start {
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border-color: var(--text);
+  color: var(--text);
+}
+.tour-pin--me {
+  border: 3px solid var(--surface);
+  background: var(--info);
+  box-shadow: 0 0 0 6px color-mix(in oklch, var(--info) 30%, transparent);
+}
+.tour-line {
+  fill: none;
+  stroke: var(--text-2);
+  stroke-width: 3px;
+  stroke-opacity: 0.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tour-line.is-dashed {
+  stroke: var(--zone);
+  stroke-dasharray: 6 7;
+  stroke-opacity: 1;
+}
+
+/* ---------- driver map view (§7.2) ---------- */
+.tour-bar-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.tour-bar-toggle[aria-pressed="true"] {
+  background: color-mix(in oklch, currentColor 16%, transparent);
+}
+.tour-bar-toggle:hover {
+  background: color-mix(in oklch, currentColor 10%, transparent);
+}
+.tour-bar-toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+/* Full height between the app bar and the tab bar (fixed, like the dock). */
+.tour-mapview {
+  position: fixed;
+  top: calc(var(--pwa-bar-h) + env(safe-area-inset-top));
+  bottom: 0;
+  left: 50%;
+  z-index: 1;
+  width: min(100%, 480px);
+  transform: translateX(-50%);
+}
+.pwa:has(.pwa-tabs) .tour-mapview {
+  bottom: calc(
+    var(--pwa-tab-h) + var(--s-1) + var(--hair) + env(safe-area-inset-bottom)
+  );
+}
+.tour:has(.tour-mapview) {
+  padding-bottom: 0;
+}
+.tour-mapview > .tour-map-canvas {
+  height: 100%;
+}
+.tour-mapview-tools {
+  position: absolute;
+  top: var(--s-3);
+  right: var(--s-3);
+  z-index: 1;
+  display: grid;
+  gap: var(--s-2);
+}
+.tour-mapview-tools .btn {
+  box-shadow: var(--shadow-2);
+}
+.tour-mapview-empty {
+  position: absolute;
+  top: var(--s-3);
+  left: var(--s-3);
+  right: calc(var(--s-3) + 160px);
+  z-index: 1;
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+/* The map view's sheet: a close button above the stop's head. */
+.tour-dock:has(> .tour-dock-close) {
+  padding-top: 44px;
+}
+.tour-dock-close.btn {
+  position: absolute;
+  top: 0;
+  right: var(--s-2);
+}
+
+/* ---------- planner map (§6.1, §6.4) ---------- */
+.tour-plan-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 32%);
+  gap: var(--s-4);
+  align-items: start;
+}
+.tour-plan-map {
+  position: sticky;
+  top: var(--s-4);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--s-2);
+  height: min(calc(100dvh - 2 * var(--s-4)), 760px);
+}
+.tour-plan-map > .tour-map-canvas {
+  height: 100%;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.tour-plan-map-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 36px;
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.tour-plan-map-bar.is-placing {
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--zone-soft);
+  color: var(--text);
+}
+.tour-plan-map-bar > span {
+  flex: 1 1 200px;
+}
+/* "Adresse nicht gefunden · Pin setzen" gets its own line under the stop,
+   so the name keeps the column's width. */
+.tour-plan .tour-stop:has(> .tour-stop-pin) {
+  flex-wrap: wrap;
+}
+.tour-stop-pin {
+  order: 1;
+  display: flex;
+  flex: 1 0 100%;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-2);
+  color: var(--warn);
+}
+.tour-stop-pin .btn {
+  height: 28px;
+  min-height: 28px;
+}
+@media (max-width: 1100px) {
+  .tour-plan-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tour-plan-map {
+    position: static;
+    order: -1;
+    height: 360px;
+  }
+}
+
+/* Placing a pin by keyboard: the crosshair marks the map centre. */
+.tour-map-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1000;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border: 2px solid var(--zone);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.tour-map-crosshair::before,
+.tour-map-crosshair::after {
+  content: "";
+  position: absolute;
+  background: var(--zone);
+}
+.tour-map-crosshair::before {
+  top: 12px;
+  left: -8px;
+  width: 40px;
+  height: 2px;
+}
+.tour-map-crosshair::after {
+  top: -8px;
+  left: 12px;
+  width: 2px;
+  height: 40px;
+}
+.tour-map-center.btn {
+  position: absolute;
+  bottom: var(--s-4);
+  left: 50%;
+  z-index: 1000;
+  transform: translateX(-50%);
+  box-shadow: var(--shadow-2);
 }

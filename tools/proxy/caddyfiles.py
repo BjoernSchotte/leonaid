@@ -83,6 +83,14 @@ CRM = "crm"
 MAIL = "mail"
 MAILING = "mailing"
 LOCAL_IMPORT = "local_import"
+# A plain tile for every map tile URL under /e2e-tiles/ (test stacks only):
+# browser tests load maps without an external tile server.
+E2E_TILES = "e2e_tiles"
+E2E_TILE_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" '
+    'viewBox="0 0 256 256"><rect width="256" height="256" fill="#e6ecee"/>'
+    '<path d="M0 .5H256M.5 0V256" stroke="#c5d0d4"/></svg>'
+)
 # Astro form actions run as POST <any page>?_action=…; refused on admin hosts.
 REFUSED_ACTIONS = "refused_actions"
 # Self-unregistering service worker for the PWA scope of a public host.
@@ -300,6 +308,12 @@ ROUTES: tuple[Route, ...] = (
         dev_only=True,
     ),
     Route(
+        "e2e_tiles",
+        ("/e2e-tiles/*",),
+        {"single": E2E_TILES, "admin": E2E_TILES},
+        dev_only=True,
+    ),
+    Route(
         "local_extensions",
         (),
         {"single": LOCAL_IMPORT, "admin": LOCAL_IMPORT},
@@ -375,11 +389,14 @@ DEV_GLOBAL = """{
 """
 
 SNIPPETS = """
+# Hosts that serve the member apps. geolocation=(self): the driver's map may
+# show the device location after the driver allows it; it stays in the
+# browser (specs/krapfentaxi-touren §7.2). Public hosts keep it off.
 (common_headers) {
 	header {
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin
-		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(self), payment=(), usb=()"
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	}
 }
@@ -399,9 +416,13 @@ SNIPPETS = """
 # Strict Content-Security-Policy without 'unsafe-inline'. The admin web app and
 # the PWA are static builds whose scripts and styles are all files, so Caddy
 # sends the complete policy for them and for the API.
+# img-src names one more origin: the map tile server of the installation
+# (specs/krapfentaxi-touren §8.1, D3). The proxy service sets
+# LEONAID_MAP_TILE_ORIGIN; Core refuses to start when the tile URL names
+# another origin, so the browser can load exactly these tiles.
 (leonaid_headers) {
 	header {
-		Content-Security-Policy "default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self' data:; form-action 'self'; frame-ancestors 'none'; frame-src 'self' https://www.google.com https://maps.google.com; img-src 'self' data: blob:; object-src 'none'; script-src 'self'; style-src 'self'"
+		Content-Security-Policy "default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self' data:; form-action 'self'; frame-ancestors 'none'; frame-src 'self' https://www.google.com https://maps.google.com; img-src 'self' data: blob: {$LEONAID_MAP_TILE_ORIGIN:https://tile.openstreetmap.org}; object-src 'none'; script-src 'self'; style-src 'self'"
 		X-Frame-Options DENY
 	}
 }
@@ -414,7 +435,7 @@ SNIPPETS = """
 # without one (endpoints, redirects, errors). The leading "?" does exactly this.
 (astro_headers) {
 	header {
-		?Content-Security-Policy "default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self' data:; form-action 'self'; frame-ancestors 'none'; frame-src 'self' https://www.google.com https://maps.google.com; img-src 'self' data: blob:; object-src 'none'; script-src 'self'; style-src 'self'"
+		?Content-Security-Policy "default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self' data:; form-action 'self'; frame-ancestors 'none'; frame-src 'self' https://www.google.com https://maps.google.com; img-src 'self' data: blob: {$LEONAID_MAP_TILE_ORIGIN:https://tile.openstreetmap.org}; object-src 'none'; script-src 'self'; style-src 'self'"
 		X-Frame-Options DENY
 	}
 }
@@ -623,6 +644,12 @@ reverse_proxy public:3000 {
         return "reverse_proxy mailpit:8025"
     if action == MAILING:
         return "reverse_proxy listmonk:9000"
+    if action == E2E_TILES:
+        return (
+            "header Content-Type image/svg+xml\n"
+            'header Cache-Control "public, max-age=86400"\n'
+            f"respond `{E2E_TILE_SVG}` 200"
+        )
     raise ValueError(f"unknown action {action} for {paths}")
 
 

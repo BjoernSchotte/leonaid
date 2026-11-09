@@ -240,6 +240,17 @@ async function arrangeStart(request) {
   expect(assigned.ok()).toBe(true);
 }
 
+/** The map's numbered pins as [commitment id, number], sorted by id. */
+async function mapPins(map) {
+  return (
+    await map
+      .locator(".tour-pin[data-pin-id]")
+      .evaluateAll((pins) =>
+        pins.map((pin) => [pin.dataset.pinId, pin.textContent]),
+      )
+  ).sort(([a], [b]) => a.localeCompare(b));
+}
+
 test("managers plan a tour; the driver reorders, delivers and sees a later stop as neu", async ({
   browser,
 }) => {
@@ -329,6 +340,61 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
       rows.map((row) => row.getAttribute("data-commitment-id")),
     );
     expect(planned.slice(-2)).toEqual([second, first]);
+
+    // The map (§6.1, §6.4): the test stack cannot geocode, so Klara sets
+    // two of Anna's pins by a click on the map. Pins stay between runs.
+    const plannerMap = page.getByTestId("tour-plan-map");
+    const plannerCanvas = plannerMap.getByTestId("tour-map-canvas");
+    await expect(plannerCanvas).toHaveAttribute("data-ready", "true");
+    const noPin = anna.getByTestId("tour-set-pin");
+    for (const x of [0.4, 0.6]) {
+      const missing = await noPin.count();
+      if (!missing) break;
+      await noPin.first().click();
+      await expect(plannerMap.getByRole("status")).toContainText(
+        "Klicken Sie in die Karte",
+      );
+      const box = await plannerCanvas.boundingBox();
+      await page.mouse.click(box.x + box.width * x, box.y + box.height * 0.5);
+      await expect(noPin).toHaveCount(missing - 1);
+    }
+    // The day on screen (no picker: the only day, which the API picks too).
+    const shownDay = (await day.count()) ? await day.inputValue() : null;
+    const tours = await page.request.get(
+      `${baseUrl}/api/v1/actions/${actionId}/delivery-board/tours${
+        shownDay ? `?day=${shownDay}` : ""
+      }`,
+    );
+    expect(tours.ok()).toBe(true);
+    const body = await tours.json();
+    const located = [
+      ...body.unassigned,
+      ...body.tours.flatMap((tour) => tour.windows),
+    ]
+      .flatMap((window) => window.stops)
+      .filter((item) => item.lat !== null && item.lon !== null);
+    expect(located.length).toBeGreaterThanOrEqual(2);
+    await expect(plannerMap.locator(".tour-pin[data-pin-id]")).toHaveCount(
+      located.length,
+    );
+    // Tiles come from the test proxy under 'self', never from outside.
+    const tileSources = await plannerCanvas
+      .locator("img.leaflet-tile")
+      .evaluateAll((tiles) => tiles.map((tile) => tile.src));
+    expect(tileSources.length).toBeGreaterThan(0);
+    for (const source of tileSources) {
+      expect(source.startsWith(`${baseUrl}/e2e-tiles/`)).toBe(true);
+    }
+    const annaIds = await anna
+      .locator("li.tour-stop")
+      .evaluateAll((rows) =>
+        rows.map((row) => row.getAttribute("data-commitment-id")),
+      );
+    const annaPins = (await mapPins(plannerMap)).filter(([id]) =>
+      annaIds.includes(id),
+    );
+    expect(annaPins.length).toBeGreaterThanOrEqual(2);
+    await expectAccessible(page);
     await page.screenshot({
       animations: "disabled",
       path: `${artifactDirectory}/delivery-tours-1440-light.png`,
@@ -341,7 +407,16 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
     await page.emulateMedia({ colorScheme: "light" });
 
     // Anna: the dock holds Klara's first open stop; "Tour" leads the tabs.
-    await mobile.goto(`${baseUrl}/app/delivery?action=${actionId}`);
+    const tourPage = await mobile.goto(
+      `${baseUrl}/app/delivery?action=${actionId}`,
+    );
+    // The CSP opens img-src for the tile origin only (D3, §8.1).
+    const policy = tourPage.headers()["content-security-policy"];
+    expect(policy).toContain(
+      "img-src 'self' data: blob: https://tile.openstreetmap.org;",
+    );
+    expect(policy).toContain("connect-src 'self';");
+    expect(policy).toContain("script-src 'self';");
     await expect(mobile.getByTestId("tour-bar-sub")).toContainText(
       "Meine Tour",
     );
@@ -353,6 +428,54 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
     await expect(mobile.getByTestId("tour-stop")).toHaveCount(openCount - 1);
     await expect(mobile.getByText("Reihenfolge ändern")).toHaveCount(0);
     await expectAccessible(mobile);
+
+    // The dock's still map (D17) for the next stop, when it has a pin.
+    // Long names and the map never widen the dock past the screen.
+    expect(
+      await mobile
+        .getByTestId("tour-dock")
+        .evaluate((dock) => dock.scrollWidth <= dock.clientWidth),
+    ).toBe(true);
+    for (const scheme of ["light", "dark"]) {
+      await mobile.emulateMedia({ colorScheme: scheme });
+      await mobile.screenshot({
+        animations: "disabled",
+        path: `${artifactDirectory}/delivery-tours-dock-390-${scheme}.png`,
+      });
+    }
+    await mobile.emulateMedia({ colorScheme: "light" });
+
+    // "Karte" (§7.2): the same numbered pins as on Klara's map.
+    const mapToggle = mobile.getByRole("button", {
+      name: "Karte",
+      exact: true,
+    });
+    await mapToggle.click();
+    const mapView = mobile.getByTestId("tour-mapview");
+    await expect(mapView.getByTestId("tour-map-canvas")).toHaveAttribute(
+      "data-ready",
+      "true",
+    );
+    await expect(mapView.locator(".tour-pin[data-pin-id]")).toHaveCount(
+      annaPins.length,
+    );
+    expect(await mapPins(mapView)).toEqual(annaPins);
+    await expectAccessible(mobile);
+    for (const scheme of ["light", "dark"]) {
+      await mobile.emulateMedia({ colorScheme: scheme });
+      await mobile.screenshot({
+        animations: "disabled",
+        path: `${artifactDirectory}/delivery-tours-map-390-${scheme}.png`,
+      });
+    }
+    await mobile.emulateMedia({ colorScheme: "light" });
+    // A pin opens its stop as a sheet with the dock's buttons.
+    await mapView.locator(".tour-pin[data-pin-id]").first().click();
+    await expect(
+      mobile.getByTestId("tour-dock").or(mobile.getByTestId("tour-done-sheet")),
+    ).toBeVisible();
+    await mapToggle.click();
+    await expect(mapView).toHaveCount(0);
 
     // She moves an open stop down at its grip; the move saves at once (D16).
     // A stop whose next row in the window is open too, so down can move.

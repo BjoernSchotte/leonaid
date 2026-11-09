@@ -262,6 +262,29 @@ function fakeClient(initial: DeliveryDayToursResponse) {
           })),
         })),
     ),
+    setDeliveryPin: vi.fn(
+      async (
+        _action: string,
+        id: string,
+        body: { lat: number; lon: number },
+      ) => {
+        const place = (item: DeliveryTourWindowResponse) => ({
+          ...item,
+          stops: item.stops.map((entry) =>
+            entry.drop.commitmentId === id ? { ...entry, ...body } : entry,
+          ),
+        });
+        response = {
+          ...response,
+          unassigned: response.unassigned.map(place),
+          tours: response.tours.map((tour) => ({
+            ...tour,
+            windows: tour.windows.map(place),
+          })),
+        };
+        return { ...body };
+      },
+    ),
     discardDeliveryDriverOrder: vi.fn(async (_action: string, driver: string) =>
       changeTour(driver, (tour) => ({
         ...tour,
@@ -760,6 +783,183 @@ describe("Touren planner", () => {
     );
     fireEvent.click(suggest);
     expect(client.saveDeliveryTourOrder).not.toHaveBeenCalled();
+  });
+
+  describe("map (§6.1, §6.3, §6.4)", () => {
+    /** Anna's 08–10 stops and Café Mitte (unassigned) have pins. */
+    function located() {
+      const tours = dayTours();
+      const at: Record<string, { lat: number; lon: number }> = {
+        c1: { lat: 47.77, lon: 11.57 },
+        c2: { lat: 47.76, lon: 11.56 },
+        c4: { lat: 47.765, lon: 11.565 },
+      };
+      const place = (item: DeliveryTourWindowResponse) => ({
+        ...item,
+        stops: item.stops.map((entry) => ({
+          ...entry,
+          ...(at[entry.drop.commitmentId] ?? {}),
+        })),
+      });
+      return {
+        ...tours,
+        startPoint: {
+          address: "Marktstraße 1, 86150 Augsburg",
+          label: "Lions-Halle",
+          lat: 47.755,
+          lon: 11.555,
+          locating: false,
+        },
+        tours: tours.tours.map((tour) => ({
+          ...tour,
+          windows: tour.windows.map(place),
+        })),
+        unassigned: tours.unassigned.map(place),
+      };
+    }
+    const map = () => screen.getByTestId("tour-plan-map");
+    /** Leaflet loads on the first map: wait for its pins. */
+    const mapReady = () =>
+      waitFor(() =>
+        expect(map().querySelector(".tour-pin[data-pin-id]")).toBeTruthy(),
+      );
+    const pin = (id: string) =>
+      map().querySelector<HTMLElement>(`[data-pin-id="${id}"]`);
+
+    it("pins coloured by driver and numbered by effective order; unassigned grey", async () => {
+      await renderPlanner(fakeClient(located()));
+      await mapReady();
+      expect(pin("c1")?.textContent).toBe("1");
+      expect(pin("c2")?.textContent).toBe("2");
+      expect(pin("c1")?.classList.contains("tour-pin--driver-0")).toBe(true);
+      expect(pin("c4")?.classList.contains("tour-pin--unassigned")).toBe(true);
+      expect(pin("c4")?.textContent).toBe("");
+      // Praxis Süd has no pin: no marker, but "Pin setzen" in its row.
+      expect(pin("c3")).toBeNull();
+      expect(map().querySelector(".tour-pin--start")).toBeTruthy();
+      expect(
+        within(column("anna")).getAllByTestId("tour-stop-no-pin"),
+      ).toHaveLength(1);
+    });
+
+    it("list and pins select each other; one lane's order is drawn", async () => {
+      await renderPlanner(fakeClient(located()));
+      await mapReady();
+      expect(map().querySelector("path.tour-line")).toBeNull();
+      fireEvent.click(pin("c2")!);
+      const row = within(column("anna"))
+        .getAllByTestId("tour-stop")
+        .find((item) => item.dataset.commitmentId === "c2")!;
+      expect(within(row).getByRole<HTMLInputElement>("checkbox").checked).toBe(
+        true,
+      );
+      expect(pin("c2")?.classList.contains("is-selected")).toBe(true);
+      const line = map().querySelector("path.tour-line");
+      expect(line).toBeTruthy();
+      expect(line?.classList.contains("is-dashed")).toBe(false);
+      // And back: the list choice clears the pin's highlight.
+      fireEvent.click(within(row).getByRole("checkbox"));
+      expect(pin("c2")?.classList.contains("is-selected")).toBe(false);
+    });
+
+    it("a move still saving draws the draft as a dashed line", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const client = fakeClient(located());
+      await renderPlanner(client);
+      await mapReady();
+      fireEvent.click(
+        within(column("anna")).getByRole("button", {
+          name: "Autohaus Nord nach oben",
+        }),
+      );
+      expect(
+        map().querySelector("path.tour-line")?.classList.contains("is-dashed"),
+      ).toBe(true);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      await waitFor(() =>
+        expect(client.saveDeliveryTourOrder).toHaveBeenCalled(),
+      );
+      await waitFor(() =>
+        expect(map().querySelector("path.tour-line.is-dashed")).toBeNull(),
+      );
+    });
+
+    it("Vorschlag sortieren starts at the start point and saves the nearest-next order", async () => {
+      const client = fakeClient(located());
+      await renderPlanner(client);
+      await mapReady();
+      const suggest = within(column("anna")).getByTestId("tour-suggest-order");
+      expect(suggest.getAttribute("aria-disabled")).not.toBe("true");
+      fireEvent.click(suggest);
+      // Autohaus Nord is nearer to the start than Bäckerei Kern.
+      await waitFor(() =>
+        expect(client.saveDeliveryTourOrder).toHaveBeenCalledWith(
+          actionId,
+          "anna",
+          {
+            commitmentIds: ["c2", "c1", "c3"],
+            day: DAY,
+            expectedRevision: "r1",
+          },
+        ),
+      );
+    });
+
+    it("Pin setzen: a map click sets the stop's pin", async () => {
+      const client = fakeClient(located());
+      await renderPlanner(client);
+      await mapReady();
+      const setPin = within(column("anna")).getByRole("button", {
+        name: "Pin setzen: Praxis Süd",
+      });
+      fireEvent.click(setPin);
+      expect(setPin.getAttribute("aria-pressed")).toBe("true");
+      expect(within(map()).getByRole("status").textContent).toContain(
+        "Praxis Süd",
+      );
+      fireEvent.click(map().querySelector(".leaflet-container")!, {
+        clientX: 20,
+        clientY: 20,
+      });
+      await waitFor(() =>
+        expect(client.setDeliveryPin).toHaveBeenCalledWith(
+          actionId,
+          "c3",
+          expect.objectContaining({
+            lat: expect.any(Number),
+            lon: expect.any(Number),
+          }),
+        ),
+      );
+      expect(
+        await screen.findByText("Pin für Praxis Süd gesetzt."),
+      ).toBeTruthy();
+      await waitFor(() => expect(pin("c3")?.textContent).toBe("3"));
+      expect(
+        within(column("anna")).queryByTestId("tour-stop-no-pin"),
+      ).toBeNull();
+    });
+
+    it("the centre button places the pin for keyboard users", async () => {
+      const client = fakeClient(located());
+      await renderPlanner(client);
+      await mapReady();
+      fireEvent.click(
+        within(column("anna")).getByRole("button", {
+          name: "Pin setzen: Praxis Süd",
+        }),
+      );
+      fireEvent.click(
+        within(map()).getByRole("button", {
+          name: "Pin in Kartenmitte setzen",
+        }),
+      );
+      await waitFor(() =>
+        expect(client.setDeliveryPin).toHaveBeenCalledTimes(1),
+      );
+    });
   });
 
   it("a move right before a day switch saves for its own day and leaves the new day's columns alone", async () => {

@@ -14,6 +14,7 @@ import {
   Eye,
   EyeOff,
   MailPlus,
+  MapPinPlus,
   Route,
   Truck,
   Undo2,
@@ -76,6 +77,7 @@ import {
   tourLengthKm,
   type TourPoint,
 } from "./tour-model";
+import { driverTone, TourMap, type TourMapPin } from "./tour-map";
 import { useOrderAutosave } from "./use-order-autosave";
 
 /*
@@ -84,7 +86,10 @@ import { useOrderAutosave } from "./use-order-autosave";
  * stops by window, and stops are ordered only inside their window. Every
  * move saves at once with "Rückgängig" on the toast, as in the driver view
  * (D16, D19 2a). Web only, "Sie".
- * The map (§6.1, right side) and pins come with geocoding (stage 1b).
+ * The map on the right (§6.1): every stop of the day, coloured by driver,
+ * numbered by effective order; list and pins select each other. A move
+ * still saving shows as a dashed line. A stop without coordinates gets its
+ * pin by a click on the map (§6.4).
  */
 
 /** The column key of the stops without a driver. */
@@ -105,6 +110,16 @@ const copy = {
   suggest: "Vorschlag sortieren",
   suggestMissing: "Für den Vorschlag fehlen Koordinaten.",
   suggestHint: "Je Fenster der nächste Stopp zuerst, nach Luftlinie.",
+  mapLabel: "Karte der Touren",
+  mapHint: "Wählen Sie Stopps in der Liste oder auf der Karte.",
+  noPins:
+    "Noch kein Stopp hat einen Kartenpunkt. Die Adressen werden gerade gesucht, oder Sie setzen die Pins selbst.",
+  notFound: "Adresse nicht gefunden",
+  setPin: "Pin setzen",
+  placing: (name: string) => `Klicken Sie in die Karte, wo ${name} liegt.`,
+  placeAtCenter: "Pin in Kartenmitte setzen",
+  cancelPlacing: "Abbrechen",
+  pinSet: (name: string) => `Pin für ${name} gesetzt.`,
   saved: (lane: string) => `Reihenfolge für ${lane} gespeichert.`,
   undone: (lane: string) =>
     `Vorherige Reihenfolge für ${lane} wiederhergestellt.`,
@@ -149,6 +164,8 @@ interface PlanStop {
   readonly window: DeliveryTourWindowResponse;
   readonly lane: string;
   readonly newForDriver: boolean;
+  readonly lat: number | null;
+  readonly lon: number | null;
 }
 
 /** Where a move was made: its save and cache update stay there. */
@@ -226,6 +243,8 @@ function planModel(data: DeliveryDayToursResponse | undefined) {
         stops.set(stop.drop.commitmentId, {
           drop: stop.drop,
           lane: lane.key,
+          lat: stop.lat,
+          lon: stop.lon,
           newForDriver: stop.newForDriver,
           window,
         });
@@ -295,6 +314,8 @@ export function TourPlanner({
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [assignOpen, setAssignOpen] = useState(false);
   const [discarding, setDiscarding] = useState<string | null>(null);
+  /** The stop whose pin the next map click sets (§6.4). */
+  const [placing, setPlacing] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const assignAnchor = useRef<HTMLButtonElement | null>(null);
 
@@ -462,6 +483,19 @@ export function TourPlanner({
     onSettled: () => refresh(),
   });
 
+  const setPin = useMutation({
+    ...mutationOptions,
+    mutationFn: ({ id, lat, lon }: { id: string; lat: number; lon: number }) =>
+      client.setDeliveryPin(actionId, id, { lat, lon }),
+    onSuccess: (_stop, { id }) => {
+      setPlacing(null);
+      const name = model.stops.get(id)?.drop.buyerName ?? "den Stopp";
+      toast?.show({ title: copy.pinSet(name), tone: "success" });
+    },
+    onError: showError,
+    onSettled: () => refresh(),
+  });
+
   const finishDrag = ({ active, over }: DragEndEvent) => {
     if (!over) return;
     const id = String(active.id);
@@ -513,6 +547,70 @@ export function TourPlanner({
     })),
     { value: UNASSIGNED, label: "Kein Fahrer" },
   ];
+
+  // The map: every stop with coordinates, by lane colour and effective
+  // order; the lane with a move still saving draws its draft dashed, else
+  // the lane of the chosen stops its effective order.
+  const driverIndex = new Map(
+    lanes
+      .filter((lane) => lane.key !== UNASSIGNED)
+      .map((lane, index) => [lane.key, index]),
+  );
+  const pins: TourMapPin[] = lanes.flatMap((lane) =>
+    lane.effective.flatMap((id, index) => {
+      const stop = model.stops.get(id);
+      if (!stop || stop.lat === null || stop.lon === null) return [];
+      const unassigned = lane.key === UNASSIGNED;
+      const done =
+        stop.drop.state !== "open" || stop.drop.orderStatus === "cancelled";
+      return [
+        {
+          id,
+          label: unassigned
+            ? `${stop.drop.buyerName}, ${copy.unassigned}`
+            : `${lane.name}, Stopp ${index + 1}: ${stop.drop.buyerName}`,
+          lat: stop.lat,
+          lon: stop.lon,
+          rank: unassigned ? 0 : index + 1,
+          selected: selected.has(id),
+          tone: unassigned
+            ? ("unassigned" as const)
+            : done
+              ? ("done" as const)
+              : driverTone(driverIndex.get(lane.key) ?? 0),
+        },
+      ];
+    }),
+  );
+  const draftLane = lanes.find(
+    (lane) => lane.tour && autosave.orderOf(lane.key),
+  );
+  const chosenLane =
+    onlyLane && onlyLane !== UNASSIGNED ? laneByKey.get(onlyLane) : undefined;
+  const mapLine = draftLane
+    ? { ids: shownOf(draftLane), dashed: true }
+    : chosenLane
+      ? { ids: chosenLane.effective, dashed: false }
+      : null;
+  const start =
+    data?.startPoint &&
+    data.startPoint.lat !== null &&
+    data.startPoint.lon !== null
+      ? {
+          lat: data.startPoint.lat,
+          lon: data.startPoint.lon,
+          label: data.startPoint.label,
+        }
+      : null;
+  const placingStop = placing ? model.stops.get(placing) : undefined;
+  const choosePin = (id: string) => {
+    const stop = model.stops.get(id);
+    if (!stop) return;
+    if (!stop.window.closed) toggleSelected(id);
+    [...document.querySelectorAll<HTMLElement>("li.tour-stop")]
+      .find((row) => row.dataset.commitmentId === id)
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  };
 
   const notEnabled =
     toursQuery.error instanceof ApiError &&
@@ -676,37 +774,79 @@ export function TourPlanner({
             onDragEnd={finishDrag}
             sensors={sensors}
           >
-            <div className="tour-lanes">
-              {lanes.map((lane) => (
-                <Lane
-                  busy={assign.isPending}
-                  key={lane.key}
-                  lane={lane}
-                  onDiscardDriverOrder={() => setDiscarding(lane.key)}
-                  onMove={(id, direction) =>
-                    moveTo(
-                      lane,
-                      moveStop(shownOf(lane), id, direction, windowOf),
-                      id,
-                    )
+            <div className="tour-plan-body">
+              <div className="tour-lanes">
+                {lanes.map((lane) => (
+                  <Lane
+                    busy={assign.isPending}
+                    key={lane.key}
+                    lane={lane}
+                    onDiscardDriverOrder={() => setDiscarding(lane.key)}
+                    onPlacePin={(id) =>
+                      setPlacing((current) => (current === id ? null : id))
+                    }
+                    placing={placing}
+                    onMove={(id, direction) =>
+                      moveTo(
+                        lane,
+                        moveStop(shownOf(lane), id, direction, windowOf),
+                        id,
+                      )
+                    }
+                    onSuggest={(ids) => moveTo(lane, ids)}
+                    onToggleSelected={toggleSelected}
+                    onToggleViewing={() =>
+                      setViewing((current) => {
+                        const next = new Set(current);
+                        if (next.has(lane.key)) next.delete(lane.key);
+                        else next.add(lane.key);
+                        return next;
+                      })
+                    }
+                    selected={selected}
+                    shown={shownOf(lane)}
+                    start={start}
+                    stops={model.stops}
+                    viewingDriver={isViewingDriver(lane)}
+                    zone={zone}
+                  />
+                ))}
+              </div>
+              <aside className="tour-plan-map" data-testid="tour-plan-map">
+                {placingStop ? (
+                  <p className="tour-plan-map-bar is-placing" role="status">
+                    <span>{copy.placing(placingStop.drop.buyerName)}</span>
+                    <Button
+                      onClick={() => setPlacing(null)}
+                      size="sm"
+                      variant="ghost"
+                    >
+                      {copy.cancelPlacing}
+                    </Button>
+                  </p>
+                ) : (
+                  <p className="tour-plan-map-bar">
+                    {pins.length ? copy.mapHint : copy.noPins}
+                  </p>
+                )}
+                <TourMap
+                  label={copy.mapLabel}
+                  line={mapLine}
+                  onPlace={
+                    placing && !setPin.isPending
+                      ? (lat, lon) => setPin.mutate({ id: placing, lat, lon })
+                      : undefined
                   }
-                  onSuggest={(ids) => moveTo(lane, ids)}
-                  onToggleSelected={toggleSelected}
-                  onToggleViewing={() =>
-                    setViewing((current) => {
-                      const next = new Set(current);
-                      if (next.has(lane.key)) next.delete(lane.key);
-                      else next.add(lane.key);
-                      return next;
-                    })
-                  }
-                  selected={selected}
-                  shown={shownOf(lane)}
-                  stops={model.stops}
-                  viewingDriver={isViewingDriver(lane)}
-                  zone={zone}
+                  onSelect={choosePin}
+                  pins={pins}
+                  placeAtCenterLabel={copy.placeAtCenter}
+                  start={start}
+                  tiles={{
+                    url: data.map.tileUrl,
+                    attribution: data.map.attribution,
+                  }}
                 />
-              ))}
+              </aside>
             </div>
           </DndContext>
         </>
@@ -763,6 +903,10 @@ interface LaneProps {
   readonly onToggleSelected: (id: string) => void;
   readonly onToggleViewing: () => void;
   readonly onDiscardDriverOrder: () => void;
+  readonly onPlacePin: (id: string) => void;
+  /** The stop whose pin the map is placing, if any. */
+  readonly placing: string | null;
+  readonly start: { readonly lat: number; readonly lon: number } | null;
 }
 
 /** One column: head with count, load per window and actions, then the windows. */
@@ -771,11 +915,14 @@ function Lane({
   lane,
   onDiscardDriverOrder,
   onMove,
+  onPlacePin,
   onSuggest,
   onToggleSelected,
   onToggleViewing,
+  placing,
   selected,
   shown,
+  start,
   stops,
   viewingDriver,
   zone,
@@ -788,12 +935,11 @@ function Lane({
     disabled: count > 0,
   });
   const headingId = `tour-lane-${lane.key}`;
-  // Coordinates arrive with geocoding (stage 1b); until then none.
   const points: TourPoint[] = shown.map((id) => ({
     id,
     windowId: stops.get(id)?.window.windowId ?? "",
-    lat: null,
-    lon: null,
+    lat: stops.get(id)?.lat ?? null,
+    lon: stops.get(id)?.lon ?? null,
   }));
   const suggestable = canSuggestOrder(points);
   const length = lengthLabel(points);
@@ -908,7 +1054,7 @@ function Lane({
               disabled={!suggestable || viewingDriver || busy}
               focusableWhenDisabled
               icon={Route}
-              onClick={() => onSuggest(nearestNextOrder(points, null))}
+              onClick={() => onSuggest(nearestNextOrder(points, start))}
               size="sm"
               title={suggestable ? copy.suggestHint : copy.suggestMissing}
               variant="secondary"
@@ -940,7 +1086,9 @@ function Lane({
                   last={index === ids.length - 1}
                   movable={movable}
                   onMove={(direction) => onMove(id, direction)}
+                  onPlacePin={() => onPlacePin(id)}
                   onToggleSelected={() => onToggleSelected(id)}
+                  placing={placing === id}
                   orderable={editable && !window.closed}
                   position={unassigned ? null : shown.indexOf(id) + 1}
                   selected={selected.has(id)}
@@ -988,8 +1136,10 @@ function StopRow({
   last,
   movable,
   onMove,
+  onPlacePin,
   onToggleSelected,
   orderable,
+  placing,
   position,
   selected,
   showNew,
@@ -1003,6 +1153,8 @@ function StopRow({
   readonly orderable: boolean;
   readonly onMove: (direction: -1 | 1) => void;
   readonly onToggleSelected: () => void;
+  readonly onPlacePin: () => void;
+  readonly placing: boolean;
   readonly position: number | null;
   readonly selected: boolean;
   readonly showNew: boolean;
@@ -1091,6 +1243,22 @@ function StopRow({
           {dropQuantities(drop)}
         </span>
       </label>
+      {drop.address && (stop.lat === null || stop.lon === null) ? (
+        <span className="tour-stop-pin" data-testid="tour-stop-no-pin">
+          <span className="small">{copy.notFound}</span>
+          <Button
+            aria-label={`${copy.setPin}: ${name}`}
+            aria-pressed={placing}
+            data-testid="tour-set-pin"
+            icon={MapPinPlus}
+            onClick={onPlacePin}
+            size="sm"
+            variant={placing ? "primary" : "secondary"}
+          >
+            {copy.setPin}
+          </Button>
+        </span>
+      ) : null}
       {orderable ? (
         <span className="tour-stop-tools">
           {/* No arrow at a window edge: nothing to reach or to focus. */}

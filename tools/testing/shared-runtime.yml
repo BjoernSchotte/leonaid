@@ -7,6 +7,10 @@ services:
     healthcheck:
       interval: 1s
       retries: 100
+    environment:
+      # Test stacks have no egress: maps load the dev proxy's plain tiles
+      # under 'self' (tools/proxy/caddyfiles.py, route e2e_tiles).
+      LEONAID_MAP_TILE_URL: /e2e-tiles/{z}/{x}/{y}.svg
   proxy:
     healthcheck:
       interval: 1s

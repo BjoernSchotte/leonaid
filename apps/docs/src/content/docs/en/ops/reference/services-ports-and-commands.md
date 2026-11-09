@@ -93,7 +93,12 @@ have no egress, so lookups there end as failures. The map tiles come
 from `LEONAID_MAP_TILE_URL` (default OpenStreetMap) with
 `LEONAID_MAP_ATTRIBUTION`; a tile URL on another host must name its origin
 in `LEONAID_MAP_TILE_ORIGIN`. Invalid values stop the worker at start with
-`worker.configuration.invalid`.
+`worker.configuration.invalid`. The proxy opens the Content-Security-Policy
+`img-src` for exactly that origin (default `https://tile.openstreetmap.org`);
+the test stacks load plain tiles from `/e2e-tiles/` on their own host. Pages
+of the member apps may ask for the device location (`geolocation=(self)`): the
+driver's map shows it only after the driver allows it, and it stays in the
+browser.
 
 ## Club name
 

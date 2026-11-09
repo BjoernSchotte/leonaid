@@ -15,11 +15,14 @@
 	}
 }
 
+# Hosts that serve the member apps. geolocation=(self): the driver's map may
+# show the device location after the driver allows it; it stays in the
+# browser (specs/krapfentaxi-touren §7.2). Public hosts keep it off.
 (common_headers) {
 	header {
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin
-		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(self), payment=(), usb=()"
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	}
 }
@@ -39,9 +42,13 @@
 # Strict Content-Security-Policy without 'unsafe-inline'. The admin web app and
 # the PWA are static builds whose scripts and styles are all files, so Caddy
 # sends the complete policy for them and for the API.
+# img-src names one more origin: the map tile server of the installation
+# (specs/krapfentaxi-touren §8.1, D3). The proxy service sets
+# LEONAID_MAP_TILE_ORIGIN; Core refuses to start when the tile URL names
+# another origin, so the browser can load exactly these tiles.
 (leonaid_headers) {
 	header {
-		Content-Security-Policy "default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self' data:; form-action 'self'; frame-ancestors 'none'; frame-src 'self' https://www.google.com https://maps.google.com; img-src 'self' data: blob:; object-src 'none'; script-src 'self'; style-src 'self'"
+		Content-Security-Policy "default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self' data:; form-action 'self'; frame-ancestors 'none'; frame-src 'self' https://www.google.com https://maps.google.com; img-src 'self' data: blob: {$LEONAID_MAP_TILE_ORIGIN:https://tile.openstreetmap.org}; object-src 'none'; script-src 'self'; style-src 'self'"
 		X-Frame-Options DENY
 	}
 }
@@ -54,7 +61,7 @@
 # without one (endpoints, redirects, errors). The leading "?" does exactly this.
 (astro_headers) {
 	header {
-		?Content-Security-Policy "default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self' data:; form-action 'self'; frame-ancestors 'none'; frame-src 'self' https://www.google.com https://maps.google.com; img-src 'self' data: blob:; object-src 'none'; script-src 'self'; style-src 'self'"
+		?Content-Security-Policy "default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self' data:; form-action 'self'; frame-ancestors 'none'; frame-src 'self' https://www.google.com https://maps.google.com; img-src 'self' data: blob: {$LEONAID_MAP_TILE_ORIGIN:https://tile.openstreetmap.org}; object-src 'none'; script-src 'self'; style-src 'self'"
 		X-Frame-Options DENY
 	}
 }
@@ -221,6 +228,12 @@
 
 	handle_path /mailing/* {
 		reverse_proxy listmonk:9000
+	}
+
+	handle /e2e-tiles/* {
+		header Content-Type image/svg+xml
+		header Cache-Control "public, max-age=86400"
+		respond `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><rect width="256" height="256" fill="#e6ecee"/><path d="M0 .5H256M.5 0V256" stroke="#c5d0d4"/></svg>` 200
 	}
 
 	# Local development extensions (docs: infra/compose/README.md). The dev-local

@@ -98,7 +98,12 @@ haben keinen Ausgang, dort enden Abfragen als Fehler. Die Kartenkacheln kommen
 von `LEONAID_MAP_TILE_URL` (Standard OpenStreetMap) mit
 `LEONAID_MAP_ATTRIBUTION`; eine Kachel-URL auf einem anderen Host muss ihren
 Origin in `LEONAID_MAP_TILE_ORIGIN` nennen. Ungültige Werte stoppen den
-Worker beim Start mit `worker.configuration.invalid`.
+Worker beim Start mit `worker.configuration.invalid`. Der Proxy öffnet
+`img-src` der Content-Security-Policy für genau diesen Origin (Standard
+`https://tile.openstreetmap.org`); Test-Stacks laden einfache Kacheln von
+`/e2e-tiles/` auf dem eigenen Host. Seiten der Mitglieder-Apps dürfen nach dem
+Gerätestandort fragen (`geolocation=(self)`): Die Karte der Ausfahrer zeigt ihn
+erst nach deren Zustimmung, und er bleibt im Browser.
 
 ## Clubname
 

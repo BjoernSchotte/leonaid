@@ -315,7 +315,10 @@ describe("Meine Tour", () => {
       "Bäckereiweg 2, 86150 Augsburg",
     );
     expect(next.queryByRole("link", { name: /Bäckereiweg/ })).toBeNull();
-    expect(next.getByTestId("tour-map").textContent).toContain("Karte folgt");
+    // No pin yet: no map box, one muted line and the OSM search.
+    expect(next.getByTestId("tour-map").textContent).toBe(
+      "Adresse ohne Kartenpunkt",
+    );
     const osm = next.getByRole("link", { name: "In OpenStreetMap öffnen" });
     expect(osm.getAttribute("href")).toBe(
       "https://www.openstreetmap.org/search?query=B%C3%A4ckereiweg%202%2C%2086150%20Augsburg",
@@ -743,6 +746,185 @@ describe("Meine Tour", () => {
     expect(
       view.queries.getQueryCache().findAll({ queryKey: ["my-tour"] }),
     ).toHaveLength(0);
+  });
+
+  describe("map (§7.2, D17)", () => {
+    /** Bäckerei Kern and Praxis Süd have pins; Autohaus Nord has none. */
+    function located() {
+      const tour = myTour({
+        windows: [
+          tourWindow("w1", `${DAY}T07:00:00Z`, `${DAY}T09:00:00Z`, [
+            stop(drop("c1", "Bäckerei Kern", "w1"), 1, {
+              lat: 47.76,
+              lon: 11.56,
+            }),
+            stop(drop("c2", "Autohaus Nord", "w1", { revision: 2 }), 2),
+          ]),
+          tourWindow("w2", `${DAY}T09:00:00Z`, `${DAY}T11:00:00Z`, [
+            stop(drop("c3", "Praxis Süd", "w2"), 1, {
+              lat: 47.77,
+              lon: 11.57,
+            }),
+          ]),
+        ],
+      });
+      return {
+        ...tour,
+        startPoint: {
+          address: "Marktstraße 1, 83646 Bad Tölz",
+          label: "Lions-Halle",
+          lat: 47.75,
+          lon: 11.55,
+          locating: false,
+        },
+      };
+    }
+    /** Leaflet loads on the first map: wait for the pins. */
+    const pinsOf = async (element: Element) => {
+      await waitFor(() =>
+        expect(element.querySelector(".tour-pin[data-pin-id]")).toBeTruthy(),
+      );
+      return pinsIn(element);
+    };
+    const pinsIn = (element: Element) =>
+      [...element.querySelectorAll<HTMLElement>(".tour-pin[data-pin-id]")]
+        .map((pin) => [pin.dataset.pinId, pin.textContent])
+        .sort();
+
+    afterEach(() => {
+      window.history.replaceState(null, "", "/");
+    });
+
+    it("the dock shows the stop's pin and the start on a still map; navigation uses the pin", async () => {
+      await renderTour(fakeClient(located()));
+      const map = within(card()).getByTestId("tour-map");
+      expect(await pinsOf(map)).toEqual([["stop", "1"]]);
+      expect(map.querySelector(".tour-pin--start")).toBeTruthy();
+      expect(map.querySelector(".leaflet-control-zoom")).toBeNull();
+      expect(map.textContent).toContain("© OpenStreetMap-Mitwirkende");
+      expect(
+        within(card())
+          .getByRole("link", { name: "In OpenStreetMap öffnen" })
+          .getAttribute("href"),
+      ).toBe(
+        "https://www.openstreetmap.org/?mlat=47.76&mlon=11.56#map=18/47.76/11.56",
+      );
+      expect(
+        within(card())
+          .getByRole("link", { name: "Navigation" })
+          .getAttribute("href"),
+      ).toBe("https://www.openstreetmap.org/directions?to=47.76,11.56");
+    });
+
+    it("Karte shows numbered pins in effective order, the start and a line through the open stops", async () => {
+      const client = fakeClient(located());
+      await renderTour(client);
+      const toggle = screen.getByRole("button", { name: "Karte" });
+      expect(toggle.getAttribute("aria-pressed")).toBe("false");
+      fireEvent.click(toggle);
+      const view = await screen.findByTestId("tour-mapview");
+      expect(toggle.getAttribute("aria-pressed")).toBe("true");
+      expect(window.location.search).toBe("?view=map");
+      // Autohaus Nord has no pin; numbers follow the list (1, 2, 3).
+      expect(await pinsOf(view)).toEqual([
+        ["c1", "1"],
+        ["c3", "3"],
+      ]);
+      expect(view.querySelector(".tour-pin--start")).toBeTruthy();
+      expect(view.querySelector("path.tour-line")).toBeTruthy();
+      expect(
+        view
+          .querySelector('[data-pin-id="c1"]')
+          ?.classList.contains("is-selected"),
+      ).toBe(true);
+      // No list and no dock until a pin is tapped.
+      expect(screen.queryByTestId("tour-stop")).toBeNull();
+      expect(screen.queryByTestId("tour-dock")).toBeNull();
+
+      fireEvent.click(view.querySelector('[data-pin-id="c3"]')!);
+      expect(
+        within(card()).getByRole("heading", { name: "Praxis Süd" }),
+      ).toBeTruthy();
+      // The sheet has the same buttons, but no second map.
+      expect(
+        within(card()).getByRole("button", { name: "Zugestellt" }),
+      ).toBeTruthy();
+      expect(within(card()).queryByTestId("tour-map")).toBeNull();
+      fireEvent.click(
+        within(dock()).getByRole("button", { name: "Stoppkarte schließen" }),
+      );
+      expect(screen.queryByTestId("tour-dock")).toBeNull();
+
+      fireEvent.click(toggle);
+      expect(await screen.findAllByTestId("tour-stop")).toHaveLength(3);
+      expect(window.location.search).toBe("");
+    });
+
+    it("a tap on the dock map opens the map view with that stop in the sheet", async () => {
+      await renderTour(fakeClient(located()));
+      fireEvent.click(
+        within(card()).getByRole("button", { name: "Karte groß öffnen" }),
+      );
+      expect(await screen.findByTestId("tour-mapview")).toBeTruthy();
+      expect(
+        within(card()).getByRole("heading", { name: "Bäckerei Kern" }),
+      ).toBeTruthy();
+    });
+
+    it("a done stop's pin opens a sheet with Rückgängig", async () => {
+      const tour = located();
+      const client = fakeClient({
+        ...tour,
+        tour: {
+          ...tour.tour!,
+          windows: tour.tour!.windows.map((item) => ({
+            ...item,
+            stops: item.stops.map((entry) =>
+              entry.drop.commitmentId === "c1"
+                ? { ...entry, drop: { ...entry.drop, state: "delivered" } }
+                : entry,
+            ),
+          })),
+        },
+      });
+      await renderTour(client);
+      fireEvent.click(screen.getByRole("button", { name: "Karte" }));
+      const view = await screen.findByTestId("tour-mapview");
+      await pinsOf(view);
+      const done = view.querySelector('[data-pin-id="c1"]')!;
+      expect(done.classList.contains("tour-pin--done")).toBe(true);
+      fireEvent.click(done);
+      const sheet = screen.getByTestId("tour-done-sheet");
+      fireEvent.click(
+        within(sheet).getByRole("button", { name: "Rückgängig" }),
+      );
+      await waitFor(() =>
+        expect(client.setDeliveryState).toHaveBeenCalledWith(actionId, "c1", {
+          delivered: false,
+          expectedRevision: 0,
+          missed: false,
+        }),
+      );
+    });
+
+    it("the device location is opt-in and stays in the browser", async () => {
+      const watchPosition = vi.fn(() => 3);
+      const clearWatch = vi.fn();
+      Object.defineProperty(navigator, "geolocation", {
+        configurable: true,
+        value: { clearWatch, watchPosition },
+      });
+      await renderTour(fakeClient(located()));
+      fireEvent.click(screen.getByRole("button", { name: "Karte" }));
+      await pinsOf(await screen.findByTestId("tour-mapview"));
+      expect(watchPosition).not.toHaveBeenCalled();
+      const locate = screen.getByRole("button", { name: "Mein Standort" });
+      fireEvent.click(locate);
+      expect(locate.getAttribute("aria-pressed")).toBe("true");
+      expect(watchPosition).toHaveBeenCalledTimes(1);
+      fireEvent.click(locate);
+      expect(clearWatch).toHaveBeenCalledWith(3);
+    });
   });
 });
 

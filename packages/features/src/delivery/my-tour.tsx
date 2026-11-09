@@ -2,6 +2,8 @@ import {
   Check,
   ChevronDown,
   EllipsisVertical,
+  LocateFixed,
+  Map as MapIcon,
   Navigation,
   Phone,
   Truck,
@@ -55,6 +57,7 @@ import {
   dropQuantities,
   dropQuantitiesShort,
 } from "./delivery-shared";
+import { TourMap, type TourMapPin } from "./tour-map";
 import { TourMapSlot } from "./tour-map-slot";
 import {
   callHref,
@@ -104,6 +107,12 @@ const copy = {
   closedWindow:
     "Dieses Fenster ist abgeschlossen. Für Änderungen wende dich an die Aktionsleitung.",
   cancelledOrder: "Diese Bestellung wird nicht (mehr) ausgeliefert.",
+  map: "Karte",
+  mapLabel: "Karte der Tour",
+  myLocation: "Mein Standort",
+  noLocation: "Dein Standort ist gerade nicht verfügbar.",
+  noPins: "Noch kein Stopp hat einen Kartenpunkt.",
+  closeSheet: "Stoppkarte schließen",
   noAddress: "Keine Lieferadresse hinterlegt.",
   error: "Deine Tour konnte nicht geladen werden.",
   errorHint: "Prüfe deine Verbindung und versuche es erneut.",
@@ -164,6 +173,26 @@ interface TourStop {
   readonly drop: DeliveryDropResponse;
   readonly window: DeliveryTourWindowResponse;
   readonly newForDriver: boolean;
+  /** The pin, once geocoded or set by the manager (§6.4). */
+  readonly lat: number | null;
+  readonly lon: number | null;
+}
+
+/** In the map view: the sheet shows the dock's stop or a done stop. */
+type MapSheet =
+  | { readonly kind: "stop" }
+  | { readonly kind: "done"; readonly id: string };
+
+type MapStart = {
+  readonly lat: number;
+  readonly lon: number;
+  readonly label: string;
+};
+
+interface DockMap {
+  readonly tiles: { readonly url: string; readonly attribution: string };
+  readonly start: MapStart | null;
+  readonly onOpen: () => void;
 }
 
 /** "Sa 05.12." for an ISO day. */
@@ -338,6 +367,22 @@ export function MyTourPage({
     else url.searchParams.delete("day");
     window.history.replaceState(window.history.state, "", url);
   };
+  // The map view lives in the URL too (?view=map).
+  const [mapView, setMapViewState] = useState(
+    () => new URLSearchParams(window.location.search).get("view") === "map",
+  );
+  const [sheet, setSheet] = useState<MapSheet | null>(null);
+  /** The driver allowed the device location (this page view only). */
+  const [locating, setLocating] = useState(false);
+  const setMapView = (value: boolean) => {
+    setMapViewState(value);
+    setSheet(null);
+    if (!value) setLocating(false);
+    const url = new URL(window.location.href);
+    if (value) url.searchParams.set("view", "map");
+    else url.searchParams.delete("view");
+    window.history.replaceState(window.history.state, "", url);
+  };
   /** An open stop the driver tapped: the dock shows it instead of the next. */
   const [shownId, setShownId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -384,6 +429,21 @@ export function MyTourPage({
   const data = tourQuery.data;
   const tour = data?.tour ?? null;
   const zone = data?.timezone ?? "Europe/Berlin";
+  const tiles = useMemo(
+    () =>
+      data?.map
+        ? { url: data.map.tileUrl, attribution: data.map.attribution }
+        : null,
+    [data?.map],
+  );
+  const startPoint = data?.startPoint;
+  const start = useMemo<MapStart | null>(
+    () =>
+      startPoint && startPoint.lat !== null && startPoint.lon !== null
+        ? { lat: startPoint.lat, lon: startPoint.lon, label: startPoint.label }
+        : null,
+    [startPoint],
+  );
 
   const model = useMemo(() => {
     const stops = new Map<string, TourStop>();
@@ -392,6 +452,8 @@ export function MyTourPage({
       for (const stop of window.stops) {
         stops.set(stop.drop.commitmentId, {
           drop: stop.drop,
+          lat: stop.lat,
+          lon: stop.lon,
           newForDriver: stop.newForDriver,
           window,
         });
@@ -614,8 +676,10 @@ export function MyTourPage({
       actions={actions}
       data={data}
       delivered={deliveredCount}
+      mapView={mapView}
       onAction={chooseAction}
       onDay={chooseDay}
+      onToggleMap={tour && order.length ? () => setMapView(!mapView) : null}
       onReset={() => {
         // The reset replaces a waiting move; it waits for a running save
         // and then uses the revision that save returned.
@@ -696,6 +760,119 @@ export function MyTourPage({
   }
 
   const dockStop = dockId ? model.stops.get(dockId) : undefined;
+  const dockWindowEnded = dockStop
+    ? windowHint(dockStop.window.startsAt, dockStop.window.endsAt, now).kind ===
+      "ended"
+    : false;
+  const dock = (sheetMode: boolean) => (
+    <TourDock
+      busy={setState.isPending}
+      delivered={deliveredCount}
+      headingRef={dockHeading}
+      isNext={dockId === nextId}
+      map={
+        sheetMode || !tiles
+          ? null
+          : {
+              onOpen: () => {
+                setMapView(true);
+                setSheet({ kind: "stop" });
+              },
+              start,
+              tiles,
+            }
+      }
+      onClose={sheetMode ? () => setSheet(null) : undefined}
+      onMark={(target) => {
+        if (dockStop) mark(dockStop.drop, target);
+      }}
+      onShowNext={() => setShownId(null)}
+      position={dockId ? order.indexOf(dockId) + 1 : 0}
+      settled={settled}
+      stop={dockStop}
+      total={counted.length}
+      town={model.town}
+      windowEnded={dockWindowEnded}
+    />
+  );
+
+  if (mapView && tiles) {
+    // §7.2: numbered pins in effective order, the start point, a line
+    // through the open stops; a tapped pin opens its stop as a sheet.
+    const selectedId =
+      sheet?.kind === "done" ? sheet.id : sheet ? dockId : nextId;
+    const pins: TourMapPin[] = order.flatMap((id, index) => {
+      const stop = model.stops.get(id)!;
+      if (stop.lat === null || stop.lon === null) return [];
+      return [
+        {
+          id,
+          label: `${copy.stop(index + 1)}: ${stopName(stop.drop)}`,
+          lat: stop.lat,
+          lon: stop.lon,
+          rank: index + 1,
+          selected: id === selectedId,
+          tone: isOpenStop(id) ? ("driver-0" as const) : ("done" as const),
+        },
+      ];
+    });
+    const sheetStop =
+      sheet?.kind === "done" ? model.stops.get(sheet.id) : undefined;
+    return frame(
+      <>
+        <div className="tour-mapview" data-testid="tour-mapview">
+          <TourMap
+            label={copy.mapLabel}
+            line={{ ids: order.filter(isOpenStop), dashed: false }}
+            onLocationError={() => {
+              setLocating(false);
+              toast?.show({ title: copy.noLocation, tone: "info" });
+            }}
+            onSelect={(id) => {
+              if (isOpenStop(id)) {
+                setShownId(id === nextId ? null : id);
+                setSheet({ kind: "stop" });
+              } else {
+                setSheet({ kind: "done", id });
+              }
+            }}
+            pins={pins}
+            showLocation={locating}
+            start={start}
+            tiles={tiles}
+          />
+          {pins.length ? null : (
+            <p className="tour-mapview-empty">{copy.noPins}</p>
+          )}
+          <div className="tour-mapview-tools">
+            <Button
+              aria-pressed={locating}
+              icon={LocateFixed}
+              onClick={() => setLocating((value) => !value)}
+              size="lg"
+              variant="secondary"
+            >
+              {copy.myLocation}
+            </Button>
+          </div>
+        </div>
+        {sheet?.kind === "stop" ? dock(true) : null}
+        {sheetStop ? (
+          <DoneSheet
+            busy={setState.isPending}
+            onClose={() => setSheet(null)}
+            onUndo={() => {
+              setSheet(null);
+              mark(sheetStop.drop, "open");
+            }}
+            position={order.indexOf(sheetStop.drop.commitmentId) + 1}
+            stop={sheetStop}
+            zone={zone}
+          />
+        ) : null}
+      </>,
+    );
+  }
 
   return frame(
     <>
@@ -786,27 +963,7 @@ export function MyTourPage({
           );
         })}
       </div>
-      <TourDock
-        busy={setState.isPending}
-        delivered={deliveredCount}
-        headingRef={dockHeading}
-        isNext={dockId === nextId}
-        onMark={(target) => {
-          if (dockStop) mark(dockStop.drop, target);
-        }}
-        onShowNext={() => setShownId(null)}
-        position={dockId ? order.indexOf(dockId) + 1 : 0}
-        settled={settled}
-        stop={dockStop}
-        total={counted.length}
-        town={model.town}
-        windowEnded={
-          dockStop
-            ? windowHint(dockStop.window.startsAt, dockStop.window.endsAt, now)
-                .kind === "ended"
-            : false
-        }
-      />
+      {dock(false)}
     </>,
   );
 }
@@ -822,9 +979,11 @@ function TourBar({
   actions,
   data,
   delivered,
+  mapView,
   onAction,
   onDay,
   onReset,
+  onToggleMap,
   resetting,
   total,
 }: {
@@ -835,9 +994,12 @@ function TourBar({
   }[];
   readonly data: MyTourResponse | undefined;
   readonly delivered: number;
+  readonly mapView: boolean;
   readonly onAction: (actionId: string) => void;
   readonly onDay: (day: string) => void;
   readonly onReset: () => void;
+  /** Null without stops: nothing to show on a map. */
+  readonly onToggleMap: (() => void) | null;
   readonly resetting: boolean;
   readonly total: number;
 }) {
@@ -877,6 +1039,19 @@ function TourBar({
             />
           </span>
         </>
+      ) : null}
+      {onToggleMap ? (
+        <button
+          aria-pressed={mapView}
+          className="tour-bar-toggle"
+          data-testid="tour-map-toggle"
+          onClick={onToggleMap}
+          title={copy.map}
+          type="button"
+        >
+          <MapIcon aria-hidden="true" size={20} />
+          <span className="sr-only">{copy.map}</span>
+        </button>
       ) : null}
       <TourMenu
         actionId={actionId}
@@ -1263,6 +1438,8 @@ function TourDock({
   delivered,
   headingRef,
   isNext,
+  map,
+  onClose,
   onMark,
   onShowNext,
   position,
@@ -1276,6 +1453,10 @@ function TourDock({
   readonly delivered: number;
   readonly headingRef: RefObject<HTMLHeadingElement | null>;
   readonly isNext: boolean;
+  /** The inline map; null in the map view's sheet. */
+  readonly map: DockMap | null;
+  /** Set: the dock is the map view's sheet and can close. */
+  readonly onClose?: () => void;
   readonly onMark: (target: Target) => void;
   readonly onShowNext: () => void;
   readonly position: number;
@@ -1327,6 +1508,7 @@ function TourDock({
         headingRef={headingRef}
         isNext={isNext}
         key={drop.commitmentId}
+        map={map}
         onMark={onMark}
         onShowNext={onShowNext}
         position={position}
@@ -1342,6 +1524,17 @@ function TourDock({
       data-testid="tour-dock"
       ref={dock}
     >
+      {onClose ? (
+        <Button
+          aria-label={copy.closeSheet}
+          className="tour-dock-close"
+          icon={X}
+          onClick={onClose}
+          size="lg"
+          title={copy.closeSheet}
+          variant="ghost"
+        />
+      ) : null}
       {stop ? (
         <button
           aria-expanded={!folded}
@@ -1367,6 +1560,7 @@ function DockStop({
   folded,
   headingRef,
   isNext,
+  map,
   onMark,
   onShowNext,
   position,
@@ -1378,6 +1572,7 @@ function DockStop({
   readonly folded: boolean;
   readonly headingRef: RefObject<HTMLHeadingElement | null>;
   readonly isNext: boolean;
+  readonly map: DockMap | null;
   readonly onMark: (target: Target) => void;
   readonly onShowNext: () => void;
   readonly position: number;
@@ -1392,7 +1587,7 @@ function DockStop({
   const contactName = drop.contact?.name || name;
   const navigation = address
     ? navigationHref(
-        { address, lat: null, lon: null },
+        { address, lat: stop.lat, lon: stop.lon },
         devicePlatform(navigator.userAgent),
       )
     : null;
@@ -1470,7 +1665,17 @@ function DockStop({
         <p className="tour-dock-muted">{copy.noAddress}</p>
       )}
       {/* The driver note (spec §5.1) joins here with Task 12. */}
-      {address ? <TourMapSlot address={address} lat={null} lon={null} /> : null}
+      {address && map ? (
+        <TourMapSlot
+          address={address}
+          lat={stop.lat}
+          lon={stop.lon}
+          onOpen={map.onOpen}
+          position={position}
+          start={map.start}
+          tiles={map.tiles}
+        />
+      ) : null}
       {canMark ? (
         <>
           <div className="tour-dock-actions">
@@ -1521,5 +1726,83 @@ function DockStop({
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * The map view's sheet for a done, missed or cancelled stop: what the
+ * list's done panel shows (address, quantity, time) and "Rückgängig".
+ */
+function DoneSheet({
+  busy,
+  onClose,
+  onUndo,
+  position,
+  stop,
+  zone,
+}: {
+  readonly busy: boolean;
+  readonly onClose: () => void;
+  readonly onUndo: () => void;
+  readonly position: number;
+  readonly stop: TourStop;
+  readonly zone: string;
+}) {
+  const dock = useRef<HTMLElement | null>(null);
+  useDockHeight(dock);
+  const { drop, window } = stop;
+  const name = stopName(drop);
+  const undoable = deliverable(drop) && !window.closed;
+  return (
+    <section
+      aria-label={copy.stop(position)}
+      className="tour-dock"
+      data-testid="tour-done-sheet"
+      ref={dock}
+    >
+      <Button
+        aria-label={copy.closeSheet}
+        className="tour-dock-close"
+        icon={X}
+        onClick={onClose}
+        size="lg"
+        title={copy.closeSheet}
+        variant="ghost"
+      />
+      <div className="tour-dock-body">
+        <div className="tour-dock-head">
+          <span className="tour-pos num">{position}</span>
+          <div className="tour-dock-title">
+            <h2>{name}</h2>
+          </div>
+          <StatusIcon
+            label={stateLabel(drop)}
+            size={20}
+            status={stateShape(drop)}
+          />
+        </div>
+        <p className="tour-dock-address">
+          {dropAddress(drop) ?? copy.noAddress}
+        </p>
+        <p className="tour-dock-muted num">
+          {dropQuantities(drop)} · {stateLabel(drop)}
+          {drop.stateChangedAt
+            ? ` um ${clockMinutes(drop.stateChangedAt, zone)} Uhr`
+            : ""}
+        </p>
+        {undoable ? (
+          <Button
+            className="tour-done-undo"
+            disabled={busy}
+            icon={Undo2}
+            onClick={onUndo}
+            size="lg"
+            variant="secondary"
+          >
+            Rückgängig
+          </Button>
+        ) : null}
+      </div>
+    </section>
   );
 }
