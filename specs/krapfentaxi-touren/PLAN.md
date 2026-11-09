@@ -340,7 +340,10 @@ bekannt ist – das braucht er ja für die durchführung". On that basis
 - Manager: reads and writes everything in an action they manage.
 - The existing first-read audit also covers "Meine Tour" and the map view.
   An offline read is logged when the driver next syncs (its read time as
-  the event time).
+  the event time). Core accepts an offline read time at most 14 days
+  before and at most 5 minutes after its own receive time (phone clock
+  drift, as for `captured_at`). The device does not send reads outside
+  that range. The earliest read of a window and day wins.
 - Coordinates are personal data, like the address. They never go into
   audit events, URLs or telemetry (rule from the Krapfentaxi delivery spec
   §145).
