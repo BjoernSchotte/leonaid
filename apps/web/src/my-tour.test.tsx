@@ -1,4 +1,8 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  onlineManager,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 import {
   act,
   fireEvent,
@@ -678,5 +682,87 @@ describe("PWA delivery route", () => {
     await screen.findByRole("heading", { name: "Auslieferung" });
     expect(getDeliveryBoard).toHaveBeenCalled();
     expect(client.getMyTour).not.toHaveBeenCalled();
+  });
+
+  function renderRoute(client: LeonAidApiClient, offline = false) {
+    const queries = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queries}>
+        <ToastProvider>
+          <FeatureFlagProvider
+            client={client}
+            identity={identity}
+            surface="pwa"
+          >
+            <PwaDeliveryPage
+              actionId={actionId}
+              client={client}
+              offline={offline}
+            />
+          </FeatureFlagProvider>
+        </ToastProvider>
+      </QueryClientProvider>,
+    );
+    return queries;
+  }
+
+  it("settles all flags off when the app opens offline without flags", async () => {
+    onlineManager.setOnline(false);
+    try {
+      const client = fakeClient(myTour());
+      Object.assign(client, {
+        getDeliveryBoard: vi.fn(),
+        // What fetch does without a network.
+        getFeatureFlagEvaluations: vi.fn(async () => {
+          throw new TypeError("Failed to fetch");
+        }),
+      });
+      renderRoute(client, true);
+      // Flag off: the board's offline notice, not an endless skeleton.
+      await screen.findByText(/Ohne Verbindung zeigen wir keine Lieferungen/);
+      expect(client.getMyTour).not.toHaveBeenCalled();
+    } finally {
+      onlineManager.setOnline(true);
+    }
+  });
+
+  it("keeps the page mounted while the flags reload", async () => {
+    const client = fakeClient(myTour());
+    const evaluations = vi.fn(async () => ({
+      flags: [{ enabled: true, key: "delivery.tours" }],
+    }));
+    Object.assign(client, {
+      getDeliveryBoard: vi.fn(),
+      getFeatureFlagEvaluations: evaluations,
+    });
+    const queries = renderRoute(client);
+    await screen.findByTestId("tour-next-stop");
+    const loads = vi.mocked(client.getMyTour).mock.calls.length;
+    const reload = async () => {
+      const before = evaluations.mock.calls.length;
+      await act(() =>
+        queries.invalidateQueries({ queryKey: ["feature-flags"] }),
+      );
+      await waitFor(() =>
+        expect(evaluations.mock.calls.length).toBeGreaterThan(before),
+      );
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+    };
+    // Same result, then a changed one: the tour stays, nothing reloads it.
+    await reload();
+    evaluations.mockResolvedValue({
+      flags: [
+        { enabled: true, key: "delivery.tours" },
+        { enabled: true, key: "admin.preview_notice" },
+      ],
+    });
+    await reload();
+    expect(screen.getByTestId("tour-next-stop")).toBeTruthy();
+    expect(vi.mocked(client.getMyTour).mock.calls.length).toBe(loads);
+    expect(client.getDeliveryBoard).not.toHaveBeenCalled();
   });
 });

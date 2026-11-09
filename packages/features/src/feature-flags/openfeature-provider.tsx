@@ -86,6 +86,9 @@ export function FeatureFlagProvider({
   const evaluations = useQuery({
     queryFn: () => client.getFeatureFlagEvaluations({ surface }),
     queryKey: ["feature-flags", surface],
+    // Offline the request fails instead of pausing, so the flags settle
+    // (all off) and gated views do not wait for a network that is gone.
+    networkMode: "always",
     staleTime: 5_000,
   });
 
@@ -100,10 +103,11 @@ export function FeatureFlagProvider({
     });
   }, [identity, surface]);
 
-  const [applied, setApplied] = useState<{
-    readonly source: unknown;
-    readonly values: ReadonlyMap<string, boolean>;
-  } | null>(null);
+  // The values OpenFeature holds. A reload with new values keeps the old
+  // ones until the new ones are in, so gated views do not remount.
+  const [applied, setApplied] = useState<ReadonlyMap<string, boolean> | null>(
+    null,
+  );
   useEffect(() => {
     const data = evaluations.data;
     if (!data) return;
@@ -115,22 +119,14 @@ export function FeatureFlagProvider({
       .putConfiguration(featureConfiguration(values))
       .then(() => {
         if (!live) return;
-        setApplied({
-          source: data,
-          values: new Map(data.flags.map((flag) => [flag.key, flag.enabled])),
-        });
+        setApplied(new Map(data.flags.map((flag) => [flag.key, flag.enabled])));
       });
     return () => {
       live = false;
     };
   }, [evaluations.data]);
 
-  const settled =
-    applied && applied.source === evaluations.data
-      ? applied.values
-      : evaluations.isError
-        ? ALL_OFF
-        : null;
+  const settled = applied ?? (evaluations.isError ? ALL_OFF : null);
 
   return (
     <OpenFeatureProvider domain={FEATURE_FLAG_DOMAIN}>
