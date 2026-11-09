@@ -5,7 +5,13 @@ import {
   TypedInMemoryProvider,
   useBooleanFlagValue,
 } from "@openfeature/react-sdk";
-import { useEffect, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 
 import type {
   CurrentIdentityResponse,
@@ -54,6 +60,16 @@ function featureConfiguration(
   };
 }
 
+/**
+ * The evaluated flags once known: null while the evaluation is loading,
+ * an empty map when it failed (every flag off). Outside a provider every
+ * flag is settled and off.
+ */
+const ALL_OFF: ReadonlyMap<string, boolean> = new Map();
+const SettledFlagsContext = createContext<ReadonlyMap<string, boolean> | null>(
+  new Map(),
+);
+
 export interface FeatureFlagProviderProps {
   readonly children: ReactNode;
   readonly client: LeonAidApiClient;
@@ -84,19 +100,55 @@ export function FeatureFlagProvider({
     });
   }, [identity, surface]);
 
+  const [applied, setApplied] = useState<{
+    readonly source: unknown;
+    readonly values: ReadonlyMap<string, boolean>;
+  } | null>(null);
   useEffect(() => {
-    if (!evaluations.data) return;
-    const values = new Map(
-      evaluations.data.flags.map((flag) => [flag.key, flag] as const),
-    );
-    void browserProvider.putConfiguration(featureConfiguration(values));
+    const data = evaluations.data;
+    if (!data) return;
+    const values = new Map(data.flags.map((flag) => [flag.key, flag] as const));
+    let live = true;
+    // Settled only once OpenFeature holds the same values, so a view that
+    // waits for it never sees a flag still at its default.
+    void browserProvider
+      .putConfiguration(featureConfiguration(values))
+      .then(() => {
+        if (!live) return;
+        setApplied({
+          source: data,
+          values: new Map(data.flags.map((flag) => [flag.key, flag.enabled])),
+        });
+      });
+    return () => {
+      live = false;
+    };
   }, [evaluations.data]);
+
+  const settled =
+    applied && applied.source === evaluations.data
+      ? applied.values
+      : evaluations.isError
+        ? ALL_OFF
+        : null;
 
   return (
     <OpenFeatureProvider domain={FEATURE_FLAG_DOMAIN}>
-      {children}
+      <SettledFlagsContext.Provider value={settled}>
+        {children}
+      </SettledFlagsContext.Provider>
     </OpenFeatureProvider>
   );
+}
+
+/**
+ * A flag that gates which view renders: null until the evaluation has
+ * arrived (or failed), then its value. Unlike `useLeonAidBooleanFlag`, it
+ * never reports the default first, so a gated view does not flash.
+ */
+export function useLeonAidSettledFlag(key: FeatureFlagKey): boolean | null {
+  const settled = useContext(SettledFlagsContext);
+  return settled ? (settled.get(key) ?? false) : null;
 }
 
 export function useLeonAidBooleanFlag(

@@ -15,10 +15,17 @@ import {
   type DeliveryTourResponse,
   type DeliveryTourStopResponse,
   type DeliveryTourWindowResponse,
+  type CurrentIdentityResponse,
   type LeonAidApiClient,
   type MyTourResponse,
 } from "@leonaid/api-client";
-import { MyTourPage } from "@leonaid/features";
+import {
+  FEATURE_FLAGS,
+  FeatureFlagProvider,
+  MyTourPage,
+  PwaDeliveryPage,
+  useLeonAidSettledFlag,
+} from "@leonaid/features";
 import { ToastProvider } from "@leonaid/ui";
 
 const actionId = "20000000-0000-4000-8000-000000000001";
@@ -87,7 +94,7 @@ function stop(
   };
 }
 
-function window(
+function tourWindow(
   windowId: string,
   startsAt: string,
   endsAt: string,
@@ -117,11 +124,11 @@ function myTour(
       driverUserId: "anna",
       revision: "r1",
       windows: extra.windows ?? [
-        window("w1", `${day}T07:00:00Z`, `${day}T09:00:00Z`, [
+        tourWindow("w1", `${day}T07:00:00Z`, `${day}T09:00:00Z`, [
           stop(drop("c1", "Bäckerei Kern", "w1"), 1),
           stop(drop("c2", "Autohaus Nord", "w1", { revision: 2 }), 2),
         ]),
-        window("w2", `${day}T09:00:00Z`, `${day}T11:00:00Z`, [
+        tourWindow("w2", `${day}T09:00:00Z`, `${day}T11:00:00Z`, [
           stop(drop("c3", "Praxis Süd", "w2"), 1),
         ]),
       ],
@@ -508,7 +515,7 @@ describe("Meine Tour", () => {
         myTour({
           day,
           windows: [
-            window("w1", `${day}T07:00:00Z`, `${day}T09:00:00Z`, [
+            tourWindow("w1", `${day}T07:00:00Z`, `${day}T09:00:00Z`, [
               stop(drop("c1", "Bäckerei Kern", "w1"), 1),
               stop(drop("c2", "Autohaus Nord", "w1"), 2),
               stop(
@@ -568,5 +575,108 @@ describe("Meine Tour", () => {
     expect(
       view.queries.getQueryCache().findAll({ queryKey: ["my-tour"] }),
     ).toHaveLength(0);
+  });
+});
+
+describe("PWA delivery route", () => {
+  const identity = {
+    actionMemberships: [],
+    globalRoles: [],
+    userId: "anna",
+  } as unknown as CurrentIdentityResponse;
+
+  it("waits for the flag: with delivery.tours on the board never loads", async () => {
+    let answer: (value: unknown) => void = () => {};
+    const client = fakeClient(myTour());
+    const getDeliveryBoard = vi.fn();
+    Object.assign(client, {
+      getDeliveryBoard,
+      getFeatureFlagEvaluations: vi.fn(
+        () => new Promise((resolve) => (answer = resolve)),
+      ),
+    });
+    const seen: (boolean | null)[] = [];
+    function Probe() {
+      seen.push(useLeonAidSettledFlag(FEATURE_FLAGS.deliveryTours));
+      return null;
+    }
+    const queries = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queries}>
+        <ToastProvider>
+          <FeatureFlagProvider
+            client={client}
+            identity={identity}
+            surface="pwa"
+          >
+            <Probe />
+            <PwaDeliveryPage
+              actionId={actionId}
+              client={client}
+              offline={false}
+            />
+          </FeatureFlagProvider>
+        </ToastProvider>
+      </QueryClientProvider>,
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(screen.queryByTestId("tour-next-stop")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Auslieferung" })).toBeNull();
+    await act(async () => {
+      answer({ flags: [{ enabled: true, key: "delivery.tours" }] });
+    });
+    await screen.findByTestId("tour-next-stop");
+    expect(getDeliveryBoard).not.toHaveBeenCalled();
+    // The nav label reads the same value: unknown, then on, never off.
+    expect(seen[0]).toBeNull();
+    expect(seen.at(-1)).toBe(true);
+    expect(seen).not.toContain(false);
+  });
+
+  it("shows the board when the flag is off", async () => {
+    const client = fakeClient(myTour());
+    const getDeliveryBoard = vi.fn(async () => ({
+      actionId,
+      actionName: "Krapfentaxi",
+      day: null,
+      days: [],
+      drivers: [],
+      followUpTasks: false,
+      manager: false,
+      timezone: "Europe/Berlin",
+      windows: [],
+    }));
+    Object.assign(client, {
+      getDeliveryBoard,
+      getFeatureFlagEvaluations: vi.fn(async () => ({ flags: [] })),
+    });
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <ToastProvider>
+          <FeatureFlagProvider
+            client={client}
+            identity={identity}
+            surface="pwa"
+          >
+            <PwaDeliveryPage
+              actionId={actionId}
+              client={client}
+              offline={false}
+            />
+          </FeatureFlagProvider>
+        </ToastProvider>
+      </QueryClientProvider>,
+    );
+    await screen.findByRole("heading", { name: "Auslieferung" });
+    expect(getDeliveryBoard).toHaveBeenCalled();
+    expect(client.getMyTour).not.toHaveBeenCalled();
   });
 });

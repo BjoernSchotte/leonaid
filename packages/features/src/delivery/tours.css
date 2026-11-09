@@ -111,12 +111,16 @@
   display: grid;
   gap: 2px;
 }
+/* Two stacked 44 px targets: the name opens the card, the street opens
+   OpenStreetMap (D15). The gap keeps a slip of the thumb off the other. */
+.tour-row-main:has(.tour-row-map) {
+  gap: var(--s-2);
+}
 .tour-row-toggle {
   display: flex;
   align-items: center;
   gap: var(--s-2);
   min-height: var(--control-h-lg);
-  margin: calc(-1 * var(--s-2)) 0;
   padding: 0;
   border: 0;
   border-radius: var(--r-sm);
@@ -128,7 +132,7 @@
 }
 .tour-row-toggle:focus-visible,
 .tour-address:focus-visible,
-.tour-row-sub a:focus-visible {
+.tour-row-map:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
@@ -152,8 +156,19 @@
   color: var(--text-2);
   font-size: var(--fs-sm);
 }
-.tour-row-sub a {
+.tour-row-map {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--control-h-lg);
+  padding-inline-end: var(--s-2);
+  border-radius: var(--r-sm);
   color: var(--accent-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.tour-row-map > svg {
+  flex: none;
 }
 .tour-row-state {
   display: inline-flex;
@@ -286,6 +301,9 @@
 .tour-card-actions .btn {
   width: 100%;
   padding-inline: var(--s-2);
+}
+.tour-card-actions .btn > svg {
+  flex: none;
 }
 .tour-wide {
   grid-column: 1 / -1;

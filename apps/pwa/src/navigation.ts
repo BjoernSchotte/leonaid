@@ -147,8 +147,12 @@ export function activeMobileTab(
 }
 
 export interface MobileNavigationOptions {
-  /** Flag `delivery.tours`: the delivery entry is the driver's "Meine Tour". */
-  readonly deliveryTours?: boolean;
+  /**
+   * Flag `delivery.tours`: the delivery entry is the driver's "Meine Tour".
+   * null while the flag is loading: the entry waits, so its label never
+   * flips from "Auslieferung" to "Meine Tour".
+   */
+  readonly deliveryTours?: boolean | null;
 }
 
 /**
@@ -162,7 +166,11 @@ export function mobileNavigation(
   location: { readonly pathname: string; readonly search: string },
   { deliveryTours = false }: MobileNavigationOptions = {},
 ): MobileNavigation {
-  const pwa = navigation.filter((item) => item.surface === "pwa");
+  const pwa = navigation.filter(
+    (item) =>
+      item.surface === "pwa" &&
+      !(item.key === "delivery" && deliveryTours === null),
+  );
   const byKey = new Map(pwa.map((item) => [item.key, item]));
   const tabs: MobileNavTab[] = [];
   for (const definition of TAB_DEFINITIONS) {

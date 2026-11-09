@@ -30,6 +30,7 @@ export * from "./commitments/commitment-capture";
 export * from "./dashboard/dashboard";
 export * from "./delivery/delivery-board";
 export * from "./delivery/my-tour";
+export * from "./delivery/delivery-route";
 export * from "./delivery/tour-model";
 export * from "./invoices/invoice-admin";
 export * from "./modules";

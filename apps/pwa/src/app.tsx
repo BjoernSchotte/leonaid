@@ -10,16 +10,15 @@ import {
   ActivityFeedPage,
   ActivityWorkspace,
   CommitmentCapturePage,
-  DeliveryBoardPage,
   FEATURE_FLAGS,
   FeatureFlagProvider,
   ModuleSearch,
-  MyTourPage,
+  PwaDeliveryPage,
   resolveModuleRoute,
   RoleDashboardPage,
   SponsorWorkspace,
   useCurrentActionId,
-  useLeonAidBooleanFlag,
+  useLeonAidSettledFlag,
   useLocationHref,
 } from "@leonaid/features";
 import {
@@ -259,27 +258,6 @@ const implementedPwaNavigation = new Set([
 ]);
 
 /**
- * The delivery route: drivers get "Meine Tour" with the flag
- * `delivery.tours` (spec krapfentaxi-touren §7), else the delivery board.
- */
-function DeliveryRoute(props: {
-  readonly actionId: string;
-  readonly actions: readonly {
-    readonly actionId: string;
-    readonly actionName: string;
-  }[];
-  readonly client: LeonAidApiClient;
-  readonly offline: boolean;
-}) {
-  const tours = useLeonAidBooleanFlag(FEATURE_FLAGS.deliveryTours);
-  return tours ? (
-    <MyTourPage {...props} />
-  ) : (
-    <DeliveryBoardPage {...props} surface="pwa" />
-  );
-}
-
-/**
  * The shell follows in-page URL changes (the sponsor capture view, Back),
  * so the active tab moves. Only the shell re-renders: the page element
  * comes from App unchanged, and module pages keep reading the URL
@@ -296,7 +274,7 @@ function PwaShell({
   readonly navigation: CurrentIdentityResponse["navigation"];
 }) {
   useLocationHref();
-  const deliveryTours = useLeonAidBooleanFlag(FEATURE_FLAGS.deliveryTours);
+  const deliveryTours = useLeonAidSettledFlag(FEATURE_FLAGS.deliveryTours);
   const { active, menu, tabs } = mobileNavigation(
     navigation,
     implementedPwaNavigation,
@@ -555,7 +533,7 @@ export function App({ client }: AppProps) {
           ) : route === "news" ? (
             <ActivityFeedPage client={client} surface="pwa" />
           ) : route === "delivery" ? (
-            <DeliveryRoute
+            <PwaDeliveryPage
               actionId={driverActionId}
               actions={driverActions}
               client={client}

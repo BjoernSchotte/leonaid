@@ -1041,11 +1041,14 @@ function StopRow({
             <p className="tour-row-sub">
               {address && drop.address ? (
                 <a
+                  aria-label={`${address} in OpenStreetMap`}
+                  className="tour-row-map"
                   href={osmHref({ lat: null, lon: null, address })}
                   rel="noopener"
                   target="_blank"
                 >
-                  {drop.address.streetLine1}
+                  <Icon icon={MapPin} size={14} />
+                  <span>{drop.address.streetLine1}</span>
                 </a>
               ) : null}
               <span className="num">{quantities(drop)}</span>
