@@ -127,7 +127,9 @@ INTEGRATION_SECONDS = {
     "api-contract": 36,
     # Minus the lazy Twenty pulls (39 s, 31 s) that the leg prefetch removes.
     "privacy": 121,
-    "acquisition-contracts": 179,
+    # E-041: one stack and seed; 192 s (run 42599007828) minus five boots,
+    # seeds and resets, plus ~50 s wait for the API's Twenty budget.
+    "acquisition-contracts": 115,
     # The Contract job (tools/ci/contract.sh) rides in an Integration bin.
     "contract": 118,
 }
