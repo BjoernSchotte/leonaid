@@ -60,7 +60,7 @@ function drop(
     },
     buyerName,
     commitmentId: id,
-    contact: { name: "Empfang", phone: "+49 30 123" },
+    contact: { driverNote: null, name: "Empfang", phone: "+49 30 123" },
     driverName: null,
     driverUserId: null,
     missedAtClosure: false,
