@@ -32,6 +32,9 @@ services:
       context: ../..
       dockerfile: infra/compose/Dockerfile.campaign-site
     logging: *default-logging
+    # As PID 1 the server ignores SIGTERM (no handler); the init forwards
+    # it, so a stop takes milliseconds instead of the 10 s kill timeout.
+    init: true
     restart: unless-stopped
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
@@ -152,6 +155,9 @@ services:
       context: ../..
       dockerfile: infra/compose/Dockerfile.survey-validator
     logging: *default-logging
+    # As PID 1 the server ignores SIGTERM (no handler); the init forwards
+    # it, so a stop takes milliseconds instead of the 10 s kill timeout.
+    init: true
     restart: unless-stopped
     <<: *hardened-runtime
     mem_limit: 96m
@@ -404,6 +410,9 @@ services:
       context: ../..
       dockerfile: infra/compose/Dockerfile.web
     logging: *default-logging
+    # As PID 1 the server ignores SIGTERM (no handler); the init forwards
+    # it, so a stop takes milliseconds instead of the 10 s kill timeout.
+    init: true
     restart: unless-stopped
     <<: *hardened-runtime
     tmpfs:
@@ -427,6 +436,9 @@ services:
       context: ../..
       dockerfile: infra/compose/Dockerfile.pwa
     logging: *default-logging
+    # As PID 1 the server ignores SIGTERM (no handler); the init forwards
+    # it, so a stop takes milliseconds instead of the 10 s kill timeout.
+    init: true
     restart: unless-stopped
     <<: *hardened-runtime
     tmpfs:
@@ -446,6 +458,9 @@ services:
       context: ../..
       dockerfile: infra/compose/Dockerfile.public
     logging: *default-logging
+    # As PID 1 the server ignores SIGTERM (no handler); the init forwards
+    # it, so a stop takes milliseconds instead of the 10 s kill timeout.
+    init: true
     restart: unless-stopped
     <<: *hardened-runtime
     tmpfs:

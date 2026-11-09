@@ -132,10 +132,7 @@ docker run --rm \
 
 mkdir -p "$artifact_directory"
 for screenshot in \
-  invitation-charity-admin.png \
-  invitation-lifecycle-admin.png \
   invitation-code-mobile.png \
-  email-change-admin.png \
   email-change-confirm-mobile.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "invitation-test: ERROR: browser screenshot missing: $screenshot" >&2

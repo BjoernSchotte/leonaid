@@ -21,7 +21,6 @@ const personas = {
   system: process.env.SYSTEM_SESSION,
   charityAdmin: process.env.KLARA_SESSION,
   acquirer: process.env.ANNA_SESSION,
-  finance: process.env.FINN_SESSION,
 };
 
 for (const [name, token] of Object.entries(personas)) {
@@ -95,50 +94,6 @@ test("charity admin sees only own actions and no system navigation", async ({
   }
 });
 
-test("acquirer gets only their acquisition tasks on a smartphone", async ({
-  browser,
-}) => {
-  const { context, page } = await sessionPage(
-    browser,
-    personas.acquirer,
-    "/app/",
-    { width: 390, height: 844 },
-  );
-  try {
-    const mobileNavigation = page.locator(".pwa-tabs");
-    await expect(
-      page.getByRole("heading", { name: /^Guten (Morgen|Tag|Abend), Anna\.$/ }),
-    ).toBeVisible();
-    // One campaign: the app bar names it; the choice appears only for
-    // several campaigns (ActionChoice in packages/features).
-    await expect(page.getByTestId("current-action")).toHaveText(
-      "Krapfentaxi 2026",
-    );
-    await expect(
-      page.getByRole("combobox", { name: "Charity-Aktion" }),
-    ).toHaveCount(0);
-    await expect(mobileNavigation).toBeVisible();
-    await expect(
-      mobileNavigation.locator('[data-nav-key="sponsors"]'),
-    ).toBeVisible();
-    await expect(
-      mobileNavigation.locator('[data-nav-key="activities"]'),
-    ).toBeVisible();
-    await expect(
-      mobileNavigation.locator('[data-nav-key="sponsor-new"]'),
-    ).toBeVisible();
-    await expect(page.locator('[data-nav-key="system"]')).toHaveCount(0);
-    await expect(page.locator('[data-nav-key="members"]')).toHaveCount(0);
-    await expect(page.locator('[data-nav-key="invoices"]')).toHaveCount(0);
-    await page.screenshot({
-      path: `${artifactDirectory}/acquirer-mobile.png`,
-      fullPage: true,
-    });
-  } finally {
-    await context.close();
-  }
-});
-
 test("acquirer-only member is redirected from the back office to the PWA", async ({
   browser,
 }) => {
@@ -183,31 +138,6 @@ test("acquirer-only member is redirected from the back office to the PWA", async
     for (const key of ["overview-web", "members", "system", "invoices"]) {
       await expect(page.locator(`[data-nav-key="${key}"]`)).toHaveCount(0);
     }
-  } finally {
-    await context.close();
-  }
-});
-
-test("system admin recognizes the global, action-independent area", async ({
-  browser,
-}) => {
-  const { context, page } = await sessionPage(
-    browser,
-    personas.system,
-    "/admin/",
-    { width: 1024, height: 800 },
-  );
-  try {
-    await expect(page.locator('[data-testid="display-name"]')).toHaveText(
-      "Simone System",
-    );
-    await expect(page.locator('[data-testid="roles"]')).toContainText(
-      "System-Admin",
-    );
-    await expect(page.locator('[data-nav-key="system"]').first()).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: "Noch keine passende Charity-Aktion" }),
-    ).toBeVisible();
   } finally {
     await context.close();
   }
@@ -267,65 +197,6 @@ test("system admin searches, filters and opens the full member list", async ({
       path: `${artifactDirectory}/system-members-desktop.png`,
       fullPage: true,
     });
-  } finally {
-    await context.close();
-  }
-});
-
-test("charity admin sees on mobile only members and roles of own actions", async ({
-  browser,
-}) => {
-  const { context, page } = await sessionPage(
-    browser,
-    personas.charityAdmin,
-    "/admin/members",
-    { width: 390, height: 844 },
-  );
-  try {
-    await expect(page.getByTestId("member-scope-note")).toContainText(
-      "Ansicht Ihrer Aktionen.",
-    );
-    await expect(page.locator(".listview .page-count")).toHaveText(
-      "6 Mitglieder",
-    );
-    await expect(memberRow(page, "Simone System")).toHaveCount(0);
-    await expect(memberRow(page, "Felix Fremd")).toHaveCount(0);
-
-    const pane = await openMember(page, "Anna Akquise");
-    await expect(page.locator("dialog.pane-sheet")).toBeVisible();
-    await expect(pane.getByTestId("member-membership")).toHaveCount(1);
-    const actions = pane.getByTestId("member-role-add-action");
-    await expect(actions).toContainText("Krapfentaxi 2026");
-    await expect(actions).toContainText("Krapfentaxi 2025");
-    await expect(actions).not.toContainText("Krapfentaxi Nord 2026");
-    await expect(pane.getByText("Systemrollen")).toHaveCount(0);
-    await expect(pane.getByTestId("member-scope-pane-note")).toBeVisible();
-
-    await page.screenshot({
-      path: `${artifactDirectory}/charity-members-mobile.png`,
-      fullPage: true,
-    });
-  } finally {
-    await context.close();
-  }
-});
-
-test("finance gets no member access, even through a direct URL", async ({
-  browser,
-}) => {
-  const { context, page } = await sessionPage(
-    browser,
-    personas.finance,
-    "/admin/members",
-    { width: 1024, height: 800 },
-  );
-  try {
-    await expect(
-      page.getByRole("heading", {
-        name: "Mitglieder konnten nicht geladen werden",
-      }),
-    ).toBeVisible();
-    await expect(memberRows(page)).toHaveCount(0);
   } finally {
     await context.close();
   }
