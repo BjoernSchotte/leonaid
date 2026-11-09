@@ -131,7 +131,8 @@ async function submitOrderResult(form) {
   return { reference, success };
 }
 
-test("new company, existing company and private person order in the guided form", async ({
+// Reuse of an existing company is a server rule: contract.py proves it.
+test("a new company and a private person order in the guided form", async ({
   page,
 }) => {
   const proof = {
@@ -192,25 +193,6 @@ test("new company, existing company and private person order in the guided form"
   });
   await page.screenshot({
     path: `${artifactDirectory}/public-order-success-new-company.png`,
-    fullPage: true,
-  });
-
-  form = await openOrderForm(page);
-  await fillOrder(form, {
-    companyName: "Musterwerk GmbH",
-    email: "mara.muster@musterwerk.leonaid.invalid",
-    familyName: "Muster",
-    givenName: "Mara",
-    quantity: 1,
-    recipient: "Musterwerk GmbH",
-  });
-  submitted = await submitOrder(form);
-  proof.orders.push({
-    scenario: "existing-company",
-    publicReference: submitted.reference,
-  });
-  await page.screenshot({
-    path: `${artifactDirectory}/public-order-success-existing-company.png`,
     fullPage: true,
   });
 

@@ -100,14 +100,7 @@ compose up --detach --wait --wait-timeout 420 api
 
 fi
 
-compose --profile dev-mail run --rm --user "$(id -u):$(id -g)" --no-deps \
-  --env-from-file "$env_file" \
-  --volume "$root:/repo:ro" \
-  --volume "$proof/pdfs:/proof/pdfs:ro" \
-  --entrypoint python \
-  api /repo/tools/seed/golden.py seed \
-  /repo/tests/fixtures/golden/v1 \
-  /proof/pdfs
+golden_seed
 
 order_mails() {
   step=$1
@@ -190,7 +183,7 @@ docker run --rm \
   node_modules/.bin/playwright test \
   --config=tests/e2e/public.config.mjs \
   public-orders.spec.mjs \
-  ${LEONAID_E2E_SMOKE:+--grep "new company, existing company and private person order in the guided form"} \
+  ${LEONAID_E2E_SMOKE:+--grep "a new company and a private person order in the guided form"} \
   --output=/proof/test-results \
   --trace=retain-on-failure \
   --reporter=line
@@ -239,7 +232,6 @@ for artifact in \
   public-order-form-mobile.png \
   public-order-validation-mobile.png \
   public-order-success-new-company.png \
-  public-order-success-existing-company.png \
   public-order-success-person.png \
   public-order-form-desktop.png \
   public-orders-ui-proof.json; do
@@ -254,5 +246,5 @@ cp "$proof"/public-order-*.png "$root/.artifacts/poc072/"
 cp "$proof/public-orders-ui-proof.json" "$root/.artifacts/poc072/"
 
 echo "public-order-test: OK: real Core/Twenty contract, visible form UX,"
-echo "public-order-test:     three order paths, idempotency, protection rules and ActivityEvents proven"
+echo "public-order-test:     two order paths, idempotency, protection rules and ActivityEvents proven"
 echo "public-order-test:     buyer confirmation and cancellation mails sent once each via Mailpit"

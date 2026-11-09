@@ -28,8 +28,11 @@ public_url="https://$public_host:8443"
 finn_session="poc070-10000000-0000-4000-8000-000000000007-browser-session-token"
 anna_session="poc070-10000000-0000-4000-8000-000000000004-browser-session-token"
 
+# No CRM key: the API does not wait for Twenty and Twenty never starts
+# (E-031); host routing, sign-in and surveys do not use the CRM.
 compose() {
-  LEONAID_HTTPS_PORT=8443 \
+  TWENTY_INTEGRATION_API_KEY= \
+    LEONAID_HTTPS_PORT=8443 \
     LEONAID_PROXY_CADDYFILE=Caddyfile.split \
     LEONAID_ADMIN_DOMAIN="$admin_host" \
     LEONAID_PUBLIC_DOMAIN="$public_host" \
@@ -78,7 +81,26 @@ python3 "$root/tools/surveys/network_override.py" "$isolation_file"
 # serves only when localhost is the public host (the README default).
 cat >"$hosts_file" <<EOF
 services:
+  api:
+    depends_on: !override
+      core-volume-init:
+        condition: service_completed_successfully
+      survey-validator:
+        condition: service_healthy
+      core-postgres:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
   proxy:
+    depends_on: !override
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+      pwa:
+        condition: service_healthy
+      public:
+        condition: service_healthy
     networks:
       edge:
         aliases: [$admin_host, $public_host]

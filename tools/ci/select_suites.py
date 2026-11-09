@@ -127,8 +127,9 @@ INTEGRATION_SECONDS = {
 }
 E2E_SECONDS = {
     # Leaf sums of run 42552919966 (#179, Twenty kept between golden leaves;
-    # own-stack leaves included, e.g. multi_host 146 s in public-catalog).
-    "public-catalog": 255,
+    # own-stack leaves included). public-catalog: multi_host 146 s minus its
+    # Twenty boot (91 s), which the leaf no longer starts.
+    "public-catalog": 164,
     "membership": 97,
     "invoices": 50,
     "commitments": 41,
@@ -136,9 +137,10 @@ E2E_SECONDS = {
     "pwa": 110,
     "pwa-offline": 280,
     "action-admin": 65,
-    "public-orders": 133,
+    # Minus the existing-company UI path and an app width (local -4 s each).
+    "public-orders": 127,
     "identity": 60,
-    "tasks": 111,
+    "tasks": 106,
     "knowledge": 66,
     "inbox": 48,
     "leitsystem-ui": 261,
