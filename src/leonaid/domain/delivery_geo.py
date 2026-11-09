@@ -26,6 +26,8 @@ MAX_ATTEMPTS = 3
 RETRY_AFTER = timedelta(hours=1)
 # Geocoder id of a pin the manager set by hand.
 MANUAL_GEOCODER = "manual"
+# Geocoder id of a start address that was never sent: it is not parseable.
+UNPARSED_GEOCODER = "unparsed"
 
 _PLACES = Decimal("0.000001")
 _FAILURE_CODE = re.compile(r"[a-z][a-z0-9_]{0,39}\Z")

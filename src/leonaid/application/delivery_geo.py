@@ -26,6 +26,7 @@ from leonaid.domain.delivery_geo import (
     GeocodeOutcome,
     GeocodeQuery,
     GeoPoint,
+    UNPARSED_GEOCODER,
     NotFound,
     PendingGeocode,
     PendingStartGeocode,
@@ -117,8 +118,10 @@ class GeocodingJob:
             starts = await self._repository.pending_starts(now=now, limit=limit)
             requests = 0
             for start in starts:
+                source = geocoder
                 if start.query is None:
                     outcome: GeocodeOutcome = NotFound()
+                    source = UNPARSED_GEOCODER
                 else:
                     outcome = await self._geocoder.lookup(start.query)
                     requests += 1
@@ -126,7 +129,7 @@ class GeocodingJob:
                     start.action_id,
                     start.address,
                     outcome,
-                    geocoder=geocoder,
+                    geocoder=source,
                     at=now,
                 )
             if len(starts) >= limit:

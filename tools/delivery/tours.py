@@ -59,8 +59,6 @@ from tools.delivery.http_configuration import http_app
 
 REQUEST = "tours-proof"
 TILES = MapTiles("/e2e-tiles/{z}/{x}/{y}.svg", "© OpenStreetMap-Mitwirkende")
-# An order of the Golden legacy action: not part of the proof's action.
-FOREIGN_ORDER = UUID("80000000-0000-4000-8000-000000000001")
 
 
 def _ids(tour: DriverTour) -> list[list[UUID]]:
@@ -95,6 +93,8 @@ class _Fixture:
             follow_up_tasks=True,
         )
         self.offering_id: UUID | None = None
+        # A second delivery action of the same admin (foreign-order proofs).
+        self.other_action_id: UUID | None = None
         self.admin = _principal(admin_id, action_id, ActionRole.CHARITY_ADMIN)
         # Own windows: earlier proofs close or retire the action's first ones.
         # Days no other delivery proof uses.
@@ -214,12 +214,21 @@ class _Fixture:
             occurred_at=self.now,
         )
 
-    async def order(self, name: str, window_id: UUID) -> UUID:
-        if self.offering_id is None:
-            self.offering_id = await self.pool.fetchval(
-                "SELECT id FROM offering WHERE action_id=$1 LIMIT 1", self.action_id
+    async def order(
+        self, name: str, window_id: UUID, *, action_id: UUID | None = None
+    ) -> UUID:
+        action_id = action_id or self.action_id
+        if action_id == self.action_id:
+            if self.offering_id is None:
+                self.offering_id = await self.pool.fetchval(
+                    "SELECT id FROM offering WHERE action_id=$1 LIMIT 1", action_id
+                )
+            offering_id = self.offering_id
+        else:
+            offering_id = await self.pool.fetchval(
+                "SELECT id FROM offering WHERE action_id=$1 LIMIT 1", action_id
             )
-        assert self.offering_id is not None
+        assert offering_id is not None
         draft = CommitmentDraft(
             BuyerSnapshot(
                 CommitmentPartyKind.PERSON,
@@ -228,21 +237,21 @@ class _Fixture:
                 f"{name.lower().replace(' ', '.')}@example.invalid",
             ),
             InvoiceRecipientSnapshot(name, "Rechnungsweg 1", "12345", "Test"),
-            (CommitmentLineDraft(self.offering_id, 1, OfferingUnit.BOX, 3600),),
+            (CommitmentLineDraft(offering_id, 1, OfferingUnit.BOX, 3600),),
             DeliveryRecipientSnapshot(name, "Tourweg 3", "12345", "Test"),
             delivery_window_id=window_id,
             delivery_contact=DeliveryContactSnapshot("Tür", "+49 30 456"),
         )
         status = CommitmentStatus.REVIEW_READY
         created = await self.orders.create(
-            action_id=self.action_id,
+            action_id=action_id,
             actor_user_id=self.admin_id,
             source=CommitmentSource.ADMIN,
             status=status,
             draft=draft,
             idempotency_key=f"tours:{uuid4()}",
             request_hash=draft.fingerprint(
-                action_id=self.action_id, source=CommitmentSource.ADMIN, status=status
+                action_id=action_id, source=CommitmentSource.ADMIN, status=status
             ),
             request_id=REQUEST,
             occurred_at=self.now,
@@ -291,8 +300,11 @@ class _Fixture:
         return [json.loads(row["payload"]) for row in rows]
 
 
-async def prove_tours(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) -> None:
+async def prove_tours(
+    pool: asyncpg.Pool, action_id: UUID, admin_id: UUID, other_action_id: UUID
+) -> None:
     fx = _Fixture(pool, action_id, admin_id)
+    fx.other_action_id = other_action_id
     await fx.setup()
 
     # flag off: day_tours and my_tour raise ResourceNotFound feature_flag_disabled
@@ -859,6 +871,35 @@ async def prove_driver_missed(fx: _Fixture) -> None:
     )
 
 
+async def _foreign_stop(fx: _Fixture) -> UUID:
+    """A deliverable order (review_ready) with window and address in the
+    other action."""
+
+    assert fx.other_action_id is not None
+    schedules = AsyncpgDeliveryRepository(fx.pool)
+    other = await schedules.get(fx.other_action_id)
+    window = DeliveryWindow(uuid4(), fx.other_action_id, fx.day, time(8), time(10))
+    await schedules.save(replace(other, enabled=True, windows=(*other.windows, window)))
+    # As in the orders proof: the template's offerings start inactive.
+    await fx.pool.execute(
+        "UPDATE offering SET status='active' WHERE action_id=$1", fx.other_action_id
+    )
+    order = await fx.order("Fremde Tour", window.id, action_id=fx.other_action_id)
+    row = await fx.pool.fetchrow(
+        "SELECT action_id, status, delivery_window_id,"
+        " delivery_recipient_snapshot IS NOT NULL AS has_address"
+        " FROM commitment WHERE id=$1",
+        order,
+    )
+    assert row is not None and tuple(row) == (
+        fx.other_action_id,
+        "review_ready",
+        window.id,
+        True,
+    ), row
+    return order
+
+
 def _stop(windows: list[dict[str, object]], commitment_id: UUID) -> dict[str, object]:
     found = [
         stop
@@ -880,6 +921,7 @@ async def prove_pins_and_start(fx: _Fixture) -> None:
     )
     await schedules.save(replace(configuration, start=bakery))
     open_id = await fx.order("Tour Pin offen", fx.second.id)
+    foreign = await _foreign_stop(fx)
     app, identity = http_app(fx.admin)
     app.state.delivery_tour_service = fx.tours
     base = f"/api/v1/actions/{fx.action_id}"
@@ -973,8 +1015,10 @@ async def prove_pins_and_start(fx: _Fixture) -> None:
         assert response.status_code == 403, response.text
 
         identity.current = fx.admin
-        # Another action's order, an unknown id: 404, nothing written.
-        for outside in (FOREIGN_ORDER, uuid4()):
+        # A deliverable stop of another action (window, address, review_ready;
+        # the same admin manages both) and an unknown id: 404, nothing
+        # written. Only the action filter stops the foreign stop.
+        for outside in (foreign, uuid4()):
             response = await client.put(f"{base}/delivery-geo/{outside}", json=pin)
             assert response.status_code == 404, response.text
             assert response.json() == {"code": "delivery_drop_not_found"}

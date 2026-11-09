@@ -584,6 +584,15 @@ async def _prove_start_point(fx: _Fixture) -> None:
     assert (await schedules.get(fx.action_id)).start == DeliveryStartPoint(
         "Bäckerei", "Am Markt", None, locating=False
     )
+    # The record says no provider was asked.
+    assert (
+        await fx.pool.fetchval(
+            "SELECT start_geocoder FROM action_delivery_configuration"
+            " WHERE action_id=$1",
+            fx.action_id,
+        )
+        == "unparsed"
+    )
 
     # A provider failure is retried an hour later, like a stop.
     await save(DeliveryStartPoint("Bäckerei", "Startweg 2, 50000 Köln", None))

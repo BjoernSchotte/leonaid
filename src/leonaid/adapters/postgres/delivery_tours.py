@@ -776,6 +776,9 @@ class AsyncpgDeliveryTourRepository:
                 for stop in group.stops:
                     if stop.drop.commitment_id == commitment_id:
                         return stop
-            raise RuntimeError("the pinned stop is missing from its tour")
+            # Unreachable after the checks above; fail as "not a stop".
+            raise ResourceNotFound(
+                "delivery_drop_not_found", "Diese Lieferung wurde nicht gefunden."
+            )
 
         return await self._write(command)

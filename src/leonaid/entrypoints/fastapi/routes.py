@@ -5958,7 +5958,10 @@ async def set_delivery_pin(
     request: Request,
     response: Response,
 ) -> DeliveryTourStopResponse:
-    """The manager's pin for a stop whose address was not found (spec §6.4)."""
+    """The manager's pin for a stop whose address was not found (spec §6.4).
+
+    409 only when concurrent tour writes exhaust the serialization retries.
+    """
     actor = await identity_service(request).authenticate(session_token(request))
     stop = await delivery_tour_service(request).set_pin(
         actor,
