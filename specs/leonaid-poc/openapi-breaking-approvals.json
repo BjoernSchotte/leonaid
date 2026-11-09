@@ -131,19 +131,26 @@
     },
     {
       "oldSha256": "aca564b02d9f66247a2544905611ac02c1a38b7ac43c67b2ca825219938a0814",
-      "newSha256": "eeb837a71d7b1ab2a1972e3dea5a11f7a0b797414f737903660916131e6d79bc",
+      "newSha256": "8091897f0754166efef8742e3eb56308b2bd85d5255502dfc6a51ecdb5753412",
       "changes": [
         "property-newly-required:DeliveryConfigurationResponse.startPoint",
         "property-newly-required:DeliveryDayToursResponse.map",
         "property-newly-required:DeliveryDayToursResponse.startPoint",
-        "property-newly-required:DeliveryDropContactResponse.driverNote",
         "property-newly-required:DeliveryTourStopResponse.lat",
         "property-newly-required:DeliveryTourStopResponse.lon",
         "property-newly-required:MyTourResponse.map",
         "property-newly-required:MyTourResponse.startPoint",
         "property-newly-required:PrivacyOrderDeliveryResponse.coordinates"
       ],
-      "rationale": "Delivery tours slice 2 (specs/krapfentaxi-touren §5, §6.4, §11, D11, D14 b) adds response fields only: the stop coordinates (lat/lon), the action's start point and the map tiles in the tour reads, the start point in the delivery configuration, the coordinates in the privacy report (Task 9) and the driver note in the board's drop contact (Task 12, spec §5.1). They are always present (null when unknown), so the generator marks them required. No field is removed or narrowed and no request gets stricter: startPoint in the configuration request is optional and its absence keeps the stored value. The only clients are the generated client and the apps of this repository, regenerated in the same change. Ratified by the lead under Björn's standing delegation on 2026-11-09 (task review of delivery tours Task 10). Approval is bound to these exact contract hashes and changes."
+      "rationale": "Delivery tours slice 2 (specs/krapfentaxi-touren §5, §6.4, §11, D11, D14 b) adds response fields only: the stop coordinates (lat/lon), the action's start point and the map tiles in the tour reads, the start point in the delivery configuration, and the coordinates in the privacy report (Task 9). They are always present (null when unknown), so the generator marks them required. No field is removed or narrowed and no request gets stricter: startPoint in the configuration request is optional and its absence keeps the stored value. The only clients are the generated client and the apps of this repository, regenerated in the same change. Ratified by the lead under Björn's standing delegation on 2026-11-09 (task review of delivery tours Task 10). Approval is bound to these exact contract hashes and changes."
+    },
+    {
+      "oldSha256": "8091897f0754166efef8742e3eb56308b2bd85d5255502dfc6a51ecdb5753412",
+      "newSha256": "eeb837a71d7b1ab2a1972e3dea5a11f7a0b797414f737903660916131e6d79bc",
+      "changes": [
+        "property-newly-required:DeliveryDropContactResponse.driverNote"
+      ],
+      "rationale": "Delivery tours Task 12 (specs/krapfentaxi-touren §5.1) adds the driver note to the board's drop contact. It is always present (null when the order has no note), like name and phone, so the generator marks it required. No field is removed or narrowed; the request field is optional. The only clients are the generated client and the apps of this repository, regenerated in the same change. Ratified by the lead under Björn's standing delegation on 2026-11-09 (task review of delivery tours Task 12). Approval is bound to these exact contract hashes and changes."
     }
   ]
 }
