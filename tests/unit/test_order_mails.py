@@ -109,7 +109,7 @@ def order(**changes: Any) -> Commitment:
         delivery_contact=DeliveryContactSnapshot(
             name="Pforte Herr Geheim",
             phone="+49 821 999999",
-            driver_note="Hofeinfahrt links"
+            driver_note="Hofeinfahrt links",
         ),
         message="Bitte am Hintereingang klingeln, Code 4711.",
         public_reference=f"LA-{ORDER_ID.hex.upper()}",
