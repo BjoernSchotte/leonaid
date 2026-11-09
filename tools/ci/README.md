@@ -258,7 +258,9 @@ Inside a leg every shard keeps its own isolation:
 - `tools/ci/e2e.sh a b c` runs all leaves of one fixture kind (`golden`,
   `core`) in one `shared_stack.py --keep-going` call: the stack is built once,
   and the stopped fixture volumes are restored before every leaf, exactly as
-  between the leaves of one shard before. A failed leaf does not stop the
+  between the leaves of one shard before. Twenty alone stays running between
+  two `golden_seed` leaves when the first wrote nothing to it
+  (`tools/testing/twenty_state.py`, E-033). A failed leaf does not stop the
   others; the exit code stays the first failure's.
 - `tools/ci/emdash.sh a b` runs each group's cases once, without retries.
 - After every shard, passed or failed (`tools/ci/run-shards.sh` for

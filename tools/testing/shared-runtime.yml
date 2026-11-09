@@ -30,6 +30,10 @@ services:
       interval: 1s
       retries: 100
   twenty-postgres:
+    # Autovacuum analyzes the fixture's never-analyzed Twenty tables about
+    # 20 s after each start: about 20 write transactions that are no leaf's.
+    # Off, an idle Twenty keeps one state (tools/testing/twenty_state.py).
+    command: ["postgres", "-c", "autovacuum=off"]
     healthcheck:
       interval: 1s
       retries: 100

@@ -48,7 +48,10 @@ case "$shard" in
       "tools/$shard/test.sh"
     ;;
   twenty-install)
-    python3 "$root/tools/testing/shared_stack.py" golden tools/twenty/test.sh
+    # Then the Twenty kept across leaf resets (E-033): one stack, in order.
+    keep=tools/testing/twenty_keep_test.sh
+    LEONAID_TEST_STACKS=1 python3 "$root/tools/testing/shared_stack.py" golden \
+      tools/twenty/test.sh "$keep read" "$keep write" "$keep reset"
     ;;
   crm-gateway)
     python3 "$root/tools/testing/shared_stack.py" golden \

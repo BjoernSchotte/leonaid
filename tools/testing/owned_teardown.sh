@@ -142,3 +142,26 @@ remove_owned_project_images() {
       echo "test-isolation: built image $teardown_image is still in use; kept" >&2
   done
 }
+
+# golden_seed
+#   Seeds Golden Data v1 into the leaf's stack (tools/seed/golden.py seed).
+#   On a shared stack with a freshly restored Twenty it then records the
+#   settled state as the leaf's baseline; on a kept Twenty the parent wrote
+#   the baseline before the leaf and the seed writes nothing. The parent keeps
+#   Twenty for the next golden_seed leaf only if the state at the end of this
+#   leaf is the baseline (tools/testing/twenty_state.py, E-033).
+golden_seed() {
+  compose --profile dev-mail run --rm --user "$(id -u):$(id -g)" --no-deps \
+    --env-from-file "$env_file" \
+    --volume "$root:/repo:ro" \
+    --volume "$proof/pdfs:/proof/pdfs:ro" \
+    --entrypoint python \
+    api /repo/tools/seed/golden.py seed \
+    /repo/tests/fixtures/golden/v1 \
+    /proof/pdfs
+  if [ -n "${LEONAID_TEST_STACK:-}" ] &&
+    [ ! -f "$LEONAID_TEST_STACK/twenty-baseline" ]; then
+    python3 "$root/tools/testing/twenty_state.py" settle "$project" \
+      "$LEONAID_TEST_STACK/twenty-baseline"
+  fi
+}

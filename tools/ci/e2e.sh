@@ -5,7 +5,8 @@ set -eu
 # Several shards form one CI bin (tools/ci/select_suites.py). Their leaves
 # run on one shared stack per fixture kind: tools/testing/shared_stack.py
 # restores the stopped fixture volumes before every leaf, so each leaf still
-# starts from the identical prepared state. --keep-going runs every leaf even
+# starts from the identical prepared state (a Twenty that the leaf before did
+# not write stays running, tools/testing/twenty_state.py). --keep-going runs every leaf even
 # after a failure; the bin then fails and the log names the failed leaves.
 # CI keeps one stack per fixture kind (parallel_stacks.py: CI set and no
 # LEONAID_TEST_STACKS), so timing and disk use stay comparable between runs.

@@ -126,6 +126,60 @@ class VerifiedResetTests(unittest.TestCase):
         self.assertEqual(golden.unused_volumes, frozenset())
 
 
+class TwentyKeepTests(unittest.TestCase):
+    """Twenty stays only for a Golden leaf after an unchanged baseline (E-033).
+
+    tools/testing/twenty_keep_test.sh proves the same on a real stack.
+    """
+
+    STATE = "snapshot 1519:1519:\nbull:q:id string 10\n"
+
+    def decide(self, baseline, current, leaf_text="golden_seed\n"):
+        stack = module.SharedStack(ROOT, "golden")
+        self.addCleanup(shutil.rmtree, stack.directory, True)
+        leaf = stack.directory / "leaf.sh"
+        leaf.write_text(leaf_text)
+        if baseline is not None:
+            (stack.directory / "twenty-baseline").write_text(baseline)
+        original = module.twenty_state.read
+        module.twenty_state.read = lambda project: current
+        self.addCleanup(setattr, module.twenty_state, "read", original)
+        keep, reason = stack.keep_twenty(f"{leaf} read")
+        written = stack.directory / "twenty-baseline"
+        return keep, reason, written.read_text() if written.exists() else None
+
+    def test_unchanged_state_keeps_twenty_and_becomes_the_next_baseline(self):
+        self.assertEqual(
+            self.decide(self.STATE, self.STATE), (True, "", self.STATE)
+        )
+
+    def test_a_write_restores_twenty(self):
+        keep, reason, baseline = self.decide(
+            self.STATE, "snapshot 1521:1521:\nbull:q:id string 11\n"
+        )
+        self.assertFalse(keep)
+        self.assertEqual(
+            reason, "written: 2 transaction(s), BullMQ keys changed: bull:q:id"
+        )
+        self.assertIsNone(baseline)
+
+    def test_no_baseline_stopped_twenty_or_a_non_golden_leaf_restore_twenty(self):
+        self.assertFalse(self.decide(None, self.STATE)[0])
+        self.assertFalse(self.decide(self.STATE, None)[0])
+        keep, reason, baseline = self.decide(
+            self.STATE, self.STATE, "compose run api seed-core\n"
+        )
+        self.assertEqual((keep, baseline), (False, None))
+        self.assertIn("does not seed Golden Twenty", reason)
+
+    def test_only_running_jobs_hold_the_settle(self):
+        pending = module.twenty_state.pending
+        self.assertTrue(pending(self.STATE + "bull:q:wait list 1\n"))
+        self.assertTrue(pending(self.STATE + "bull:q:active list 2\n"))
+        self.assertFalse(pending(self.STATE + "bull:q:delayed zset 1\n"))
+        self.assertFalse(pending(self.STATE))
+
+
 class SurveyTwentyIsolationTests(unittest.TestCase):
     """Survey stacks have no Twenty, so no survey check may use it."""
 
@@ -158,7 +212,7 @@ class LeafSequenceTests(unittest.TestCase):
             def __init__(self, root, kind):
                 self.kind = kind
 
-            def prepare(self):
+            def prepare(self, script=None):
                 prepared.append(self.kind)
                 return {}
 

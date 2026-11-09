@@ -11,6 +11,7 @@ import json
 import os
 import queue
 from pathlib import Path
+import re
 import secrets
 import shlex
 import shutil
@@ -23,9 +24,10 @@ import time
 
 
 if __package__:
-    from . import parallel_stacks
+    from . import parallel_stacks, twenty_state
 else:
     import parallel_stacks
+    import twenty_state
 
 # Survey stacks run without Twenty (decision E-031): without a CRM key the
 # API does not wait for it (tools/testing/survey-runtime.yml), and its
@@ -35,6 +37,17 @@ UNUSED_VOLUMES = {
         {"twenty-postgres-data", "twenty-redis-data", "twenty-server-data"}
     )
 }
+
+# Twenty stays running across a reset when the leaf before left it as its
+# Golden Data seed made it (decision E-033): its stores show no write and no
+# job since the leaf's settled baseline (twenty_state.py), and the next leaf
+# seeds the same Golden rows (owned_teardown.sh golden_seed). Every other leaf
+# gets the fixture's Twenty, restored and digest-checked as before.
+TWENTY_SERVICES = frozenset(
+    {"twenty-postgres", "twenty-redis", "twenty-server", "twenty-worker"}
+)
+TWENTY_VOLUMES = ("twenty-postgres-data", "twenty-redis-data", "twenty-server-data")
+GOLDEN_SEED_LEAF = re.compile(r"^\s*golden_seed\s*$", re.MULTILINE)
 
 # Content digest per volume: paths, types, sizes, modes, owners, link targets
 # and file contents. Modification times are not part of it.
@@ -455,18 +468,30 @@ class SharedStack:
             shutil.copyfile(directory / name, target)
         self.copy_volumes("restore")
 
-    def active_containers(self):
-        # `docker ps` without -a lists running, restarting and paused containers.
+    def services(self):
         return self.call(
+            [*self.compose, "--profile", "*", "config", "--services"], capture=True
+        ).split()
+
+    def active_containers(self, keep=frozenset()):
+        """Running, restarting and paused containers, except services in keep."""
+        lines = self.call(
             [
                 "docker",
                 "ps",
-                "-q",
                 "--filter",
                 f"label=com.docker.compose.project={self.project}",
+                "--format",
+                '{{.ID}} {{.Label "com.docker.compose.service"}}',
             ],
             capture=True,
-        ).split()
+        ).splitlines()
+        found = []
+        for line in lines:
+            fields = line.split()
+            if fields and not set(fields[1:]) & keep:
+                found.append(fields[0])
+        return found
 
     def describe(self, containers):
         result = subprocess.run(
@@ -485,7 +510,7 @@ class SharedStack:
         )
         return "; ".join(result.stdout.split("\n")).strip("; ") or str(containers)
 
-    def quiesce(self, timeout=60):
+    def quiesce(self, timeout=60, keep=frozenset()):
         """Stop every container of the project, or fail closed after timeout.
 
         `compose stop` covers only the service containers that exist at that
@@ -496,7 +521,7 @@ class SharedStack:
         flag then prevents further restarts.
         """
         deadline = time.monotonic() + timeout
-        while active := self.active_containers():
+        while active := self.active_containers(keep):
             details = self.describe(active)
             if time.monotonic() > deadline:
                 raise RuntimeError(
@@ -516,9 +541,16 @@ class SharedStack:
             )
             time.sleep(1)
 
-    def copy_volumes(self, mode):
+    def copy_volumes(self, mode, keep_twenty=False):
+        """Save or restore the volumes; keep_twenty leaves Twenty's running."""
+        keep = TWENTY_SERVICES if keep_twenty else frozenset()
+        skipped = self.unused_volumes | (
+            {self.project + "_" + name for name in TWENTY_VOLUMES}
+            if keep_twenty
+            else set()
+        )
         # No live process may hold a database, queue or storage file during copying.
-        self.quiesce()
+        self.quiesce(keep=keep)
         current = self.inventory("volumes")
         if current != self.volumes:
             raise RuntimeError(
@@ -539,7 +571,7 @@ class SharedStack:
         # Indices stay those of the full inventory, so archive names never shift.
         mounted = set()
         for index, volume in enumerate(self.volumes):
-            if volume in self.unused_volumes:
+            if volume in skipped:
                 continue
             mounted.add(str(index))
             args += ["--mount", f"type=volume,src={volume},dst=/state/{index}"]
@@ -556,7 +588,7 @@ class SharedStack:
         )
         self.verify_digests(output, mounted)
         # Fail closed if anything started while the copy ran.
-        if active := self.active_containers():
+        if active := self.active_containers(keep):
             raise RuntimeError(
                 f"Fixture {mode} raced with started containers: {self.describe(active)}"
             )
@@ -585,24 +617,62 @@ class SharedStack:
                 f"Fixture reset left state behind in {changed}; refusing the next check"
             )
 
-    def prepare(self):
+    def prepare(self, script=None):
         # Atomic directory creation also excludes a borrowed leaf in another process.
         lease = self.directory / "in-use"
         lease.mkdir()
         try:
-            return self._prepare()
+            return self._prepare(script)
         finally:
             lease.rmdir()
 
-    def _prepare(self):
+    def keep_twenty(self, script):
+        """Decide before script: (keep Twenty running, reason when not).
+
+        Kept only when the leaf before left a baseline (twenty_state.py),
+        Twenty's stores still hold exactly that state now that every other
+        service is stopped, and script seeds the same Golden rows. The state
+        becomes script's baseline: its seed finds every row in place and
+        writes nothing, so any change by script resets Twenty after it.
+        """
+        baseline = self.directory / "twenty-baseline"
+        try:
+            expected = baseline.read_text()
+        except FileNotFoundError:
+            return False, "no settled baseline from the leaf before"
+        baseline.unlink()
+        if script is None or not GOLDEN_SEED_LEAF.search(
+            (self.root / script.split()[0]).read_text()
+        ):
+            return False, "the next leaf does not seed Golden Twenty"
+        current = twenty_state.read(self.project)
+        if current is None:
+            return False, "Twenty is not running"
+        if current != expected:
+            return False, "written: " + twenty_state.change(expected, current)
+        baseline.write_text(current)
+        return True, ""
+
+    def _prepare(self, script):
         if not self.ready:
             self.initialize()
         elif self.used:
             start = time.monotonic()
-            self.call([*self.compose, "--profile", "*", "stop", "--timeout", "5"])
-            self.copy_volumes("restore")
+            stop = [*self.compose, "--profile", "*", "stop", "--timeout", "5"]
+            note = ""
+            keep = False
+            if self.kind != "survey":
+                # Nothing but Twenty itself may write Twenty while it is judged.
+                self.call(
+                    [*stop, *(s for s in self.services() if s not in TWENTY_SERVICES)]
+                )
+                keep, reason = self.keep_twenty(script)
+                note = "; Twenty kept" if keep else f"; Twenty restored ({reason})"
+            if not keep:
+                self.call(stop)
+            self.copy_volumes("restore", keep_twenty=keep)
             print(
-                f"shared-stack: data reset {time.monotonic() - start:.1f}s",
+                f"shared-stack: data reset {time.monotonic() - start:.1f}s{note}",
                 flush=True,
                 file=self.output,
             )
@@ -743,7 +813,7 @@ class LeafRunner:
         log = tempfile.TemporaryFile() if self.parallel else None
         try:
             try:
-                env = dict(os.environ, **stack.prepare())
+                env = dict(os.environ, **stack.prepare(script))
             except Exception as error:
                 self.say(
                     f"shared-stack: {getattr(stack, 'project', 'stack')} failed to "

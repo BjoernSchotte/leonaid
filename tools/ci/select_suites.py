@@ -117,8 +117,8 @@ INTEGRATION_SECONDS = {
     "profiles": 90,
     "crm-gateway": 92,
     "crm-import": 66,
-    # 130 s, minus its own cold Twenty start: it runs on the fixture now.
-    "twenty-install": 60,
+    # 52 s (run 42547017244) plus the kept-Twenty proof (local 75 s).
+    "twenty-install": 125,
     "policy": 54,
     # About 240 s since the renderer API test joined it (#153).
     "schema-outbox": 240,

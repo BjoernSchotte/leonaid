@@ -104,7 +104,7 @@ class SchedulingTests(unittest.TestCase):
             self.broken = broken
             self.delay = delay
 
-        def prepare(self):
+        def prepare(self, script=None):
             self.prepared += 1
             time.sleep(self.delay)
             if self.broken:

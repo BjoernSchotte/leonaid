@@ -316,6 +316,20 @@ class TwentyClient:
             raise SeedError("Twenty workspace activation missing")
         self.access_token = self.exchange_login_token(self.credentials_login_token())
 
+    def authenticate_for_data(self) -> None:
+        """Data API access: the provisioned integration key when set.
+
+        A key request writes nothing in Twenty; a login stores tokens. So a
+        seed that finds every Golden row in place leaves a kept Twenty
+        unchanged (tools/testing/twenty_state.py). Without a key (a cold
+        stack before provisioning) the bootstrap login is the way in.
+        """
+        key = os.environ.get("TWENTY_INTEGRATION_API_KEY", "")
+        if len(key) >= 32:
+            self.access_token = key
+        else:
+            self.authenticate()
+
     def request(
         self,
         method: str,
@@ -360,9 +374,10 @@ class TwentyClient:
             return None
         return self.response_data(response)
 
-    def upsert(self, collection: str, record_id: str, fields: JsonObject) -> None:
-        current = self.get_record(collection, record_id)
-        if current is None:
+    def write(
+        self, collection: str, record_id: str, fields: JsonObject, *, exists: bool
+    ) -> None:
+        if not exists:
             response = self.request(
                 "POST",
                 f"/rest/{collection}",
@@ -413,13 +428,31 @@ def person_fields(person: JsonObject) -> JsonObject:
     }
 
 
-def seed_twenty(client: TwentyClient, dataset: JsonObject) -> None:
-    client.authenticate()
+def seed_twenty(client: TwentyClient, dataset: JsonObject) -> int:
+    """Create or correct the golden rows; return the number of writes.
+
+    A row that already matches is not written: a Twenty kept across leaf
+    resets sees no write from the seed (tools/testing/twenty_state.py).
+    """
+    client.authenticate_for_data()
     client.wait_for_data_api()
-    for company in dataset["companies"]:
-        client.upsert("companies", str(company["id"]), company_fields(company))
-    for person in dataset["persons"]:
-        client.upsert("people", str(person["id"]), person_fields(person))
+    expected = expected_twenty(dataset)
+    rows = [
+        ("companies", company, company_fields(company), normalize_company)
+        for company in expected["companies"]
+    ] + [
+        ("people", person, person_fields(person), normalize_person)
+        for person in expected["people"]
+    ]
+    writes = 0
+    for collection, wanted, fields, normalize in rows:
+        record_id = str(wanted["id"])
+        current = client.get_record(collection, record_id)
+        if current is not None and normalize(current) == wanted:
+            continue
+        client.write(collection, record_id, fields, exists=current is not None)
+        writes += 1
+    return writes
 
 
 def normalize_company(record: JsonObject) -> JsonObject:
@@ -451,7 +484,7 @@ def normalize_person(record: JsonObject) -> JsonObject:
 
 
 def snapshot_twenty(client: TwentyClient, dataset: JsonObject) -> JsonObject:
-    client.authenticate()
+    client.authenticate_for_data()
     client.wait_for_data_api()
     companies: list[JsonObject] = []
     people: list[JsonObject] = []
@@ -1932,9 +1965,10 @@ async def seed(fixture: Path, pdf_directory: Path) -> JsonObject:
     dataset, expected, dataset_digest = load_fixture(fixture)
     twenty = TwentyClient()
     try:
-        seed_twenty(twenty, dataset)
+        writes = seed_twenty(twenty, dataset)
     finally:
         twenty.close()
+    print(f"golden-seed: {writes} golden CRM rows written")
     documents = seed_rustfs(dataset, pdf_directory)
     await seed_core(dataset, expected, dataset_digest, documents)
     clear_mailpit()
@@ -2071,10 +2105,10 @@ async def run(arguments: argparse.Namespace) -> None:
         dataset, _expected, _dataset_digest = load_fixture(fixture)
         twenty = TwentyClient()
         try:
-            seed_twenty(twenty, dataset)
+            writes = seed_twenty(twenty, dataset)
         finally:
             twenty.close()
-        print("golden-seed-twenty: OK: companies and people set via Data API")
+        print(f"golden-seed-twenty: OK: {writes} golden CRM rows written")
     elif arguments.command == "seed":
         value = await seed(fixture, arguments.pdf_directory.resolve())
         print(
