@@ -36,13 +36,11 @@ def post(*paths: str) -> s.Selection:
     return s.select("push", list(paths))
 
 
-def broad(selection: s.Selection, *owners: str) -> bool:
-    """Post-merge, unknown/shared: every non-E2E suite, smoke, mapped leaves."""
-    if set(owners) >= set(s.E2E_SHARDS):
-        return full(selection)
-    return not selection.full and selection.suites == s.everything_but_e2e() | {
-        s.SMOKE
-    } | s.e2e(*owners)
+def broad(selection: s.Selection, *owners: str, seed: bool = False) -> bool:
+    """Post-merge, shared: non-E2E suites (E-042 seed-reset), smoke, leaves."""
+    base = s.everything_but_e2e() - (set() if seed else {"integration:seed-reset"})
+    smoke = set() if set(owners) >= set(s.E2E_SHARDS) else {s.SMOKE}
+    return not selection.full and selection.suites == base | smoke | s.e2e(*owners)
 
 
 def full(selection: s.Selection) -> bool:
@@ -188,7 +186,8 @@ def main() -> int:
             fast_of(quick)
             and set(quick.integration_units()) <= {"api-contract"}
             and quick.deferred
-            >= s.everything_but_e2e() - {"api", "pins", "integration:api-contract"},
+            >= s.everything_but_e2e()
+            - {"api", "pins", "integration:api-contract", "integration:seed-reset"},
             f"unmapped {path}: the PR runs the fast tier only, "
             f"the rest after the merge: {sorted(quick.suites)}",
         )
@@ -222,7 +221,7 @@ def main() -> int:
     ):
         owners = s.e2e_owners(path, ROOT) or set()
         expect(
-            broad(post(path), *owners),
+            broad(post(path), *owners, seed=s.matches(path, s.SEED_RESET_PATHS)),
             f"shared {path}: all non-E2E suites, smoke, mapped leaves {owners}",
         )
         expect(fast_of(pr(path)), f"shared {path}: fast tier only before the merge")
