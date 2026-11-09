@@ -82,6 +82,7 @@ class _Fixture:
         )
         self.board = DeliveryBoardService(
             AsyncpgDeliveryBoardRepository(pool, lambda _c: TaskDeliveryFollowUp()),
+            flags=self.flags,
             follow_up_tasks=True,
         )
         self.offering_id: UUID | None = None
@@ -731,6 +732,31 @@ async def prove_driver_missed(fx: _Fixture) -> None:
             occurred_at=fx.now,
         )
 
+    # Flag off: "Nicht angetroffen" answers 404 for driver and manager;
+    # delivered and back to open keep working.
+    await pool.execute(
+        "UPDATE feature_flag SET enabled=false, revision=revision+1"
+        " WHERE key='delivery.tours'"
+    )
+    try:
+        for actor in (fx.anna, fx.admin):
+            await _expect(
+                mark(actor, absent, (await state(absent))["revision"], missed=True),
+                ResourceNotFound,
+                "feature_flag_disabled",
+            )
+        delivered = await mark(
+            fx.anna, absent, (await state(absent))["revision"], delivered=True
+        )
+        assert delivered.state is DropState.DELIVERED
+        reopened = await mark(fx.anna, absent, delivered.revision)
+        assert reopened.state is DropState.OPEN
+    finally:
+        await pool.execute(
+            "UPDATE feature_flag SET enabled=true, revision=revision+1"
+            " WHERE key='delivery.tours'"
+        )
+
     # Ruling 1: driver-set missed in an open window, withdrawable; not by others.
     await _expect(
         mark(fx.ben, absent, (await state(absent))["revision"], missed=True),
@@ -807,7 +833,8 @@ async def prove_driver_missed(fx: _Fixture) -> None:
     back = await mark(fx.anna, absent, reopened_absent["revision"], delivered=True)
     assert back.state is DropState.DELIVERED
     print(
-        "TOURS PASS: driver-set missed (Ruling 1), Nachliefern for every missed"
+        "TOURS PASS: missed 404 with the flag off (delivered still works),"
+        " driver-set missed (Ruling 1), Nachliefern for every missed"
         " drop at closure (Ruling 5), reopen keeps the driver's mark (Ruling 6),"
         " closed window order kept for drivers"
     )

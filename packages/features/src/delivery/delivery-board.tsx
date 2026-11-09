@@ -474,8 +474,8 @@ function DeliveryListPage({
       toast?.show({
         title: result.missedCount
           ? result.followUp === "tasks"
-            ? `Fenster abgeschlossen. ${result.missedCount} offene Lieferungen als Aufgabe angelegt.`
-            : `Fenster abgeschlossen. ${result.missedCount} offene Lieferungen bleiben mit dem Hinweis „Nachliefern“ auf dieser Tafel.`
+            ? `Fenster abgeschlossen. ${result.missedCount} nicht zugestellte Lieferungen als Aufgabe angelegt.`
+            : `Fenster abgeschlossen. ${result.missedCount} nicht zugestellte Lieferungen bleiben mit dem Hinweis „Nachliefern“ auf dieser Tafel.`
           : "Fenster abgeschlossen. Alles geliefert.",
         tone: "success",
       });

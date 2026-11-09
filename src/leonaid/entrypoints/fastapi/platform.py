@@ -397,8 +397,14 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.delivery_service = DeliveryService(
             AsyncpgDeliveryRepository(pool)
         )
+        feature_flag_provider = LeonAidFeatureProvider()
+        feature_flag_evaluator = OpenFeatureBooleanEvaluator(feature_flag_provider)
+        application.state.feature_flag_service = FeatureFlagService(
+            AsyncpgFeatureFlagRepository(pool),
+            feature_flag_evaluator,
+        )
         application.state.delivery_board_service = build_delivery_board_service(
-            pool, disabled_modules
+            pool, disabled_modules, application.state.feature_flag_service
         )
         application.state.commitment_service = CommitmentService(
             AsyncpgCommitmentRepository(pool)
@@ -424,12 +430,6 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.order_cancellation_service = build_order_cancellation_service(
             pool, disabled_modules, mail_links=order_mail_links
-        )
-        feature_flag_provider = LeonAidFeatureProvider()
-        feature_flag_evaluator = OpenFeatureBooleanEvaluator(feature_flag_provider)
-        application.state.feature_flag_service = FeatureFlagService(
-            AsyncpgFeatureFlagRepository(pool),
-            feature_flag_evaluator,
         )
         application.state.delivery_tour_service = build_delivery_tour_service(
             pool, application.state.feature_flag_service

@@ -317,7 +317,9 @@
 }
 
 /* ================= web planner "Touren" (§6) ================= */
-.delivery .delivery-filters {
+/* Only where the list/tours switch sits (flag on): the board without the
+   flag keeps its filter layout. */
+.delivery-filters:has(.delivery-view-switch) {
   align-items: flex-end;
 }
 .delivery-view-switch {

@@ -62,7 +62,7 @@ function featureConfiguration(
 
 /**
  * The evaluated flags once known: null while the evaluation is loading,
- * an empty map when it failed (every flag off). Outside a provider every
+ * an empty map when it or applying it failed (every flag off). Outside a provider every
  * flag is settled and off.
  */
 const ALL_OFF: ReadonlyMap<string, boolean> = new Map();
@@ -115,12 +115,19 @@ export function FeatureFlagProvider({
     let live = true;
     // Settled only once OpenFeature holds the same values, so a view that
     // waits for it never sees a flag still at its default.
-    void browserProvider
-      .putConfiguration(featureConfiguration(values))
-      .then(() => {
+    // If OpenFeature refuses the values, it keeps what it held: the values
+    // applied before, or all off on the first load. Settle on those, so
+    // gated views do not wait forever.
+    void browserProvider.putConfiguration(featureConfiguration(values)).then(
+      () => {
         if (!live) return;
         setApplied(new Map(data.flags.map((flag) => [flag.key, flag.enabled])));
-      });
+      },
+      () => {
+        if (!live) return;
+        setApplied((current) => current ?? ALL_OFF);
+      },
+    );
     return () => {
       live = false;
     };

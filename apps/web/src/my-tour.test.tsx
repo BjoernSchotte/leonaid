@@ -11,6 +11,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { TypedInMemoryProvider } from "@openfeature/react-sdk";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
@@ -726,6 +727,36 @@ describe("PWA delivery route", () => {
     } finally {
       onlineManager.setOnline(true);
     }
+  });
+
+  it("settles all flags off when OpenFeature refuses the values", async () => {
+    vi.spyOn(
+      TypedInMemoryProvider.prototype,
+      "putConfiguration",
+    ).mockRejectedValue(new Error("refused"));
+    const client = fakeClient(myTour());
+    const getDeliveryBoard = vi.fn(async () => ({
+      actionId,
+      actionName: "Krapfentaxi",
+      day: null,
+      days: [],
+      drivers: [],
+      followUpTasks: false,
+      manager: false,
+      timezone: "Europe/Berlin",
+      windows: [],
+    }));
+    Object.assign(client, {
+      getDeliveryBoard,
+      getFeatureFlagEvaluations: vi.fn(async () => ({
+        flags: [{ enabled: true, key: "delivery.tours" }],
+      })),
+    });
+    renderRoute(client);
+    // Flag off: the board, not an endless skeleton and not the tour.
+    await screen.findByRole("heading", { name: "Auslieferung" });
+    expect(getDeliveryBoard).toHaveBeenCalled();
+    expect(client.getMyTour).not.toHaveBeenCalled();
   });
 
   it("keeps the page mounted while the flags reload", async () => {
