@@ -171,14 +171,16 @@ describe("service worker", () => {
       `${BASE}sponsors?view=new`,
       `${BASE}sponsors/anything/below`,
       `${BASE}activities?view=contacts`,
+      // The driver's tour from the device copy (krapfentaxi-touren §9).
+      `${BASE}delivery?action=a`,
     ]) {
       const answer = await worker.navigate(path);
       expect(await answer?.text()).toBe(`cached ${BASE}`);
     }
-    // Modules, the delivery board and unknown paths stay online-only.
+    // Modules and unknown paths stay online-only.
     for (const path of [
-      `${BASE}delivery`,
       `${BASE}tasks`,
+      `${BASE}deliveryx`,
       `${BASE}x/y`,
       `${BASE}sponsorsx`,
       `${BASE}commitmentsnew`,
@@ -217,7 +219,12 @@ describe("service worker", () => {
     const app = readFileSync(resolve(__dirname, "app.tsx"), "utf8");
     const worker = readFileSync(resolve(__dirname, "../public/sw.js"), "utf8");
     const listed = worker.match(/OFFLINE_SCREENS = \[([^\]]*)\]/)?.[1] ?? "";
-    for (const screen of ["sponsors", "activities", "commitments"]) {
+    for (const screen of [
+      "sponsors",
+      "activities",
+      "commitments",
+      "delivery",
+    ]) {
       expect(app).toContain(`pathname.startsWith(pwaHref("${screen}"))`);
       expect(listed).toContain(`"${screen}"`);
     }

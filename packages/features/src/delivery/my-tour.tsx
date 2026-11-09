@@ -158,6 +158,7 @@ const copy = {
     open: (name: string) =>
       `${name} ist wieder offen. Wird gesendet, sobald du online bist.`,
     order: "Reihenfolge gemerkt. Sie wird gesendet, sobald du online bist.",
+    orderSending: "Reihenfolge wird gesendet.",
     orderUndone: "Vorherige Reihenfolge wiederhergestellt.",
     failed: "Das konnte auf diesem Gerät nicht gespeichert werden.",
   },
@@ -717,7 +718,10 @@ export function MyTourPage({
             focusDock.current = true;
           }
           toast?.show({
-            title: copy.queued[target](name),
+            // Online behind an earlier mark of the stop: it goes out now.
+            title: queued
+              ? copy.queued[target](name)
+              : copy.toast[target](name),
             tone: target === "delivered" ? "success" : "info",
             timeout: TOUR_UNDO_MS,
             action:
@@ -826,7 +830,11 @@ export function MyTourPage({
           if (orderToast.current) toast?.dismiss(orderToast.current);
           orderToast.current =
             toast?.show({
-              title: undo ? copy.queued.orderUndone : copy.queued.order,
+              title: undo
+                ? copy.queued.orderUndone
+                : queued
+                  ? copy.queued.order
+                  : copy.queued.orderSending,
               tone: "success",
               timeout: TOUR_UNDO_MS,
               action: undo
