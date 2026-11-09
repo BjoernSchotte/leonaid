@@ -401,6 +401,18 @@ def main() -> int:
             "integration:policy" not in pr(path).suites,
             f"{path} does not reach the authorization contract",
         )
+    # rv-177 N1: the privacy rules (recipient normalization, inbox erasure)
+    # select the privacy contract before the merge.
+    for path in (
+        "src/leonaid/domain/privacy.py",
+        "src/leonaid/modules/inbox/privacy.py",
+        "src/leonaid/application/legal_configuration.py",
+    ):
+        expect(
+            ["privacy"] in pr(path).integration_bins(),
+            f"{path}: Integration / privacy must run before the merge: "
+            f"{pr(path).integration_bins()}",
+        )
     combined = pr("src/leonaid/domain/sessions.py", "tools/delivery/foundation.py")
     expect(
         combined.integration_bins() == [["policy"], ["api-contract", "delivery"]],
@@ -612,7 +624,10 @@ def main() -> int:
     expect(set(s.EMDASH_SECONDS) == set(s.EMDASH_GROUPS), "EMDASH_SECONDS")
     expect(
         s.leg_estimate("integration", ["seed-reset", "policy"], s.INTEGRATION_SECONDS)
-        == s.LEG_SETUP_SECONDS + 2 * s.SHARD_SETUP_SECONDS["integration"] + 365 + 54,
+        == s.LEG_SETUP_SECONDS
+        + 2 * s.SHARD_SETUP_SECONDS["integration"]
+        + s.INTEGRATION_SECONDS["seed-reset"]
+        + s.INTEGRATION_SECONDS["policy"],
         "Integration estimates count a stack boot per shard",
     )
     original = dict(s.E2E_SECONDS)
