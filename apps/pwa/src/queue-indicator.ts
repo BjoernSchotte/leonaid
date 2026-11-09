@@ -81,3 +81,28 @@ export function queueIndicator(snapshot: QueueSnapshot): QueueIndicator {
 
 export const QUEUE_OFFLINE_TEXT =
   "Du bist offline. Neue Kontakte, Wiedervorlagen und Bestellungen speichert LeonAid auf diesem Gerät und sendet sie, sobald du wieder online bist.";
+
+/** Someone who only drives: the tour is what the device keeps. */
+export const QUEUE_OFFLINE_DRIVER_TEXT =
+  "Du bist offline. Zustellungen und deine Reihenfolge speichert LeonAid auf diesem Gerät und sendet sie, sobald du wieder online bist.";
+
+/** Acquiring and driving: both kinds of entries. */
+export const QUEUE_OFFLINE_BOTH_TEXT =
+  "Du bist offline. Neue Kontakte, Wiedervorlagen, Bestellungen und Zustellungen speichert LeonAid auf diesem Gerät und sendet sie, sobald du wieder online bist.";
+
+/**
+ * The banner names what this user can queue offline: an acquirer's
+ * captures, a driver's marks and moves (only with `delivery.tours`), or
+ * both.
+ */
+export function queueOfflineText({
+  acquirer,
+  driver,
+}: {
+  readonly acquirer: boolean;
+  readonly driver: boolean;
+}): string {
+  if (driver && acquirer) return QUEUE_OFFLINE_BOTH_TEXT;
+  if (driver) return QUEUE_OFFLINE_DRIVER_TEXT;
+  return QUEUE_OFFLINE_TEXT;
+}

@@ -2,7 +2,39 @@
  * What the acquirer reads when Core refused a queued capture
  * (specs/pwa-offline-queue §10), in "Du". Stage 4 adds the choices.
  */
-import type { QueueEntry } from "./queue";
+import type { DeliveryStateEntry, QueueEntry, TourOrderEntry } from "./queue";
+
+/** Core's answer to a driver's mark or order, in the driver's words (§9). */
+export const TOUR_CONFLICT_TITLE = {
+  changed: "Vom Planer geändert",
+  closed: "Fenster geschlossen",
+} as const;
+
+function tourConflictText(entry: DeliveryStateEntry | TourOrderEntry): string {
+  const code = entry.lastError?.code ?? "";
+  const stop = entry.kind === "delivery-state";
+  switch (code) {
+    case "delivery_state_conflict":
+    case "tour_revision_conflict":
+    case "tour_order_stale":
+      return stop
+        ? `${TOUR_CONFLICT_TITLE.changed}. ${entry.party.displayName} wurde inzwischen geändert; deine Eintragung wurde nicht übernommen. „Meine Tour“ zeigt den aktuellen Stand.`
+        : `${TOUR_CONFLICT_TITLE.changed}. Die Tour wurde inzwischen geändert; deine Reihenfolge wurde nicht übernommen. Es gilt die Reihenfolge der Planung.`;
+    case "delivery_window_closed":
+      return `${TOUR_CONFLICT_TITLE.closed}. Die Aktionsleitung hat das Lieferfenster abgeschlossen; deine ${stop ? "Eintragung" : "Reihenfolge"} wurde nicht übernommen. Wende dich an die Aktionsleitung.`;
+    case "delivery_not_assigned":
+      return `${entry.party.displayName} ist dir nicht mehr zugewiesen. Die Eintragung wurde nicht übernommen.`;
+    case "delivery_order_not_deliverable":
+      return "Diese Bestellung wird nicht (mehr) ausgeliefert.";
+    case "sponsor_not_assigned":
+      // 404: no delivery planning (or no tours) in this action any more.
+      return "Für diese Aktion gibt es keine Tour mehr. Der Eintrag kann nicht gesendet werden.";
+    default:
+      return (
+        entry.lastError?.message || "LeonAid konnte den Eintrag nicht senden."
+      );
+  }
+}
 
 function money(amountMinor: number, currency = "EUR") {
   return new Intl.NumberFormat("de-DE", { currency, style: "currency" }).format(
@@ -43,9 +75,15 @@ export function conflictText(entry: QueueEntry, actionName: string): string {
   }
   const code = entry.lastError?.code ?? "";
   if (entry.state === "failed") {
+    if (entry.kind === "delivery-state" || entry.kind === "tour-order") {
+      return "Der Eintrag konnte mehrmals nicht gesendet werden. Versuche es erneut oder verwirf ihn.";
+    }
     return code === "idempotency_conflict"
       ? `Dieser Eintrag passt nicht zu dem, was LeonAid unter seinem Schlüssel schon gespeichert hat. Er wird nicht erneut gesendet. Supportcode: ${entry.idempotencyKey}`
       : "Der Eintrag konnte mehrmals nicht gesendet werden. Versuche es erneut oder verwirf ihn.";
+  }
+  if (entry.kind === "delivery-state" || entry.kind === "tour-order") {
+    return tourConflictText(entry);
   }
   switch (code) {
     case "follow_up_not_applied": {

@@ -45,7 +45,7 @@ import {
 import { forgetDevice, forgetSession } from "./device";
 import { pwaModuleNavigationKeys, pwaModules, pwaPath } from "./modules";
 import { mobileNavigation } from "./navigation";
-import { QUEUE_OFFLINE_TEXT, queueIndicator } from "./queue-indicator";
+import { queueIndicator, queueOfflineText } from "./queue-indicator";
 import { useDevice } from "./use-device";
 import {
   ADMIN_BASE,
@@ -290,7 +290,15 @@ function PwaShell({
     window.location,
     { deliveryTours, driver, driverOnly },
   );
-  const { sheet, ...queue } = useQueueShell(client, identity, !props.offline);
+  const { sheet, ...queue } = useQueueShell(
+    client,
+    identity,
+    !props.offline,
+    deliveryTours === true &&
+      identity.actionMemberships.some(
+        (membership) => membership.role === "driver",
+      ),
+  );
   return (
     <>
       <MobileShell
@@ -314,6 +322,8 @@ function useQueueShell(
   client: LeonAidApiClient,
   identity: CurrentIdentityResponse,
   online: boolean,
+  /** Drives with tours on: marks and moves are queued too (§9). */
+  driving: boolean,
 ): Pick<MobileShellProps, "offlineText" | "queue"> & {
   readonly sheet: ReactNode;
 } {
@@ -339,7 +349,12 @@ function useQueueShell(
   return {
     offlineText: (
       <>
-        {QUEUE_OFFLINE_TEXT}
+        {queueOfflineText({
+          acquirer: identity.actionMemberships.some(
+            (membership) => membership.role === "acquirer",
+          ),
+          driver: driving,
+        })}
         {indicator.waiting ? (
           <strong data-testid="offline-waiting">
             {` ${indicator.waiting} ${indicator.waiting === 1 ? "wartet" : "warten"} auf Versand.`}

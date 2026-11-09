@@ -49,8 +49,18 @@ import {
 
 import { replaceActionInUrl } from "../action-admin/action-location";
 import { actionErrorMessage } from "../action-admin/errors";
-import { isNetworkFailure, useOfflineRuntime } from "../offline/runtime";
-import { loadOfflineTour, saveTour } from "../offline/tour-cache";
+import {
+  isNetworkFailure,
+  useOfflineRuntime,
+  useQueueSnapshot,
+} from "../offline/runtime";
+import { isTourEntry } from "../offline/queue";
+import {
+  loadOfflineTour,
+  saveTour,
+  withDrop,
+  withQueuedWrites,
+} from "../offline/tour-cache";
 import { TaskOrderHandle, TaskOrdering } from "../tasks/task-ordering";
 import {
   clockMinutes,
@@ -81,7 +91,8 @@ import { useOrderAutosave } from "./use-order-autosave";
  * are reordered at their grip and every move saves at once. Done stops stay
  * in place as one grey line (D15). Behind the flag `delivery.tours`.
  * Offline, with `pwa.offline_queue` on too, the device's copy of today's
- * tour shows read-only under "Offline – Stand HH:MM" (§9).
+ * tour shows under "Offline – Stand HH:MM" (§9): marks and moves go to the
+ * offline queue and show at once; "Du" lists them until Core has them.
  */
 
 const copy = {
@@ -131,10 +142,24 @@ const copy = {
     "Auf diesem Gerät ist keine Tour für heute gespeichert. Sobald du wieder online bist, lädt sie neu.",
   offlineStand: (time: string) => `Offline – Stand ${time}`,
   offlineHint: "Zustellen und Umsortieren geht wieder, sobald du online bist.",
+  offlineQueueHint:
+    "Zustellungen und Umsortieren speichert LeonAid auf diesem Gerät und sendet sie, sobald du online bist.",
   toast: {
     delivered: (name: string) => `${name}: zugestellt.`,
     missed: (name: string) => `${name}: nicht angetroffen.`,
     open: (name: string) => `${name} ist wieder offen.`,
+  },
+  /** Marks and moves kept for the queue: never "gespeichert" (§9). */
+  queued: {
+    delivered: (name: string) =>
+      `${name}: zugestellt. Wird gesendet, sobald du online bist.`,
+    missed: (name: string) =>
+      `${name}: nicht angetroffen. Wird gesendet, sobald du online bist.`,
+    open: (name: string) =>
+      `${name} ist wieder offen. Wird gesendet, sobald du online bist.`,
+    order: "Reihenfolge gemerkt. Sie wird gesendet, sobald du online bist.",
+    orderUndone: "Vorherige Reihenfolge wiederhergestellt.",
+    failed: "Das konnte auf diesem Gerät nicht gespeichert werden.",
   },
   codes: {
     delivery_window_closed:
@@ -280,29 +305,6 @@ function homeTown(tour: DeliveryTourResponse | null) {
 const windowOfStop = (stops: ReadonlyMap<string, TourStop>, id: string) =>
   stops.get(id)?.window.windowId ?? "";
 
-/** The response with one drop replaced by its newer state. */
-function withDrop(
-  response: MyTourResponse,
-  drop: DeliveryDropResponse,
-): MyTourResponse {
-  if (!response.tour) return response;
-  return {
-    ...response,
-    tour: {
-      ...response.tour,
-      windows: response.tour.windows.map((window) => ({
-        ...window,
-        stops: window.stops.map((stop) =>
-          stop.drop.commitmentId === drop.commitmentId &&
-          stop.drop.revision <= drop.revision
-            ? { ...stop, drop }
-            : stop,
-        ),
-      })),
-    },
-  };
-}
-
 function useNow(intervalMs: number) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -385,6 +387,9 @@ export function MyTourPage({
   // The device keeps the tour only while pwa.offline_queue is on (runtime)
   // and the page itself shows only with delivery.tours (D14 g).
   const deviceStore = runtime.enabled ? runtime.store : null;
+  // Offline marks and moves go through the queue (§9).
+  const queue = runtime.enabled ? runtime.queue : null;
+  const snapshot = useQueueSnapshot();
   // The chosen day lives in the URL (?day=), so a reload keeps it.
   const [day, setDayState] = useState<string | null>(() =>
     new URLSearchParams(window.location.search).get("day"),
@@ -449,7 +454,12 @@ export function MyTourPage({
     retry: false,
   });
   const cachedTour = deviceMode ? (deviceQuery.data ?? null) : null;
+  /** The device's copy shows: Core cannot take a write now. */
   const readOnly = Boolean(cachedTour);
+  /** Writes wait in the queue: offline copy with a queue. */
+  const queued = readOnly && Boolean(queue);
+  /** No write at all: the copy without a queue. */
+  const locked = readOnly && !queue;
   // Core's answer of today's tour goes to the device (§9), also after a
   // mark or move changed it in place.
   const served = deviceMode ? undefined : tourQuery.data;
@@ -487,8 +497,47 @@ export function MyTourPage({
   const isStale = (error: unknown) =>
     error instanceof ApiError && STALE_CODES.has(error.detail.code);
 
-  const data = deviceMode ? cachedTour?.tour : tourQuery.data;
+  const loaded = deviceMode ? cachedTour?.tour : tourQuery.data;
+  // The queue's marks and moves of this tour, until Core has them.
+  const queueEntries = queue ? snapshot.entries : null;
+  const data = useMemo(
+    () =>
+      loaded && queueEntries ? withQueuedWrites(loaded, queueEntries) : loaded,
+    [loaded, queueEntries],
+  );
   const tour = data?.tour ?? null;
+  // A mark or move left the queue (Core took or refused it): Core's tour
+  // shows what came of it.
+  const waiting = (queueEntries ?? [])
+    .filter(
+      (entry) =>
+        isTourEntry(entry) &&
+        entry.actionId === actionId &&
+        (entry.state === "queued" || entry.state === "sending"),
+    )
+    .map((entry) => entry.entryId)
+    .join(",");
+  const waited = useRef(waiting);
+  useEffect(() => {
+    const before = waited.current.split(",").filter(Boolean);
+    waited.current = waiting;
+    const still = new Set(waiting.split(","));
+    if (!deviceMode && before.some((entryId) => !still.has(entryId))) {
+      void queries.invalidateQueries({ queryKey: ["my-tour", actionId] });
+    }
+  }, [actionId, deviceMode, queries, waiting]);
+  /** A mark of this stop or a move of this day still waits in the queue. */
+  const waits = (
+    match: (entry: (typeof snapshot.entries)[number]) => boolean,
+  ) =>
+    Boolean(
+      queueEntries?.some(
+        (entry) =>
+          entry.actionId === actionId &&
+          (entry.state === "queued" || entry.state === "sending") &&
+          match(entry),
+      ),
+    );
   const zone = data?.timezone ?? "Europe/Berlin";
   const tiles = useMemo(
     () =>
@@ -636,9 +685,71 @@ export function MyTourPage({
     return loaded && loaded.revision > drop.revision ? loaded : drop;
   };
 
+  /** The stop as shown now (queued marks included). */
+  const shownDrop = (commitmentId: string) =>
+    latest.current?.tour?.windows
+      .flatMap((window) => window.stops)
+      .find((stop) => stop.drop.commitmentId === commitmentId)?.drop;
+
+  /**
+   * Offline (or while an earlier mark of the stop still waits): the mark
+   * goes to the queue and shows at once. An undo of an unsent mark deletes
+   * it (§9).
+   */
+  const markQueued = (drop: DeliveryDropResponse, target: Target) => {
+    if (!queue) return;
+    const name = stopName(drop);
+    const leavesDock = target !== "open" && drop.commitmentId === dockId;
+    void queue
+      .queueDeliveryState({
+        actionId,
+        commitmentId: drop.commitmentId,
+        displayName: name,
+        expectedRevision: drop.revision,
+        fromState: drop.state,
+        target,
+      })
+      .then(
+        () => {
+          if (leavesDock) {
+            // The dock moves on to the next open stop, without scrolling.
+            setShownId(null);
+            focusDock.current = true;
+          }
+          toast?.show({
+            title: copy.queued[target](name),
+            tone: target === "delivered" ? "success" : "info",
+            timeout: TOUR_UNDO_MS,
+            action:
+              target === "open"
+                ? undefined
+                : {
+                    label: "Rückgängig",
+                    run: () => {
+                      const current = shownDrop(drop.commitmentId);
+                      if (current) mark(current, "open");
+                    },
+                  },
+          });
+        },
+        () => toast?.show({ title: copy.queued.failed, tone: "error" }),
+      );
+  };
+
   const mark = (drop: DeliveryDropResponse, target: Target) => {
-    // Offline marks come with the offline queue (Task 14).
-    if (readOnly || ticking.current || !deliverable(drop)) return;
+    if (locked || !deliverable(drop)) return;
+    if (
+      queued ||
+      waits(
+        (entry) =>
+          entry.kind === "delivery-state" &&
+          entry.commitmentId === drop.commitmentId,
+      )
+    ) {
+      markQueued(drop, target);
+      return;
+    }
+    if (ticking.current) return;
     ticking.current = true;
     const name = stopName(drop);
     setState.mutate(
@@ -688,19 +799,71 @@ export function MyTourPage({
     },
   });
 
+  /** The toast of the last queued move; the next move replaces it. */
+  const orderToast = useRef<string | null>(null);
+  /**
+   * Offline (or while an earlier move of the day still waits): the order
+   * goes to the queue; a newer move replaces an unsent one (§9).
+   */
+  const moveQueued = (
+    current: DeliveryTourResponse,
+    next: readonly string[],
+    before: readonly string[],
+    undo = false,
+  ) => {
+    if (!queue) return;
+    void queue
+      .queueTourOrder({
+        actionId,
+        commitmentIds: next,
+        day: current.day,
+        displayName: shortDay(current.day),
+        expectedRevision: current.revision,
+        fromOrder: before,
+      })
+      .then(
+        () => {
+          if (orderToast.current) toast?.dismiss(orderToast.current);
+          orderToast.current =
+            toast?.show({
+              title: undo ? copy.queued.orderUndone : copy.queued.order,
+              tone: "success",
+              timeout: TOUR_UNDO_MS,
+              action: undo
+                ? undefined
+                : {
+                    label: "Rückgängig",
+                    run: () => moveQueued(current, before, next, true),
+                  },
+            }) ?? null;
+        },
+        () => toast?.show({ title: copy.queued.failed, tone: "error" }),
+      );
+  };
+
   const moveStopTo = (
     id: string,
     targetId: string,
     side: "before" | "after",
   ) => {
-    if (!tour || readOnly) return;
+    if (!tour || locked) return;
     const next = placeStop(order, id, targetId, side, windowOf);
     if (next.every((value, index) => value === order[index])) return;
-    autosave.move(MY_ORDER, next, order, tour.revision, {
-      actionId,
-      day: tour.day,
-      queryKey,
-    });
+    if (
+      queued ||
+      waits(
+        (entry) =>
+          entry.kind === "tour-order" && entry.request.day === tour.day,
+      )
+    ) {
+      moveQueued(tour, next, order);
+    } else {
+      autosave.move(MY_ORDER, next, order, tour.revision, {
+        actionId,
+        day: tour.day,
+        queryKey,
+      });
+    }
     const stop = model.stops.get(id);
     if (stop) {
       setAnnouncement(
@@ -766,7 +929,7 @@ export function MyTourPage({
           <strong>
             {copy.offlineStand(clockTime(cachedTour.fetchedAt, zone))}
           </strong>
-          <span>{copy.offlineHint}</span>
+          <span>{queued ? copy.offlineQueueHint : copy.offlineHint}</span>
         </p>
       ) : null}
       {children}
@@ -843,7 +1006,7 @@ export function MyTourPage({
     : false;
   const dock = (sheetMode: boolean) => (
     <TourDock
-      busy={setState.isPending || readOnly}
+      busy={setState.isPending || locked}
       delivered={deliveredCount}
       headingRef={dockHeading}
       isNext={dockId === nextId}
@@ -935,7 +1098,7 @@ export function MyTourPage({
         {sheet?.kind === "stop" ? dock(true) : null}
         {sheetStop ? (
           <DoneSheet
-            busy={setState.isPending || readOnly}
+            busy={setState.isPending || locked}
             onClose={() => setSheet(null)}
             onUndo={() => {
               setSheet(null);
@@ -969,7 +1132,7 @@ export function MyTourPage({
           const hint = windowHint(window.startsAt, window.endsAt, now);
           const folded = allDone && !openedWindows.has(window.windowId);
           const movable =
-            window.closed || readOnly ? [] : ids.filter((id) => isOpenStop(id));
+            window.closed || locked ? [] : ids.filter((id) => isOpenStop(id));
           const rows = (
             <ol
               className="tour-rows"
@@ -990,7 +1153,7 @@ export function MyTourPage({
                   />
                 ) : (
                   <DoneRow
-                    busy={setState.isPending || readOnly}
+                    busy={setState.isPending || locked}
                     expanded={expanded.has(id)}
                     key={id}
                     onToggle={() => toggleExpanded(id)}

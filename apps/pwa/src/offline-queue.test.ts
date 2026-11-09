@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /*
  * The capture queue of specs/pwa-offline-queue §9 and §15 (unit level):
  * ordering per sponsor, classification of Core's answers, backoff,
@@ -5,14 +6,20 @@
  * The `send` step answers like Core would; IndexedDB, Web Locks and the
  * real Core run in the browser specs.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   ApiError,
+  type DeliveryDropResponse,
+  type DeliveryTourResponse,
+  type MyTourResponse,
   type RecordAcquisitionActivityResponse,
 } from "@leonaid/api-client";
 import {
   MemoryQueueStore,
+  QueueController,
+  entryTitle,
+  withQueuedWrites,
   backoffDelay,
   capturedAtNow,
   classifyFailure,
@@ -24,7 +31,7 @@ import {
   type SendResult,
 } from "@leonaid/features/offline";
 
-import { queueIndicator } from "./queue-indicator";
+import { queueIndicator, queueOfflineText } from "./queue-indicator";
 
 const NOW = new Date("2026-11-07T12:00:00Z");
 const DAY = 86_400_000;
@@ -676,6 +683,333 @@ describe("reasons in Du (§10)", () => {
     } as Partial<QueueEntry>);
     expect(conflictText(entry, "")).toContain(
       "Der Status „Abgesagt“ wurde nicht übernommen",
+    );
+  });
+});
+
+/* ---------- "Meine Tour" offline (krapfentaxi-touren §9) ---------- */
+
+describe("driver queue kinds (delivery-state, tour-order)", () => {
+  const DRIVER = "10000000-0000-4000-8000-0000000000d1";
+  const TODAY = "2026-11-07";
+  const stops: (() => void)[] = [];
+  afterEach(() => {
+    for (const stop of stops.splice(0)) stop();
+    vi.restoreAllMocks();
+  });
+
+  function tourDrop(
+    commitmentId: string,
+    extra: Partial<DeliveryDropResponse> = {},
+  ): DeliveryDropResponse {
+    return {
+      address: null,
+      buyerName: `Kunde ${commitmentId}`,
+      commitmentId,
+      contact: null,
+      driverName: null,
+      driverUserId: DRIVER,
+      missedAtClosure: false,
+      orderStatus: "review_ready",
+      quantities: [{ quantity: 1, unit: "box" }],
+      revision: 3,
+      state: "open",
+      stateChangedAt: null,
+      stateChangedByName: null,
+      totalBoxes: 1,
+      windowId: "w1",
+      ...extra,
+    };
+  }
+
+  /** One window with the stops in this order, revision `revision`. */
+  function tour(ids: readonly string[], revision = "r1"): DeliveryTourResponse {
+    return {
+      day: TODAY,
+      driverName: "Dora",
+      driverOrderedAt: null,
+      driverUserId: DRIVER,
+      revision,
+      windows: [
+        {
+          closed: false,
+          endsAt: `${TODAY}T20:00:00Z`,
+          startsAt: `${TODAY}T08:00:00Z`,
+          stops: ids.map((id, index) => ({
+            baseRank: index + 1,
+            driverRank: null,
+            drop: tourDrop(id),
+            effectiveRank: index + 1,
+            lat: null,
+            lon: null,
+            newForDriver: false,
+          })),
+          windowId: "w1",
+        },
+      ],
+    };
+  }
+
+  function myTour(value: DeliveryTourResponse): MyTourResponse {
+    return {
+      actionId: ACTION,
+      actionName: "Krapfentaxi",
+      days: [TODAY],
+      map: { attribution: "OSM", tileUrl: "https://tile/{z}/{x}/{y}.png" },
+      startPoint: null,
+      timezone: "Europe/Berlin",
+      tour: value,
+    };
+  }
+
+  const shownOrder = (response: MyTourResponse) =>
+    response
+      .tour!.windows[0]!.stops.toSorted(
+        (a, b) => a.effectiveRank - b.effectiveRank,
+      )
+      .map((stop) => stop.drop.commitmentId);
+
+  /** A controller in a browser that starts offline. */
+  function offlineQueue(send: (entry: QueueEntry) => Promise<SendResult>) {
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    const store = new MemoryQueueStore();
+    const queue = new QueueController({ send, store, userId: DRIVER });
+    stops.push(queue.start());
+    return {
+      queue,
+      reconnect: async () => {
+        online.mockReturnValue(true);
+        await queue.sendNow();
+      },
+      store,
+    };
+  }
+
+  const mark = (
+    queue: QueueController,
+    commitmentId: string,
+    fromState: "open" | "delivered" | "missed",
+    target: "open" | "delivered" | "missed",
+  ) =>
+    queue.queueDeliveryState({
+      actionId: ACTION,
+      commitmentId,
+      displayName: `Kunde ${commitmentId}`,
+      expectedRevision: 3,
+      fromState,
+      target,
+    });
+
+  const move = (
+    queue: QueueController,
+    fromOrder: readonly string[],
+    commitmentIds: readonly string[],
+  ) =>
+    queue.queueTourOrder({
+      actionId: ACTION,
+      commitmentIds,
+      day: TODAY,
+      displayName: "Sa 07.11.",
+      expectedRevision: "r1",
+      fromOrder,
+    });
+
+  it("delivered offline then undone offline leaves no entry", async () => {
+    const send = vi.fn(async (): Promise<SendResult> => {
+      throw new Error("nothing is sent offline");
+    });
+    const { queue, store } = offlineQueue(send);
+    expect(await mark(queue, "c1", "open", "delivered")).toBe("queued");
+    const [entry] = await store.list();
+    expect(entry?.kind).toBe("delivery-state");
+    expect(entryTitle(entry!)).toBe("Zustellung Kunde c1: zugestellt");
+    // The page shows it at once on top of the device copy.
+    const shown = withQueuedWrites(myTour(tour(["c1", "c2"])), [entry!]);
+    expect(shown.tour!.windows[0]!.stops[0]!.drop.state).toBe("delivered");
+    // "Rückgängig": the stop shows delivered, the undo goes back to open.
+    expect(await mark(queue, "c1", "delivered", "open")).toBe("cleared");
+    expect(await store.list()).toEqual([]);
+    // Delivered, then "Nicht da" instead: one entry with the last target.
+    await mark(queue, "c2", "open", "delivered");
+    await mark(queue, "c2", "delivered", "missed");
+    const entries = await store.list();
+    expect(entries).toHaveLength(1);
+    expect(
+      entries[0]!.kind === "delivery-state" && entries[0]!.request,
+    ).toEqual({ delivered: false, expectedRevision: 3, missed: true });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("two tour-order entries collapse to the last", async () => {
+    const { queue, store } = offlineQueue(async () => {
+      throw new Error("nothing is sent offline");
+    });
+    await move(queue, ["c1", "c2", "c3"], ["c2", "c1", "c3"]);
+    await move(queue, ["c2", "c1", "c3"], ["c3", "c2", "c1"]);
+    const entries = await store.list();
+    expect(entries).toHaveLength(1);
+    const [entry] = entries;
+    expect(entry?.kind === "tour-order" && entry.request).toEqual({
+      commitmentIds: ["c3", "c2", "c1"],
+      day: TODAY,
+      expectedRevision: "r1",
+    });
+    expect(entryTitle(entry!)).toBe("Tour-Reihenfolge Sa 07.11.");
+    expect(
+      shownOrder(withQueuedWrites(myTour(tour(["c1", "c2", "c3"])), entries)),
+    ).toEqual(["c3", "c2", "c1"]);
+    // Moved back to where it started: nothing left to send.
+    expect(await move(queue, ["c3", "c2", "c1"], ["c1", "c2", "c3"])).toBe(
+      "cleared",
+    );
+    expect(await store.list()).toEqual([]);
+  });
+
+  it("tour-order conflict after an appended stop shows Vom Planer geändert and keeps the server order", async () => {
+    const { queue, reconnect, store } = offlineQueue(async () => {
+      // The planner appended c4: the driver's ids no longer match the tour.
+      throw apiError(409, "tour_order_stale");
+    });
+    await move(queue, ["c1", "c2", "c3"], ["c3", "c1", "c2"]);
+    await reconnect();
+    const [entry] = await store.list();
+    expect(entry?.state).toBe("conflict");
+    expect(conflictText(entry!, "Krapfentaxi")).toMatch(
+      /^Vom Planer geändert\. .*Es gilt die Reihenfolge der Planung\.$/,
+    );
+    // Refused entries no longer show: the page shows Core's order.
+    const server = myTour(tour(["c1", "c2", "c3", "c4"], "r2"));
+    expect(shownOrder(withQueuedWrites(server, [entry!]))).toEqual([
+      "c1",
+      "c2",
+      "c3",
+      "c4",
+    ]);
+    // A revision conflict of a mark reads the same.
+    expect(
+      conflictText(
+        {
+          ...entry!,
+          kind: "delivery-state",
+          commitmentId: "c1",
+          fromState: "open",
+          lastError: {
+            code: "delivery_state_conflict",
+            message: "",
+            status: 409,
+          },
+          request: { delivered: true, expectedRevision: 3, missed: false },
+        } as QueueEntry,
+        "",
+      ),
+    ).toMatch(/^Vom Planer geändert\./);
+    expect(classifyFailure(apiError(409, "tour_revision_conflict")).type).toBe(
+      "conflict",
+    );
+  });
+
+  it("window closed while offline shows Fenster geschlossen", async () => {
+    const { queue, reconnect, store } = offlineQueue(async () => {
+      throw apiError(409, "delivery_window_closed");
+    });
+    await mark(queue, "c1", "open", "missed");
+    await reconnect();
+    const [entry] = await store.list();
+    expect(entry?.state).toBe("conflict");
+    expect(conflictText(entry!, "")).toMatch(/^Fenster geschlossen\. /);
+    // The stop shows Core's state again, not the refused mark.
+    expect(
+      withQueuedWrites(myTour(tour(["c1"])), [entry!]).tour!.windows[0]!
+        .stops[0]!.drop.state,
+    ).toBe("open");
+    // Other refusals of a driver's entry.
+    const reassigned = classifyFailure(apiError(403, "delivery_not_assigned"));
+    expect(reassigned.type === "conflict" && reassigned.error.code).toBe(
+      "delivery_not_assigned",
+    );
+    expect(
+      classifyFailure(apiError(403, "delivery_board_forbidden")).type,
+    ).toBe("blocked");
+  });
+
+  it("entries replay in sequence after reconnect", async () => {
+    const sent: string[] = [];
+    let revision = 3;
+    let first = true;
+    const { queue, reconnect, store } = offlineQueue(async (entry) => {
+      if (entry.kind === "delivery-state") {
+        sent.push(`${entry.commitmentId}@${entry.request.expectedRevision}`);
+        if (first && entry.commitmentId === "c1") {
+          // The answer of the first mark is lost: sent, but not confirmed.
+          first = false;
+          throw new TypeError("Failed to fetch");
+        }
+        revision += 1;
+        return {
+          kind: "delivery-state",
+          response: tourDrop(entry.commitmentId, { revision }),
+        };
+      }
+      if (entry.kind === "tour-order") {
+        sent.push(`order@${entry.request.expectedRevision}`);
+        return {
+          kind: "tour-order",
+          response: tour(entry.request.commitmentIds, "r2"),
+        };
+      }
+      throw new Error(`unexpected ${entry.kind}`);
+    });
+    await mark(queue, "c1", "open", "delivered");
+    await move(queue, ["c1", "c2", "c3"], ["c1", "c3", "c2"]);
+    await mark(queue, "c3", "open", "missed");
+    await reconnect();
+    // The lost answer: a retry with backoff, and the drain stops there
+    // (no network for the others either). Nothing is lost or reordered.
+    let entries = await store.list();
+    expect(entries.map((entry) => entry.kind)).toEqual([
+      "delivery-state",
+      "tour-order",
+      "delivery-state",
+    ]);
+    expect(entries[0]!.everSent).toBe(true);
+    // The driver undoes c1 before the retry: the mark may be at Core
+    // already, so the undo is a new entry after it, not a deletion. Its
+    // write starts a run: the other lines go on, c1's line waits for the
+    // backoff and keeps its order.
+    expect(await mark(queue, "c1", "delivered", "open")).toBe("queued");
+    await vi.waitFor(() => expect(sent).toHaveLength(3));
+    expect(sent).toEqual(["c1@3", "order@r1", "c3@3"]);
+    await queue.sendNow();
+    expect(sent).toEqual([
+      "c1@3",
+      "order@r1",
+      "c3@3",
+      // The replay of the mark Core may have, then the undo with the
+      // revision Core returned for it (5).
+      "c1@3",
+      "c1@5",
+    ]);
+    entries = await store.list();
+    expect(entries).toEqual([]);
+    expect(queue.snapshot.sent.map((entry) => entry.kind)).toEqual([
+      "tour-order",
+      "delivery-state",
+      "delivery-state",
+      "delivery-state",
+    ]);
+  });
+});
+
+describe("offline banner text by role (Ruling 22)", () => {
+  it("speaks of the tour to a driver, of captures to an acquirer", () => {
+    const driver = queueOfflineText({ acquirer: false, driver: true });
+    expect(driver).toContain("Zustellungen und deine Reihenfolge");
+    expect(driver).not.toMatch(/Kontakte|Wiedervorlagen|Bestellungen/);
+    expect(queueOfflineText({ acquirer: true, driver: false })).toContain(
+      "Neue Kontakte, Wiedervorlagen und Bestellungen",
+    );
+    expect(queueOfflineText({ acquirer: true, driver: true })).toContain(
+      "Bestellungen und Zustellungen",
     );
   });
 });

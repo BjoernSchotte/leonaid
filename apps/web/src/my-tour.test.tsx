@@ -35,6 +35,26 @@ import {
 } from "@leonaid/features";
 import { ToastProvider } from "@leonaid/ui";
 
+import { QueueController } from "../../../packages/features/src/offline/controller";
+import type {
+  CacheEntryInfo,
+  CacheKind,
+  CachedValue,
+} from "../../../packages/features/src/offline/device-store";
+import {
+  MemoryQueueStore,
+  type QueueEntry,
+} from "../../../packages/features/src/offline/queue";
+import {
+  OfflineRuntimeContext,
+  type OfflineRuntime,
+} from "../../../packages/features/src/offline/runtime";
+import { sendEntry } from "../../../packages/features/src/offline/sync";
+import {
+  saveTour,
+  type TourCacheStore,
+} from "../../../packages/features/src/offline/tour-cache";
+
 const actionId = "20000000-0000-4000-8000-000000000001";
 const DAY = "2099-12-05";
 
@@ -801,6 +821,218 @@ describe("Meine Tour", () => {
     expect(
       view.queries.getQueryCache().findAll({ queryKey: ["my-tour"] }),
     ).toHaveLength(0);
+  });
+
+  describe("offline queue (§9)", () => {
+    /** The device store's cache in memory, as IndexedDB keeps it. */
+    class MemoryTourStore implements TourCacheStore {
+      readonly records = new Map<
+        string,
+        { kind: CacheKind; actionId: string; value: unknown; fetchedAt: string }
+      >();
+      async listCache(): Promise<CacheEntryInfo[]> {
+        return [...this.records.values()].map(
+          ({ actionId, fetchedAt, kind }) => ({ actionId, fetchedAt, kind }),
+        );
+      }
+      async getCache<T>(
+        kind: CacheKind,
+        id: string,
+      ): Promise<CachedValue<T> | undefined> {
+        const record = this.records.get(`${kind}:${id}`);
+        return record
+          ? {
+              fetchedAt: record.fetchedAt,
+              value: structuredClone(record.value) as T,
+            }
+          : undefined;
+      }
+      async putCache(
+        kind: CacheKind,
+        id: string,
+        value: unknown,
+        fetchedAt: string,
+      ) {
+        this.records.set(`${kind}:${id}`, {
+          actionId: id,
+          fetchedAt,
+          kind,
+          value: structuredClone(value),
+        });
+      }
+      async deleteCache(kind: CacheKind, id: string) {
+        this.records.delete(`${kind}:${id}`);
+      }
+    }
+
+    const stopQueues: (() => void)[] = [];
+    afterEach(() => {
+      for (const stop of stopQueues.splice(0)) stop();
+    });
+
+    /** Started offline from the device copy, with the queue of §9. */
+    async function renderOffline(client: LeonAidApiClient) {
+      const online = vi
+        .spyOn(navigator, "onLine", "get")
+        .mockReturnValue(false);
+      const device = new MemoryTourStore();
+      await saveTour(device, actionId, myTour(), new Date());
+      const store = new MemoryQueueStore();
+      const queue = new QueueController({
+        send: (entry) => sendEntry(client, entry),
+        store,
+        userId: "anna",
+      });
+      stopQueues.push(queue.start());
+      const runtime: OfflineRuntime = {
+        enabled: true,
+        queue,
+        store: device as unknown as OfflineRuntime["store"],
+      };
+      const queries = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      });
+      const page = (offline: boolean) => (
+        <QueryClientProvider client={queries}>
+          <ToastProvider>
+            <OfflineRuntimeContext.Provider value={runtime}>
+              <MyTourPage
+                actionId={actionId}
+                client={client}
+                offline={offline}
+              />
+            </OfflineRuntimeContext.Provider>
+          </ToastProvider>
+        </QueryClientProvider>
+      );
+      const view = render(page(true));
+      await screen.findByTestId("tour-next-stop");
+      return {
+        entries: () => store.list(),
+        reconnect: async () => {
+          online.mockReturnValue(true);
+          view.rerender(page(false));
+          await act(async () => {
+            window.dispatchEvent(new Event("online"));
+          });
+        },
+      };
+    }
+
+    /** The dock remounts per stop: read it fresh on every try. */
+    const dockShows = (name: string) =>
+      waitFor(() =>
+        expect(
+          within(card()).getByRole("heading", { level: 2 }).textContent,
+        ).toBe(name),
+      );
+
+    const kinds = (entries: QueueEntry[]) => entries.map((entry) => entry.kind);
+
+    it("Zugestellt offline is queued and shows at once; Rückgängig leaves no entry", async () => {
+      const client = fakeClient(myTour());
+      const device = await renderOffline(client);
+      expect(screen.getByTestId("tour-offline").textContent).toContain(
+        "speichert LeonAid auf diesem Gerät",
+      );
+      fireEvent.click(
+        within(card()).getByRole("button", { name: "Zugestellt" }),
+      );
+      expect(
+        await screen.findByText(
+          "Bäckerei Kern: zugestellt. Wird gesendet, sobald du online bist.",
+        ),
+      ).toBeTruthy();
+      // The dock moves on; the stop shows done and the count follows.
+      await dockShows("Autohaus Nord");
+      expect(screen.getByTestId("tour-stop-done").textContent).toContain(
+        "Bäckerei Kern",
+      );
+      expect(screen.getByTestId("tour-progress").textContent).toBe("1/3");
+      const [entry] = await device.entries();
+      expect(entry?.kind === "delivery-state" && entry.request).toEqual({
+        delivered: true,
+        expectedRevision: 0,
+        missed: false,
+      });
+      // "Nicht da" on the next stop goes the same way.
+      fireEvent.click(
+        within(card()).getByRole("button", { name: /^Nicht da/ }),
+      );
+      await dockShows("Praxis Süd");
+      expect(kinds(await device.entries())).toEqual([
+        "delivery-state",
+        "delivery-state",
+      ]);
+      // Undo of the first mark: the unsent entry goes, the stop is open.
+      fireEvent.click(
+        within(
+          screen
+            .getByText(
+              "Bäckerei Kern: zugestellt. Wird gesendet, sobald du online bist.",
+            )
+            .closest("[role=status], li, div")! as HTMLElement,
+        ).getByRole("button", { name: "Rückgängig" }),
+      );
+      await dockShows("Bäckerei Kern");
+      const left = await device.entries();
+      expect(
+        left.map((item) => item.kind === "delivery-state" && item.commitmentId),
+      ).toEqual(["c2"]);
+      expect(client.setDeliveryState).not.toHaveBeenCalled();
+    });
+
+    it("a move offline is queued, never shown as saved, and replays after reconnect", async () => {
+      stackRows();
+      const client = fakeClient(myTour());
+      const device = await renderOffline(client);
+      await keyboardMove("Bäckerei Kern", "ArrowDown");
+      await waitFor(() =>
+        expect(names()).toEqual([
+          "Autohaus Nord",
+          "Bäckerei Kern",
+          "Praxis Süd",
+        ]),
+      );
+      expect(
+        await screen.findByText(
+          "Reihenfolge gemerkt. Sie wird gesendet, sobald du online bist.",
+        ),
+      ).toBeTruthy();
+      expect(screen.queryByText("Reihenfolge gespeichert.")).toBeNull();
+      const [entry] = await device.entries();
+      expect(entry?.kind === "tour-order" && entry.request).toEqual({
+        commitmentIds: ["c2", "c1", "c3"],
+        day: DAY,
+        expectedRevision: "r1",
+      });
+      // Zugestellt for the new first stop, still offline.
+      fireEvent.click(
+        within(card()).getByRole("button", { name: "Zugestellt" }),
+      );
+      await dockShows("Bäckerei Kern");
+      expect(client.saveMyTourOrder).not.toHaveBeenCalled();
+
+      await device.reconnect();
+      await waitFor(async () => expect(await device.entries()).toEqual([]));
+      expect(client.saveMyTourOrder).toHaveBeenCalledWith(
+        actionId,
+        { commitmentIds: ["c2", "c1", "c3"], day: DAY, expectedRevision: "r1" },
+        expect.anything(),
+      );
+      expect(client.setDeliveryState).toHaveBeenCalledWith(
+        actionId,
+        "c2",
+        { delivered: true, expectedRevision: 2, missed: false },
+        expect.anything(),
+      );
+      // Core's tour now holds both; the page shows it, online.
+      await waitFor(() =>
+        expect(screen.queryByTestId("tour-offline")).toBeNull(),
+      );
+      expect(names()).toEqual(["Bäckerei Kern", "Praxis Süd"]);
+      expect(screen.getByTestId("tour-progress").textContent).toBe("1/3");
+    });
   });
 
   describe("map (§7.2, D17)", () => {

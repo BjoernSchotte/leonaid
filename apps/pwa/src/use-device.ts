@@ -19,6 +19,7 @@ import {
   type CommitmentCaptureContextResponse,
   type CurrentIdentityResponse,
   type LeonAidApiClient,
+  type MyTourResponse,
 } from "@leonaid/api-client";
 import {
   DeviceQueueStore,
@@ -30,6 +31,7 @@ import {
   preflightConflict,
   sendEntry,
   sendTourReads,
+  withAcceptedWrite,
   type DeviceStore,
   type OfflineRuntime,
   type QueueSnapshot,
@@ -222,7 +224,22 @@ export function useDevice(
   useEffect(() => {
     if (!store || !userId) return;
     const controller = new QueueController({
-      onAccepted: () => {
+      onAccepted: (report) => {
+        // "Meine Tour" shows Core's answer at once; the page reloads the
+        // tour itself once its entries left the queue (§9).
+        for (const { entry, result } of report.accepted) {
+          if (
+            result.kind !== "delivery-state" &&
+            result.kind !== "tour-order"
+          ) {
+            continue;
+          }
+          queries.setQueriesData<MyTourResponse>(
+            { queryKey: ["my-tour", entry.actionId] },
+            (current) =>
+              current ? withAcceptedWrite(current, result) : current,
+          );
+        }
         // §9.4: the read cache and the pages follow each accepted entry.
         void queries.invalidateQueries({
           queryKey: ["acquisition-activity-board"],

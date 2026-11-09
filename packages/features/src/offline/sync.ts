@@ -17,6 +17,7 @@ import {
   classifyFailure,
   nextSendable,
   rebaseAfter,
+  rebaseTourEntries,
   draftCheckOutlived,
   retention,
   type QueueEntry,
@@ -196,6 +197,9 @@ async function settleAccepted(
   entry: QueueEntry,
   result: SendResult,
 ) {
+  for (const rebased of rebaseTourEntries(entry, result, await store.list())) {
+    await store.put(rebased);
+  }
   if (result.kind === "activity") {
     const response: RecordAcquisitionActivityResponse = result.response;
     for (const rebased of rebaseAfter(entry, response, await store.list())) {
@@ -292,6 +296,27 @@ export async function sendEntry(
           entry.actionId,
           entry.commitmentId,
           { ...entry.request, capturedAt: entry.capturedAt },
+          options,
+        ),
+      };
+    case "delivery-state":
+      // Core keeps no receipt here: the target state and the drop's
+      // revision make a replay harmless (krapfentaxi-touren §9).
+      return {
+        kind: "delivery-state",
+        response: await client.setDeliveryState(
+          entry.actionId,
+          entry.commitmentId,
+          entry.request,
+          options,
+        ),
+      };
+    case "tour-order":
+      return {
+        kind: "tour-order",
+        response: await client.saveMyTourOrder(
+          entry.actionId,
+          entry.request,
           options,
         ),
       };

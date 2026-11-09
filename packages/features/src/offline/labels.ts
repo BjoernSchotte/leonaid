@@ -4,7 +4,13 @@
  */
 import type { StatusShape } from "@leonaid/ui";
 
-import type { QueueEntry, QueueState } from "./queue";
+import { deliveryTarget, type QueueEntry, type QueueState } from "./queue";
+
+const targetWord = {
+  delivered: "zugestellt",
+  missed: "nicht angetroffen",
+  open: "wieder offen",
+} as const;
 
 export const queueStateLabel: Readonly<Record<QueueState, string>> = {
   queued: "Wartet auf Verbindung",
@@ -34,6 +40,10 @@ export function entryTitle(entry: QueueEntry): string {
       return `Bestellung für ${entry.party.displayName} vervollständigen`;
     case "sponsor-draft":
       return `Neuer Sponsor ${entry.party.displayName}`;
+    case "delivery-state":
+      return `Zustellung ${entry.party.displayName}: ${targetWord[deliveryTarget(entry.request)]}`;
+    case "tour-order":
+      return `Tour-Reihenfolge ${entry.party.displayName}`;
   }
 }
 

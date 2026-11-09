@@ -10,12 +10,19 @@
 import {
   ApiError,
   type DeliveryDropResponse,
+  type DeliveryTourResponse,
   type DeliveryTourStopResponse,
   type LeonAidApiClient,
   type MyTourResponse,
 } from "@leonaid/api-client";
 
 import type { CachedValue, CacheEntryInfo, CacheKind } from "./device-store";
+import {
+  deliveryTarget,
+  isTourEntry,
+  type QueueEntry,
+  type SendResult,
+} from "./queue";
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
@@ -400,4 +407,123 @@ function readSendable(read: TourRead, now: Date): boolean {
 
 function readKey(read: TourRead): string {
   return `${read.windowId}@${read.readAt}`;
+}
+
+/* ---------- the driver's queued marks and moves (§9) ---------- */
+
+/** The response with one drop replaced by its newer state. */
+export function withDrop(
+  response: MyTourResponse,
+  drop: DeliveryDropResponse,
+): MyTourResponse {
+  if (!response.tour) return response;
+  return {
+    ...response,
+    tour: {
+      ...response.tour,
+      windows: response.tour.windows.map((window) => ({
+        ...window,
+        stops: window.stops.map((stop) =>
+          stop.drop.commitmentId === drop.commitmentId &&
+          stop.drop.revision <= drop.revision
+            ? { ...stop, drop }
+            : stop,
+        ),
+      })),
+    },
+  };
+}
+
+/** The tour with its stops in `ids` order per window; others keep theirs. */
+function withOrder(
+  tour: DeliveryTourResponse,
+  ids: readonly string[],
+  orderedAt: string,
+): DeliveryTourResponse {
+  const index = new Map(ids.map((id, position) => [id, position]));
+  const rank = (stop: DeliveryTourStopResponse) =>
+    index.get(stop.drop.commitmentId) ?? ids.length + stop.effectiveRank;
+  return {
+    ...tour,
+    driverOrderedAt: tour.driverOrderedAt ?? orderedAt,
+    windows: tour.windows.map((window) => ({
+      ...window,
+      stops: [...window.stops]
+        .sort((a, b) => rank(a) - rank(b))
+        .map((stop, position) => ({
+          ...stop,
+          driverRank: position + 1,
+          effectiveRank: position + 1,
+        })),
+    })),
+  };
+}
+
+/**
+ * "Meine Tour" as the driver sees it: Core's answer (or the device copy)
+ * with the marks and moves still waiting in the queue on top, in their
+ * order. An entry Core refused no longer shows, so the planner's state
+ * does. The revisions stay Core's: the next write is checked against them.
+ */
+export function withQueuedWrites(
+  response: MyTourResponse,
+  entries: readonly QueueEntry[],
+): MyTourResponse {
+  const tour = response.tour;
+  if (!tour) return response;
+  let next = tour;
+  const pending = entries
+    .filter(
+      (entry) =>
+        isTourEntry(entry) &&
+        entry.actionId.toLowerCase() === response.actionId.toLowerCase() &&
+        (entry.state === "queued" || entry.state === "sending"),
+    )
+    .sort((a, b) => a.sequence - b.sequence);
+  for (const entry of pending) {
+    if (entry.kind === "tour-order") {
+      if (entry.request.day === next.day) {
+        next = withOrder(next, entry.request.commitmentIds, entry.capturedAt);
+      }
+      continue;
+    }
+    if (entry.kind !== "delivery-state") continue;
+    const state = deliveryTarget(entry.request);
+    next = {
+      ...next,
+      windows: next.windows.map((window) => ({
+        ...window,
+        stops: window.stops.map((stop) =>
+          stop.drop.commitmentId === entry.commitmentId
+            ? {
+                ...stop,
+                drop: {
+                  ...stop.drop,
+                  state,
+                  stateChangedAt: state === "open" ? null : entry.capturedAt,
+                },
+              }
+            : stop,
+        ),
+      })),
+    };
+  }
+  return next === tour ? response : { ...response, tour: next };
+}
+
+/** Core's answer to an accepted mark or move, put into "Meine Tour". */
+export function withAcceptedWrite(
+  response: MyTourResponse,
+  result: SendResult,
+): MyTourResponse {
+  if (result.kind === "delivery-state") {
+    return withDrop(response, result.response);
+  }
+  if (
+    result.kind === "tour-order" &&
+    response.tour?.day === result.response.day
+  ) {
+    return { ...response, tour: result.response };
+  }
+  return response;
 }
