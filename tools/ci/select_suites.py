@@ -1339,7 +1339,12 @@ def summary(selection: Selection) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--event", required=True)
+    parser.add_argument("--event")
+    parser.add_argument(
+        "--list",
+        choices=("integration", "e2e", "emdash"),
+        help="print every shard of a kind (./leonaid test-<kind> without shards)",
+    )
     parser.add_argument("--base", help="git base revision for pull_request")
     parser.add_argument("--head", default="HEAD")
     parser.add_argument(
@@ -1361,6 +1366,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--explain", action="store_true", help="print per-path rules")
     args = parser.parse_args(argv)
+    if args.list:
+        kinds = {
+            "integration": INTEGRATION_SHARDS,
+            "e2e": E2E_SHARDS,
+            "emdash": EMDASH_GROUPS,
+        }
+        print(" ".join(kinds[args.list]))
+        return 0
+    if not args.event:
+        parser.error("--event is required")
 
     paths: list[str] = []
     # A push diffs only when the workflow found the last green run on main
