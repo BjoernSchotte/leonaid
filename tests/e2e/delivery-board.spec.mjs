@@ -460,6 +460,16 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
       annaPins.length,
     );
     expect(await mapPins(mapView)).toEqual(annaPins);
+    // 44 px targets for pins and zoom buttons (WCAG 2.5.5, car mount).
+    for (const target of [
+      mapView.locator(".tour-pin[data-pin-id]").first(),
+      mapView.locator(".leaflet-control-zoom-in"),
+      mapView.locator(".leaflet-control-zoom-out"),
+    ]) {
+      const box = await target.boundingBox();
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
     await expectAccessible(mobile);
     for (const scheme of ["light", "dark"]) {
       await mobile.emulateMedia({ colorScheme: scheme });

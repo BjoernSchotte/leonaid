@@ -14,19 +14,15 @@ export interface TourMapSlotProps {
   /** The stop's number on its pin. */
   readonly position: number;
   readonly tiles: { readonly url: string; readonly attribution: string };
-  readonly start: {
-    readonly lat: number;
-    readonly lon: number;
-    readonly label: string;
-  } | null;
   /** A tap on the map: the map view with this stop. */
   readonly onOpen: () => void;
 }
 
 /**
  * The map of a stop in the dock (spec D17, critique §3 C3): a still 140 px
- * Leaflet map with the stop's pin and the start point; a tap opens the map
- * view with pan and zoom. Under it, "In OpenStreetMap öffnen" in a new tab.
+ * Leaflet map centred on the stop at street level (zoom 17, Ruling 17: the
+ * start point stays out, so the house is what the driver sees); a tap opens
+ * the map view with pan, zoom and the start point. Under it, "In OpenStreetMap öffnen" in a new tab.
  * Without a pin: one muted line and the OSM search.
  */
 export function TourMapSlot({
@@ -35,7 +31,6 @@ export function TourMapSlot({
   lon,
   onOpen,
   position,
-  start,
   tiles,
 }: TourMapSlotProps) {
   const located = lat !== null && lon !== null;
@@ -58,7 +53,7 @@ export function TourMapSlot({
                 tone: "driver-0",
               },
             ]}
-            start={start}
+            start={null}
             tiles={tiles}
           />
           <button

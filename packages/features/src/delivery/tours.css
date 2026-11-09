@@ -875,13 +875,15 @@ html:has(.tour-dock) .toaster {
   color: var(--text-2);
   font-size: var(--fs-xs);
 }
+/* Zoom buttons: 44 px targets for a phone in a car mount. */
 .tour-map-canvas .leaflet-bar a {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-bottom-color: var(--border);
   background: var(--surface);
   color: var(--text);
-  line-height: 36px;
+  font-size: 22px;
+  line-height: 44px;
 }
 .tour-map-canvas .leaflet-bar a:hover {
   background: var(--row-hover);
@@ -904,19 +906,28 @@ html:has(.tour-dock) .toaster {
   }
 }
 
-/* Pins: a numbered disc in the driver's colour. Leaflet places the element
-   by transform and sets its size, so the pin never sets either itself. */
+/* Pins: a 44 px target (Leaflet places it by transform and sets its size)
+   around a 28 px numbered disc in the driver's colour. */
 .tour-pin {
   --pin-h: 205;
   --pin-c: 0.13;
+  --pin-bg: oklch(var(--zl) calc(var(--pin-c) * var(--zk)) var(--pin-h));
+  --pin-fg: var(--text-inverse);
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+.tour-pin-dot {
   display: grid;
   place-items: center;
   box-sizing: border-box;
+  width: 28px;
+  height: 28px;
   border: 2px solid var(--surface);
   border-radius: 50%;
-  background: oklch(var(--zl) calc(var(--pin-c) * var(--zk)) var(--pin-h));
+  background: var(--pin-bg);
   box-shadow: var(--shadow-1);
-  color: var(--text-inverse);
+  color: var(--pin-fg);
   font-family: var(--font-mono);
   font-size: var(--fs-sm);
   font-weight: 700;
@@ -951,31 +962,39 @@ html:has(.tour-dock) .toaster {
   --pin-c: 0.12;
 }
 .tour-pin--unassigned {
-  background: var(--neutral);
+  --pin-bg: var(--neutral);
 }
 .tour-pin--done {
-  background: var(--surface-3);
-  color: var(--text-3);
+  --pin-bg: var(--surface-3);
+  --pin-fg: var(--text-3);
+}
+.tour-pin--done .tour-pin-dot {
   box-shadow: none;
 }
-.tour-pin.is-selected {
-  border-color: var(--surface);
+.tour-pin.is-selected .tour-pin-dot {
   box-shadow:
     0 0 0 3px var(--focus),
     var(--shadow-2);
 }
 .tour-pin:focus-visible {
+  outline: none;
+}
+.tour-pin:focus-visible .tour-pin-dot {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
-.tour-pin--start {
+.tour-pin--start .tour-pin-dot {
+  width: 30px;
+  height: 30px;
+  border-color: var(--text);
   border-radius: var(--r-md);
   background: var(--surface);
-  border-color: var(--text);
   color: var(--text);
 }
-.tour-pin--me {
-  border: 3px solid var(--surface);
+.tour-pin--me .tour-pin-dot {
+  width: 18px;
+  height: 18px;
+  border-width: 3px;
   background: var(--info);
   box-shadow: 0 0 0 6px color-mix(in oklch, var(--info) 30%, transparent);
 }

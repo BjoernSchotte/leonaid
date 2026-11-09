@@ -93,7 +93,8 @@ const FALLBACK_VIEW = {
 };
 /** Closest zoom for a single point or close points (house level). */
 const MAX_FIT_ZOOM = 17;
-const PIN_SIZE = 28;
+/** The pin's target: 44 px (WCAG 2.5.5); the disc inside is 28 px. */
+const PIN_SIZE = 44;
 const START_SIZE = 30;
 const LOCATION_SIZE = 18;
 
@@ -119,7 +120,7 @@ function pinIcon(L: LeafletLib, pin: TourMapPin) {
       `tour-pin--${pin.tone}`,
       pin.selected && "is-selected",
     ),
-    html: pin.rank > 0 ? String(pin.rank) : "",
+    html: `<span class="tour-pin-dot">${pin.rank > 0 ? String(pin.rank) : ""}</span>`,
     iconAnchor: [PIN_SIZE / 2, PIN_SIZE / 2],
     iconSize: [PIN_SIZE, PIN_SIZE],
   });
@@ -250,7 +251,7 @@ export function TourMap({
       const marker = L.marker([start.lat, start.lon], {
         icon: L.divIcon({
           className: "tour-pin tour-pin--start",
-          html: START_ICON,
+          html: `<span class="tour-pin-dot">${START_ICON}</span>`,
           iconAnchor: [START_SIZE / 2, START_SIZE / 2],
           iconSize: [START_SIZE, START_SIZE],
         }),
@@ -294,7 +295,7 @@ export function TourMap({
     } else {
       map.fitBounds(L.latLngBounds(points), {
         maxZoom: MAX_FIT_ZOOM,
-        padding: [PIN_SIZE, PIN_SIZE],
+        padding: [PIN_SIZE / 2, PIN_SIZE / 2],
       });
     }
     fitted.current = size.x === 0 || size.y === 0 ? "" : key;
@@ -319,7 +320,7 @@ export function TourMap({
         marker = L.marker(at, {
           icon: L.divIcon({
             className: "tour-pin tour-pin--me",
-            html: "",
+            html: '<span class="tour-pin-dot"></span>',
             iconAnchor: [LOCATION_SIZE / 2, LOCATION_SIZE / 2],
             iconSize: [LOCATION_SIZE, LOCATION_SIZE],
           }),

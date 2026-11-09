@@ -191,7 +191,6 @@ type MapStart = {
 
 interface DockMap {
   readonly tiles: { readonly url: string; readonly attribution: string };
-  readonly start: MapStart | null;
   readonly onOpen: () => void;
 }
 
@@ -778,7 +777,6 @@ export function MyTourPage({
                 setMapView(true);
                 setSheet({ kind: "stop" });
               },
-              start,
               tiles,
             }
       }
@@ -1672,7 +1670,6 @@ function DockStop({
           lon={stop.lon}
           onOpen={map.onOpen}
           position={position}
-          start={map.start}
           tiles={map.tiles}
         />
       ) : null}

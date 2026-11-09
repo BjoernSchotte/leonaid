@@ -138,6 +138,16 @@ describe("TourMap", () => {
     expect(attribution?.querySelector("a")).toBeNull();
   });
 
+  it("pins are 44 px targets around a smaller disc", async () => {
+    const { container } = await renderMap();
+    for (const pin of pinElements(container)) {
+      // Leaflet sizes the marker through the CSSOM from iconSize.
+      expect(pin.style.width).toBe("44px");
+      expect(pin.style.height).toBe("44px");
+      expect(pin.querySelector(".tour-pin-dot")).toBeTruthy();
+    }
+  });
+
   it("click on pin calls onSelect", async () => {
     const { container, onSelect } = await renderMap();
     const pin = container.querySelector<HTMLElement>('[data-pin-id="b"]');

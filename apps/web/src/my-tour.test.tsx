@@ -795,11 +795,12 @@ describe("Meine Tour", () => {
       window.history.replaceState(null, "", "/");
     });
 
-    it("the dock shows the stop's pin and the start on a still map; navigation uses the pin", async () => {
+    it("the dock shows only the stop's pin on a still map (Ruling 17); navigation uses the pin", async () => {
       await renderTour(fakeClient(located()));
       const map = within(card()).getByTestId("tour-map");
       expect(await pinsOf(map)).toEqual([["stop", "1"]]);
-      expect(map.querySelector(".tour-pin--start")).toBeTruthy();
+      // Street level at the house: the start point stays out of the dock.
+      expect(map.querySelector(".tour-pin--start")).toBeNull();
       expect(map.querySelector(".leaflet-control-zoom")).toBeNull();
       expect(map.textContent).toContain("© OpenStreetMap-Mitwirkende");
       expect(

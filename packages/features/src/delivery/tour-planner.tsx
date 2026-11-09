@@ -14,6 +14,7 @@ import {
   Eye,
   EyeOff,
   MailPlus,
+  MapPin,
   MapPinPlus,
   Route,
   Truck,
@@ -116,6 +117,7 @@ const copy = {
     "Noch kein Stopp hat einen Kartenpunkt. Die Adressen werden gerade gesucht, oder Sie setzen die Pins selbst.",
   notFound: "Adresse nicht gefunden",
   setPin: "Pin setzen",
+  movePin: "Pin versetzen",
   placing: (name: string) => `Klicken Sie in die Karte, wo ${name} liegt.`,
   placeAtCenter: "Pin in Kartenmitte setzen",
   cancelPlacing: "Abbrechen",
@@ -1243,6 +1245,19 @@ function StopRow({
           {dropQuantities(drop)}
         </span>
       </label>
+      {/* Ruling 18: a pin that is there can move; the click writes a manual pin. */}
+      {stop.lat !== null && stop.lon !== null ? (
+        <IconButton
+          aria-pressed={placing}
+          className="tour-stop-move-pin"
+          data-testid="tour-move-pin"
+          icon={MapPin}
+          label={`${copy.movePin}: ${name}`}
+          onClick={onPlacePin}
+          size="sm"
+          variant={placing ? "primary" : "ghost"}
+        />
+      ) : null}
       {drop.address && (stop.lat === null || stop.lon === null) ? (
         <span className="tour-stop-pin" data-testid="tour-stop-no-pin">
           <span className="small">{copy.notFound}</span>

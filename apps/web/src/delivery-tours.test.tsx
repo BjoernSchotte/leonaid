@@ -942,6 +942,34 @@ describe("Touren planner", () => {
       ).toBeNull();
     });
 
+    it("Pin versetzen: an existing pin moves to the clicked place (Ruling 18)", async () => {
+      const client = fakeClient(located());
+      await renderPlanner(client);
+      await mapReady();
+      const move = within(column("anna")).getByRole("button", {
+        name: "Pin versetzen: Bäckerei Kern",
+      });
+      fireEvent.click(move);
+      expect(move.getAttribute("aria-pressed")).toBe("true");
+      fireEvent.click(map().querySelector(".leaflet-container")!, {
+        clientX: 5,
+        clientY: 5,
+      });
+      await waitFor(() =>
+        expect(client.setDeliveryPin).toHaveBeenCalledTimes(1),
+      );
+      const [, id, body] = vi.mocked(client.setDeliveryPin).mock.calls[0]!;
+      expect(id).toBe("c1");
+      // New coordinates, not the old pin's.
+      expect(body).not.toEqual({ lat: 47.77, lon: 11.57 });
+      expect(Number.isFinite(body.lat) && Number.isFinite(body.lon)).toBe(true);
+      await waitFor(() =>
+        expect(
+          vi.mocked(client.getDeliveryTours).mock.calls.length,
+        ).toBeGreaterThan(1),
+      );
+    });
+
     it("the centre button places the pin for keyboard users", async () => {
       const client = fakeClient(located());
       await renderPlanner(client);
