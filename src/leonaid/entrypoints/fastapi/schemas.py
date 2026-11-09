@@ -2835,6 +2835,28 @@ class MyTourResponse(TransportModel):
     map: MapTilesResponse
 
 
+class MyTourReadRequest(TransportModel):
+    window_id: UUID
+    read_at: AwareDatetime = Field(
+        description="Wann das Gerät die Stopps des Fensters offline zeigte; "
+        "höchstens 14 Tage zurück, nicht in der Zukunft "
+        "(`tour_read_out_of_range`)."
+    )
+
+
+class MyTourReadsRequest(TransportModel):
+    """Offline reads of "Meine Tour", sent with the next sync (spec §10).
+    Windows without a stop of the driver are ignored."""
+
+    reads: list[MyTourReadRequest] = Field(min_length=1, max_length=50)
+
+
+# Offline reads of "Meine Tour" (spec §10, D14 d).
+MY_TOUR_READS_RESPONSES = _invalid(
+    AUTHENTICATED_ERROR_RESPONSES, "tour_read_out_of_range"
+)
+
+
 class DeliveryTourOrderRequest(TransportModel):
     """Stop ids of one tour in the wanted order. A driver may send an empty
     list to go back to the planned order."""

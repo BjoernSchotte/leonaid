@@ -56,6 +56,7 @@ from leonaid.domain.delivery_tours import (
     DriverTour,
     MyTour,
     TourStop,
+    TourRead,
     TourStopView,
     TourWindow,
     has_driver_order,
@@ -492,6 +493,51 @@ class AsyncpgDeliveryTourRepository:
             tour=tour,
             start=start,
         )
+
+    async def record_reads(
+        self,
+        *,
+        action_id: UUID,
+        driver_user_id: UUID,
+        reads: Sequence[TourRead],
+    ) -> None:
+        """Offline reads, only for windows where the driver holds a stop."""
+
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                _, zone = await action_context(connection, action_id)
+                own = {
+                    row["id"]
+                    for row in await connection.fetch(
+                        """
+                        SELECT DISTINCT window_row.id
+                        FROM action_delivery_window AS window_row
+                        JOIN commitment
+                          ON commitment.delivery_window_id = window_row.id
+                        JOIN commitment_delivery AS delivery
+                          ON delivery.commitment_id = commitment.id
+                        WHERE window_row.action_id = $1
+                          AND window_row.id = ANY($2::uuid[])
+                          AND commitment.status = ANY($3::text[])
+                          AND delivery.driver_user_id = $4
+                        """,
+                        action_id,
+                        sorted({read.window_id for read in reads}),
+                        _DELIVERABLE,
+                        driver_user_id,
+                    )
+                }
+                for read in sorted(reads, key=lambda item: item.read_at):
+                    if read.window_id not in own:
+                        continue
+                    await record_read_audit(
+                        connection,
+                        driver_user_id=driver_user_id,
+                        action_id=action_id,
+                        window_ids=[read.window_id],
+                        viewed_at=read.read_at,
+                        zone=zone,
+                    )
 
     # ---------- writes ----------
 

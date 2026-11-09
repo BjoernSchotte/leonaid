@@ -90,7 +90,8 @@ export function minimizeCaptureContext(
  * The identity summary of the `meta` store (§8.1): enough to render the
  * shell and bind the queue to the user. Core checks the session and
  * membership again at every send. The user's own e-mail address is not
- * kept; only acquirer memberships and the PWA's own navigation are.
+ * kept; only acquirer memberships (driver ones too while the device keeps
+ * the tour) and the PWA's own navigation are.
  */
 export interface IdentitySummary {
   readonly userId: string;
@@ -107,6 +108,12 @@ export interface IdentitySummary {
 export function summarizeIdentity(
   identity: CurrentIdentityResponse,
   now: Date = new Date(),
+  {
+    drivers = false,
+  }: {
+    /** The device keeps the driver's tour (both flags on, D14 g). */
+    readonly drivers?: boolean;
+  } = {},
 ): IdentitySummary {
   return {
     userId: identity.userId,
@@ -114,7 +121,11 @@ export function summarizeIdentity(
     clubName: identity.installation.clubName,
     roleLabels: [...identity.roleLabels],
     memberships: identity.actionMemberships
-      .filter((membership) => membership.role === "acquirer")
+      .filter(
+        (membership) =>
+          membership.role === "acquirer" ||
+          (drivers && membership.role === "driver"),
+      )
       .map((membership) => ({ ...membership })),
     navigation: identity.navigation
       .filter((item) => item.surface === "pwa")

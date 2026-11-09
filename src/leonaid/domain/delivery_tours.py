@@ -13,12 +13,14 @@ import hashlib
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
 from leonaid.domain.delivery import DeliveryStartPoint
 from leonaid.domain.delivery_board import BoardDriver, DeliveryBoardError, DeliveryDrop
 from leonaid.domain.delivery_geo import GeoPoint
+from leonaid.domain.errors import DomainInvariantError
+from leonaid.domain.identity import require_aware
 
 TOUR_CHANGED_MESSAGE = "Die Tour wurde inzwischen geändert."
 WINDOW_CLOSED_MESSAGE = "Dieses Lieferfenster ist abgeschlossen."
@@ -103,6 +105,40 @@ class MapTiles:
 
     tile_url: str
     attribution: str
+
+
+# An offline read of "Meine Tour" reaches Core when the device syncs (spec
+# §10). The device keeps its tour at most until 12 hours after a window, and
+# its reads no longer than unsent queue entries (pwa-offline-queue D5). A
+# phone clock may run a few minutes ahead, as for ``captured_at``.
+TOUR_READ_MAX_AGE = timedelta(days=14)
+TOUR_READ_MAX_LEAD = timedelta(minutes=5)
+TOUR_READS_MAX = 50
+
+
+@dataclass(frozen=True, slots=True)
+class TourRead:
+    """The device showed the window's stops offline at ``read_at``."""
+
+    window_id: UUID
+    read_at: datetime
+
+
+def bounded_read_at(read_at: datetime, *, received_at: datetime) -> datetime:
+    """``read_at`` in UTC, or ``tour_read_out_of_range`` (422)."""
+
+    require_aware(read_at, "read_at")
+    require_aware(received_at, "received_at")
+    if not (
+        received_at - TOUR_READ_MAX_AGE <= read_at <= received_at + TOUR_READ_MAX_LEAD
+    ):
+        raise DomainInvariantError(
+            "tour_read_out_of_range",
+            "Der Lesezeitpunkt liegt außerhalb des erlaubten Zeitraums "
+            "(höchstens 14 Tage zurück, nicht in der Zukunft). "
+            "Bitte Datum und Uhrzeit des Geräts prüfen.",
+        )
+    return read_at.astimezone(timezone.utc)
 
 
 def tour_order_stale() -> DeliveryBoardError:

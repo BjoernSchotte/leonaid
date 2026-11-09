@@ -38,6 +38,12 @@ export interface SyncDependencies {
   readonly preflight?: (entry: QueueEntry) => Promise<string | null>;
   /** Called when an entry goes on its way, so views can follow. */
   readonly onProgress?: () => Promise<void> | void;
+  /**
+   * Records that are no queue entries but leave with the same sync, e.g.
+   * the driver's offline reads of "Meine Tour" (tour-cache.ts). Runs once
+   * per drain, before the entries; a failure never stops the queue.
+   */
+  readonly sendRecords?: () => Promise<void>;
 }
 
 export interface SyncReport {
@@ -82,6 +88,8 @@ export async function drainQueue(
       });
     }
   }
+
+  await dependencies.sendRecords?.().catch(() => undefined);
 
   // Each loop sends one entry; a send changes what is due next.
   for (;;) {

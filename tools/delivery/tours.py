@@ -4,8 +4,9 @@ Proves the feature flag gate, base and driver order writes with their
 revision and no-op rules, the driver's scope, tour membership changes
 (assignment, reassignment, cancellation, window change), the read audit of
 "Meine Tour", discarding a driver order, the driver's "Nicht angetroffen"
-through window closure and reopening (Rulings 1, 5, 6), and the manual pin
-with the start point and the map tiles in both tour reads.
+through window closure and reopening (Rulings 1, 5, 6), the manual pin
+with the start point and the map tiles in both tour reads, and the offline
+reads a driver's device sends with its next sync (spec §10, D14 d).
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import json
 from dataclasses import replace
 from datetime import date, datetime, time, timedelta, timezone
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 import asyncpg
 import httpx
@@ -51,7 +53,15 @@ from leonaid.domain.delivery import (
 )
 from leonaid.domain.delivery_board import DeliveryDrop, DropState
 from leonaid.domain.delivery_geo import GeoPoint
-from leonaid.domain.delivery_tours import DayTours, DriverTour, MapTiles, MyTour
+from leonaid.domain.calendar import local_day
+from leonaid.domain.delivery_tours import (
+    DayTours,
+    DriverTour,
+    MapTiles,
+    MyTour,
+    TourRead,
+)
+from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import ActionRole, IdentityPrincipal
 from leonaid.modules.tasks.delivery_follow_up import TaskDeliveryFollowUp
 from tools.delivery.board import _expect, _principal, _user
@@ -331,6 +341,8 @@ async def prove_tours(
         await _prove_discard(fx)
         await prove_driver_missed(fx)
         await prove_pins_and_start(fx)
+        # Last: its own stop must not change the counts proven above.
+        await prove_offline_reads(fx)
     finally:
         await pool.execute(
             "UPDATE feature_flag SET enabled=false, revision=revision+1"
@@ -342,7 +354,9 @@ async def prove_tours(
         " refused, one read audit per window and day, discard and empty driver"
         " write reset, five HTTP operations (roles, flag, no-store), manual"
         " pin as lat/lon in my_tour and day_tours (ids-only audit, foreign"
-        " order 404), start point and map tiles in both reads"
+        " order 404), start point and map tiles in both reads, offline reads"
+        " (viewed_on from read_at, foreign window ignored, out of range 422,"
+        " both flags, 204 over HTTP)"
     )
 
 
@@ -683,6 +697,174 @@ async def _prove_access_and_audit(fx: _Fixture) -> None:
     assert not await fx.pool.fetchval(
         "SELECT count(*) FROM delivery_read_audit WHERE driver_user_id=$1", idle_id
     )
+
+
+async def prove_offline_reads(fx: _Fixture) -> None:
+    """recordMyTourReads writes viewed_on from read_at; foreign window
+    ignored; future read_at 422. Needs ``pwa.offline_queue`` beside
+    ``delivery.tours`` (D14 g)."""
+
+    previous = await fx.pool.fetchval(
+        "SELECT enabled FROM feature_flag WHERE key='pwa.offline_queue'"
+    )
+    await fx.pool.execute(
+        "UPDATE feature_flag SET enabled=true, revision=revision+1"
+        " WHERE key='pwa.offline_queue'"
+    )
+    try:
+        await _prove_offline_reads(fx)
+    finally:
+        await fx.pool.execute(
+            "UPDATE feature_flag SET enabled=$1, revision=revision+1"
+            " WHERE key='pwa.offline_queue'",
+            previous,
+        )
+
+
+async def _prove_offline_reads(fx: _Fixture) -> None:
+    driver_id = await fx.driver("Tourfahrerin Offline")
+    driver = _principal(driver_id, fx.action_id, ActionRole.DRIVER)
+    stop = await fx.order("Tour Offline", fx.first.id)
+    await fx.assign(driver_id, stop)
+    zone = ZoneInfo((await fx.my_tour(driver, on=fx.day)).timezone)
+    # The online read above is today's; the offline reads are older days.
+    await fx.pool.execute(
+        "DELETE FROM delivery_read_audit WHERE driver_user_id=$1", driver_id
+    )
+    received = datetime.now(timezone.utc)
+    read_at = received - timedelta(days=3)
+
+    async def record(
+        *reads: TourRead,
+        actor: IdentityPrincipal | None = None,
+        at: datetime | None = None,
+    ) -> None:
+        await fx.tours.record_reads(
+            actor or driver, fx.action_id, reads, received_at=at or received
+        )
+
+    async def audits() -> list[asyncpg.Record]:
+        return list(
+            await fx.pool.fetch(
+                "SELECT window_id, viewed_on, first_viewed_at"
+                " FROM delivery_read_audit WHERE driver_user_id=$1"
+                " ORDER BY viewed_on, window_id",
+                driver_id,
+            )
+        )
+
+    # Own window: audited at its read time, in the action's zone. The second
+    # window holds no stop of this driver: ignored, as is an unknown window.
+    await record(
+        TourRead(fx.first.id, read_at),
+        TourRead(fx.second.id, read_at),
+        TourRead(uuid4(), read_at),
+    )
+    rows = await audits()
+    assert [row["window_id"] for row in rows] == [fx.first.id], rows
+    assert rows[0]["viewed_on"] == local_day(read_at, zone), rows
+    assert rows[0]["first_viewed_at"] == read_at, rows
+    # A later read of the same local day keeps the first; another day counts.
+    await record(TourRead(fx.first.id, read_at + timedelta(minutes=5)))
+    await record(TourRead(fx.first.id, read_at + timedelta(days=1)))
+    rows = await audits()
+    assert len(rows) == 2 and rows[0]["first_viewed_at"] == read_at, rows
+    assert rows[1]["viewed_on"] == local_day(read_at + timedelta(days=1), zone)
+
+    # Out of range: in the future (beyond a phone's clock drift) or older
+    # than 14 days. Nothing of the batch is written.
+    for wrong in (received + timedelta(hours=1), received - timedelta(days=15)):
+        await _expect(
+            record(
+                TourRead(fx.first.id, received - timedelta(days=2)),
+                TourRead(fx.first.id, wrong),
+            ),
+            DomainInvariantError,
+            "tour_read_out_of_range",
+        )
+    assert len(await audits()) == 2
+    # Within the drift: accepted.
+    await record(TourRead(fx.first.id, received + timedelta(minutes=4)))
+    assert len(await audits()) == 3
+
+    # Rights: no driver role in the action, or a manager, is refused.
+    for outsider in (fx.foreign, fx.admin):
+        await _expect(
+            record(TourRead(fx.first.id, read_at), actor=outsider),
+            PermissionDenied,
+            "delivery_board_forbidden",
+        )
+    # Both flags (D14 g): either off answers 404.
+    for key in ("pwa.offline_queue", "delivery.tours"):
+        await fx.pool.execute(
+            "UPDATE feature_flag SET enabled=false, revision=revision+1 WHERE key=$1",
+            key,
+        )
+        try:
+            await _expect(
+                record(TourRead(fx.first.id, read_at)),
+                ResourceNotFound,
+                "feature_flag_disabled",
+            )
+        finally:
+            await fx.pool.execute(
+                "UPDATE feature_flag SET enabled=true, revision=revision+1"
+                " WHERE key=$1",
+                key,
+            )
+
+    # HTTP: 204 without a body, strict body, at most 50 reads.
+    app, identity = http_app(driver)
+    app.state.delivery_tour_service = fx.tours
+    path = f"/api/v1/actions/{fx.action_id}/my-tour/reads"
+
+    def body(*reads: tuple[UUID, datetime]) -> dict[str, object]:
+        return {
+            "reads": [
+                {"windowId": str(window_id), "readAt": at.isoformat()}
+                for window_id, at in reads
+            ]
+        }
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        earlier = received - timedelta(days=5)
+        response = await client.post(path, json=body((fx.first.id, earlier)))
+        assert response.status_code == 204, response.text
+        assert response.content == b""
+        assert response.headers["cache-control"] == "private, no-store"
+        assert any(row["first_viewed_at"] == earlier for row in await audits())
+        future = await client.post(
+            path,
+            json=body((fx.first.id, datetime.now(timezone.utc) + timedelta(hours=1))),
+        )
+        assert future.status_code == 422, future.text
+        assert future.json() == {"code": "tour_read_out_of_range"}
+        many = body(*[(fx.first.id, earlier)] * 51)
+        assert (await client.post(path, json=many)).status_code == 422
+        assert (await client.post(path, json={"reads": []})).status_code == 422
+        naive = {
+            "reads": [{"windowId": str(fx.first.id), "readAt": "2037-12-25T08:00:00"}]
+        }
+        assert (await client.post(path, json=naive)).status_code == 422
+        extra = body((fx.first.id, earlier))
+        extra["extra"] = 1
+        assert (await client.post(path, json=extra)).status_code == 422
+        identity.current = fx.foreign
+        assert (
+            await client.post(path, json=body((fx.first.id, earlier)))
+        ).status_code == 403
+        identity.current = None
+        assert (
+            await client.post(path, json=body((fx.first.id, earlier)))
+        ).status_code == 401
+
+    # The stop leaves this driver: later reads of the window are ignored.
+    await fx.assign(None, stop)
+    before = len(await audits())
+    await record(TourRead(fx.first.id, received - timedelta(days=6)))
+    assert len(await audits()) == before
 
 
 async def _prove_discard(fx: _Fixture) -> None:

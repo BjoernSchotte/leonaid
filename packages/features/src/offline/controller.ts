@@ -81,6 +81,7 @@ export interface QueueControllerOptions {
   readonly userId: string;
   readonly send: SyncDependencies["send"];
   readonly preflight?: SyncDependencies["preflight"];
+  readonly sendRecords?: SyncDependencies["sendRecords"];
   /** After accepted entries: refresh the read cache and the pages. */
   readonly onAccepted?: (report: SyncReport) => void;
   readonly now?: () => Date;
@@ -533,6 +534,7 @@ export class QueueController {
             await this.reload();
           },
           preflight: this.#options.preflight,
+          sendRecords: this.#options.sendRecords,
           send: this.#options.send,
           store: this.#options.store,
         });

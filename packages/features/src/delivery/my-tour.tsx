@@ -49,6 +49,8 @@ import {
 
 import { replaceActionInUrl } from "../action-admin/action-location";
 import { actionErrorMessage } from "../action-admin/errors";
+import { isNetworkFailure, useOfflineRuntime } from "../offline/runtime";
+import { loadOfflineTour, saveTour } from "../offline/tour-cache";
 import { TaskOrderHandle, TaskOrdering } from "../tasks/task-ordering";
 import {
   clockMinutes,
@@ -78,6 +80,8 @@ import { useOrderAutosave } from "./use-order-autosave";
  * with the next stop, its map and "Zugestellt" in thumb reach. Open stops
  * are reordered at their grip and every move saves at once. Done stops stay
  * in place as one grey line (D15). Behind the flag `delivery.tours`.
+ * Offline, with `pwa.offline_queue` on too, the device's copy of today's
+ * tour shows read-only under "Offline – Stand HH:MM" (§9).
  */
 
 const copy = {
@@ -123,6 +127,10 @@ const copy = {
   noAction: "Dir ist noch keine Aktion als Ausfahrer zugeordnet.",
   offline:
     "Ohne Verbindung zeigen wir deine Tour nicht. Sobald du wieder online bist, lädt sie neu.",
+  offlineEmpty:
+    "Auf diesem Gerät ist keine Tour für heute gespeichert. Sobald du wieder online bist, lädt sie neu.",
+  offlineStand: (time: string) => `Offline – Stand ${time}`,
+  offlineHint: "Zustellen und Umsortieren geht wieder, sobald du online bist.",
   toast: {
     delivered: (name: string) => `${name}: zugestellt.`,
     missed: (name: string) => `${name}: nicht angetroffen.`,
@@ -210,6 +218,22 @@ function shortDay(day: string) {
     timeZone: "UTC",
   }).format(date);
   return `${weekday} ${dayMonth}`;
+}
+
+/** "14:05" of an instant, in the action's zone. */
+function clockTime(at: string, zone: string) {
+  const options: Intl.DateTimeFormatOptions = {
+    hour: "2-digit",
+    minute: "2-digit",
+  };
+  try {
+    return new Intl.DateTimeFormat("de-DE", {
+      ...options,
+      timeZone: zone,
+    }).format(new Date(at));
+  } catch {
+    return new Intl.DateTimeFormat("de-DE", options).format(new Date(at));
+  }
 }
 
 const deliverable = (drop: DeliveryDropResponse) =>
@@ -341,8 +365,9 @@ export interface MyTourPageProps {
     readonly actionName: string;
   }[];
   /**
-   * The device is offline. The page then shows no stops and drops its
-   * cached copy (addresses and phones stay off a lost phone).
+   * The device is offline. The page drops Core's answer from memory and
+   * shows the device's tour copy read-only (both flags on, §9), else no
+   * stops.
    */
   readonly offline?: boolean;
 }
@@ -356,6 +381,10 @@ export function MyTourPage({
   const queries = useQueryClient();
   const toast = useOptionalToast();
   const now = useNow(CLOCK_TICK_MS);
+  const runtime = useOfflineRuntime();
+  // The device keeps the tour only while pwa.offline_queue is on (runtime)
+  // and the page itself shows only with delivery.tours (D14 g).
+  const deviceStore = runtime.enabled ? runtime.store : null;
   // The chosen day lives in the URL (?day=), so a reload keeps it.
   const [day, setDayState] = useState<string | null>(() =>
     new URLSearchParams(window.location.search).get("day"),
@@ -405,6 +434,38 @@ export function MyTourPage({
     refetchOnWindowFocus: false,
     retry: false,
   });
+  // No answer from Core: the device's copy, as without network.
+  const unreachable = tourQuery.isError && isNetworkFailure(tourQuery.error);
+  const deviceMode = offline || unreachable;
+  const deviceQuery = useQuery({
+    enabled: deviceMode && Boolean(actionId) && Boolean(deviceStore),
+    gcTime: 0,
+    networkMode: "always",
+    // The view counts as a read; it is sent with the next sync (§10).
+    queryFn: () => loadOfflineTour(deviceStore!, actionId, new Date()),
+    queryKey: ["my-tour-device", actionId],
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+  const cachedTour = deviceMode ? (deviceQuery.data ?? null) : null;
+  const readOnly = Boolean(cachedTour);
+  // Core's answer of today's tour goes to the device (§9), also after a
+  // mark or move changed it in place.
+  const served = deviceMode ? undefined : tourQuery.data;
+  const servedAt = tourQuery.dataUpdatedAt;
+  useEffect(() => {
+    if (!deviceStore?.open || !served) return;
+    void saveTour(
+      deviceStore,
+      served.actionId,
+      served,
+      new Date(servedAt),
+    ).catch(() => undefined);
+  }, [deviceStore, served, servedAt]);
+  useEffect(() => {
+    if (!deviceMode) queries.removeQueries({ queryKey: ["my-tour-device"] });
+  }, [deviceMode, queries]);
   useEffect(() => {
     if (!offline) return;
     queries.removeQueries({ queryKey: ["my-tour"] });
@@ -426,7 +487,7 @@ export function MyTourPage({
   const isStale = (error: unknown) =>
     error instanceof ApiError && STALE_CODES.has(error.detail.code);
 
-  const data = tourQuery.data;
+  const data = deviceMode ? cachedTour?.tour : tourQuery.data;
   const tour = data?.tour ?? null;
   const zone = data?.timezone ?? "Europe/Berlin";
   const tiles = useMemo(
@@ -576,7 +637,8 @@ export function MyTourPage({
   };
 
   const mark = (drop: DeliveryDropResponse, target: Target) => {
-    if (ticking.current || !deliverable(drop)) return;
+    // Offline marks come with the offline queue (Task 14).
+    if (readOnly || ticking.current || !deliverable(drop)) return;
     ticking.current = true;
     const name = stopName(drop);
     setState.mutate(
@@ -631,7 +693,7 @@ export function MyTourPage({
     targetId: string,
     side: "before" | "after",
   ) => {
-    if (!tour) return;
+    if (!tour || readOnly) return;
     const next = placeStop(order, id, targetId, side, windowOf);
     if (next.every((value, index) => value === order[index])) return;
     autosave.move(MY_ORDER, next, order, tour.revision, {
@@ -680,6 +742,7 @@ export function MyTourPage({
       onAction={chooseAction}
       onDay={chooseDay}
       onToggleMap={tour && order.length ? () => setMapView(!mapView) : null}
+      readOnly={readOnly}
       onReset={() => {
         // The reset replaces a waiting move; it waits for a running save
         // and then uses the revision that save returned.
@@ -698,19 +761,33 @@ export function MyTourPage({
     <div className="delivery tour" data-zone="delivery">
       <h1 className="sr-only">{copy.title}</h1>
       {bar}
+      {cachedTour ? (
+        <p className="tour-offline" data-testid="tour-offline" role="status">
+          <strong>
+            {copy.offlineStand(clockTime(cachedTour.fetchedAt, zone))}
+          </strong>
+          <span>{copy.offlineHint}</span>
+        </p>
+      ) : null}
       {children}
     </div>
   );
 
-  if (offline) {
-    return frame(
-      <EmptyState
-        description={copy.offline}
-        headingLevel={2}
-        icon={Truck}
-        title="Keine Verbindung"
-      />,
-    );
+  if (deviceMode && !cachedTour) {
+    if (deviceStore && actionId && deviceQuery.isPending) {
+      return frame(<SkeletonRows rows={5} />);
+    }
+    // Online with Core out of reach and no copy: the error state below.
+    if (offline) {
+      return frame(
+        <EmptyState
+          description={deviceStore ? copy.offlineEmpty : copy.offline}
+          headingLevel={2}
+          icon={Truck}
+          title="Keine Verbindung"
+        />,
+      );
+    }
   }
 
   if (!actionId) {
@@ -730,8 +807,8 @@ export function MyTourPage({
       tourQuery.error.detail.code,
     );
 
-  if (tourQuery.isPending) return frame(<SkeletonRows rows={5} />);
-  if (notEnabled) {
+  if (!readOnly && tourQuery.isPending) return frame(<SkeletonRows rows={5} />);
+  if (!readOnly && notEnabled) {
     return frame(
       <EmptyState
         description={copy.notEnabled}
@@ -741,7 +818,7 @@ export function MyTourPage({
       />,
     );
   }
-  if (tourQuery.isError) {
+  if (!readOnly && tourQuery.isError) {
     return frame(
       <ErrorState onRetry={() => void tourQuery.refetch()} title={copy.error}>
         {copy.errorHint}
@@ -766,7 +843,7 @@ export function MyTourPage({
     : false;
   const dock = (sheetMode: boolean) => (
     <TourDock
-      busy={setState.isPending}
+      busy={setState.isPending || readOnly}
       delivered={deliveredCount}
       headingRef={dockHeading}
       isNext={dockId === nextId}
@@ -858,7 +935,7 @@ export function MyTourPage({
         {sheet?.kind === "stop" ? dock(true) : null}
         {sheetStop ? (
           <DoneSheet
-            busy={setState.isPending}
+            busy={setState.isPending || readOnly}
             onClose={() => setSheet(null)}
             onUndo={() => {
               setSheet(null);
@@ -891,9 +968,8 @@ export function MyTourPage({
             active.length > 0 && active.every((drop) => drop.state !== "open");
           const hint = windowHint(window.startsAt, window.endsAt, now);
           const folded = allDone && !openedWindows.has(window.windowId);
-          const movable = window.closed
-            ? []
-            : ids.filter((id) => isOpenStop(id));
+          const movable =
+            window.closed || readOnly ? [] : ids.filter((id) => isOpenStop(id));
           const rows = (
             <ol
               className="tour-rows"
@@ -914,7 +990,7 @@ export function MyTourPage({
                   />
                 ) : (
                   <DoneRow
-                    busy={setState.isPending}
+                    busy={setState.isPending || readOnly}
                     expanded={expanded.has(id)}
                     key={id}
                     onToggle={() => toggleExpanded(id)}
@@ -983,6 +1059,7 @@ function TourBar({
   onDay,
   onReset,
   onToggleMap,
+  readOnly,
   resetting,
   total,
 }: {
@@ -999,6 +1076,8 @@ function TourBar({
   readonly onReset: () => void;
   /** Null without stops: nothing to show on a map. */
   readonly onToggleMap: (() => void) | null;
+  /** The device's copy offline: no order changes. */
+  readonly readOnly: boolean;
   readonly resetting: boolean;
   readonly total: number;
 }) {
@@ -1059,7 +1138,7 @@ function TourBar({
         day={tour?.day ?? null}
         onAction={onAction}
         onDay={onDay}
-        onReset={own ? onReset : null}
+        onReset={own && !readOnly ? onReset : null}
         resetting={resetting}
       />
     </>

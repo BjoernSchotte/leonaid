@@ -10884,6 +10884,48 @@
         "title": "Mutation",
         "type": "object"
       },
+      "MyTourReadRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "readAt": {
+            "description": "Wann das Gerät die Stopps des Fensters offline zeigte; höchstens 14 Tage zurück, nicht in der Zukunft (`tour_read_out_of_range`).",
+            "format": "date-time",
+            "title": "Readat",
+            "type": "string"
+          },
+          "windowId": {
+            "format": "uuid",
+            "title": "Windowid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "windowId",
+          "readAt"
+        ],
+        "title": "MyTourReadRequest",
+        "type": "object"
+      },
+      "MyTourReadsRequest": {
+        "additionalProperties": false,
+        "description": "Offline reads of \"Meine Tour\", sent with the next sync (spec §10).\nWindows without a stop of the driver are ignored.",
+        "properties": {
+          "reads": {
+            "items": {
+              "$ref": "#/components/schemas/MyTourReadRequest"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Reads",
+            "type": "array"
+          }
+        },
+        "required": [
+          "reads"
+        ],
+        "title": "MyTourReadsRequest",
+        "type": "object"
+      },
       "MyTourResponse": {
         "additionalProperties": false,
         "properties": {
@@ -26085,6 +26127,103 @@
           }
         },
         "summary": "Save My Tour Order",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/my-tour/reads": {
+      "post": {
+        "description": "Reads of \"Meine Tour\" the device showed offline (spec §10): each is\naudited at its read time; windows without an own stop are ignored.",
+        "operationId": "recordMyTourReads",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MyTourReadsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen (`request_invalid`). Stabile Fachcodes: `tour_read_out_of_range`."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Record My Tour Reads",
         "tags": [
           "actions"
         ]

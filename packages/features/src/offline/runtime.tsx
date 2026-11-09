@@ -4,13 +4,23 @@
  * the runtime while the flag `pwa.offline_queue` is on
  * (specs/pwa-offline-queue §16).
  */
-import { createContext, useContext, useSyncExternalStore } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useSyncExternalStore,
+} from "react";
 
 import { ApiError } from "@leonaid/api-client";
 
+import {
+  FEATURE_FLAGS,
+  useLeonAidEvaluatedFlag,
+} from "../feature-flags/openfeature-provider";
 import type { QueueController, QueueSnapshot } from "./controller";
 import type { CacheKind, DeviceStore } from "./device-store";
 import { cacheFreshness } from "./read-cache";
+import { purgeTourCaches } from "./tour-cache";
 
 export interface OfflineRuntime {
   /** The flag is on and the device storage is open. */
@@ -164,4 +174,20 @@ export async function readThrough<T>(
     deviceCopies.set(cached.value, cached.fetchedAt);
   }
   return cached.value;
+}
+
+/**
+ * The driver's tour copy needs both flags (krapfentaxi-touren §9, D14 g):
+ * once Core answers either as off, every tour copy leaves the device, also
+ * mid-session. A flag only assumed (offline, failed evaluation) deletes
+ * nothing.
+ */
+export function useTourCachePurge(): void {
+  const { store } = useOfflineRuntime();
+  const tours = useLeonAidEvaluatedFlag(FEATURE_FLAGS.deliveryTours);
+  const queue = useLeonAidEvaluatedFlag(FEATURE_FLAGS.pwaOfflineQueue);
+  useEffect(() => {
+    if (!store?.open || (tours !== false && queue !== false)) return;
+    void purgeTourCaches(store, null).catch(() => undefined);
+  }, [store, tours, queue]);
 }

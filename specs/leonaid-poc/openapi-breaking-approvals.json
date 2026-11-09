@@ -151,6 +151,14 @@
         "property-newly-required:DeliveryDropContactResponse.driverNote"
       ],
       "rationale": "Delivery tours Task 12 (specs/krapfentaxi-touren §5.1) adds the driver note to the board's drop contact. It is always present (null when the order has no note), like name and phone, so the generator marks it required. No field is removed or narrowed; the request field is optional. The only clients are the generated client and the apps of this repository, regenerated in the same change. Ratified by the lead under Björn's standing delegation on 2026-11-09 (task review of delivery tours Task 12). Approval is bound to these exact contract hashes and changes."
+    },
+    {
+      "oldSha256": "8091897f0754166efef8742e3eb56308b2bd85d5255502dfc6a51ecdb5753412",
+      "newSha256": "e35310b2af728bcdd8d6297e7a2a3e67419e10912c1b5b4c223c103a5cdfa208",
+      "changes": [
+        "property-newly-required:DeliveryDropContactResponse.driverNote"
+      ],
+      "rationale": "Delivery tours Task 13 (specs/krapfentaxi-touren §9, §10, D14 d) adds the operation recordMyTourReads (POST /api/v1/actions/{action_id}/my-tour/reads, 204) with its request schemas MyTourReadsRequest and MyTourReadRequest; a new operation is not breaking. The contract hash therefore changes, and the only breaking change against main is still Task 12's driver note on the drop contact, approved in the entry before for the Task 12 contract: always present (null when the order has no note), so the generator marks it required; no field is removed or narrowed. The only clients are the generated client and the apps of this repository, regenerated in the same change. Ratified by the lead under Björn's standing delegation on 2026-11-09 (delivery tours Task 13 brief: add a new entry, never edit an existing one). Approval is bound to these exact contract hashes and changes."
     }
   ]
 }

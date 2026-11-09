@@ -39,6 +39,7 @@ import {
   pendingDeviceEntries,
   useOfflineRuntime,
   useQueueSnapshot,
+  useTourCachePurge,
 } from "@leonaid/features/offline";
 
 import { forgetDevice, forgetSession } from "./device";
@@ -280,6 +281,8 @@ function PwaShell({
   readonly navigation: CurrentIdentityResponse["navigation"];
 }) {
   useLocationHref();
+  // A flag switched off mid-session takes the driver's tour copy along.
+  useTourCachePurge();
   const deliveryTours = useLeonAidSettledFlag(FEATURE_FLAGS.deliveryTours);
   const { active, menu, tabs } = mobileNavigation(
     navigation,
@@ -506,7 +509,16 @@ export function App({ client }: AppProps) {
     : undefined;
 
   return (
-    <FeatureFlagProvider client={client} identity={identity.data} surface="pwa">
+    <FeatureFlagProvider
+      // Out of reach of Core, the pages are those of the last online start
+      // (the driver's tour needs `delivery.tours` to show offline).
+      cached={
+        !lifecycle.online || device.startedOffline ? device.cachedFlags : null
+      }
+      client={client}
+      identity={identity.data}
+      surface="pwa"
+    >
       <OfflineRuntimeContext.Provider value={device.runtime}>
         <PwaShell
           campaign={currentAction}

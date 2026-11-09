@@ -25,6 +25,21 @@
   margin-top: var(--s-5);
 }
 
+/* The device's copy offline (§9): when it was loaded, actions wait. */
+.tour-offline {
+  display: grid;
+  gap: var(--s-1);
+  margin: var(--s-3) 0 var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--warn-soft);
+  font-size: var(--fs-sm);
+}
+.tour-offline strong {
+  color: var(--warn);
+  font-weight: var(--fw-semibold);
+}
+
 /* ---------- bar (critique §3 A) ---------- */
 .tour-bar-sub {
   overflow: hidden;
