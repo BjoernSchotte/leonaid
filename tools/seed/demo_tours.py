@@ -29,10 +29,16 @@ import asyncpg
 
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.delivery import AsyncpgDeliveryRepository
+from leonaid.adapters.feature_flags.openfeature import (
+    LeonAidFeatureProvider,
+    OpenFeatureBooleanEvaluator,
+)
 from leonaid.adapters.postgres.delivery_board import AsyncpgDeliveryBoardRepository
+from leonaid.adapters.postgres.feature_flags import AsyncpgFeatureFlagRepository
 from leonaid.application.commitments import CommitmentDraft, CommitmentLineDraft
 from leonaid.application.delivery import DeliveryService
 from leonaid.application.delivery_board import DeliveryBoardService
+from leonaid.application.feature_flags import FeatureFlagService
 from leonaid.application.errors import ApplicationError
 from leonaid.application.policies import require_action_manager
 from leonaid.domain.action_templates import OfferingUnit
@@ -488,12 +494,22 @@ async def manager_board(
     return board
 
 
+def board_service(pool: asyncpg.Pool[Any]) -> DeliveryBoardService:
+    """The board with the real flag service (missed needs delivery.tours)."""
+
+    flags = FeatureFlagService(
+        AsyncpgFeatureFlagRepository(pool),
+        OpenFeatureBooleanEvaluator(LeonAidFeatureProvider()),
+    )
+    return DeliveryBoardService(AsyncpgDeliveryBoardRepository(pool), flags=flags)
+
+
 async def ensure_tours(
     pool: asyncpg.Pool[Any],
     manager: IdentityPrincipal,
     orders: dict[str, UUID],
 ) -> DeliveryBoard:
-    service = DeliveryBoardService(AsyncpgDeliveryBoardRepository(pool))
+    service = board_service(pool)
     for driver in (*DRIVERS, None):
         await service.assign_driver(
             manager,
