@@ -214,6 +214,10 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
     for(const key of Object.keys(importer.environment)) assert.ok(!key.startsWith("TWENTY_") && key!=="CORE_POSTGRES_PASSWORD");
   }
   console.log("emdash-auth-runtime: isolated services and Edge-only probe; no host ports");'
+if [ "$orders" = true ] && [ -n "${LEONAID_CI_FIXTURE:-}" ]; then
+  # CI: Twenty starts from the migrated fixture, not a cold install (E-039).
+  python3 "$root/tools/emdash_spike/twenty_fixture.py" "$root" "$project"
+fi
 if [ "$orders:$mode" = true:migration ]; then
   # krapfentaxi-orders: start Twenty now, without waiting. Its first start
   # (migrations, about 90 s) overlaps the import and editor phases; the order
