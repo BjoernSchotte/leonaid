@@ -12,9 +12,11 @@ from pathlib import Path
 import shutil
 import sys
 
+# The harness modules, as tools/testing/seed_fixture.py imports them (that
+# directory is outside the typed sources).
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "testing"))
-from ci_fixture import validate  # noqa: E402
-from shared_stack import SharedStack  # noqa: E402
+from ci_fixture import validate  # type: ignore[import-not-found]  # noqa: E402
+from shared_stack import SharedStack  # type: ignore[import-not-found]  # noqa: E402
 
 TWENTY = {"twenty-postgres-data", "twenty-redis-data", "twenty-server-data"}
 
