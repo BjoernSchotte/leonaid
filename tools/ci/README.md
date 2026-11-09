@@ -227,7 +227,7 @@ bootstrap, fixture restore and image pulls before its first test. Most of the
 | Build | 1 | Canonical Compose build; the only job that writes the BuildKit cache |
 | Security | 1 | Policy lane (self-tests, pilot, release, pins, migrations, secret scan) beside the security stack test |
 | Vulnerability gate | 1 | Own images built and scanned with the checkout, both lockfiles and every pinned third-party image; four Trivy lanes on one read-only advisory snapshot |
-| `Integration / <shards>` | 4 | All Integration shards and Contract |
+| `Integration / <shards>` | 5 | All Integration shards and Contract |
 | `E2E / <leaves>` | 6 | All E2E leaves (E-037) |
 | `EmDash proof / <groups>` | 3 | `krapfentaxi-orders`; `krapfentaxi-deadlines` + `static`; `campaign-edge` |
 | Golden installation | 2 | Prepared and fresh installation (must stay separate runners) |

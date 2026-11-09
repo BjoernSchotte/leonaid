@@ -109,27 +109,26 @@ FLAGS = ("contract", "golden", "surveys", "api", "pins")
 # seconds are bin times, E2E seconds leaf sums; refresh them from the
 # "ci-integration: bin: <shard> passed (<n>s)" lines when a shard grows a lot.
 INTEGRATION_SECONDS = {
-    # Bin times of run 42569824316 (#180, 2026-11-09). A bin's first shard
-    # also pays its stack's preparation, so these are leg costs, not test
-    # times. schema and outbox ran as one shard: 199 s and 63 s by the log.
-    "seed-reset": 336,
-    "typst": 32,
-    "storage": 47,
-    "documents": 65,
-    "profiles": 58,
+    # Bin times of run 42585983970 (#193, 2026-11-09). A bin's first shard
+    # also pays its stack's preparation, so these are leg costs.
+    "seed-reset": 265,
+    "typst": 43,
+    "storage": 51,
+    "documents": 56,
+    "profiles": 67,
     "crm-gateway": 76,
-    "crm-import": 68,
-    "twenty-install": 52,
-    "policy": 48,
-    "schema": 199,
-    "outbox": 63,
-    "delivery": 12,
-    "api-contract": 36,
-    # Minus the lazy Twenty pulls (39 s, 31 s) that the leg prefetch removes.
-    "privacy": 121,
-    "acquisition-contracts": 179,
+    "crm-import": 58,
+    "twenty-install": 49,
+    "policy": 47,
+    "schema": 170,
+    "outbox": 59,
+    "delivery": 14,
+    "api-contract": 54,
+    "privacy": 100,
+    # 245 s minus about 30 s: actions and templates start no Twenty.
+    "acquisition-contracts": 215,
     # The Contract job (tools/ci/contract.sh) rides in an Integration bin.
-    "contract": 118,
+    "contract": 77,
 }
 # The PWA leaf runs as three (tools/ci/e2e.sh pwa, pwa-offline,
 # pwa-offline-webkit).
@@ -192,7 +191,8 @@ LEG_SETUP_SECONDS = 150
 SHARD_SETUP_SECONDS = {"integration": 90, "e2e": 0, "emdash": 90}
 LOAD_WARNING = 0.75
 # E-037: six E2E legs; the offline leaf no longer sets the floor (#193).
-MAX_BINS = {"integration": 4, "e2e": 6}
+# E-037: six E2E legs; five Integration legs (seed-reset is about 265 s now).
+MAX_BINS = {"integration": 5, "e2e": 6}
 # Integration shards that never start Twenty. Every other leg prefetches its
 # image beside the layer import: run 42569824316 pulled it lazily for 31 s
 # and 39 s inside the first leaf of two legs (acquisition-contracts, privacy).

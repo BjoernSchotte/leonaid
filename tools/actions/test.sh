@@ -71,6 +71,8 @@ run_python() {
 
 if [ -n "${LEONAID_TEST_STACK:-}" ]; then
   shared_services="proxy"
+  # Actions and templates never reach the CRM: no key, no Twenty.
+  shared_crm=none
   . "$root/tools/testing/borrow_stack.sh"
 else
 # Refuse existing resources and unreadable inventories before Docker mutations.
