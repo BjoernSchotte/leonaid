@@ -46,8 +46,8 @@ only) runs three existing tests on the prepared fixture: the real login flow
 (`sessions.spec.mjs` "login, normal work, fresh login, admin action and
 logout"), one list view (`modules-tasks.spec.mjs` "admin: S1 compact rows,
 status undo and concurrent conflict") and one public order
-(`public-orders.spec.mjs` "new company, existing company and private person
-order in the guided form", with its Core/Twenty verification). Each leaf filters its own specs with `--grep` when
+(`public-orders.spec.mjs` "a new company and a private person order in the
+guided form", with its Core/Twenty verification). Each leaf filters its own specs with `--grep` when
 `LEONAID_E2E_SMOKE=1`.
 
 The **import graph** (`e2e_owners`) parses `src/leonaid/**` with `ast`. A
