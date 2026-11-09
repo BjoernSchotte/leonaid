@@ -141,7 +141,9 @@ PRECISE: tuple[tuple[str, dict[str, Any]], ...] = (
     ),
     ("tools/ci/emdash.sh", {"emdash": sorted(s.EMDASH_GROUPS)}),
     ("tools/delivery/foundation.py", {"integration": ["delivery"]}),
-    ("tools/pwa/test.sh", {"e2e": ["pwa"]}),
+    ("tools/pwa/test.sh", {"e2e": ["pwa", "pwa-offline"]}),
+    ("tests/e2e/pwa-offline-queue.spec.mjs", {"e2e": ["pwa-offline"]}),
+    ("tests/e2e/pwa-audit.spec.mjs", {"e2e": ["pwa"]}),
 )
 
 
@@ -399,6 +401,18 @@ def main() -> int:
             "integration:policy" not in pr(path).suites,
             f"{path} does not reach the authorization contract",
         )
+    # rv-177 N1: the privacy rules (recipient normalization, inbox erasure)
+    # select the privacy contract before the merge.
+    for path in (
+        "src/leonaid/domain/privacy.py",
+        "src/leonaid/modules/inbox/privacy.py",
+        "src/leonaid/application/legal_configuration.py",
+    ):
+        expect(
+            ["privacy"] in pr(path).integration_bins(),
+            f"{path}: Integration / privacy must run before the merge: "
+            f"{pr(path).integration_bins()}",
+        )
     combined = pr("src/leonaid/domain/sessions.py", "tools/delivery/foundation.py")
     expect(
         combined.integration_bins() == [["policy"], ["api-contract", "delivery"]],
@@ -441,7 +455,7 @@ def main() -> int:
         ("src/leonaid/bootstrap/api.py", set(s.E2E_SHARDS)),
         ("src/leonaid/configuration.py", set(s.E2E_SHARDS)),
         ("src/leonaid/adapters/mail/smtp.py", {"membership", "invoice-flows"}),
-        ("src/leonaid/adapters/twenty/gateway.py", {"pwa"}),
+        ("src/leonaid/adapters/twenty/gateway.py", {"pwa", "pwa-offline"}),
         ("src/leonaid/adapters/typst/invoice_renderer.py", {"invoices"}),
         ("src/leonaid/entrypoints/worker/outbox.py", {"membership", "pwa"}),
     ):
@@ -610,7 +624,10 @@ def main() -> int:
     expect(set(s.EMDASH_SECONDS) == set(s.EMDASH_GROUPS), "EMDASH_SECONDS")
     expect(
         s.leg_estimate("integration", ["seed-reset", "policy"], s.INTEGRATION_SECONDS)
-        == s.LEG_SETUP_SECONDS + 2 * s.SHARD_SETUP_SECONDS["integration"] + 365 + 54,
+        == s.LEG_SETUP_SECONDS
+        + 2 * s.SHARD_SETUP_SECONDS["integration"]
+        + s.INTEGRATION_SECONDS["seed-reset"]
+        + s.INTEGRATION_SECONDS["policy"],
         "Integration estimates count a stack boot per shard",
     )
     original = dict(s.E2E_SECONDS)

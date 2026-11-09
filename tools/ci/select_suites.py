@@ -76,6 +76,7 @@ E2E_SHARDS = (
     "invoices",
     "commitments",
     "pwa",
+    "pwa-offline",
     "action-admin",
     "public-orders",
     "identity",
@@ -103,54 +104,46 @@ FLAGS = ("contract", "golden", "surveys", "api", "pins")
 # selected shards are bin-packed into at most MAX_BINS jobs per kind of about
 # TARGET_SECONDS of test time each. Every shard still runs exactly once, each
 # on its own fresh stack (tools/ci/integration.sh, e2e.sh). Integration
-# seconds are the bin times of run 42521057525 (2026-11-08), E2E seconds the
-# test-step durations of PR run 42360553738; refresh them from the
+# seconds are bin times, E2E seconds leaf sums; refresh them from the
 # "ci-integration: bin: <shard> passed (<n>s)" lines when a shard grows a lot.
 INTEGRATION_SECONDS = {
-    # Bin time of run 42547017244 (#177): the suite's only cold start, the
-    # golden.py second seed and the restart persistence asserts.
+    # Bin times of run 42547017244 (#177, 2026-11-09).
     "seed-reset": 365,
-    "typst": 42,
-    "storage": 103,
+    "typst": 53,
+    "storage": 66,
     "documents": 94,
-    "profiles": 90,
-    "crm-gateway": 92,
-    "crm-import": 66,
-    # 130 s, minus its own cold Twenty start: it runs on the fixture now.
-    "twenty-install": 60,
-    "policy": 54,
-    # About 240 s since the renderer API test joined it (#153).
-    "schema-outbox": 240,
+    "profiles": 99,
+    "crm-gateway": 77,
+    "crm-import": 41,
+    "twenty-install": 52,
+    "policy": 46,
+    "schema-outbox": 263,
     "delivery": 14,
-    # Local run 171 s incl. fixture restore: generation, typecheck and the
-    # live contract, without the former job's Twenty pull and boot.
-    "api-contract": 120,
-    # Bin times of run 42547017244 (#177).
+    "api-contract": 36,
     "privacy": 113,
     "acquisition-contracts": 251,
     # The Contract job (tools/ci/contract.sh) rides in an Integration bin.
-    "contract": 192,
+    "contract": 155,
 }
 E2E_SECONDS = {
-    # Leaf sums of run 42537284976 (2026-11-09, after E2E batches 1 and 2).
-    # The old table put pwa at 180 s; it takes 451 s (9 browser/viewport
-    # projects plus two offline browser runs), so one leg reached 885 s.
-    # Minus activity_feed (36 s), now Integration / acquisition-contracts.
-    "public-catalog": 171,
-    "membership": 70,
-    "invoices": 61,
-    "commitments": 81,
-    "pwa": 451,
-    "action-admin": 83,
-    "public-orders": 87,
-    "identity": 40,
-    "tasks": 87,
-    "knowledge": 72,
+    # Leaf sums of run 42552919966 (#179, Twenty kept between golden leaves;
+    # own-stack leaves included, e.g. multi_host 146 s in public-catalog).
+    "public-catalog": 255,
+    "membership": 97,
+    "invoices": 50,
+    "commitments": 41,
+    # The pwa leaf (369 s) by mode: local 69 s + 215 s, plus its setup twice.
+    "pwa": 110,
+    "pwa-offline": 280,
+    "action-admin": 65,
+    "public-orders": 133,
+    "identity": 60,
+    "tasks": 111,
+    "knowledge": 66,
     "inbox": 48,
-    "leitsystem-ui": 242,
-    # Minus privacy (49 s), now Integration / privacy.
-    "operations": 147,
-    "invoice-flows": 167,
+    "leitsystem-ui": 261,
+    "operations": 92,
+    "invoice-flows": 115,
     # Estimate: three single tests on two prepared stacks.
     SMOKE: 240,
 }
@@ -555,7 +548,13 @@ RULES: tuple[Rule, ...] = (
         e2e("commitments"),
         "commitment proofs",
     ),
-    Rule(("tools/pwa/**", "tests/e2e/pwa*.spec.mjs"), e2e("pwa"), "PWA proofs"),
+    Rule(
+        ("tests/e2e/pwa-offline*.spec.mjs",),
+        e2e("pwa-offline"),
+        "PWA offline specs",
+    ),
+    Rule(("tests/e2e/pwa*.spec.mjs",), e2e("pwa"), "PWA specs"),
+    Rule(("tools/pwa/**",), e2e("pwa", "pwa-offline"), "PWA proofs"),
     Rule(
         (
             "tests/e2e/identity.spec.mjs",
@@ -668,7 +667,7 @@ RULES: tuple[Rule, ...] = (
     ),
     Rule(
         ("packages/features/src/acquisition/**",),
-        e2e("pwa") | {"golden"},
+        e2e("pwa", "pwa-offline") | {"golden"},
         "acquisition UI",
     ),
     Rule(
@@ -759,16 +758,18 @@ def everything_but_e2e() -> frozenset[str]:
 # leonaid.application, leonaid.domain, leonaid.adapters.postgres and
 # leonaid.modules.<stem>.*. A changed module selects the owners of every
 # module that imports it, directly or transitively (``e2e_owners``).
+# The PWA leaf runs as two (tools/ci/e2e.sh pwa, pwa-offline).
+PWA = ("pwa", "pwa-offline")
 E2E_OWNERS: dict[str, tuple[str, ...]] = {
     "tasks": ("tasks",),
     "materials": ("knowledge",),
     "inbox": ("inbox",),
     "knowledge": ("knowledge",),
-    "acquisition": ("pwa",),
-    "sponsor_matching": ("pwa",),
-    "crm_matching": ("pwa",),
-    "activities": ("pwa",),
-    "assignments": ("pwa",),
+    "acquisition": PWA,
+    "sponsor_matching": PWA,
+    "crm_matching": PWA,
+    "activities": PWA,
+    "assignments": PWA,
     "activity_feed": ("public-catalog",),
     "activity_projection": ("public-catalog",),
     "campaign_aliases": ("public-catalog",),
@@ -793,9 +794,7 @@ E2E_OWNERS: dict[str, tuple[str, ...]] = {
     "invitations": ("membership",),
     "policies": ("identity",),
     "feature_flags": ("operations",),
-    "privacy": ("operations",),
     "operations": ("operations",),
-    "legal_configuration": ("operations",),
     "dashboard": ("leitsystem-ui",),
     "search": ("leitsystem-ui",),
     "public_orders": ("public-orders",),
@@ -805,7 +804,7 @@ _MESSAGING = (
     "membership",
     "invoice-flows",
     "public-orders",
-    "pwa",
+    *PWA,
 )
 ALL_E2E = "*"
 # Modules the reverse import graph cannot reach: LeonAid wires adapters and
@@ -817,7 +816,7 @@ MODULE_OWNERS: tuple[tuple[str, tuple[str, ...] | str], ...] = (
     ("leonaid.adapters.mail", ("membership", "invoice-flows", "public-orders")),
     (
         "leonaid.adapters.twenty",
-        ("pwa", "public-orders"),
+        (*PWA, "public-orders"),
     ),
     ("leonaid.adapters.typst", ("invoices", "invoice-flows")),
     ("leonaid.adapters.storage", ("knowledge", "inbox", "invoices")),
@@ -859,6 +858,12 @@ E2E_NEUTRAL: dict[str, str] = {
     "documents, including their browser coverage",
     "leonaid.adapters.postgres.documents": "document proofs run in Integration / "
     "documents, including their browser coverage",
+    # Erasure, suppression and the four-eyes activation: browser-free
+    # contracts in Integration / privacy, the admin UI in web vitest (#177).
+    # The other privacy modules reach leaves through their importers.
+    "leonaid.application.legal_configuration": "privacy and legal contracts run in Integration / privacy",
+    "leonaid.adapters.postgres.privacy": "privacy and legal contracts run in Integration / privacy",
+    "leonaid.adapters.postgres.legal_configuration": "privacy and legal contracts run in Integration / privacy",
 }
 
 OWNER_PACKAGES = (
