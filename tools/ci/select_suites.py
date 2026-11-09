@@ -107,10 +107,9 @@ FLAGS = ("contract", "golden", "surveys", "api", "pins")
 # test-step durations of PR run 42360553738; refresh them from the
 # "ci-integration: bin: <shard> passed (<n>s)" lines when a shard grows a lot.
 INTEGRATION_SECONDS = {
-    # 424 s, minus about 155 s (the second seed is the golden.py data step),
-    # plus about 60 s for the former compose shard's asserts and restart on
-    # the cold-reset stack: the suite's only cold start.
-    "seed-reset": 330,
+    # Bin time of run 42547017244 (#177): the suite's only cold start, the
+    # golden.py second seed and the restart persistence asserts.
+    "seed-reset": 365,
     "typst": 42,
     "storage": 103,
     "documents": 94,
@@ -126,12 +125,9 @@ INTEGRATION_SECONDS = {
     # Local run 171 s incl. fixture restore: generation, typecheck and the
     # live contract, without the former job's Twenty pull and boot.
     "api-contract": 120,
-    # Run 42543440382 leaves: privacy 49 s plus legal-configuration (local
-    # 105 s cold, about 45 s on the fixture).
-    "privacy": 95,
-    # Same run: matching 37, assignments 35, activities 37, activity_feed 36,
-    # actions 32, templates 28 (each about 25 s of stack restart).
-    "acquisition-contracts": 205,
+    # Bin times of run 42547017244 (#177).
+    "privacy": 113,
+    "acquisition-contracts": 251,
     # The Contract job (tools/ci/contract.sh) rides in an Integration bin.
     "contract": 192,
 }
@@ -230,8 +226,10 @@ FAST_REQUIRED: dict[str, tuple[str, ...]] = {
     "privacy": (
         "tools/privacy/**",
         "tools/legal_configuration/**",
+        "src/leonaid/domain/privacy.py",
         "src/leonaid/application/privacy.py",
         "src/leonaid/adapters/postgres/privacy.py",
+        "src/leonaid/modules/inbox/privacy.py",
         "src/leonaid/application/legal_configuration.py",
         "src/leonaid/adapters/postgres/legal_configuration.py",
         "src/leonaid/domain/legal_configuration.py",
