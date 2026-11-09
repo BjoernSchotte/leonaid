@@ -32,6 +32,7 @@ export * from "./delivery/delivery-board";
 export * from "./delivery/my-tour";
 export * from "./delivery/delivery-route";
 export * from "./delivery/tour-model";
+export * from "./delivery/tour-planner";
 export * from "./invoices/invoice-admin";
 export * from "./modules";
 export * from "./navigation/campaign-selection";

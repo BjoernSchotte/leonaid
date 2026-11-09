@@ -1,7 +1,8 @@
 /*
  * Delivery tours. "Meine Tour" (PWA, spec krapfentaxi-touren §7) is scoped
- * to .tour; it sits on .delivery for the board's filters, stamp and helpers.
- * Touch targets are 44 px (--control-h-lg); focus uses --focus.
+ * to .tour, the web planner "Touren" (§6) to .tour-plan; both sit on
+ * .delivery for the board's filters, stamp and helpers. PWA touch targets
+ * are 44 px (--control-h-lg); focus uses --focus.
  */
 .tour {
   display: grid;
@@ -315,9 +316,227 @@
   font-weight: var(--fw-semibold);
 }
 
+/* ================= web planner "Touren" (§6) ================= */
+.delivery .delivery-filters {
+  align-items: flex-end;
+}
+.delivery-view-switch {
+  flex: none;
+}
+.delivery-view-switch a {
+  height: 36px;
+}
+.tour-plan .bulkbar {
+  margin: 0 0 var(--s-4);
+}
+.tour-plan-hint {
+  margin-bottom: var(--s-4);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+/* Columns side by side; with many drivers the row scrolls, not the page. */
+.tour-lanes {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(320px, 1fr);
+  gap: var(--s-4);
+  align-items: start;
+  overflow-x: auto;
+  padding-bottom: var(--s-2);
+}
+.tour-lane {
+  display: grid;
+  min-width: 0;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color var(--dur-1) var(--ease-out);
+}
+.tour-lane.is-unassigned {
+  background: var(--surface-2);
+}
+.tour-lane.is-dirty {
+  border-color: var(--warn);
+}
+.tour-lane.is-over {
+  border-color: var(--zone);
+  box-shadow: 0 0 0 2px var(--zone-soft);
+}
+.tour-lane-head {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-4);
+  border-bottom: var(--hair) solid var(--border);
+}
+.tour-lane-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.tour-lane-title h2 {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tour-lane-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-2);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+.tour-lane-hint {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border: var(--hair) solid var(--zone-line);
+  border-radius: var(--r-md);
+  background: var(--zone-soft);
+  color: var(--zone-ink);
+  font-size: var(--fs-sm);
+}
+.tour-lane-hint.is-viewing {
+  border-style: dashed;
+}
+.tour-lane-hint-actions,
+.tour-lane-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+.tour-lane-empty {
+  padding: var(--s-5) var(--s-4);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+/* One window inside a column. */
+.tour-lane-window + .tour-lane-window {
+  border-top: var(--hair) solid var(--border);
+}
+.tour-lane-window-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-3);
+  padding: var(--s-2) var(--s-4);
+  background: var(--surface-2);
+  border-bottom: var(--hair) solid var(--border);
+}
+.tour-lane.is-unassigned .tour-lane-window-head {
+  background: var(--surface-3);
+}
+.tour-lane-window-head h3 {
+  margin-inline-end: auto;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.tour-lane-window.is-closed .tour-stop {
+  background: var(--surface-2);
+}
+
+/* Stops. `.row` is the sortable node of TaskOrderHandle. */
+.tour-plan .tour-stop {
+  gap: var(--s-2);
+  min-height: 52px;
+  padding: var(--s-1) var(--s-2) var(--s-1) var(--s-3);
+}
+.tour-plan .tour-stop:last-child {
+  border-bottom: 0;
+}
+.tour-plan .tour-stop[data-dragging] {
+  z-index: 2;
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  cursor: grabbing;
+}
+.tour-stop-check {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.tour-stop-check-space {
+  flex: none;
+  width: 16px;
+}
+.tour-plan .tour-pos {
+  min-width: 22px;
+  height: 22px;
+  font-size: var(--fs-xs);
+}
+.tour-stop-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+  cursor: pointer;
+}
+.tour-stop-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-2);
+  font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
+}
+.tour-stop-state {
+  display: inline-flex;
+}
+.tour-stop-sub {
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
+.tour-stop.is-done .tour-stop-name > span:first-child {
+  color: var(--text-2);
+}
+.tour-stop-tools {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+}
+
+@media (max-width: 720px) {
+  .delivery-view-switch a {
+    height: 44px;
+  }
+  /* Phone: one column under the other. */
+  .tour-lanes {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    grid-template-columns: minmax(0, 1fr);
+    overflow-x: visible;
+  }
+  .tour-plan .tour-stop {
+    flex-wrap: nowrap;
+    min-height: 56px;
+  }
+  .tour-stop-check {
+    width: 20px;
+    height: 20px;
+  }
+  .tour-stop-tools .btn-icon {
+    width: var(--control-h-lg);
+    height: var(--control-h-lg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tour .row,
-  .tour-row-chevron {
+  .tour-row-chevron,
+  .tour-plan .row,
+  .tour-lane {
     transition: none !important;
   }
 }

@@ -10,7 +10,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
   ApiError,
@@ -48,6 +48,25 @@ import { actionErrorMessage } from "../action-admin/errors";
 import { useContextCommands } from "../command-palette/store";
 import { formatDateTime } from "../shared/dates";
 import { ADMIN_BASE } from "@leonaid/ui/base-paths";
+import {
+  FEATURE_FLAGS,
+  useLeonAidSettledFlag,
+} from "../feature-flags/openfeature-provider";
+import {
+  BOARD_POLL_MS,
+  dayMonth,
+  deliveryTimeRange,
+  dropAddress,
+  longDay,
+  weekday,
+} from "./delivery-shared";
+import {
+  DeliveryViewSwitch,
+  TourPlanner,
+  type DeliveryView,
+} from "./tour-planner";
+
+export { BOARD_POLL_MS, deliveryTimeRange, dropAddress };
 
 /*
  * The delivery day board (prototype pages/Delivery.tsx). Managers see every
@@ -60,36 +79,6 @@ export type DeliverySurface = "web" | "pwa";
 const NO_DRIVER = "none";
 const ALL_DRIVERS = "all";
 
-const weekday = (iso: string, zone: string) =>
-  new Intl.DateTimeFormat("de-DE", { weekday: "short", timeZone: zone })
-    .format(new Date(iso))
-    .replace(".", "");
-
-const clock = (iso: string, zone: string) => {
-  const value = new Intl.DateTimeFormat("de-DE", {
-    hour: "2-digit",
-    hourCycle: "h23",
-    minute: "2-digit",
-    timeZone: zone,
-  }).format(new Date(iso));
-  return value.endsWith(":00") ? value.slice(0, 2) : value;
-};
-
-const dayMonth = (iso: string, zone: string) =>
-  new Intl.DateTimeFormat("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone: zone,
-  }).format(new Date(iso));
-
-/** "07–09" (window times in the action's zone). */
-export function deliveryTimeRange(
-  window: Pick<DeliveryBoardWindowResponse, "startsAt" | "endsAt">,
-  zone: string,
-) {
-  return `${clock(window.startsAt, zone)}–${clock(window.endsAt, zone)}`;
-}
-
 /** "Mi 11.11. · 07–09 Uhr" (prototype window label). */
 export function deliveryWindowLabel(
   window: Pick<DeliveryBoardWindowResponse, "startsAt" | "endsAt">,
@@ -97,19 +86,6 @@ export function deliveryWindowLabel(
 ) {
   return `${weekday(window.startsAt, zone)} ${dayMonth(window.startsAt, zone)} · ${deliveryTimeRange(window, zone)} Uhr`;
 }
-
-/** "Mittwoch, 11. November" for an ISO day. */
-function longDay(day: string) {
-  return new Intl.DateTimeFormat("de-DE", {
-    day: "numeric",
-    month: "long",
-    timeZone: "UTC",
-    weekday: "long",
-  }).format(new Date(`${day}T12:00:00Z`));
-}
-
-/** How often the managers' board reloads (drivers tick in the PWA). */
-export const BOARD_POLL_MS = 20_000;
 
 /** The board with one drop replaced by its newer state. */
 export function withDrop(
@@ -146,13 +122,6 @@ function locked(drop: DeliveryDropResponse, closed: boolean, manager: boolean) {
 }
 
 const boxes = (count: number) => `${count} ${count === 1 ? "Box" : "Boxen"}`;
-
-/** "Lieferweg 2, 86150 Augsburg", or null without an address. */
-export function dropAddress(drop: DeliveryDropResponse) {
-  const address = drop.address;
-  if (!address) return null;
-  return `${address.streetLine1}, ${address.postalCode} ${address.city}`;
-}
 
 const copy = {
   web: {
@@ -216,13 +185,84 @@ export interface DeliveryBoardPageProps {
   }[];
 }
 
-export function DeliveryBoardPage({
+/**
+ * The delivery page. On the web with the flag `delivery.tours` it offers
+ * "Liste" and "Touren" (spec krapfentaxi-touren §6), kept in `?view=` as
+ * the day is in `?day=`. Until the flag is known a `?view=tours` link shows
+ * a skeleton, so neither view loads for nothing or flashes.
+ */
+export function DeliveryBoardPage(props: DeliveryBoardPageProps) {
+  return props.surface === "web" ? (
+    <WebDeliveryPage {...props} />
+  ) : (
+    <DeliveryListPage {...props} />
+  );
+}
+
+const urlView = (): DeliveryView =>
+  new URLSearchParams(window.location.search).get("view") === "tours"
+    ? "tours"
+    : "list";
+const urlDay = () => new URLSearchParams(window.location.search).get("day");
+
+function WebDeliveryPage(props: DeliveryBoardPageProps) {
+  const tours = useLeonAidSettledFlag(FEATURE_FLAGS.deliveryTours);
+  const [view, setViewState] = useState<DeliveryView>(urlView);
+  // Read again on each switch: the list keeps its own day in the URL.
+  const [day, setDayState] = useState<string | null>(urlDay);
+  const setView = (next: DeliveryView) => {
+    const url = new URL(window.location.href);
+    if (next === "tours") url.searchParams.set("view", "tours");
+    else url.searchParams.delete("view");
+    window.history.replaceState(window.history.state, "", url);
+    setDayState(urlDay());
+    setViewState(next);
+  };
+  const setDay = (value: string) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("day", value);
+    window.history.replaceState(window.history.state, "", url);
+    setDayState(value);
+  };
+  if (view === "tours" && tours === null) {
+    return (
+      <div className="delivery" data-zone="delivery">
+        <SkeletonRows rows={6} />
+      </div>
+    );
+  }
+  if (view === "tours" && tours) {
+    return (
+      <TourPlanner
+        actionId={props.actionId}
+        client={props.client}
+        day={day}
+        key={props.actionId}
+        onDayChange={setDay}
+        onShowList={() => setView("list")}
+      />
+    );
+  }
+  return (
+    <DeliveryListPage
+      {...props}
+      viewSwitch={
+        tours ? (
+          <DeliveryViewSwitch onChange={setView} view="list" />
+        ) : undefined
+      }
+    />
+  );
+}
+
+function DeliveryListPage({
   actionId,
   actions = [],
   client,
   offline = false,
   surface,
-}: DeliveryBoardPageProps) {
+  viewSwitch,
+}: DeliveryBoardPageProps & { readonly viewSwitch?: ReactNode }) {
   const text = copy[surface];
   const hideOffline = surface === "pwa" && offline;
   const queries = useQueryClient();
@@ -610,7 +650,11 @@ export function DeliveryBoardPage({
           </div>
           <p className="page-sub">{text.intro}</p>
         </div>
-        {data && (data.days.length > 1 || manager || actions.length > 1) ? (
+        {data &&
+        (data.days.length > 1 ||
+          manager ||
+          actions.length > 1 ||
+          viewSwitch) ? (
           <div className="delivery-filters">
             {actions.length > 1 ? (
               <label className="driver-filter">
@@ -675,7 +719,10 @@ export function DeliveryBoardPage({
                 </select>
               </label>
             ) : null}
+            {viewSwitch}
           </div>
+        ) : viewSwitch ? (
+          <div className="delivery-filters">{viewSwitch}</div>
         ) : null}
       </header>
 

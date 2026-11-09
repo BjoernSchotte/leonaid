@@ -6,6 +6,7 @@ import {
   TouchSensor,
   useSensor,
   useSensors,
+  type DndContextProps,
   type DragEndEvent,
 } from "@dnd-kit/core";
 import {
@@ -23,6 +24,39 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+
+/** Mouse, touch (long press) and keyboard (space, arrows) for ordering. */
+export function useOrderingSensors() {
+  return useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 220, tolerance: 6 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+}
+
+/** German screen reader instructions and announcements for ordering. */
+export function orderingAccessibility(
+  noun: string,
+): NonNullable<DndContextProps["accessibility"]> {
+  return {
+    screenReaderInstructions: {
+      draggable:
+        "Zum Verschieben Leertaste drücken, mit den Pfeiltasten bewegen und mit Leertaste ablegen. Escape bricht ab.",
+    },
+    announcements: {
+      onDragStart: () => `${noun} aufgenommen.`,
+      onDragOver: ({ over }) =>
+        over ? "Neue Position gewählt." : "Kein Ziel gewählt.",
+      onDragEnd: ({ over }) =>
+        over ? `${noun} abgelegt.` : "Verschieben abgebrochen.",
+      onDragCancel: () => "Verschieben abgebrochen.",
+    },
+  };
+}
 
 /**
  * Drag and keyboard ordering of list rows. The list view renders the rows;
@@ -48,15 +82,7 @@ export function TaskOrdering({
     side: "before" | "after",
   ) => void;
 }) {
-  const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 220, tolerance: 6 },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
+  const sensors = useOrderingSensors();
   const finish = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return;
     const from = ids.indexOf(String(active.id));
@@ -70,20 +96,7 @@ export function TaskOrdering({
       collisionDetection={closestCenter}
       onDragEnd={finish}
       onDragCancel={onCancel}
-      accessibility={{
-        screenReaderInstructions: {
-          draggable:
-            "Zum Verschieben Leertaste drücken, mit den Pfeiltasten bewegen und mit Leertaste ablegen. Escape bricht ab.",
-        },
-        announcements: {
-          onDragStart: () => `${noun} aufgenommen.`,
-          onDragOver: ({ over }) =>
-            over ? "Neue Position gewählt." : "Kein Ziel gewählt.",
-          onDragEnd: ({ over }) =>
-            over ? `${noun} abgelegt.` : "Verschieben abgebrochen.",
-          onDragCancel: () => "Verschieben abgebrochen.",
-        },
-      }}
+      accessibility={orderingAccessibility(noun)}
     >
       <SortableContext
         items={ids as string[]}
