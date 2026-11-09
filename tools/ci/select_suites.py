@@ -257,7 +257,6 @@ FAST_REQUIRED: dict[str, tuple[str, ...]] = {
 HEAVY_FLAGS = frozenset({"golden", "surveys"})
 
 ALL = "*"
-MAIN_BRANCH = "main"
 # ci.yml's only schedule: the nightly run executes every E2E leaf.
 NIGHTLY_SCHEDULE = "7 3 * * *"
 # The lead sets it on risky pull requests: the complete suite before merge.
@@ -770,6 +769,10 @@ def everything_but_e2e() -> frozenset[str]:
     return everything() - e2e(*E2E_SHARDS)
 
 
+# After the merge seed-reset (about 265 s) runs only for its own inputs;
+# complete runs (nightly, full-ci) keep it (E-042).
+SEED_RESET_PATHS = ("tools/seed/**", "tools/core/**", "tests/fixtures/golden/**")
+
 # E2E leaves that own a Python module, by module stem. The stem matches in
 # leonaid.application, leonaid.domain, leonaid.adapters.postgres and
 # leonaid.modules.<stem>.*. A changed module selects the owners of every
@@ -1167,6 +1170,8 @@ def map_paths(changed: Sequence[str], root: Path | None) -> Mapped:
             # E2E leaves the import graph maps.
             owners = e2e_owners(path, root)
             selected = everything_but_e2e() | {SMOKE} | e2e(*(owners or ()))
+            if not matches(path, SEED_RESET_PATHS):
+                selected -= {"integration:seed-reset"}
             if owners is not None:
                 reason = (
                     f"{reason}; import graph: {', '.join(sorted(owners)) or 'no leaf'}"
