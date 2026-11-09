@@ -10,6 +10,13 @@ import {
 import { HotkeyProvider, ToastProvider } from "@leonaid/ui";
 
 import { SponsorWorkspace } from "../../../packages/features/src/acquisition/sponsor-workspace";
+import { QueueController } from "../../../packages/features/src/offline/controller";
+import { MemoryQueueStore } from "../../../packages/features/src/offline/queue";
+import {
+  DISABLED_OFFLINE_RUNTIME,
+  OfflineRuntimeContext,
+  type OfflineRuntime,
+} from "../../../packages/features/src/offline/runtime";
 
 const actionId = "20000000-0000-4000-8000-000000000001";
 const identity = {
@@ -165,5 +172,66 @@ describe("sponsor matching", () => {
     await waitFor(() =>
       expect(form.getAttribute("data-leave-guard")).toBe("off"),
     );
+  });
+});
+
+describe("sponsor draft check (offline queue §10.4)", () => {
+  // "Jetzt prüfen" loads the page anew. The PWA opens the device storage
+  // only after Core answered the flag request, so the form can mount before
+  // the queue exists. It must still open as the draft's check.
+  it("opens as the draft's check when the queue arrives after the form", async () => {
+    const queue = new QueueController({
+      send: async () => {
+        throw new Error("nothing is sent here");
+      },
+      store: new MemoryQueueStore(),
+      userId: identity.userId,
+    });
+    const draft = await queue.saveDraft({
+      actionId,
+      mode: "company",
+      request: {
+        city: "Augsburg",
+        companyName: "Offline Bäckerei",
+        email: null,
+        familyName: null,
+        givenName: null,
+        postalCode: null,
+        streetLine1: null,
+      },
+    });
+    await queue.reload();
+    expect(queue.snapshot.loaded).toBe(true);
+    window.history.replaceState(
+      null,
+      "",
+      `/app/sponsors?view=new&action=${actionId}&draft=${draft.entryId}`,
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const page = (runtime: OfflineRuntime) => (
+      <QueryClientProvider client={queryClient}>
+        <HotkeyProvider>
+          <ToastProvider>
+            <OfflineRuntimeContext.Provider value={runtime}>
+              <SponsorWorkspace
+                client={matchingClient([])}
+                identity={identity}
+              />
+            </OfflineRuntimeContext.Provider>
+          </ToastProvider>
+        </HotkeyProvider>
+      </QueryClientProvider>
+    );
+    const { rerender } = render(page(DISABLED_OFFLINE_RUNTIME));
+    // The device storage opened, and its queue had read the draft already.
+    rerender(
+      page({ enabled: true, queue, store: {} as OfflineRuntime["store"] }),
+    );
+    expect(await screen.findByTestId("sponsor-draft-check")).toBeTruthy();
+    expect(
+      (document.getElementById("sponsor-company") as HTMLInputElement).value,
+    ).toBe("Offline Bäckerei");
   });
 });

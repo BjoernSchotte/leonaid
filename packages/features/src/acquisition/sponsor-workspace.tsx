@@ -1155,6 +1155,16 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
     (entry): entry is SponsorDraftEntry =>
       entry.kind === "sponsor-draft" && entry.entryId === draftId,
   );
+  // NewSponsor reads the draft once, when it mounts. After "Jetzt prüfen"
+  // the page loads anew, and the form can mount before the device storage
+  // is open (that waits for Core's flag answer). When the draft shows up
+  // later, the form mounts again as the draft's check. The draft stays
+  // remembered, so the form stays mounted when the resolved draft leaves
+  // the queue.
+  const [shownDraftId, setShownDraftId] = useState<string | null>(null);
+  if (draftEntry && shownDraftId !== draftEntry.entryId) {
+    setShownDraftId(draftEntry.entryId);
+  }
   const assignmentId = query.get("assignment");
   const requestedStatus = query.get("status");
   const status = isAssignmentStatus(requestedStatus) ? requestedStatus : null;
@@ -1195,9 +1205,7 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
             client={client}
             draftEntry={draftEntry}
             identity={identity}
-            // The URL's draft keeps the form mounted when the resolved
-            // draft leaves the queue.
-            key={`${actionId}:${draftId ?? ""}`}
+            key={`${actionId}:${draftId ?? ""}:${shownDraftId ?? ""}`}
             onAssigned={() => board.refetch()}
           />
         )}
