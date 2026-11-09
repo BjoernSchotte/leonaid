@@ -1309,8 +1309,11 @@ describe("PWA delivery route", () => {
     // Never the acquirer start page while the flag loads.
     expect(screen.queryByText("Start page")).toBeNull();
     await screen.findByText("Tour page");
-    expect(`${window.location.pathname}${window.location.search}`).toBe(
-      `/app/delivery?action=${actionId}`,
+    // The URL moves in an effect after the render: wait for it.
+    await waitFor(() =>
+      expect(`${window.location.pathname}${window.location.search}`).toBe(
+        `/app/delivery?action=${actionId}`,
+      ),
     );
     view.unmount();
 
