@@ -1,0 +1,24 @@
+# Leaves without CRM use (shared_crm=none, tools/testing/borrow_stack.sh):
+# no key, so the API does not wait for Twenty (E-031), and Twenty never
+# starts. A leaf that does reach the CRM then fails visibly.
+services:
+  api:
+    depends_on: !override
+      core-volume-init:
+        condition: service_completed_successfully
+      survey-validator:
+        condition: service_healthy
+      core-postgres:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+  proxy:
+    depends_on: !override
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+      pwa:
+        condition: service_healthy
+      public:
+        condition: service_healthy

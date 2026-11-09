@@ -58,6 +58,7 @@ fi
 
 if [ -n "${LEONAID_TEST_STACK:-}" ]; then
   shared_services="proxy"
+  shared_crm=none
   . "$root/tools/testing/borrow_stack.sh"
 else
 # Refuse existing resources and unreadable inventories before Docker mutations.
