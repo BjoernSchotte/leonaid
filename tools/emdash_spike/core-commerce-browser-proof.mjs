@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile, writeFile } from "node:fs/promises";
-import { chromium, firefox, webkit, expect } from "@playwright/test";
+import { chromium, expect } from "@playwright/test";
 import { guardCsp } from "./csp-guard.mjs";
 import { browserLogin, coreLogout } from "./browser-login.mjs";
 
@@ -12,7 +12,9 @@ const action = "20000000-0000-4000-8000-000000000001";
 const price = ["baseline", "restored"].includes(phase) ? 3600 : 4250;
 const witness = "/proof/core-commerce-editorial.json";
 
-for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
+// Price, closed state and form presence are server-rendered (E-026); orders
+// run in Chromium only (E-028). Native and JS modes stay.
+for (const [name, engine] of Object.entries({ chromium })) {
   const browser = guardCsp(await engine.launch({ headless: true }));
   try {
     for (const javaScriptEnabled of [false, true]) {

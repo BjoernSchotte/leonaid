@@ -78,8 +78,11 @@ verify_owned_project_removed() {
 # build_shared_images SERVICE...
 #   Builds the images of $project's `compose` for SERVICE, reusing the
 #   content-hash tags shared by all checkouts and standalone suites: a hit is
-#   only tagged as "$project-<service>", a miss is built and (outside CI)
-#   recorded. The hash covers every build input (tools/testing/image_tags.py).
+#   only tagged as "$project-<service>", a miss is built and recorded. The
+#   hash covers every build input (tools/testing/image_tags.py). In CI the
+#   record lets the next suite of the same job reuse the image instead of
+#   exporting it again (EmDash cases: 35-52 s each); inputs cannot change
+#   within a job.
 build_shared_images() {
   shared_config=$(mktemp) || return 1
   # The effective build sections of this suite's own Compose files.
@@ -98,7 +101,7 @@ build_shared_images() {
     # Intentional splitting of the service list.
     # shellcheck disable=SC2086
     compose build $shared_missing || shared_status=1
-    if [ "$shared_status" -eq 0 ] && [ -z "${CI:-}" ]; then
+    if [ "$shared_status" -eq 0 ]; then
       # Recorded under the pre-build hashes, only if inputs did not change.
       # shellcheck disable=SC2046
       python3 "$root/tools/testing/image_tags.py" record "$project" "$shared_config" \

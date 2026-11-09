@@ -222,11 +222,12 @@ jobs:
           retention-days: 14
 
   emdash-cases:
-    # Own stacks, own synthetic seed: no prepared fixture needed. No workflow
-    # path filters: tools/ci/select_suites.py selects these for EmDash inputs
-    # and every shared Core, proxy or public change; the queue runs them all.
-    needs: select
-    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.emdash != '[]' }}
+    # Own stacks, own synthetic seed; the order cases take Twenty's migrated
+    # volumes from the prepared fixture (E-039). No workflow path filters:
+    # tools/ci/select_suites.py selects these for EmDash inputs and every
+    # shared Core, proxy or public change; the queue runs them all.
+    needs: [select, fixture]
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.emdash != '[]' && needs.fixture.result == 'success' }}
     name: EmDash proof ${{ matrix.bin.id }}/${{ matrix.bin.count }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -251,6 +252,10 @@ jobs:
         with:
           bootstrap: ${{ matrix.bin.bootstrap }}
           targets: emdash
+      - name: Use prepared synthetic data
+        uses: ./.github/actions/test-fixture
+        with:
+          key: ${{ needs.fixture.outputs.key }}
       - name: Finish freeing runner disk
         run: sh tools/ci/free-runner-disk.sh wait
       - name: List this leg's shards in the job summary
