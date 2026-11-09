@@ -419,9 +419,13 @@ test("account switch and sign-out delete the device copy (D6, §8.5)", async ({
 });
 
 test("the admin web app clears the device copy too (D6, §8.5)", async ({
+  browserName,
   context,
   page,
 }) => {
+  // The same forgetDevice() deletion as the PWA sign-out above, which
+  // WebKit proves; which app calls it is app logic.
+  test.skip(browserName === "webkit", "same deletion as the PWA sign-out");
   test.setTimeout(120_000);
   const KLARA_ID = "10000000-0000-4000-8000-000000000002";
   const openPwa = async () => {
