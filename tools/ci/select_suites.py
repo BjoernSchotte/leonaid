@@ -789,6 +789,7 @@ E2E_OWNERS: dict[str, tuple[str, ...]] = {
     "order_cancellation": ("commitments",),
     "delivery": ("action-admin", "invoices"),
     "delivery_board": ("invoices",),
+    "delivery_tours": ("invoices",),
     "delivery_completion": ("action-admin", "invoices"),
     "invoices": ("invoices", "invoice-flows"),
     "invoice_documents": ("invoices",),

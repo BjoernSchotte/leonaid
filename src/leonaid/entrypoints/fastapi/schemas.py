@@ -2698,8 +2698,18 @@ class DeliveryBoardResponse(TransportModel):
 
 
 class DeliveryStateRequest(TransportModel):
+    """Target state: delivered, missed ("Nicht angetroffen", spec D13) or
+    open when neither is set."""
+
     delivered: bool
+    missed: bool = False
     expected_revision: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def one_target(self) -> DeliveryStateRequest:
+        if self.delivered and self.missed:
+            raise ValueError("delivered and missed exclude each other")
+        return self
 
 
 class DeliveryDriverAssignmentRequest(TransportModel):

@@ -18,6 +18,7 @@ from leonaid.domain.delivery_board import (
     DeliveryBoardError,
     DeliveryDrop,
 )
+from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import ActionRole, IdentityPrincipal
 from leonaid.domain.policies import may_manage_action
 
@@ -71,6 +72,7 @@ class DeliveryBoardRepository(Protocol):
         manager: bool,
         request_id: str,
         occurred_at: datetime,
+        missed: bool = False,
     ) -> DeliveryDrop: ...
 
     async def assign_driver(
@@ -105,11 +107,13 @@ class DeliveryBoardRepository(Protocol):
     ) -> int: ...
 
 
-def _is_driver(actor: IdentityPrincipal, action_id: UUID) -> bool:
-    return ActionRole.DRIVER in actor.roles_for(action_id)
+def is_driver(actor: IdentityPrincipal, action_id: UUID) -> bool:
+    return actor.account.can_authenticate and ActionRole.DRIVER in actor.roles_for(
+        action_id
+    )
 
 
-def _require_manager(actor: IdentityPrincipal, action_id: UUID) -> None:
+def require_manager(actor: IdentityPrincipal, action_id: UUID) -> None:
     if not (actor.account.can_authenticate and may_manage_action(actor, action_id)):
         raise PermissionDenied(
             "delivery_management_required",
@@ -145,7 +149,7 @@ class DeliveryBoardService:
             )
         if may_manage_action(actor, action_id):
             driver = None
-        elif _is_driver(actor, action_id):
+        elif is_driver(actor, action_id):
             driver = actor.account.id
         else:
             raise PermissionDenied(
@@ -168,11 +172,18 @@ class DeliveryBoardService:
         expected_revision: int,
         request_id: str,
         occurred_at: datetime,
+        missed: bool = False,
     ) -> DeliveryDrop:
+        """Target state: ``delivered``, ``missed`` ("Nicht angetroffen", spec
+        D13) or open when neither is set."""
+
+        if delivered and missed:
+            raise DomainInvariantError(
+                "delivery_state_invalid",
+                "Eine Lieferung ist entweder zugestellt oder nicht angetroffen.",
+            )
         manager = actor.account.can_authenticate and may_manage_action(actor, action_id)
-        if not manager and not (
-            actor.account.can_authenticate and _is_driver(actor, action_id)
-        ):
+        if not manager and not is_driver(actor, action_id):
             raise PermissionDenied(
                 "delivery_board_forbidden", "Kein Zugriff auf die Auslieferung."
             )
@@ -181,6 +192,7 @@ class DeliveryBoardService:
                 action_id=action_id,
                 commitment_id=commitment_id,
                 delivered=delivered,
+                missed=missed,
                 expected_revision=expected_revision,
                 actor_user_id=actor.account.id,
                 manager=manager,
@@ -200,7 +212,7 @@ class DeliveryBoardService:
         request_id: str,
         occurred_at: datetime,
     ) -> int:
-        _require_manager(actor, action_id)
+        require_manager(actor, action_id)
         try:
             return await self._repository.assign_driver(
                 action_id=action_id,
@@ -222,7 +234,7 @@ class DeliveryBoardService:
         request_id: str,
         occurred_at: datetime,
     ) -> int:
-        _require_manager(actor, action_id)
+        require_manager(actor, action_id)
         try:
             return await self._repository.close_window(
                 action_id=action_id,
@@ -243,7 +255,7 @@ class DeliveryBoardService:
         request_id: str,
         occurred_at: datetime,
     ) -> int:
-        _require_manager(actor, action_id)
+        require_manager(actor, action_id)
         try:
             return await self._repository.reopen_window(
                 action_id=action_id,

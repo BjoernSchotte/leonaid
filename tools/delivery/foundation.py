@@ -274,6 +274,9 @@ async def prove() -> None:
 
         await prove_board(pool, action.id, admin_id)
         await prove_follow_up_list_race(pool, action.id)
+        from tools.delivery.tours import prove_tours
+
+        await prove_tours(pool, action.id, admin_id)
         from tools.delivery.privacy import prove_privacy
 
         await prove_privacy(pool, admin_id)

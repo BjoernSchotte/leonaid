@@ -61,6 +61,7 @@ from leonaid.adapters.postgres.legal_configuration import (
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.bootstrap.api import (
     build_delivery_board_service,
+    build_delivery_tour_service,
     build_order_cancellation_service,
     build_inbox_service,
     build_knowledge_service,
@@ -429,6 +430,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.feature_flag_service = FeatureFlagService(
             AsyncpgFeatureFlagRepository(pool),
             feature_flag_evaluator,
+        )
+        application.state.delivery_tour_service = build_delivery_tour_service(
+            pool, application.state.feature_flag_service
         )
         legal_configuration_repository = AsyncpgLegalConfigurationRepository(pool)
         application.state.legal_configuration_service = LegalConfigurationService(

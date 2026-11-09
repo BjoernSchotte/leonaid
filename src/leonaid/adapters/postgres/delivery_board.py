@@ -93,6 +93,247 @@ def _state(value: Any) -> DropState:
     return DropState(str(value)) if value is not None else DropState.OPEN
 
 
+async def action_context(
+    connection: asyncpg.Connection[Any], action_id: UUID
+) -> tuple[str, ZoneInfo]:
+    """The action's name and zone; 404 unless it plans deliveries."""
+
+    row = await connection.fetchrow(
+        """
+        SELECT action.name, configuration.enabled, configuration.timezone,
+            EXISTS (
+                SELECT 1 FROM charity_action_capability
+                WHERE action_id = action.id AND capability = 'delivery'
+            ) AS capable
+        FROM charity_action AS action
+        LEFT JOIN action_delivery_configuration AS configuration
+          ON configuration.action_id = action.id
+        WHERE action.id = $1
+        """,
+        action_id,
+    )
+    if row is None or not row["capable"] or not row["enabled"]:
+        raise ResourceNotFound(
+            "delivery_not_enabled",
+            "Für diese Aktion ist keine Lieferplanung aktiv.",
+        )
+    return str(row["name"]), ZoneInfo(
+        str(row["timezone"] or INSTALLATION_TIME_ZONE.key)
+    )
+
+
+async def fetch_drops(
+    connection: asyncpg.Connection[Any],
+    *,
+    action_id: UUID,
+    window_ids: list[UUID],
+    driver_user_id: UUID | None,
+    manager: bool,
+    commitment_id: UUID | None = None,
+) -> list[DeliveryDrop]:
+    """Drops of the windows; ``manager`` adds cancelled-but-delivered ones
+    and who changed what (P3)."""
+
+    rows = await connection.fetch(
+        """
+        SELECT
+            commitment.id, commitment.delivery_window_id, commitment.status,
+            commitment.customer_snapshot, commitment.delivery_recipient_snapshot,
+            commitment.delivery_contact_snapshot,
+            delivery.driver_user_id, driver.display_name AS driver_name,
+            delivery.state, delivery.state_changed_at,
+            changer.display_name AS changed_by_name,
+            COALESCE(delivery.revision, 0) AS revision,
+            COALESCE(delivery.missed_at_closure, false) AS missed_at_closure,
+            COALESCE((
+                SELECT jsonb_agg(
+                    jsonb_build_object('unit', unit, 'quantity', quantity)
+                    ORDER BY unit
+                )
+                FROM (
+                    SELECT line.unit_snapshot AS unit,
+                        sum(line.quantity)::int AS quantity
+                    FROM commitment_line AS line
+                    WHERE line.commitment_id = commitment.id
+                    GROUP BY line.unit_snapshot
+                ) AS grouped
+            ), '[]'::jsonb) AS quantities
+        FROM commitment
+        LEFT JOIN commitment_delivery AS delivery
+          ON delivery.commitment_id = commitment.id
+        LEFT JOIN user_account AS driver ON driver.id = delivery.driver_user_id
+        LEFT JOIN user_account AS changer
+          ON changer.id = delivery.state_changed_by_user_id
+        WHERE commitment.action_id = $1
+          AND commitment.delivery_window_id = ANY($2::uuid[])
+          AND (
+              commitment.status = ANY($3::text[])
+              -- Cancelled after delivery: the fact stays, managers only.
+              OR ($5 AND delivery.state = 'delivered')
+          )
+          AND ($4::uuid IS NULL OR delivery.driver_user_id = $4)
+          AND ($6::uuid IS NULL OR commitment.id = $6)
+        ORDER BY commitment.customer_snapshot ->> 'displayName', commitment.id
+        """,
+        action_id,
+        window_ids,
+        _DELIVERABLE,
+        driver_user_id,
+        manager,
+        commitment_id,
+    )
+    drops: list[DeliveryDrop] = []
+    for row in rows:
+        customer = _json(row["customer_snapshot"]) or {}
+        recipient = _json(row["delivery_recipient_snapshot"])
+        contact = _json(row["delivery_contact_snapshot"])
+        quantities = tuple(
+            DropQuantity(unit=str(item["unit"]), quantity=int(item["quantity"]))
+            for item in (
+                json.loads(row["quantities"])
+                if isinstance(row["quantities"], str)
+                else row["quantities"]
+            )
+        )
+        drops.append(
+            DeliveryDrop(
+                commitment_id=row["id"],
+                window_id=row["delivery_window_id"],
+                buyer_name=str(customer.get("displayName") or "Besteller"),
+                quantities=quantities,
+                total_boxes=sum(
+                    item.quantity for item in quantities if item.unit == "box"
+                ),
+                address=(
+                    DropAddress(
+                        recipient_name=str(recipient.get("recipientName") or ""),
+                        street_line_1=str(recipient.get("streetLine1") or ""),
+                        postal_code=str(recipient.get("postalCode") or ""),
+                        city=str(recipient.get("city") or ""),
+                    )
+                    if recipient
+                    else None
+                ),
+                contact=(
+                    DropContact(
+                        name=(str(contact["name"]) if contact.get("name") else None),
+                        phone=(str(contact["phone"]) if contact.get("phone") else None),
+                    )
+                    if contact
+                    else None
+                ),
+                state=_state(row["state"]),
+                # Drivers get the state only, not who changed it when
+                # (Björn P3); their own name they know.
+                state_changed_at=row["state_changed_at"] if manager else None,
+                state_changed_by_name=(
+                    str(row["changed_by_name"])
+                    if manager and row["changed_by_name"] is not None
+                    else None
+                ),
+                driver_user_id=row["driver_user_id"],
+                driver_name=(
+                    str(row["driver_name"])
+                    if manager and row["driver_name"] is not None
+                    else None
+                ),
+                revision=int(row["revision"]),
+                order_status=str(row["status"]) if manager else None,
+                missed_at_closure=bool(row["missed_at_closure"]),
+            )
+        )
+    return drops
+
+
+async def insert_audit(
+    connection: asyncpg.Connection[Any],
+    *,
+    action_id: UUID,
+    actor_user_id: UUID,
+    event_type: str,
+    entity_type: str,
+    entity_id: UUID,
+    request_id: str,
+    payload: dict[str, Any],
+    occurred_at: datetime,
+) -> None:
+    await connection.execute(
+        """
+        INSERT INTO audit_event (
+            id, action_id, actor_user_id, event_type, entity_type,
+            entity_id, request_id, payload, occurred_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
+        """,
+        uuid4(),
+        action_id,
+        actor_user_id,
+        event_type,
+        entity_type,
+        entity_id,
+        request_id,
+        json.dumps(payload, separators=(",", ":")),
+        occurred_at,
+    )
+
+
+async def record_read_audit(
+    connection: asyncpg.Connection[Any],
+    *,
+    driver_user_id: UUID,
+    action_id: UUID,
+    window_ids: list[UUID],
+    viewed_at: datetime,
+    zone: ZoneInfo,
+) -> None:
+    """The first read of each window per driver and club day (kept 90 days)."""
+
+    await connection.executemany(
+        """
+        INSERT INTO delivery_read_audit (
+            driver_user_id, window_id, viewed_on, action_id, first_viewed_at
+        )
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT DO NOTHING
+        """,
+        [
+            (
+                driver_user_id,
+                window_id,
+                local_day(viewed_at, zone),
+                action_id,
+                viewed_at,
+            )
+            for window_id in window_ids
+        ],
+    )
+
+
+async def active_drivers(
+    connection: asyncpg.Connection[Any], action_id: UUID
+) -> tuple[BoardDriver, ...]:
+    """Members with an active driver role, for assignment."""
+
+    return tuple(
+        BoardDriver(user_id=row["id"], display_name=str(row["display_name"]))
+        for row in await connection.fetch(
+            """
+            SELECT DISTINCT account.id, account.display_name
+            FROM action_membership AS membership
+            JOIN user_account AS account ON account.id = membership.user_id
+            WHERE membership.action_id = $1
+              AND membership.role = 'driver'
+              AND membership.active_from <= now()
+              AND (membership.active_until IS NULL
+                   OR membership.active_until > now())
+              AND account.status = 'active'
+            ORDER BY account.display_name, account.id
+            """,
+            action_id,
+        )
+    )
+
+
 class AsyncpgDeliveryBoardRepository:
     def __init__(
         self,
@@ -103,32 +344,6 @@ class AsyncpgDeliveryBoardRepository:
         self._follow_up = follow_up
 
     # ---------- reads ----------
-
-    async def _context(
-        self, connection: asyncpg.Connection[Any], action_id: UUID
-    ) -> tuple[str, ZoneInfo]:
-        row = await connection.fetchrow(
-            """
-            SELECT action.name, configuration.enabled, configuration.timezone,
-                EXISTS (
-                    SELECT 1 FROM charity_action_capability
-                    WHERE action_id = action.id AND capability = 'delivery'
-                ) AS capable
-            FROM charity_action AS action
-            LEFT JOIN action_delivery_configuration AS configuration
-              ON configuration.action_id = action.id
-            WHERE action.id = $1
-            """,
-            action_id,
-        )
-        if row is None or not row["capable"] or not row["enabled"]:
-            raise ResourceNotFound(
-                "delivery_not_enabled",
-                "Für diese Aktion ist keine Lieferplanung aktiv.",
-            )
-        return str(row["name"]), ZoneInfo(
-            str(row["timezone"] or INSTALLATION_TIME_ZONE.key)
-        )
 
     async def board(
         self,
@@ -141,7 +356,7 @@ class AsyncpgDeliveryBoardRepository:
         manager = driver_user_id is None
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                action_name, zone = await self._context(connection, action_id)
+                action_name, zone = await action_context(connection, action_id)
                 windows = await connection.fetch(
                     """
                     SELECT window_row.id, window_row.starts_at, window_row.ends_at,
@@ -158,7 +373,7 @@ class AsyncpgDeliveryBoardRepository:
                     """,
                     action_id,
                 )
-                drops = await self._drops(
+                drops = await fetch_drops(
                     connection,
                     action_id=action_id,
                     window_ids=[row["id"] for row in windows],
@@ -186,49 +401,15 @@ class AsyncpgDeliveryBoardRepository:
                     and local_day(row["starts_at"], zone) == selected
                 ]
                 if not manager and driver_user_id is not None and selected is not None:
-                    await connection.executemany(
-                        """
-                        INSERT INTO delivery_read_audit (
-                            driver_user_id, window_id, viewed_on, action_id,
-                            first_viewed_at
-                        )
-                        VALUES ($1, $2, $3, $4, $5)
-                        ON CONFLICT DO NOTHING
-                        """,
-                        [
-                            (
-                                driver_user_id,
-                                row["id"],
-                                local_day(viewed_at, zone),
-                                action_id,
-                                viewed_at,
-                            )
-                            for row in selected_windows
-                        ],
+                    await record_read_audit(
+                        connection,
+                        driver_user_id=driver_user_id,
+                        action_id=action_id,
+                        window_ids=[row["id"] for row in selected_windows],
+                        viewed_at=viewed_at,
+                        zone=zone,
                     )
-                drivers: tuple[BoardDriver, ...] = ()
-                if manager:
-                    drivers = tuple(
-                        BoardDriver(
-                            user_id=row["id"], display_name=str(row["display_name"])
-                        )
-                        for row in await connection.fetch(
-                            """
-                            SELECT DISTINCT account.id, account.display_name
-                            FROM action_membership AS membership
-                            JOIN user_account AS account
-                              ON account.id = membership.user_id
-                            WHERE membership.action_id = $1
-                              AND membership.role = 'driver'
-                              AND membership.active_from <= now()
-                              AND (membership.active_until IS NULL
-                                   OR membership.active_until > now())
-                              AND account.status = 'active'
-                            ORDER BY account.display_name, account.id
-                            """,
-                            action_id,
-                        )
-                    )
+                drivers = await active_drivers(connection, action_id) if manager else ()
         return DeliveryBoard(
             action_id=action_id,
             action_name=action_name,
@@ -262,130 +443,6 @@ class AsyncpgDeliveryBoardRepository:
             follow_up_tasks=self._follow_up is not None,
         )
 
-    async def _drops(
-        self,
-        connection: asyncpg.Connection[Any],
-        *,
-        action_id: UUID,
-        window_ids: list[UUID],
-        driver_user_id: UUID | None,
-        manager: bool,
-        commitment_id: UUID | None = None,
-    ) -> list[DeliveryDrop]:
-        rows = await connection.fetch(
-            """
-            SELECT
-                commitment.id, commitment.delivery_window_id, commitment.status,
-                commitment.customer_snapshot, commitment.delivery_recipient_snapshot,
-                commitment.delivery_contact_snapshot,
-                delivery.driver_user_id, driver.display_name AS driver_name,
-                delivery.state, delivery.state_changed_at,
-                changer.display_name AS changed_by_name,
-                COALESCE(delivery.revision, 0) AS revision,
-                COALESCE(delivery.missed_at_closure, false) AS missed_at_closure,
-                COALESCE((
-                    SELECT jsonb_agg(
-                        jsonb_build_object('unit', unit, 'quantity', quantity)
-                        ORDER BY unit
-                    )
-                    FROM (
-                        SELECT line.unit_snapshot AS unit,
-                            sum(line.quantity)::int AS quantity
-                        FROM commitment_line AS line
-                        WHERE line.commitment_id = commitment.id
-                        GROUP BY line.unit_snapshot
-                    ) AS grouped
-                ), '[]'::jsonb) AS quantities
-            FROM commitment
-            LEFT JOIN commitment_delivery AS delivery
-              ON delivery.commitment_id = commitment.id
-            LEFT JOIN user_account AS driver ON driver.id = delivery.driver_user_id
-            LEFT JOIN user_account AS changer
-              ON changer.id = delivery.state_changed_by_user_id
-            WHERE commitment.action_id = $1
-              AND commitment.delivery_window_id = ANY($2::uuid[])
-              AND (
-                  commitment.status = ANY($3::text[])
-                  -- Cancelled after delivery: the fact stays, managers only.
-                  OR ($5 AND delivery.state = 'delivered')
-              )
-              AND ($4::uuid IS NULL OR delivery.driver_user_id = $4)
-              AND ($6::uuid IS NULL OR commitment.id = $6)
-            ORDER BY commitment.customer_snapshot ->> 'displayName', commitment.id
-            """,
-            action_id,
-            window_ids,
-            _DELIVERABLE,
-            driver_user_id,
-            manager,
-            commitment_id,
-        )
-        drops: list[DeliveryDrop] = []
-        for row in rows:
-            customer = _json(row["customer_snapshot"]) or {}
-            recipient = _json(row["delivery_recipient_snapshot"])
-            contact = _json(row["delivery_contact_snapshot"])
-            quantities = tuple(
-                DropQuantity(unit=str(item["unit"]), quantity=int(item["quantity"]))
-                for item in (
-                    json.loads(row["quantities"])
-                    if isinstance(row["quantities"], str)
-                    else row["quantities"]
-                )
-            )
-            drops.append(
-                DeliveryDrop(
-                    commitment_id=row["id"],
-                    window_id=row["delivery_window_id"],
-                    buyer_name=str(customer.get("displayName") or "Besteller"),
-                    quantities=quantities,
-                    total_boxes=sum(
-                        item.quantity for item in quantities if item.unit == "box"
-                    ),
-                    address=(
-                        DropAddress(
-                            recipient_name=str(recipient.get("recipientName") or ""),
-                            street_line_1=str(recipient.get("streetLine1") or ""),
-                            postal_code=str(recipient.get("postalCode") or ""),
-                            city=str(recipient.get("city") or ""),
-                        )
-                        if recipient
-                        else None
-                    ),
-                    contact=(
-                        DropContact(
-                            name=(
-                                str(contact["name"]) if contact.get("name") else None
-                            ),
-                            phone=(
-                                str(contact["phone"]) if contact.get("phone") else None
-                            ),
-                        )
-                        if contact
-                        else None
-                    ),
-                    state=_state(row["state"]),
-                    # Drivers get the state only, not who changed it when
-                    # (Björn P3); their own name they know.
-                    state_changed_at=row["state_changed_at"] if manager else None,
-                    state_changed_by_name=(
-                        str(row["changed_by_name"])
-                        if manager and row["changed_by_name"] is not None
-                        else None
-                    ),
-                    driver_user_id=row["driver_user_id"],
-                    driver_name=(
-                        str(row["driver_name"])
-                        if manager and row["driver_name"] is not None
-                        else None
-                    ),
-                    revision=int(row["revision"]),
-                    order_status=str(row["status"]) if manager else None,
-                    missed_at_closure=bool(row["missed_at_closure"]),
-                )
-            )
-        return drops
-
     # ---------- commands ----------
 
     async def _lock_window(
@@ -410,38 +467,6 @@ class AsyncpgDeliveryBoardRepository:
                 "delivery_window_not_found", "Das Lieferfenster wurde nicht gefunden."
             )
         return row
-
-    async def _audit(
-        self,
-        connection: asyncpg.Connection[Any],
-        *,
-        action_id: UUID,
-        actor_user_id: UUID,
-        event_type: str,
-        entity_type: str,
-        entity_id: UUID,
-        request_id: str,
-        payload: dict[str, Any],
-        occurred_at: datetime,
-    ) -> None:
-        await connection.execute(
-            """
-            INSERT INTO audit_event (
-                id, action_id, actor_user_id, event_type, entity_type,
-                entity_id, request_id, payload, occurred_at
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
-            """,
-            uuid4(),
-            action_id,
-            actor_user_id,
-            event_type,
-            entity_type,
-            entity_id,
-            request_id,
-            json.dumps(payload, separators=(",", ":")),
-            occurred_at,
-        )
 
     async def _sync_follow_up(
         self,
@@ -493,10 +518,11 @@ class AsyncpgDeliveryBoardRepository:
         manager: bool,
         request_id: str,
         occurred_at: datetime,
+        missed: bool = False,
     ) -> DeliveryDrop:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                _, zone = await self._context(connection, action_id)
+                _, zone = await action_context(connection, action_id)
                 if not manager and not await connection.fetchval(
                     """
                     SELECT EXISTS (
@@ -530,7 +556,7 @@ class AsyncpgDeliveryBoardRepository:
                         "Diese Lieferung wurde nicht gefunden.",
                     )
                 window = await self._lock_window(connection, action_id, window_id)
-                current = await self._drops(
+                current = await fetch_drops(
                     connection,
                     action_id=action_id,
                     window_ids=[window_id],
@@ -552,6 +578,7 @@ class AsyncpgDeliveryBoardRepository:
                 change = decide_state_change(
                     current=drop.state,
                     delivered=delivered,
+                    missed=missed,
                     window_closed=bool(window["closed"]),
                     manager=manager,
                     assigned_driver=drop.driver_user_id == actor_user_id,
@@ -590,7 +617,7 @@ class AsyncpgDeliveryBoardRepository:
                 )
                 # missed_at_closure stays as the closure set it: a later
                 # delivery of a missed drop may still be undone to missed.
-                await self._audit(
+                await insert_audit(
                     connection,
                     action_id=action_id,
                     actor_user_id=actor_user_id,
@@ -630,7 +657,7 @@ class AsyncpgDeliveryBoardRepository:
                         request_id=request_id,
                         occurred_at=occurred_at,
                     )
-                updated = await self._drops(
+                updated = await fetch_drops(
                     connection,
                     action_id=action_id,
                     window_ids=[window_id],
@@ -702,7 +729,7 @@ class AsyncpgDeliveryBoardRepository:
         request_id: str,
         occurred_at: datetime,
     ) -> int:
-        await self._context(connection, action_id)
+        await action_context(connection, action_id)
         if driver_user_id is not None and not await connection.fetchval(
             f"SELECT EXISTS ({_ACTIVE_DRIVER})", action_id, driver_user_id
         ):
@@ -754,6 +781,10 @@ class AsyncpgDeliveryBoardRepository:
                 driver_user_id = EXCLUDED.driver_user_id,
                 driver_assigned_by_user_id = EXCLUDED.driver_assigned_by_user_id,
                 driver_assigned_at = EXCLUDED.driver_assigned_at,
+                -- A stop that changes tour leaves both orders (tours spec §5).
+                base_position = NULL,
+                driver_position = NULL,
+                driver_ordered_at = NULL,
                 revision = commitment_delivery.revision + 1
             WHERE commitment_delivery.driver_user_id
                 IS DISTINCT FROM EXCLUDED.driver_user_id
@@ -766,7 +797,7 @@ class AsyncpgDeliveryBoardRepository:
         )
         changed = int(status.rsplit(" ", 1)[-1])
         if changed:
-            await self._audit(
+            await insert_audit(
                 connection,
                 action_id=action_id,
                 actor_user_id=actor_user_id,
@@ -793,7 +824,7 @@ class AsyncpgDeliveryBoardRepository:
     ) -> int:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                _, zone = await self._context(connection, action_id)
+                _, zone = await action_context(connection, action_id)
                 window = await self._lock_window(connection, action_id, window_id)
                 if window["closed"]:
                     return int(
@@ -803,20 +834,31 @@ class AsyncpgDeliveryBoardRepository:
                             window_id,
                         )
                     )
-                drops = await self._drops(
+                drops = await fetch_drops(
                     connection,
                     action_id=action_id,
                     window_ids=[window_id],
                     driver_user_id=None,
                     manager=True,
                 )
-                missed = [
+                deliverable = [
                     drop
                     for drop in drops
-                    if drop.state is DropState.OPEN
-                    and drop.order_status in DELIVERABLE_ORDER_STATUSES
+                    if drop.order_status in DELIVERABLE_ORDER_STATUSES
                 ]
-                if missed:
+                # Open drops become missed at closure. Drops the driver
+                # already marked missed (D13) keep their state and
+                # missed_at_closure stays false, so a reopen keeps the
+                # driver's mark (Rulings 5, 6). Both get the follow-up.
+                newly_missed = [
+                    drop for drop in deliverable if drop.state is DropState.OPEN
+                ]
+                missed = [
+                    drop
+                    for drop in deliverable
+                    if drop.state in (DropState.OPEN, DropState.MISSED)
+                ]
+                if newly_missed:
                     await connection.execute(
                         """
                         INSERT INTO commitment_delivery (
@@ -832,7 +874,7 @@ class AsyncpgDeliveryBoardRepository:
                             state_changed_by_user_id = EXCLUDED.state_changed_by_user_id,
                             revision = commitment_delivery.revision + 1
                         """,
-                        [drop.commitment_id for drop in missed],
+                        [drop.commitment_id for drop in newly_missed],
                         action_id,
                         occurred_at,
                         actor_user_id,
@@ -851,7 +893,7 @@ class AsyncpgDeliveryBoardRepository:
                     actor_user_id,
                     len(missed),
                 )
-                await self._audit(
+                await insert_audit(
                     connection,
                     action_id=action_id,
                     actor_user_id=actor_user_id,
@@ -893,11 +935,11 @@ class AsyncpgDeliveryBoardRepository:
     ) -> int:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                _, zone = await self._context(connection, action_id)
+                _, zone = await action_context(connection, action_id)
                 window = await self._lock_window(connection, action_id, window_id)
                 if not window["closed"]:
                     return 0
-                drops = await self._drops(
+                drops = await fetch_drops(
                     connection,
                     action_id=action_id,
                     window_ids=[window_id],
@@ -905,8 +947,11 @@ class AsyncpgDeliveryBoardRepository:
                     manager=True,
                 )
                 missed = [drop for drop in drops if drop.state is DropState.MISSED]
-                # Later deliveries stay delivered; reopening makes their
-                # window an ordinary open window again.
+                # Only the closure's marks go back to open; a drop the
+                # driver marked missed stays missed (Ruling 6). Later
+                # deliveries stay delivered; reopening makes their window an
+                # ordinary open window again.
+                reverted = [drop for drop in missed if drop.missed_at_closure]
                 await connection.execute(
                     """
                     UPDATE commitment_delivery SET missed_at_closure = false
@@ -914,7 +959,7 @@ class AsyncpgDeliveryBoardRepository:
                     """,
                     [drop.commitment_id for drop in drops],
                 )
-                if missed:
+                if reverted:
                     await connection.execute(
                         """
                         UPDATE commitment_delivery
@@ -924,13 +969,13 @@ class AsyncpgDeliveryBoardRepository:
                             revision = revision + 1
                         WHERE commitment_id = ANY($1::uuid[])
                         """,
-                        [drop.commitment_id for drop in missed],
+                        [drop.commitment_id for drop in reverted],
                     )
                 await connection.execute(
                     "DELETE FROM delivery_window_closure WHERE window_id = $1",
                     window_id,
                 )
-                await self._audit(
+                await insert_audit(
                     connection,
                     action_id=action_id,
                     actor_user_id=actor_user_id,
@@ -940,11 +985,13 @@ class AsyncpgDeliveryBoardRepository:
                     request_id=request_id,
                     payload={
                         "reopenedCommitmentIds": [
-                            str(drop.commitment_id) for drop in missed
+                            str(drop.commitment_id) for drop in reverted
                         ]
                     },
                     occurred_at=occurred_at,
                 )
+                # An open window has no follow-ups; closing again reopens
+                # them, the driver's marks included.
                 label = window_label(window["starts_at"], window["ends_at"], zone)
                 for drop in missed:
                     await self._sync_follow_up(
@@ -958,7 +1005,7 @@ class AsyncpgDeliveryBoardRepository:
                         request_id=request_id,
                         occurred_at=occurred_at,
                     )
-                return len(missed)
+                return len(reverted)
 
 
 async def purge_read_audits(

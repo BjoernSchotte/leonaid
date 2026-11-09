@@ -5600,6 +5600,7 @@ async def set_delivery_state(
         action_id,
         commitment_id,
         delivered=body.delivered,
+        missed=body.missed,
         expected_revision=body.expected_revision,
         request_id=request_id(request),
         occurred_at=datetime.now(timezone.utc),

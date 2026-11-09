@@ -6448,6 +6448,7 @@
       },
       "DeliveryStateRequest": {
         "additionalProperties": false,
+        "description": "Target state: delivered, missed (\"Nicht angetroffen\", spec D13) or\nopen when neither is set.",
         "properties": {
           "delivered": {
             "title": "Delivered",
@@ -6457,6 +6458,11 @@
             "minimum": 0.0,
             "title": "Expectedrevision",
             "type": "integer"
+          },
+          "missed": {
+            "default": false,
+            "title": "Missed",
+            "type": "boolean"
           }
         },
         "required": [
