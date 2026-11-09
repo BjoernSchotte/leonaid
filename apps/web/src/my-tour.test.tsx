@@ -17,6 +17,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   type DeliveryDropResponse,
+  type DeliveryTourOrderRequest,
   type DeliveryTourResponse,
   type DeliveryTourStopResponse,
   type DeliveryTourWindowResponse,
@@ -979,7 +980,104 @@ describe("Meine Tour", () => {
       expect(
         left.map((item) => item.kind === "delivery-state" && item.commitmentId),
       ).toEqual(["c2"]);
+      // The unsent mark is gone: nothing is promised to be sent.
+      expect(
+        await screen.findByText("Bäckerei Kern ist wieder offen."),
+      ).toBeTruthy();
+      expect(
+        screen.queryByText(
+          "Bäckerei Kern ist wieder offen. Wird gesendet, sobald du online bist.",
+        ),
+      ).toBeNull();
       expect(client.setDeliveryState).not.toHaveBeenCalled();
+    });
+
+    it("Rückgängig of a move Core already has sends Core's new revision", async () => {
+      stackRows();
+      const client = fakeClient(myTour());
+      // Core refuses an order against an old revision, as it does.
+      const save = vi.mocked(client.saveMyTourOrder).getMockImplementation()!;
+      let revision = "r1";
+      vi.mocked(client.saveMyTourOrder).mockImplementation(
+        async (action: string, body: DeliveryTourOrderRequest) => {
+          if (body.expectedRevision !== revision) {
+            throw new ApiError(409, {
+              code: "tour_revision_conflict",
+              message: "Die Tour wurde inzwischen geändert.",
+              requestId: "r",
+            });
+          }
+          const saved = await save(action, body);
+          revision = saved.revision;
+          return saved;
+        },
+      );
+      const device = await renderOffline(client);
+      await keyboardMove("Bäckerei Kern", "ArrowDown");
+      await screen.findByText(
+        "Reihenfolge gemerkt. Sie wird gesendet, sobald du online bist.",
+      );
+      await device.reconnect();
+      await waitFor(async () => expect(await device.entries()).toEqual([]));
+      // The page reloaded Core's tour (revision r2) after the send.
+      await waitFor(() =>
+        expect(
+          vi.mocked(client.getMyTour).mock.calls.length,
+        ).toBeGreaterThanOrEqual(2),
+      );
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Rückgängig" }));
+      await waitFor(() =>
+        expect(client.saveMyTourOrder).toHaveBeenCalledTimes(2),
+      );
+      expect(vi.mocked(client.saveMyTourOrder).mock.calls[1]![1]).toEqual({
+        commitmentIds: ["c1", "c2", "c3"],
+        day: DAY,
+        expectedRevision: "r2",
+      });
+      await waitFor(async () => expect(await device.entries()).toEqual([]));
+      await waitFor(() =>
+        expect(names()).toEqual([
+          "Bäckerei Kern",
+          "Autohaus Nord",
+          "Praxis Süd",
+        ]),
+      );
+    });
+
+    it("someone who drives for no action sees that, also offline", async () => {
+      vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+      const queue = new QueueController({
+        send: async () => {
+          throw new Error("nothing is sent");
+        },
+        store: new MemoryQueueStore(),
+        userId: "klara",
+      });
+      stopQueues.push(queue.start());
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <ToastProvider>
+            <OfflineRuntimeContext.Provider
+              value={{
+                enabled: true,
+                queue,
+                store:
+                  new MemoryTourStore() as unknown as OfflineRuntime["store"],
+              }}
+            >
+              <MyTourPage actionId="" client={fakeClient(myTour())} offline />
+            </OfflineRuntimeContext.Provider>
+          </ToastProvider>
+        </QueryClientProvider>,
+      );
+      expect(
+        await screen.findByText(
+          "Dir ist noch keine Aktion als Ausfahrer zugeordnet.",
+        ),
+      ).toBeTruthy();
     });
 
     it("a move offline is queued, never shown as saved, and replays after reconnect", async () => {

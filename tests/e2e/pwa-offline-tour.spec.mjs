@@ -207,6 +207,15 @@ test("a driver delivers and reorders offline; reconnect replays both and keeps t
       path: `${artifactDirectory}/pwa-offline-tour-${browserName}.png`,
     });
     await page.keyboard.press("Escape");
+    // An online-only area: the offline page points a driver to the tour,
+    // not to sponsors (Ruling 22).
+    await page.goto(`${baseUrl}/app/tasks`);
+    await expect(page).toHaveTitle("LeonAid ist offline");
+    const copy = page.locator("[data-offline-copy]:visible");
+    await expect(copy).toContainText("Zu meiner Tour");
+    await expect(copy).not.toContainText("Sponsoren");
+    await page.goto(`${baseUrl}/app/delivery`);
+    await expect(dockName).toHaveText("Tour Drei KG");
 
     // 3. Reconnect: the reads, then the entries in the order they were made.
     const writes = [];

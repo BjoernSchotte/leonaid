@@ -4,8 +4,10 @@
 ``setup``: Dora, who only drives, gets a session and three review-ready
 orders in a window today, ranked by the planner; ``delivery.tours`` is on.
 Repeatable: marks, driver order and reads go back to the start.
-``teardown``: the orders, the window and Dora's reads go; the flag and
-delivery planning are off again, as the other offline specs expect.
+``teardown``: the orders and Dora's reads, sessions and membership go,
+the window is retired, Dora's account suspended (the audit log keeps her
+marks); the flag and delivery planning are off again, as the other
+offline specs expect.
 """
 
 from __future__ import annotations
@@ -77,13 +79,14 @@ async def setup(connection: asyncpg.Connection[Any]) -> None:
         now + SESSION_LIFETIME,
         now,
     )
-    await connection.execute(
-        """
-        INSERT INTO charity_action_capability (action_id, capability)
-        VALUES ($1, 'delivery') ON CONFLICT DO NOTHING
-        """,
+    # The golden action has the delivery capability; setup only relies on
+    # it, so teardown has nothing of it to undo.
+    if not await connection.fetchval(
+        "SELECT true FROM charity_action_capability"
+        " WHERE action_id = $1 AND capability = 'delivery'",
         ACTION_ID,
-    )
+    ):
+        raise RuntimeError("The golden action lacks the delivery capability.")
     await connection.execute(
         """
         INSERT INTO action_delivery_configuration (action_id, enabled)
@@ -305,7 +308,21 @@ async def teardown(connection: asyncpg.Connection[Any]) -> None:
             """,
             ACTION_ID,
         )
+        await connection.execute(
+            "DELETE FROM delivery_read_audit WHERE driver_user_id = $1", DORA_ID
+        )
         await connection.execute("DELETE FROM user_session WHERE user_id = $1", DORA_ID)
+        await connection.execute(
+            "DELETE FROM action_membership WHERE user_id = $1", DORA_ID
+        )
+        # Her marks stay in the append-only audit log (audit_event refers
+        # to her account), so the account is suspended, not deleted; setup
+        # makes it active again.
+        await connection.execute(
+            "UPDATE user_account SET status = 'suspended' WHERE id = $1"
+            " AND status = 'active'",
+            DORA_ID,
+        )
 
 
 async def main(mode: str) -> None:

@@ -175,6 +175,11 @@ export function deliveryTarget(request: DeliveryStateRequest): DeliveryTarget {
   return request.missed ? "missed" : "open";
 }
 
+/** Action ids from Core, the URL and the device compare case-blind. */
+export function sameAction(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
 /** A driver's entry of "Meine Tour" (not a sponsor capture). */
 export function isTourEntry(
   entry: QueueEntry,

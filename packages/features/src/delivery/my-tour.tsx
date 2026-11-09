@@ -54,7 +54,7 @@ import {
   useOfflineRuntime,
   useQueueSnapshot,
 } from "../offline/runtime";
-import { isTourEntry } from "../offline/queue";
+import { isTourEntry, sameAction } from "../offline/queue";
 import {
   loadOfflineTour,
   saveTour,
@@ -281,6 +281,11 @@ function orderedWindows(tour: DeliveryTourResponse) {
       .sort((a, b) => a.effectiveRank - b.effectiveRank)
       .map((stop) => stop.drop.commitmentId),
   }));
+}
+
+/** The stop ids of a tour in the order it shows. */
+function shownOrder(tour: DeliveryTourResponse): string[] {
+  return orderedWindows(tour).flatMap((group) => group.ids);
 }
 
 /** The town most stops share; other towns show in the dock's address. */
@@ -513,7 +518,7 @@ export function MyTourPage({
     .filter(
       (entry) =>
         isTourEntry(entry) &&
-        entry.actionId === actionId &&
+        sameAction(entry.actionId, actionId) &&
         (entry.state === "queued" || entry.state === "sending"),
     )
     .map((entry) => entry.entryId)
@@ -534,7 +539,7 @@ export function MyTourPage({
     Boolean(
       queueEntries?.some(
         (entry) =>
-          entry.actionId === actionId &&
+          sameAction(entry.actionId, actionId) &&
           (entry.state === "queued" || entry.state === "sending") &&
           match(entry),
       ),
@@ -711,17 +716,21 @@ export function MyTourPage({
         target,
       })
       .then(
-        () => {
+        (outcome) => {
+          // A repeated tap: the queue holds this already.
+          if (outcome === "unchanged") return;
           if (leavesDock) {
             // The dock moves on to the next open stop, without scrolling.
             setShownId(null);
             focusDock.current = true;
           }
           toast?.show({
+            // Cleared: the unsent mark is gone, nothing is to be sent.
             // Online behind an earlier mark of the stop: it goes out now.
-            title: queued
-              ? copy.queued[target](name)
-              : copy.toast[target](name),
+            title:
+              queued && outcome === "queued"
+                ? copy.queued[target](name)
+                : copy.toast[target](name),
             tone: target === "delivered" ? "success" : "info",
             timeout: TOUR_UNDO_MS,
             action:
@@ -826,22 +835,31 @@ export function MyTourPage({
         fromOrder: before,
       })
       .then(
-        () => {
+        (outcome) => {
+          if (outcome === "unchanged") return;
+          // Cleared: back at the order Core has, nothing is to be sent.
+          const back = undo || outcome === "cleared";
           if (orderToast.current) toast?.dismiss(orderToast.current);
           orderToast.current =
             toast?.show({
-              title: undo
+              title: back
                 ? copy.queued.orderUndone
                 : queued
                   ? copy.queued.order
                   : copy.queued.orderSending,
               tone: "success",
               timeout: TOUR_UNDO_MS,
-              action: undo
+              action: back
                 ? undefined
                 : {
                     label: "Rückgängig",
-                    run: () => moveQueued(current, before, next, true),
+                    // The tour as it is then: the move may have reached
+                    // Core meanwhile, with a new revision.
+                    run: () => {
+                      const shown = latest.current?.tour;
+                      if (!shown || shown.day !== current.day) return;
+                      moveQueued(shown, before, shownOrder(shown), true);
+                    },
                   },
             }) ?? null;
         },
@@ -944,6 +962,19 @@ export function MyTourPage({
     </div>
   );
 
+  // Someone who drives for no action (a manager on /app/delivery), also
+  // offline: no tour to look for on the device.
+  if (!actionId) {
+    return frame(
+      <EmptyState
+        description={copy.noAction}
+        headingLevel={2}
+        icon={Truck}
+        title="Keine Aktion gewählt"
+      />,
+    );
+  }
+
   if (deviceMode && !cachedTour) {
     if (deviceStore && actionId && deviceQuery.isPending) {
       return frame(<SkeletonRows rows={5} />);
@@ -959,17 +990,6 @@ export function MyTourPage({
         />,
       );
     }
-  }
-
-  if (!actionId) {
-    return frame(
-      <EmptyState
-        description={copy.noAction}
-        headingLevel={2}
-        icon={Truck}
-        title="Keine Aktion gewählt"
-      />,
-    );
   }
 
   const notEnabled =

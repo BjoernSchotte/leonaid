@@ -86,6 +86,10 @@ export const QUEUE_OFFLINE_TEXT =
 export const QUEUE_OFFLINE_DRIVER_TEXT =
   "Du bist offline. Zustellungen und deine Reihenfolge speichert LeonAid auf diesem Gerät und sendet sie, sobald du wieder online bist.";
 
+/** Nothing new can be queued; only what waits still goes out. */
+export const QUEUE_OFFLINE_DRAIN_TEXT =
+  "Du bist offline. Was auf diesem Gerät noch wartet, sendet LeonAid, sobald du wieder online bist.";
+
 /** Acquiring and driving: both kinds of entries. */
 export const QUEUE_OFFLINE_BOTH_TEXT =
   "Du bist offline. Neue Kontakte, Wiedervorlagen, Bestellungen und Zustellungen speichert LeonAid auf diesem Gerät und sendet sie, sobald du wieder online bist.";
@@ -104,5 +108,8 @@ export function queueOfflineText({
 }): string {
   if (driver && acquirer) return QUEUE_OFFLINE_BOTH_TEXT;
   if (driver) return QUEUE_OFFLINE_DRIVER_TEXT;
-  return QUEUE_OFFLINE_TEXT;
+  if (acquirer) return QUEUE_OFFLINE_TEXT;
+  // Neither (a driver with tours off, entries still to send): no promise
+  // about new entries.
+  return QUEUE_OFFLINE_DRAIN_TEXT;
 }

@@ -17,6 +17,7 @@ import {
   idempotencyKeyFor,
   nextDueAt,
   newEntryId,
+  sameAction,
   type DeliveryStateEntry,
   type DeliveryTarget,
   type QueueEntry,
@@ -27,8 +28,12 @@ import {
   type TourOrderEntry,
 } from "./queue";
 
-/** "Meine Tour" offline: what changed with the queue (§9). */
-export type TourWriteOutcome = "queued" | "cleared";
+/**
+ * "Meine Tour" offline: what changed with the queue (§9). `queued`: an
+ * entry waits to be sent; `cleared`: an unsent entry was taken back (the
+ * stop or order is as Core has it); `unchanged`: nothing to do.
+ */
+export type TourWriteOutcome = "queued" | "cleared" | "unchanged";
 
 function sameOrder(a: readonly string[], b: readonly string[]) {
   return a.length === b.length && a.every((id, index) => id === b[index]);
@@ -287,13 +292,14 @@ export class QueueController {
       | { readonly add: QueueDraft }
       | null,
   ): Promise<TourWriteOutcome> {
-    let outcome = "cleared" as TourWriteOutcome;
+    let outcome = "unchanged" as TourWriteOutcome;
     await this.#mutate(async (store) => {
       const entries = await store.list();
       const decision = decide(entries);
       if (!decision) return;
       if ("delete" in decision) {
         await store.delete(decision.delete);
+        outcome = "cleared";
         return;
       }
       outcome = "queued";
@@ -342,7 +348,7 @@ export class QueueController {
       const pending = entries.find(
         (entry): entry is DeliveryStateEntry =>
           entry.kind === "delivery-state" &&
-          entry.actionId === draft.actionId &&
+          sameAction(entry.actionId, draft.actionId) &&
           entry.commitmentId === draft.commitmentId &&
           replaceable(entry),
       );
@@ -401,7 +407,7 @@ export class QueueController {
       const pending = entries.find(
         (entry): entry is TourOrderEntry =>
           entry.kind === "tour-order" &&
-          entry.actionId === draft.actionId &&
+          sameAction(entry.actionId, draft.actionId) &&
           entry.request.day === draft.day &&
           replaceable(entry),
       );

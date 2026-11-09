@@ -26,6 +26,7 @@ import {
   conflictText,
   drainQueue,
   nextSendable,
+  resolutionsFor,
   retention,
   type QueueEntry,
   type SendResult,
@@ -762,6 +763,9 @@ describe("driver queue kinds (delivery-state, tour-order)", () => {
     };
   }
 
+  const isTour = (entry: QueueEntry) =>
+    entry.kind === "delivery-state" || entry.kind === "tour-order";
+
   const shownOrder = (response: MyTourResponse) =>
     response
       .tour!.windows[0]!.stops.toSorted(
@@ -829,6 +833,10 @@ describe("driver queue kinds (delivery-state, tour-order)", () => {
     // "Rückgängig": the stop shows delivered, the undo goes back to open.
     expect(await mark(queue, "c1", "delivered", "open")).toBe("cleared");
     expect(await store.list()).toEqual([]);
+    // A second tap on the same state changes nothing.
+    await mark(queue, "c1", "open", "delivered");
+    expect(await mark(queue, "c1", "delivered", "delivered")).toBe("unchanged");
+    expect(await mark(queue, "c1", "delivered", "open")).toBe("cleared");
     // Delivered, then "Nicht da" instead: one entry with the last target.
     await mark(queue, "c2", "open", "delivered");
     await mark(queue, "c2", "delivered", "missed");
@@ -930,6 +938,62 @@ describe("driver queue kinds (delivery-state, tour-order)", () => {
     expect(
       classifyFailure(apiError(403, "delivery_board_forbidden")).type,
     ).toBe("blocked");
+    // Only "Verwerfen": no acquirer choice for a driver's entry, even for
+    // a code the captures share.
+    expect(resolutionsFor(entry!)).toEqual(["discard"]);
+    expect(
+      resolutionsFor({
+        ...entry!,
+        lastError: { code: "delivery_window_full", message: "", status: 409 },
+      }),
+    ).toEqual(["discard"]);
+  });
+
+  /** A queued mark of stop `commitmentId`, number `sequence`. */
+  function stopEntry(sequence: number, commitmentId: string): QueueEntry {
+    return {
+      ...activity(sequence, `stop:${commitmentId}`),
+      commitmentId,
+      fromState: "open",
+      kind: "delivery-state",
+      request: { delivered: true, expectedRevision: 3, missed: false },
+    } as QueueEntry;
+  }
+
+  it("a refused role blocks only its own entries", async () => {
+    for (const lost of ["driver", "acquirer"] as const) {
+      const store = new MemoryQueueStore();
+      await store.put(
+        lost === "driver" ? stopEntry(1, "c1") : activity(1, "a"),
+      );
+      await store.put(
+        lost === "driver" ? activity(2, "a") : stopEntry(2, "c1"),
+      );
+      const sent: string[] = [];
+      await drainQueue({
+        now: () => NOW,
+        send: async (entry) => {
+          if (isTour(entry) === (lost === "driver")) {
+            throw apiError(
+              403,
+              lost === "driver"
+                ? "delivery_board_forbidden"
+                : "acquirer_required",
+            );
+          }
+          sent.push(entry.kind);
+          return isTour(entry)
+            ? { kind: "delivery-state", response: tourDrop("c1") }
+            : accepted(entry, 8);
+        },
+        store,
+      });
+      const left = await store.list();
+      expect(left.map((entry) => [entry.kind, entry.state])).toEqual([
+        [lost === "driver" ? "delivery-state" : "activity", "blocked"],
+      ]);
+      expect(sent).toEqual([lost === "driver" ? "activity" : "delivery-state"]);
+    }
   });
 
   it("entries replay in sequence after reconnect", async () => {
@@ -1011,5 +1075,9 @@ describe("offline banner text by role (Ruling 22)", () => {
     expect(queueOfflineText({ acquirer: true, driver: true })).toContain(
       "Bestellungen und Zustellungen",
     );
+    // A driver with tours off: only what still waits goes out.
+    const neither = queueOfflineText({ acquirer: false, driver: false });
+    expect(neither).toContain("noch wartet");
+    expect(neither).not.toMatch(/Kontakte|Bestellungen|Zustellungen/);
   });
 });

@@ -29,6 +29,7 @@ import {
   purgeTourCaches,
   sessionEnded,
   setActiveDeviceUser,
+  setOfflineAudience,
   setOfflineStart,
   summarizeIdentity,
   type IdentitySummary,
@@ -213,6 +214,9 @@ export async function prepareDevice(
   await store.putMeta(ENABLED_META, true);
   await store.deleteMeta(SESSION_ENDED_META);
   await purgeTourCaches(store, tours);
+  await setOfflineAudience(
+    acquirer && tours.size ? "both" : tours.size ? "driver" : "acquirer",
+  );
   await setOfflineStart(true);
   return { flags, mode: "on", store };
 }

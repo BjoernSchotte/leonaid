@@ -20,6 +20,7 @@ import type { CachedValue, CacheEntryInfo, CacheKind } from "./device-store";
 import {
   deliveryTarget,
   isTourEntry,
+  sameAction,
   type QueueEntry,
   type SendResult,
 } from "./queue";
@@ -476,7 +477,7 @@ export function withQueuedWrites(
     .filter(
       (entry) =>
         isTourEntry(entry) &&
-        entry.actionId.toLowerCase() === response.actionId.toLowerCase() &&
+        sameAction(entry.actionId, response.actionId) &&
         (entry.state === "queued" || entry.state === "sending"),
     )
     .sort((a, b) => a.sequence - b.sequence);

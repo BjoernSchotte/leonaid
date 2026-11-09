@@ -89,6 +89,33 @@ export async function setOfflineStart(enabled: boolean): Promise<void> {
   }
 }
 
+/** Who the offline page (offline.html) speaks to; no personal data. */
+export type OfflineAudience = "acquirer" | "driver" | "both";
+
+function offlineAudienceKey() {
+  return new URL(`${PWA_BASE}offline-audience`, window.location.origin).href;
+}
+
+/**
+ * What the offline page names as still working offline: the sponsors, the
+ * driver's tour (krapfentaxi-touren §9) or both. Read by offline.js from
+ * the origin's Cache Storage.
+ */
+export async function setOfflineAudience(
+  audience: OfflineAudience,
+): Promise<void> {
+  if (typeof caches === "undefined") return;
+  try {
+    const settings = await caches.open(SETTINGS_CACHE);
+    await settings.put(
+      offlineAudienceKey(),
+      new Response(audience, { headers: { "content-type": "text/plain" } }),
+    );
+  } catch {
+    // Without Cache Storage the page keeps its default copy.
+  }
+}
+
 /**
  * D6, before the signed-in user's work renders, in either app: every other
  * person's database on this device is deleted without asking, and the

@@ -19,6 +19,7 @@ import {
   rebaseAfter,
   rebaseTourEntries,
   draftCheckOutlived,
+  isTourEntry,
   retention,
   type QueueEntry,
   type QueueStore,
@@ -143,9 +144,12 @@ export async function drainQueue(
           // to "Nicht mehr möglich", stay readable and wait for the
           // acquirer's "Verwerfen" or a retry once the role is back.
           const settledAt = now().toISOString();
+          // Only the role that was refused: losing the driver role
+          // leaves the captures sendable, and the reverse.
           for (const other of await store.list()) {
             if (
               other.actionId === entry.actionId &&
+              isTourEntry(other) === isTourEntry(entry) &&
               other.state !== "expired" &&
               other.state !== "blocked" &&
               (other.entryId === entry.entryId || other.state !== "sending")
