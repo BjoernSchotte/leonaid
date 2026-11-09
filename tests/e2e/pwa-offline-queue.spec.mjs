@@ -490,9 +490,13 @@ test("two tabs: one sends, each capture reaches Core once (§9.1)", async ({
 });
 
 test("flag switched off: queued captures are sent, then the device is cleared", async ({
+  browserName,
   context,
   page,
 }) => {
+  // WebKit proves sending (capture test) and the shared forgetDevice()
+  // deletion (pwa-offline.spec.mjs sign-out); flag-off is app logic.
+  test.skip(browserName === "webkit", "app logic over WebKit-proven parts");
   test.setTimeout(180_000);
   await authenticate(context);
   await page.goto(`${baseUrl}/app/sponsors`);

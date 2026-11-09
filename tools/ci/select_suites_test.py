@@ -141,8 +141,11 @@ PRECISE: tuple[tuple[str, dict[str, Any]], ...] = (
     ),
     ("tools/ci/emdash.sh", {"emdash": sorted(s.EMDASH_GROUPS)}),
     ("tools/delivery/foundation.py", {"integration": ["delivery"]}),
-    ("tools/pwa/test.sh", {"e2e": ["pwa", "pwa-offline"]}),
-    ("tests/e2e/pwa-offline-queue.spec.mjs", {"e2e": ["pwa-offline"]}),
+    ("tools/pwa/test.sh", {"e2e": ["pwa", "pwa-offline", "pwa-offline-webkit"]}),
+    (
+        "tests/e2e/pwa-offline-queue.spec.mjs",
+        {"e2e": ["pwa-offline", "pwa-offline-webkit"]},
+    ),
     ("tests/e2e/pwa-audit.spec.mjs", {"e2e": ["pwa"]}),
 )
 
@@ -454,7 +457,7 @@ def main() -> int:
         ("src/leonaid/bootstrap/api.py", set(s.E2E_SHARDS)),
         ("src/leonaid/configuration.py", set(s.E2E_SHARDS)),
         ("src/leonaid/adapters/mail/smtp.py", {"membership", "invoice-flows"}),
-        ("src/leonaid/adapters/twenty/gateway.py", {"pwa", "pwa-offline"}),
+        ("src/leonaid/adapters/twenty/gateway.py", set(s.PWA)),
         ("src/leonaid/adapters/typst/invoice_renderer.py", {"invoices"}),
         ("src/leonaid/entrypoints/worker/outbox.py", {"membership", "pwa"}),
     ):
@@ -640,9 +643,10 @@ def main() -> int:
         s.E2E_SECONDS.clear()
         s.E2E_SECONDS.update(original)
     total = sum(len(json.loads(complete[key])) for key in BINNED)
-    # 4 Integration + 4 E2E + 3 EmDash (krapfentaxi-orders in two halves,
-    # E-024): with Golden's 2 and the 6 stack-free jobs within 20 runners.
-    expect(total <= 11, f"a complete run must stay at 11 stack legs or fewer: {total}")
+    # 4 Integration + 6 E2E (E-037) + 3 EmDash (krapfentaxi-orders in two
+    # halves, E-024): with Golden's 2 and the 6 stack-free jobs 21 runners;
+    # run 42569824316 ran 27 jobs at once without queueing.
+    expect(total <= 13, f"a complete run must stay at 13 stack legs or fewer: {total}")
     # A small PR packs into one leg; packing is deterministic.
     small = post("tools/inbox/test.sh", "tools/tasks/test.sh")
     legs = json.loads(small.outputs()["e2e"])

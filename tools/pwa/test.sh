@@ -3,12 +3,15 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
-# Leaf mode (tools/ci/e2e.sh pwa, pwa-offline): "ui" runs the browser
-# matrix, audit and outage specs, "offline" the offline queue in two
-# browsers; without a mode both run.
+# Leaf mode (tools/ci/e2e.sh pwa, pwa-offline, pwa-offline-webkit): "ui"
+# runs the browser matrix, audit and outage specs, "offline" the offline
+# queue in Chromium, "offline-webkit" in WebKit; without a mode all run.
 mode=${2:-all}
 case "$mode" in
-  all | ui | offline) ;;
+  all) ui=true offline_browsers="chromium webkit" ;;
+  ui) ui=true offline_browsers="" ;;
+  offline) ui=false offline_browsers=chromium ;;
+  offline-webkit) ui=false offline_browsers=webkit ;;
   *) echo "pwa-test: ERROR: unknown mode $mode" >&2; exit 64 ;;
 esac
 . "$root/tools/testing/owned_teardown.sh"
@@ -150,14 +153,14 @@ playwright() {
 }
 browser=""
 
-if [ "$mode" != offline ]; then
+if [ "$ui" = true ]; then
 playwright --config=tests/e2e/pwa.config.mjs pwa.spec.mjs \
   --output=/proof/test-results-matrix
 playwright tests/e2e/pwa-audit.spec.mjs --browser=chromium \
   --output=/proof/test-results-audit
 fi
 
-if [ "$mode" != ui ]; then
+if [ -n "$offline_browsers" ]; then
 # Offline queue (specs/pwa-offline-queue §16): the flag is switched on only
 # for its own specs; every other PWA spec proves the copy without it.
 offline_flag() {
@@ -224,7 +227,7 @@ offline_watcher() {
 offline_watcher &
 offline_watcher_pid=$!
 offline_flag true
-for browser in chromium webkit; do
+for browser in $offline_browsers; do
   pwa_sessions
   playwright tests/e2e/pwa-offline.spec.mjs \
     tests/e2e/pwa-offline-queue.spec.mjs \
@@ -246,8 +249,9 @@ offline_query() {
 }
 offline_orders=$(printf "SELECT count(*) || ' ' || count(*) FILTER (WHERE created_at - captured_at > interval '2 seconds') FROM commitment WHERE source = 'acquisition' AND status = 'draft' AND invoice_recipient_snapshot->>'streetLine1' = 'Warteschlangenweg 7';\n" |
   offline_query)
-if [ "$offline_orders" != "2 2" ]; then
-  echo "pwa-test: ERROR: expected 2 offline orders with the capture time, found (all, with capture time) $offline_orders" >&2
+runs=$(printf '%s\n' $offline_browsers | wc -l | tr -d ' ')
+if [ "$offline_orders" != "$runs $runs" ]; then
+  echo "pwa-test: ERROR: expected $runs offline orders with the capture time, found (all, with capture time) $offline_orders" >&2
   printf "SELECT status, captured_at, created_at, created_at - captured_at FROM commitment WHERE invoice_recipient_snapshot->>'streetLine1' = 'Warteschlangenweg 7' ORDER BY created_at;\n" |
     offline_query >&2 || true
   exit 1
@@ -255,7 +259,7 @@ fi
 pwa_sessions
 fi
 
-if [ "$mode" != offline ]; then
+if [ "$ui" = true ]; then
 compose stop twenty-server
 
 playwright tests/e2e/pwa-error.spec.mjs --browser=chromium \
@@ -263,16 +267,20 @@ playwright tests/e2e/pwa-error.spec.mjs --browser=chromium \
 fi
 
 evidence=""
-if [ "$mode" != offline ]; then
+if [ "$ui" = true ]; then
   evidence="pwa-list-chromium-390.png pwa-list-chromium-768.png
     pwa-list-chromium-1440.png pwa-list-firefox-390.png pwa-list-webkit-390.png
     pwa-empty-chromium-390.png pwa-update-chromium.png pwa-offline-chromium.png
     pwa-error-chromium-390.png"
 fi
-if [ "$mode" != ui ]; then
-  evidence="$evidence pwa-offline-start-chromium.png pwa-offline-start-webkit.png
-    pwa-offline-queue-chromium.png pwa-offline-queue-webkit.png
-    pwa-offline-decision-chromium.png"
+if [ -n "$offline_browsers" ]; then
+  for browser in $offline_browsers; do
+    evidence="$evidence pwa-offline-start-$browser.png pwa-offline-queue-$browser.png"
+  done
+  # The decision UI runs in Chromium only (E-026).
+  case " $offline_browsers " in
+    *" chromium "*) evidence="$evidence pwa-offline-decision-chromium.png" ;;
+  esac
 fi
 for screenshot in $evidence; do
   if [ ! -s "$proof/$screenshot" ]; then
