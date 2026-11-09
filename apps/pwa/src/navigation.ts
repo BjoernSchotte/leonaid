@@ -5,6 +5,7 @@ import {
   ListTodo,
   type LucideIcon,
   Plus,
+  Truck,
   Users,
 } from "lucide-react";
 
@@ -119,8 +120,23 @@ const TAB_DEFINITIONS: readonly TabDefinition[] = [
   },
 ];
 
+/*
+ * "Tour" for drivers while `delivery.tours` is on: first in the bar
+ * (critique-driver P0-2, D19 3a). Its digit is the next free one.
+ */
+const TOUR_TAB: TabDefinition = {
+  key: "delivery",
+  navKey: "delivery",
+  label: "Tour",
+  icon: Truck,
+  shortcut: "6",
+  matches: (path, _query, base) => under(path, base),
+};
+
 const TAB_NAV_KEYS = new Set(TAB_DEFINITIONS.map((tab) => tab.navKey));
-const definitionsByKey = new Map(TAB_DEFINITIONS.map((tab) => [tab.key, tab]));
+const definitionsByKey = new Map(
+  [TOUR_TAB, ...TAB_DEFINITIONS].map((tab) => [tab.key, tab]),
+);
 
 function pathOf(href: string): string {
   return new URL(href, "https://leonaid.invalid").pathname.replace(/\/+$/, "");
@@ -153,6 +169,13 @@ export interface MobileNavigationOptions {
    * flips from "Auslieferung" to "Meine Tour".
    */
   readonly deliveryTours?: boolean | null;
+  /** The user drives in the selected action: with the flag, "Tour" leads. */
+  readonly driver?: boolean;
+  /**
+   * Driving is the user's only role in the selected action: `/app/` opens
+   * the tour, so "Start" (the acquirer start page) is left out.
+   */
+  readonly driverOnly?: boolean;
 }
 
 /**
@@ -164,7 +187,11 @@ export function mobileNavigation(
   navigation: readonly NavigationItemResponse[],
   implemented: ReadonlySet<string>,
   location: { readonly pathname: string; readonly search: string },
-  { deliveryTours = false }: MobileNavigationOptions = {},
+  {
+    deliveryTours = false,
+    driver = false,
+    driverOnly = false,
+  }: MobileNavigationOptions = {},
 ): MobileNavigation {
   const pwa = navigation.filter(
     (item) =>
@@ -173,9 +200,19 @@ export function mobileNavigation(
   );
   const byKey = new Map(pwa.map((item) => [item.key, item]));
   const tabs: MobileNavTab[] = [];
-  for (const definition of TAB_DEFINITIONS) {
+  const tourTab = deliveryTours === true && (driver || driverOnly);
+  const definitions = [
+    ...(tourTab ? [TOUR_TAB] : []),
+    ...TAB_DEFINITIONS.filter(
+      (definition) =>
+        !(driverOnly && tourTab && definition.key === "overview-pwa"),
+    ),
+  ];
+  const tabNavKeys = new Set(TAB_NAV_KEYS);
+  for (const definition of definitions) {
     const item = byKey.get(definition.navKey);
     if (!item || !implemented.has(item.key)) continue;
+    tabNavKeys.add(item.key);
     tabs.push({
       key: definition.key,
       label: definition.label,
@@ -187,7 +224,7 @@ export function mobileNavigation(
   }
   const path = location.pathname.replace(/\/+$/, "");
   const menu = pwa
-    .filter((item) => !TAB_NAV_KEYS.has(item.key) || !implemented.has(item.key))
+    .filter((item) => !tabNavKeys.has(item.key) || !implemented.has(item.key))
     .map((item) => {
       const href = implemented.has(item.key) ? item.href : null;
       return {

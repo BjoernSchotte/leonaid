@@ -29,3 +29,4 @@ export * from "./switch";
 export * from "./tabs";
 export * from "./list-view";
 export * from "./next-step";
+export * from "./page-bar";

@@ -3,6 +3,8 @@ import type {
   DeliveryDropResponse,
 } from "@leonaid/api-client";
 
+import { quantityLabel, type OfferingUnit } from "../commitments/quantities";
+
 /*
  * Formatting shared by the delivery board, the tour planner and "Meine
  * Tour". Times are shown in the action's zone.
@@ -61,4 +63,25 @@ export function dropAddress(drop: DeliveryDropResponse) {
   const address = drop.address;
   if (!address) return null;
   return `${address.streetLine1}, ${address.postalCode} ${address.city}`;
+}
+
+/**
+ * "3 Boxen, 12 Stück" in the action's units: one source for the driver and
+ * the planner (the box total only when a drop has no quantities).
+ */
+export function dropQuantities(drop: DeliveryDropResponse) {
+  const parts = drop.quantities.map(
+    (item) => `${item.quantity} ${quantityLabel(item.quantity, item.unit)}`,
+  );
+  return parts.length
+    ? parts.join(", ")
+    : `${drop.totalBoxes} ${quantityLabel(drop.totalBoxes, "box")}`;
+}
+
+/** The short form for chips and rows: "6 Stk", "2 Boxen · 12 Stk". */
+export function dropQuantitiesShort(drop: DeliveryDropResponse) {
+  const short = (quantity: number, unit: OfferingUnit) =>
+    `${quantity} ${unit === "piece" ? "Stk" : quantityLabel(quantity, unit)}`;
+  const parts = drop.quantities.map((item) => short(item.quantity, item.unit));
+  return parts.length ? parts.join(" · ") : short(drop.totalBoxes, "box");
 }

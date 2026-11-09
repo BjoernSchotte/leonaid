@@ -273,6 +273,8 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
     await expect(
       page.getByRole("heading", { name: "Auslieferung", level: 1 }),
     ).toBeVisible();
+    // The columns first: the day picker renders with them.
+    await expect(page.getByTestId("tour-unassigned")).toBeVisible();
     const day = page.getByTestId("tour-day");
     if (await day.count()) await day.selectOption({ index: 0 });
     const anna = page
@@ -306,7 +308,8 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
     await expect(page.getByText("Fahrer entfernt (3 Stopps).")).toBeVisible();
     await expect(unassigned.locator("li.tour-stop")).toHaveCount(3);
 
-    // Two go back to Anna at the end; Klara moves the second one up and saves.
+    // Two go back to Anna at the end; Klara moves the second one up, and
+    // the move saves on its own (D19 2a).
     const [first, second, third] = lastThree;
     await assign(unassigned, [first, second], "Anna Akquise");
     await expect(
@@ -318,9 +321,7 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
     await stop(anna, second)
       .getByRole("button", { name: /nach oben/ })
       .click();
-    const order = anna.getByTestId("tour-save-order");
-    await expect(order).toBeEnabled();
-    await order.click();
+    await expect(anna.getByTestId("tour-save-order")).toHaveCount(0);
     await expect(
       page.getByText("Reihenfolge für Anna Akquise gespeichert."),
     ).toBeVisible();
@@ -339,39 +340,74 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
     });
     await page.emulateMedia({ colorScheme: "light" });
 
-    // Anna: the large card is Klara's first open stop.
+    // Anna: the dock holds Klara's first open stop; "Tour" leads the tabs.
     await mobile.goto(`${baseUrl}/app/delivery?action=${actionId}`);
+    await expect(mobile.getByTestId("tour-bar-sub")).toContainText(
+      "Meine Tour",
+    );
     await expect(
-      mobile.getByRole("heading", { name: "Meine Tour", level: 1 }),
-    ).toBeVisible();
+      mobile.locator('.pwa-tab[data-nav-key="delivery"]'),
+    ).toHaveAttribute("aria-current", "page");
     const next = mobile.getByTestId("tour-next-stop");
     await expect(next).toBeVisible();
-    await expect(mobile.getByTestId("tour-stop")).toHaveCount(openCount - 2);
+    await expect(mobile.getByTestId("tour-stop")).toHaveCount(openCount - 1);
+    await expect(mobile.getByText("Reihenfolge ändern")).toHaveCount(0);
     await expectAccessible(mobile);
 
-    // She moves her first open stop down and finishes the edit.
-    await mobile.getByTestId("tour-reorder").click();
-    await mobile
-      .getByTestId("tour-stop")
-      .first()
-      .getByRole("button", { name: /nach unten/ })
-      .click();
-    await mobile.getByTestId("tour-reorder-done").click();
+    // She moves an open stop down at its grip; the move saves at once (D16).
+    // A stop whose next row in the window is open too, so down can move.
+    const movable = await mobile
+      .locator("ol.tour-rows > li[data-testid='tour-stop']")
+      .evaluateAll((rows) =>
+        rows
+          .find(
+            (row) =>
+              row.querySelector(".task-order-handle") &&
+              row.nextElementSibling?.getAttribute("data-testid") ===
+                "tour-stop",
+          )
+          ?.getAttribute("data-commitment-id"),
+      );
+    expect(movable).toBeTruthy();
+    const moved = mobile.locator(`li[data-commitment-id="${movable}"]`);
+    const below = moved.locator("xpath=following-sibling::li[1]");
+    const grip = await moved
+      .getByRole("button", { name: /^Stopp verschieben: / })
+      .boundingBox();
+    const target = await below.boundingBox();
+    const belowId = await below.getAttribute("data-commitment-id");
+    expect(grip && target && belowId).toBeTruthy();
+    // Drag at the grip onto the lower half of the next row.
+    await mobile.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await mobile.mouse.down();
+    await mobile.mouse.move(
+      grip.x + grip.width / 2,
+      target.y + target.height * 0.75,
+      { steps: 12 },
+    );
+    await mobile.mouse.up();
     await expect(
-      mobile.getByText("Deine Reihenfolge ist gespeichert."),
-    ).toBeVisible();
-    await expect(mobile.getByTestId("tour-reorder-done")).toHaveCount(0);
+      moved.locator("xpath=preceding-sibling::li[1]"),
+    ).toHaveAttribute("data-commitment-id", belowId);
+    await expect(mobile.getByText("Reihenfolge gespeichert.")).toBeVisible();
+    await expect(mobile.getByTestId("tour-bar-sub")).toContainText(
+      "Eigene Reihenfolge",
+    );
 
     // Deliver, undo, deliver again. The delivered stop stays in its place,
-    // greyed (D15); "Rückgängig" is the one on the toast just shown.
+    // greyed (D15), and the dock moves on without scrolling (critique P0-1);
+    // "Rückgängig" is the one on the toast just shown.
     const rows = mobile.locator("ol.tour-rows > li");
     const done = mobile.getByTestId("tour-stop-done");
     const doneBefore = await done.count();
     const slot = await rows.evaluateAll((items) =>
-      items.findIndex((item) => item.classList.contains("tour-next")),
+      items.findIndex((item) => item.classList.contains("is-current")),
     );
     expect(slot).toBeGreaterThanOrEqual(0);
-    await next.getByRole("button", { name: "Zugestellt" }).click();
+    const docked = await next.getByRole("heading").textContent();
+    const deliver = next.getByRole("button", { name: "Zugestellt" });
+    const scrolled = await mobile.evaluate(() => window.scrollY);
+    await deliver.click();
     await expect(mobile.getByText(/: zugestellt\.$/)).toBeVisible();
     await expect(done).toHaveCount(doneBefore + 1);
     await expect(rows.nth(slot)).toHaveAttribute(
@@ -379,8 +415,17 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
       "tour-stop-done",
     );
     await expect(rows.nth(slot)).toHaveClass(/is-done/);
-    await expect(mobile.getByTestId("tour-next-stop")).toBeVisible();
-    await mobile.getByRole("button", { name: "Rückgängig" }).click();
+    await expect(next.getByRole("heading")).not.toHaveText(docked ?? "");
+    await expect(
+      next.getByRole("button", { name: "Zugestellt" }),
+    ).toBeInViewport();
+    expect(await mobile.evaluate(() => window.scrollY)).toBe(scrolled);
+    // The order toast may still show its own "Rückgängig": take the stop's.
+    await mobile
+      .locator(".toast")
+      .filter({ hasText: /: zugestellt\./ })
+      .getByRole("button", { name: "Rückgängig" })
+      .click();
     await expect(mobile.getByText(/ ist wieder offen\.$/)).toBeVisible();
     await expect(done).toHaveCount(doneBefore);
     await mobile
@@ -400,7 +445,11 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
       .click();
     await expect(mobile.getByText(/: nicht angetroffen\.$/)).toBeVisible();
     await mobile.reload();
-    await expect(done.filter({ hasText: "Nicht angetroffen" })).toHaveCount(1);
+    await expect(
+      done.filter({
+        has: mobile.getByRole("img", { name: "Nicht angetroffen" }),
+      }),
+    ).toHaveCount(1);
     for (const scheme of ["light", "dark"]) {
       await mobile.emulateMedia({ colorScheme: scheme });
       await mobile.screenshot({

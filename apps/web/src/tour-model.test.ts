@@ -8,6 +8,7 @@ import {
   nearestNextOrder,
   osmHref,
   placeStop,
+  reconcileOrder,
   tourLengthKm,
   windowHint,
   windowHintLabel,
@@ -161,5 +162,28 @@ describe("windowHint", () => {
     const ended = windowHint(s, e, new Date("2026-11-11T09:00:00Z"));
     expect(ended).toEqual({ kind: "ended" });
     expect(windowHintLabel("08–10", ended)).toBe("08–10");
+  });
+});
+
+describe("reconcileOrder", () => {
+  const windows: Record<string, string> = {
+    a: "w1",
+    b: "w1",
+    c: "w2",
+    d: "w1",
+  };
+  const windowOf = (id: string) => windows[id] ?? "";
+
+  it("keeps the local order and puts a new stop last in its own window", () => {
+    expect(
+      reconcileOrder(["b", "a", "c"], ["a", "b", "d", "c"], windowOf),
+    ).toEqual(["b", "a", "d", "c"]);
+  });
+
+  it("drops stops the tour no longer has", () => {
+    expect(reconcileOrder(["b", "a", "c"], ["a", "c"], windowOf)).toEqual([
+      "a",
+      "c",
+    ]);
   });
 });

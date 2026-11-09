@@ -1,10 +1,7 @@
 import {
-  ArrowDown,
-  ArrowDownUp,
-  ArrowUp,
   Check,
   ChevronDown,
-  MapPin,
+  EllipsisVertical,
   Navigation,
   Phone,
   Truck,
@@ -12,7 +9,16 @@ import {
   X,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import {
   ApiError,
@@ -29,69 +35,76 @@ import {
   EmptyState,
   ErrorState,
   Icon,
-  IconButton,
   Meter,
+  PageBarPortal,
+  Popover,
   SkeletonRows,
   StatusIcon,
-  StatusMessage,
   cn,
   useOptionalToast,
+  usePageBar,
 } from "@leonaid/ui";
 
 import { replaceActionInUrl } from "../action-admin/action-location";
 import { actionErrorMessage } from "../action-admin/errors";
-import { quantityLabel } from "../commitments/quantities";
 import { TaskOrderHandle, TaskOrdering } from "../tasks/task-ordering";
-import { deliveryTimeRange, dropAddress } from "./delivery-board";
+import {
+  clockMinutes,
+  deliveryTimeRange,
+  dropAddress,
+  dropQuantities,
+  dropQuantitiesShort,
+} from "./delivery-shared";
+import { TourMapSlot } from "./tour-map-slot";
 import {
   callHref,
   devicePlatform,
-  moveStop,
   navigationHref,
-  osmHref,
   placeStop,
+  reconcileOrder,
   windowHint,
-  windowHintLabel,
+  type WindowHint,
 } from "./tour-model";
+import { useOrderAutosave } from "./use-order-autosave";
 
 /*
- * "Meine Tour" (spec krapfentaxi-touren §7): the driver's stops of one day
- * in effective order, grouped by window. The next open stop is the large
- * card; done stops stay in place as one greyed line (D15). Behind the flag
- * `delivery.tours`; without it the PWA keeps the delivery board.
+ * "Meine Tour" (spec krapfentaxi-touren §7, D15–D19, critique-driver.md §3):
+ * one task per screen, deliver the next stop. The app bar carries the day,
+ * progress and a small menu; the list of stops scrolls behind a fixed dock
+ * with the next stop, its map and "Zugestellt" in thumb reach. Open stops
+ * are reordered at their grip and every move saves at once. Done stops stay
+ * in place as one grey line (D15). Behind the flag `delivery.tours`.
  */
 
 const copy = {
   title: "Meine Tour",
-  progress: (done: number, total: number) => `${done} von ${total} zugestellt`,
   ownOrder: "Eigene Reihenfolge",
-  planOrder: "Reihenfolge der Planung",
   next: "Nächster Stopp",
-  stop: "Stopp",
+  stop: (position: number) => `Stopp ${position}`,
+  toNext: "Zum nächsten Stopp",
   ended: "Fenster vorbei",
   isNew: "neu",
   closed: "Abgeschlossen",
   delivered: "Zugestellt",
   missed: "Nicht angetroffen",
+  missedShort: "Nicht da",
   open: "Offen",
   cancelled: "storniert",
-  reorder: "Reihenfolge ändern",
-  editHint:
-    "Zieh die Stopps am Griff oder nutze die Pfeile. Sortieren geht nur innerhalb eines Fensters.",
-  done: "Fertig",
+  menu: "Tour-Menü",
   reset: "Zurück zur Planung",
-  cancel: "Abbrechen",
-  saved: "Deine Reihenfolge ist gespeichert. Die Planung sieht sie.",
-  unchanged: "Reihenfolge unverändert.",
+  saved: "Reihenfolge gespeichert.",
+  undone: "Vorherige Reihenfolge wiederhergestellt.",
   resetDone: "Es gilt wieder die Reihenfolge der Planung.",
-  allDone:
-    "Alles erledigt. Gib der Aktionsleitung Bescheid, dass du fertig bist.",
+  allDelivered: (total: number) => `Alle ${total} zugestellt. Danke!`,
+  allSettled: (delivered: number, total: number) =>
+    `Alle Stopps erledigt, ${delivered} von ${total} zugestellt.`,
+  tellLead: "Gib der Aktionsleitung Bescheid, dass du fertig bist.",
+  onlyClosedLeft:
+    "Keine offenen Stopps in offenen Fenstern. Für Änderungen wende dich an die Aktionsleitung.",
   closedWindow:
     "Dieses Fenster ist abgeschlossen. Für Änderungen wende dich an die Aktionsleitung.",
   cancelledOrder: "Diese Bestellung wird nicht (mehr) ausgeliefert.",
   noAddress: "Keine Lieferadresse hinterlegt.",
-  noPhone: "Keine Nummer",
-  contact: "Lieferkontakt",
   error: "Deine Tour konnte nicht geladen werden.",
   errorHint: "Prüfe deine Verbindung und versuche es erneut.",
   notEnabled: "Für diese Aktion ist keine Lieferplanung aktiv.",
@@ -131,8 +144,21 @@ const STALE_CODES: ReadonlySet<string> = new Set([
 export const TOUR_UNDO_MS = 10_000;
 /** How often the window hints ("noch 35 min") move on. No server polling. */
 const CLOCK_TICK_MS = 30_000;
+/** The driver's own order: one tour, one key for the autosave. */
+const MY_ORDER = "me";
+/** The dock's folded state lives for the session (critique §3 C). */
+const DOCK_FOLDED_KEY = "leonaid.tour.dockFolded";
+/** A drag on the dock grip further than this folds or unfolds it. */
+const DOCK_SWIPE_PX = 24;
 
 type Target = "delivered" | "missed" | "open";
+
+/** Where a move was made: its save and cache update stay there. */
+interface OrderContext {
+  readonly actionId: string;
+  readonly day: string;
+  readonly queryKey: readonly unknown[];
+}
 
 interface TourStop {
   readonly drop: DeliveryDropResponse;
@@ -163,16 +189,6 @@ const deliverable = (drop: DeliveryDropResponse) =>
 const stopName = (drop: DeliveryDropResponse) =>
   drop.address?.recipientName || drop.buyerName;
 
-/** "3 Boxen, 12 Stück" in the action's units. */
-function quantities(drop: DeliveryDropResponse) {
-  const parts = drop.quantities.map(
-    (item) => `${item.quantity} ${quantityLabel(item.quantity, item.unit)}`,
-  );
-  return parts.length
-    ? parts.join(", ")
-    : `${drop.totalBoxes} ${quantityLabel(drop.totalBoxes, "box")}`;
-}
-
 const byStart = (
   a: DeliveryTourWindowResponse,
   b: DeliveryTourWindowResponse,
@@ -187,6 +203,29 @@ function orderedWindows(tour: DeliveryTourResponse) {
       .map((stop) => stop.drop.commitmentId),
   }));
 }
+
+/** The town most stops share; other towns show in the dock's address. */
+function homeTown(tour: DeliveryTourResponse | null) {
+  const counts = new Map<string, number>();
+  for (const window of tour?.windows ?? []) {
+    for (const stop of window.stops) {
+      const city = stop.drop.address?.city;
+      if (city) counts.set(city, (counts.get(city) ?? 0) + 1);
+    }
+  }
+  let best: string | null = null;
+  let most = 0;
+  for (const [city, count] of counts) {
+    if (count > most) {
+      best = city;
+      most = count;
+    }
+  }
+  return best;
+}
+
+const windowOfStop = (stops: ReadonlyMap<string, TourStop>, id: string) =>
+  stops.get(id)?.window.windowId ?? "";
 
 /** The response with one drop replaced by its newer state. */
 function withDrop(
@@ -211,9 +250,6 @@ function withDrop(
   };
 }
 
-const sameOrder = (a: readonly string[], b: readonly string[]) =>
-  a.length === b.length && a.every((id, index) => id === b[index]);
-
 function useNow(intervalMs: number) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -221,6 +257,50 @@ function useNow(intervalMs: number) {
     return () => window.clearInterval(timer);
   }, [intervalMs]);
   return now;
+}
+
+function readFolded() {
+  try {
+    return window.sessionStorage.getItem(DOCK_FOLDED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function storeFolded(folded: boolean) {
+  try {
+    if (folded) window.sessionStorage.setItem(DOCK_FOLDED_KEY, "1");
+    else window.sessionStorage.removeItem(DOCK_FOLDED_KEY);
+  } catch {
+    // Private mode or blocked storage: the fold lasts until reload.
+  }
+}
+
+/**
+ * The dock's height as `--tour-dock-h` on <html>: the list scrolls clear
+ * of it and the toaster sits above it. CSSOM only (strict CSP).
+ */
+function useDockHeight(dock: RefObject<HTMLElement | null>) {
+  useLayoutEffect(() => {
+    const element = dock.current;
+    const root = document.documentElement;
+    if (!element) return;
+    const write = () =>
+      root.style.setProperty(
+        "--tour-dock-h",
+        `${Math.ceil(element.getBoundingClientRect().height)}px`,
+      );
+    write();
+    if (typeof ResizeObserver === "undefined") {
+      return () => root.style.removeProperty("--tour-dock-h");
+    }
+    const observer = new ResizeObserver(write);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty("--tour-dock-h");
+    };
+  }, [dock]);
 }
 
 export interface MyTourPageProps {
@@ -258,10 +338,16 @@ export function MyTourPage({
     else url.searchParams.delete("day");
     window.history.replaceState(window.history.state, "", url);
   };
-  /** Edit mode: the draft order of all stops; null outside edit mode. */
-  const [draft, setDraft] = useState<readonly string[] | null>(null);
+  /** An open stop the driver tapped: the dock shows it instead of the next. */
+  const [shownId, setShownId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  /** Fully done windows the driver opened again. */
+  const [openedWindows, setOpenedWindows] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
   const [announcement, setAnnouncement] = useState("");
+  const dockHeading = useRef<HTMLHeadingElement | null>(null);
+  const focusDock = useRef(false);
 
   const queryKey = ["my-tour", actionId, day] as const;
   const tourQuery = useQuery({
@@ -282,7 +368,6 @@ export function MyTourPage({
     for (const mutation of mutations.findAll({ mutationKey: ["my-tour"] })) {
       mutations.remove(mutation);
     }
-    setDraft(null);
   }, [offline, queries]);
   const mutationOptions = { gcTime: 0, mutationKey: ["my-tour", actionId] };
   const refresh = () =>
@@ -312,32 +397,80 @@ export function MyTourPage({
         });
       }
     }
-    return { stops, windows, order: windows.flatMap((group) => group.ids) };
+    return {
+      stops,
+      windows,
+      order: windows.flatMap((group) => group.ids),
+      town: homeTown(tour),
+    };
   }, [tour]);
-  const windowOf = (id: string) => model.stops.get(id)?.window.windowId ?? "";
+  const windowOf = (id: string) => windowOfStop(model.stops, id);
 
-  // A stop the server added or removed while editing: keep the draft to
-  // the known stops and append new ones; the save then says what changed.
-  const draftIds = useMemo(() => {
-    if (!draft) return null;
-    const known = draft.filter((id) => model.stops.has(id));
-    return [...known, ...model.order.filter((id) => !known.includes(id))];
-  }, [draft, model]);
+  // Each move saves at once (D16); a conflict reloads the tour.
+  // Day, action and cache entry are those of the move, never of the page
+  // at the time the save goes out (the driver may switch the day first).
+  const autosave = useOrderAutosave<DeliveryTourResponse, OrderContext>({
+    save: (_key, ids, revision, context) =>
+      client.saveMyTourOrder(context.actionId, {
+        commitmentIds: [...ids],
+        day: context.day,
+        expectedRevision: revision,
+      }),
+    revisionOf: (saved) => saved.revision,
+    onSaved: (_key, saved, context) =>
+      queries.setQueryData<MyTourResponse>(context.queryKey, (current) =>
+        current?.tour?.day === saved.day
+          ? { ...current, tour: saved }
+          : current,
+      ),
+    onFailed: (_key, error, context) => {
+      toast?.show({ title: errorText(error), tone: "error" });
+      if (isStale(error)) {
+        void queries.invalidateQueries({ queryKey: context.queryKey });
+      }
+    },
+    savedText: () => copy.saved,
+    undoneText: () => copy.undone,
+  });
 
-  const counted = model.order
+  // The order on screen: a move that is saving, kept to the known stops
+  // (the server may add or drop one meanwhile), else the server's.
+  const pending = autosave.orderOf(MY_ORDER);
+  const order = useMemo(
+    () =>
+      pending
+        ? reconcileOrder(pending, model.order, (id) =>
+            windowOfStop(model.stops, id),
+          )
+        : model.order,
+    [pending, model],
+  );
+
+  const counted = order
     .map((id) => model.stops.get(id)!)
     .filter((stop) => deliverable(stop.drop));
   const deliveredCount = counted.filter(
     (stop) => stop.drop.state === "delivered",
   ).length;
-  const nextId = model.order.find((id) => {
-    const stop = model.stops.get(id)!;
-    return (
-      stop.drop.state === "open" &&
-      deliverable(stop.drop) &&
-      !stop.window.closed
+  const settled =
+    counted.length > 0 && counted.every((stop) => stop.drop.state !== "open");
+  const isOpenStop = (id: string) => {
+    const stop = model.stops.get(id);
+    return Boolean(
+      stop && stop.drop.state === "open" && deliverable(stop.drop),
     );
-  });
+  };
+  const nextId = order.find(
+    (id) => isOpenStop(id) && !model.stops.get(id)!.window.closed,
+  );
+  const dockId = shownId && isOpenStop(shownId) ? shownId : nextId;
+
+  // After a mark the dock shows the next stop; focus follows it.
+  useEffect(() => {
+    if (!focusDock.current) return;
+    focusDock.current = false;
+    dockHeading.current?.focus();
+  }, [dockId]);
 
   // One command at a time, set before "pending" shows in a later render.
   const ticking = useRef(false);
@@ -387,7 +520,12 @@ export function MyTourPage({
     setState.mutate(
       { drop, target },
       {
-        onSuccess: (updated) =>
+        onSuccess: (updated) => {
+          if (target !== "open" && drop.commitmentId === dockId) {
+            // The dock moves on to the next open stop, without scrolling.
+            setShownId(null);
+            focusDock.current = true;
+          }
           toast?.show({
             title: copy.toast[target](name),
             tone: target === "delivered" ? "success" : "info",
@@ -400,58 +538,45 @@ export function MyTourPage({
                     label: "Rückgängig",
                     run: () => mark(freshest(updated), "open"),
                   },
-          }),
+          });
+        },
       },
     );
   };
 
-  const saveOrder = useMutation({
+  const resetOrder = useMutation({
     ...mutationOptions,
-    mutationFn: ({
-      ids,
-      current,
-    }: {
-      ids: readonly string[];
-      current: DeliveryTourResponse;
-    }) =>
+    mutationFn: (current: DeliveryTourResponse) =>
       client.saveMyTourOrder(actionId, {
-        commitmentIds: [...ids],
+        commitmentIds: [],
         day: current.day,
         expectedRevision: current.revision,
       }),
-    onSuccess: (updated, { ids }) => {
+    onSuccess: (updated) => {
       queries.setQueryData<MyTourResponse>(queryKey, (current) =>
         current ? { ...current, tour: updated } : current,
       );
-      setDraft(null);
-      toast?.show({
-        title: ids.length ? copy.saved : copy.resetDone,
-        tone: "success",
-      });
+      toast?.show({ title: copy.resetDone, tone: "success" });
     },
     onError: (error) => {
       toast?.show({ title: errorText(error), tone: "error" });
-      // A changed tour: leave edit mode and show the current one. Other
-      // failures (network) keep the draft for another try.
-      if (isStale(error)) {
-        setDraft(null);
-        void refresh();
-      }
+      if (isStale(error)) void refresh();
     },
   });
 
-  const finishEdit = () => {
-    if (!draftIds || !tour) return;
-    if (sameOrder(draftIds, model.order)) {
-      setDraft(null);
-      toast?.show({ title: copy.unchanged, tone: "info" });
-      return;
-    }
-    saveOrder.mutate({ ids: draftIds, current: tour });
-  };
-
-  const moveInDraft = (next: string[], id: string) => {
-    setDraft(next);
+  const moveStopTo = (
+    id: string,
+    targetId: string,
+    side: "before" | "after",
+  ) => {
+    if (!tour) return;
+    const next = placeStop(order, id, targetId, side, windowOf);
+    if (next.every((value, index) => value === order[index])) return;
+    autosave.move(MY_ORDER, next, order, tour.revision, {
+      actionId,
+      day: tour.day,
+      queryKey,
+    });
     const stop = model.stops.get(id);
     if (stop) {
       setAnnouncement(
@@ -460,47 +585,388 @@ export function MyTourPage({
     }
   };
 
-  const toggleExpanded = (id: string) =>
-    setExpanded((current) => {
+  const toggle = (setter: typeof setExpanded) => (id: string) =>
+    setter((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+  const toggleExpanded = toggle(setExpanded);
+  const toggleWindow = toggle(setOpenedWindows);
 
-  const header = (
-    <header className="page-header">
-      <div>
-        <div className="page-heading">
-          <h1>{copy.title}</h1>
-          {tour && data && data.days.length <= 1 ? (
-            <span className="page-count" data-testid="tour-day">
-              {shortDay(tour.day)}
-            </span>
-          ) : null}
-        </div>
-        {tour ? (
-          <p className="page-sub tour-sub">
-            <span className="num">
-              {copy.progress(deliveredCount, counted.length)}
-            </span>
-            <span aria-hidden="true">·</span>
-            <span>{tour.driverOrderedAt ? copy.ownOrder : copy.planOrder}</span>
-          </p>
-        ) : null}
+  // A waiting move goes out first, for the day and action it was made in.
+  const chooseAction = (value: string) => {
+    void autosave.release(MY_ORDER);
+    setDay(null);
+    setShownId(null);
+    replaceActionInUrl(value);
+  };
+  const chooseDay = (value: string) => {
+    void autosave.release(MY_ORDER);
+    setDay(value);
+    setShownId(null);
+  };
+
+  const bar = (
+    <TourBar
+      actionId={actionId}
+      actions={actions}
+      data={data}
+      delivered={deliveredCount}
+      onAction={chooseAction}
+      onDay={chooseDay}
+      onReset={() => {
+        // The reset replaces a waiting move; it waits for a running save
+        // and then uses the revision that save returned.
+        void autosave.cancel(MY_ORDER).then(() => {
+          const current =
+            queries.getQueryData<MyTourResponse>(queryKey)?.tour ?? tour;
+          if (current) resetOrder.mutate(current);
+        });
+      }}
+      resetting={resetOrder.isPending}
+      total={counted.length}
+    />
+  );
+
+  const frame = (children: ReactNode) => (
+    <div className="delivery tour" data-zone="delivery">
+      <h1 className="sr-only">{copy.title}</h1>
+      {bar}
+      {children}
+    </div>
+  );
+
+  if (offline) {
+    return frame(
+      <EmptyState
+        description={copy.offline}
+        headingLevel={2}
+        icon={Truck}
+        title="Keine Verbindung"
+      />,
+    );
+  }
+
+  if (!actionId) {
+    return frame(
+      <EmptyState
+        description={copy.noAction}
+        headingLevel={2}
+        icon={Truck}
+        title="Keine Aktion gewählt"
+      />,
+    );
+  }
+
+  const notEnabled =
+    tourQuery.error instanceof ApiError &&
+    ["delivery_not_enabled", "feature_flag_disabled"].includes(
+      tourQuery.error.detail.code,
+    );
+
+  if (tourQuery.isPending) return frame(<SkeletonRows rows={5} />);
+  if (notEnabled) {
+    return frame(
+      <EmptyState
+        description={copy.notEnabled}
+        headingLevel={2}
+        icon={Truck}
+        title="Keine Lieferplanung"
+      />,
+    );
+  }
+  if (tourQuery.isError) {
+    return frame(
+      <ErrorState onRetry={() => void tourQuery.refetch()} title={copy.error}>
+        {copy.errorHint}
+      </ErrorState>,
+    );
+  }
+  if (!tour || order.length === 0) {
+    return frame(
+      <EmptyState
+        description={copy.nothingHint}
+        headingLevel={2}
+        icon={Truck}
+        title={copy.nothing}
+      />,
+    );
+  }
+
+  const dockStop = dockId ? model.stops.get(dockId) : undefined;
+
+  return frame(
+    <>
+      <p aria-live="polite" className="sr-only" role="status">
+        {announcement}
+      </p>
+      <div className="tour-list">
+        {model.windows.map(({ window }) => {
+          const ids = order.filter((id) => windowOf(id) === window.windowId);
+          const active = ids
+            .map((id) => model.stops.get(id)!.drop)
+            .filter(deliverable);
+          const done = active.filter(
+            (drop) => drop.state === "delivered",
+          ).length;
+          const allDone =
+            active.length > 0 && active.every((drop) => drop.state !== "open");
+          const hint = windowHint(window.startsAt, window.endsAt, now);
+          const folded = allDone && !openedWindows.has(window.windowId);
+          const movable = window.closed
+            ? []
+            : ids.filter((id) => isOpenStop(id));
+          const rows = (
+            <ol
+              className="tour-rows"
+              hidden={folded}
+              id={`tour-rows-${window.windowId}`}
+            >
+              {ids.map((id) => {
+                const stop = model.stops.get(id)!;
+                const position = order.indexOf(id) + 1;
+                return isOpenStop(id) ? (
+                  <OpenRow
+                    current={id === dockId}
+                    key={id}
+                    movable={movable.length > 1 && movable.includes(id)}
+                    onShow={() => setShownId(id === nextId ? null : id)}
+                    position={position}
+                    stop={stop}
+                  />
+                ) : (
+                  <DoneRow
+                    busy={setState.isPending}
+                    expanded={expanded.has(id)}
+                    key={id}
+                    onToggle={() => toggleExpanded(id)}
+                    onUndo={() => mark(stop.drop, "open")}
+                    position={position}
+                    stop={stop}
+                    zone={zone}
+                  />
+                );
+              })}
+            </ol>
+          );
+          return (
+            <section
+              aria-labelledby={`tour-win-${window.windowId}`}
+              className={cn("tour-window", window.closed && "is-closed")}
+              key={window.windowId}
+            >
+              <WindowLabel
+                allDone={allDone}
+                closed={window.closed}
+                count={active.length}
+                delivered={done}
+                folded={folded}
+                hint={hint}
+                id={`tour-win-${window.windowId}`}
+                label={`${deliveryTimeRange(window, zone)} Uhr`}
+                onToggle={() => toggleWindow(window.windowId)}
+                rowsId={`tour-rows-${window.windowId}`}
+              />
+              {movable.length > 1 ? (
+                <TaskOrdering
+                  ids={movable}
+                  noun="Stopp"
+                  onCancel={() => setAnnouncement("Verschieben abgebrochen.")}
+                  onMove={moveStopTo}
+                  touch="handle"
+                >
+                  {rows}
+                </TaskOrdering>
+              ) : (
+                rows
+              )}
+            </section>
+          );
+        })}
       </div>
-      {data && (data.days.length > 1 || actions.length > 1) ? (
-        <div className="delivery-filters">
+      <TourDock
+        busy={setState.isPending}
+        delivered={deliveredCount}
+        headingRef={dockHeading}
+        isNext={dockId === nextId}
+        onMark={(target) => {
+          if (dockStop) mark(dockStop.drop, target);
+        }}
+        onShowNext={() => setShownId(null)}
+        position={dockId ? order.indexOf(dockId) + 1 : 0}
+        settled={settled}
+        stop={dockStop}
+        total={counted.length}
+        town={model.town}
+        windowEnded={
+          dockStop
+            ? windowHint(dockStop.window.startsAt, dockStop.window.endsAt, now)
+                .kind === "ended"
+            : false
+        }
+      />
+    </>,
+  );
+}
+
+/**
+ * The app bar part of the page (critique §3 A): "Meine Tour · Sa 05.12."
+ * under the action name, then "2/7" and the ⋮ menu; the meter is the bar's
+ * lower edge. Inside the PWA shell it fills the shell's bar; elsewhere
+ * (tests, previews) it renders as the page's own bar.
+ */
+function TourBar({
+  actionId,
+  actions,
+  data,
+  delivered,
+  onAction,
+  onDay,
+  onReset,
+  resetting,
+  total,
+}: {
+  readonly actionId: string;
+  readonly actions: readonly {
+    readonly actionId: string;
+    readonly actionName: string;
+  }[];
+  readonly data: MyTourResponse | undefined;
+  readonly delivered: number;
+  readonly onAction: (actionId: string) => void;
+  readonly onDay: (day: string) => void;
+  readonly onReset: () => void;
+  readonly resetting: boolean;
+  readonly total: number;
+}) {
+  const shell = usePageBar();
+  const tour = data?.tour ?? null;
+  const own = Boolean(tour?.driverOrderedAt);
+  const sub = (
+    <span className="tour-bar-sub" data-testid="tour-bar-sub">
+      {copy.title}
+      {tour ? (
+        <>
+          {" · "}
+          <span data-testid="tour-day">{shortDay(tour.day)}</span>
+        </>
+      ) : null}
+      {own ? ` · ${copy.ownOrder}` : null}
+    </span>
+  );
+  const end = (
+    <>
+      {tour && total > 0 ? (
+        <>
+          <span
+            aria-label={`${delivered} von ${total} zugestellt`}
+            className="tour-bar-count num"
+            data-testid="tour-progress"
+            role="img"
+          >
+            {delivered}/{total}
+          </span>
+          <span className="tour-bar-meter" data-zone="delivery">
+            <Meter
+              label={`${delivered} von ${total} zugestellt`}
+              max={total}
+              tone={delivered === total ? "ok" : "zone"}
+              value={delivered}
+            />
+          </span>
+        </>
+      ) : null}
+      <TourMenu
+        actionId={actionId}
+        actions={actions}
+        days={data?.days ?? []}
+        day={tour?.day ?? null}
+        onAction={onAction}
+        onDay={onDay}
+        onReset={own ? onReset : null}
+        resetting={resetting}
+      />
+    </>
+  );
+  if (shell?.sub && shell.end) {
+    return (
+      <>
+        <PageBarPortal slot="sub">{sub}</PageBarPortal>
+        <PageBarPortal slot="end">{end}</PageBarPortal>
+      </>
+    );
+  }
+  return (
+    <header className="tour-bar is-inline">
+      <span className="tour-bar-title">
+        <span className="tour-bar-name">{data?.actionName ?? copy.title}</span>
+        {sub}
+      </span>
+      <span className="tour-bar-end">{end}</span>
+    </header>
+  );
+}
+
+/** ⋮: "Zurück zur Planung" (own order only), day and action (several). */
+function TourMenu({
+  actionId,
+  actions,
+  day,
+  days,
+  onAction,
+  onDay,
+  onReset,
+  resetting,
+}: {
+  readonly actionId: string;
+  readonly actions: readonly {
+    readonly actionId: string;
+    readonly actionName: string;
+  }[];
+  readonly day: string | null;
+  readonly days: readonly string[];
+  readonly onAction: (actionId: string) => void;
+  readonly onDay: (day: string) => void;
+  readonly onReset: (() => void) | null;
+  readonly resetting: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const anchor = useRef<HTMLButtonElement | null>(null);
+  if (!onReset && days.length <= 1 && actions.length <= 1) return null;
+  return (
+    <>
+      <button
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={copy.menu}
+        className="tour-bar-menu"
+        data-testid="tour-menu"
+        onClick={() => setOpen((value) => !value)}
+        ref={anchor}
+        title={copy.menu}
+        type="button"
+      >
+        <EllipsisVertical aria-hidden="true" size={20} />
+      </button>
+      <Popover
+        align="end"
+        anchor={anchor}
+        label={copy.menu}
+        onClose={() => setOpen(false)}
+        open={open}
+      >
+        <div className="tour-menu">
           {actions.length > 1 ? (
-            <label className="driver-filter">
+            <label className="tour-menu-field">
               <span>Aktion</span>
               <select
                 className="input select"
                 data-testid="tour-action"
                 onChange={(event) => {
-                  setDay(null);
-                  setDraft(null);
-                  replaceActionInUrl(event.target.value);
+                  setOpen(false);
+                  onAction(event.target.value);
                 }}
                 value={actionId}
               >
@@ -512,19 +978,19 @@ export function MyTourPage({
               </select>
             </label>
           ) : null}
-          {data.days.length > 1 ? (
-            <label className="driver-filter">
+          {days.length > 1 ? (
+            <label className="tour-menu-field">
               <span>Liefertag</span>
               <select
                 className="input select"
-                data-testid="tour-day"
+                data-testid="tour-day-select"
                 onChange={(event) => {
-                  setDay(event.target.value);
-                  setDraft(null);
+                  setOpen(false);
+                  onDay(event.target.value);
                 }}
-                value={tour?.day ?? ""}
+                value={day ?? ""}
               >
-                {data.days.map((item) => (
+                {days.map((item) => (
                   <option key={item} value={item}>
                     {shortDay(item)}
                   </option>
@@ -532,290 +998,104 @@ export function MyTourPage({
               </select>
             </label>
           ) : null}
-        </div>
-      ) : null}
-    </header>
-  );
-
-  if (offline) {
-    return (
-      <div className="delivery tour" data-zone="delivery">
-        <header className="page-header">
-          <div className="page-heading">
-            <h1>{copy.title}</h1>
-          </div>
-        </header>
-        <EmptyState
-          description={copy.offline}
-          headingLevel={2}
-          icon={Truck}
-          title="Keine Verbindung"
-        />
-      </div>
-    );
-  }
-
-  if (!actionId) {
-    return (
-      <div className="delivery tour" data-zone="delivery">
-        <EmptyState
-          description={copy.noAction}
-          headingLevel={2}
-          icon={Truck}
-          title="Keine Aktion gewählt"
-        />
-      </div>
-    );
-  }
-
-  const notEnabled =
-    tourQuery.error instanceof ApiError &&
-    ["delivery_not_enabled", "feature_flag_disabled"].includes(
-      tourQuery.error.detail.code,
-    );
-  const reorderable = model.windows.some(
-    (group) => !group.window.closed && group.ids.length > 1,
-  );
-
-  return (
-    <div className="delivery tour" data-zone="delivery">
-      {header}
-      {tourQuery.isPending ? (
-        <SkeletonRows rows={5} />
-      ) : notEnabled ? (
-        <EmptyState
-          description={copy.notEnabled}
-          headingLevel={2}
-          icon={Truck}
-          title="Keine Lieferplanung"
-        />
-      ) : tourQuery.isError ? (
-        <ErrorState onRetry={() => void tourQuery.refetch()} title={copy.error}>
-          {copy.errorHint}
-        </ErrorState>
-      ) : !tour || model.order.length === 0 ? (
-        <EmptyState
-          description={copy.nothingHint}
-          headingLevel={2}
-          icon={Truck}
-          title={copy.nothing}
-        />
-      ) : (
-        <>
-          <Meter
-            label={copy.progress(deliveredCount, counted.length)}
-            max={Math.max(1, counted.length)}
-            tone={
-              deliveredCount === counted.length && counted.length > 0
-                ? "ok"
-                : "zone"
-            }
-            value={deliveredCount}
-          />
-          {draftIds ? (
-            <div
-              aria-label={copy.reorder}
-              className="tour-edit-bar"
-              role="region"
+          {onReset ? (
+            <Button
+              data-testid="tour-reset-order"
+              icon={Undo2}
+              loading={resetting}
+              onClick={() => {
+                setOpen(false);
+                onReset();
+              }}
+              size="lg"
+              variant="secondary"
             >
-              <p>{copy.editHint}</p>
-              <div className="tour-edit-actions">
-                <Button
-                  data-testid="tour-reorder-done"
-                  icon={Check}
-                  loading={saveOrder.isPending}
-                  onClick={finishEdit}
-                  size="lg"
-                  variant="primary"
-                >
-                  {copy.done}
-                </Button>
-                {tour.driverOrderedAt ? (
-                  <Button
-                    data-testid="tour-reset-order"
-                    disabled={saveOrder.isPending}
-                    onClick={() => saveOrder.mutate({ ids: [], current: tour })}
-                    size="lg"
-                    variant="secondary"
-                  >
-                    {copy.reset}
-                  </Button>
-                ) : null}
-                <Button
-                  disabled={saveOrder.isPending}
-                  onClick={() => setDraft(null)}
-                  size="lg"
-                  variant="ghost"
-                >
-                  {copy.cancel}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <>
-              {counted.length > 0 &&
-              counted.every((stop) => stop.drop.state !== "open") ? (
-                <StatusMessage className="tour-all-done" tone="success">
-                  {copy.allDone}
-                </StatusMessage>
-              ) : null}
-              {reorderable ? (
-                <div className="tour-list-head">
-                  <Button
-                    data-testid="tour-reorder"
-                    icon={ArrowDownUp}
-                    onClick={() => {
-                      setExpanded(new Set());
-                      setDraft(model.order);
-                    }}
-                    variant="ghost"
-                  >
-                    {copy.reorder}
-                  </Button>
-                </div>
-              ) : null}
-            </>
-          )}
-          <p aria-live="polite" className="sr-only" role="status">
-            {announcement}
-          </p>
-
-          {model.windows.map(({ window, ids }) => {
-            const order = draftIds ?? model.order;
-            const groupIds = draftIds
-              ? draftIds.filter((id) => windowOf(id) === window.windowId)
-              : ids;
-            const active = groupIds
-              .map((id) => model.stops.get(id)!.drop)
-              .filter(deliverable);
-            const done = active.filter(
-              (drop) => drop.state === "delivered",
-            ).length;
-            const hint = windowHint(window.startsAt, window.endsAt, now);
-            const label = `${deliveryTimeRange(window, zone)} Uhr`;
-            const movable = Boolean(draftIds) && !window.closed;
-            const list = (
-              <ol className="tour-rows">
-                {groupIds.map((id, index) => {
-                  const stop = model.stops.get(id)!;
-                  const position = order.indexOf(id) + 1;
-                  const ended = hint.kind === "ended";
-                  if (draftIds) {
-                    return (
-                      <EditRow
-                        disabled={saveOrder.isPending}
-                        first={index === 0}
-                        key={id}
-                        last={index === groupIds.length - 1}
-                        movable={movable}
-                        onMove={(direction) =>
-                          moveInDraft(
-                            moveStop(draftIds, id, direction, windowOf),
-                            id,
-                          )
-                        }
-                        position={position}
-                        stop={stop}
-                      />
-                    );
-                  }
-                  const card = (next: boolean) => (
-                    <StopCard
-                      busy={setState.isPending}
-                      ended={ended}
-                      label={label}
-                      next={next}
-                      onMark={(target) => mark(stop.drop, target)}
-                      position={position}
-                      stop={stop}
-                    />
-                  );
-                  if (id === nextId) {
-                    return (
-                      <li className="tour-next" key={id}>
-                        {card(true)}
-                      </li>
-                    );
-                  }
-                  return (
-                    <StopRow
-                      card={card(false)}
-                      ended={ended}
-                      expanded={expanded.has(id)}
-                      key={id}
-                      onToggle={() => toggleExpanded(id)}
-                      position={position}
-                      stop={stop}
-                    />
-                  );
-                })}
-              </ol>
-            );
-            return (
-              <section
-                aria-labelledby={`tour-win-${window.windowId}`}
-                className={cn("tour-window", window.closed && "is-closed")}
-                key={window.windowId}
-              >
-                <header className="tour-window-head">
-                  <h2 id={`tour-win-${window.windowId}`}>
-                    {windowHintLabel(label, hint)}
-                  </h2>
-                  <span className="small muted num">
-                    {done} von {active.length} zugestellt
-                  </span>
-                  {window.closed ? (
-                    <span className="stamp tone-ok">{copy.closed}</span>
-                  ) : null}
-                </header>
-                {movable && draftIds ? (
-                  <TaskOrdering
-                    ids={groupIds}
-                    noun="Stopp"
-                    onCancel={() => setAnnouncement("Verschieben abgebrochen.")}
-                    onMove={(id, targetId, side) =>
-                      moveInDraft(
-                        placeStop(draftIds, id, targetId, side, windowOf),
-                        id,
-                      )
-                    }
-                  >
-                    {list}
-                  </TaskOrdering>
-                ) : (
-                  list
-                )}
-              </section>
-            );
-          })}
-        </>
-      )}
-    </div>
-  );
-}
-
-function StateFlags({
-  ended,
-  stop,
-}: {
-  readonly ended: boolean;
-  readonly stop: TourStop;
-}) {
-  const open = stop.drop.state === "open" && deliverable(stop.drop);
-  return (
-    <>
-      {stop.newForDriver ? <Badge tone="zone">{copy.isNew}</Badge> : null}
-      {open && ended && !stop.window.closed ? (
-        <Badge tone="warn">{copy.ended}</Badge>
-      ) : null}
-      {!deliverable(stop.drop) ? (
-        <Badge tone="neutral">{copy.cancelled}</Badge>
-      ) : null}
+              {copy.reset}
+            </Button>
+          ) : null}
+        </div>
+      </Popover>
     </>
   );
 }
 
+/**
+ * The sticky label of a window (critique §3 B): "08–10 Uhr · 2/3", the
+ * time hint, and "Abgeschlossen". A fully done window folds to one line
+ * that opens on tap.
+ */
+function WindowLabel({
+  allDone,
+  closed,
+  count,
+  delivered,
+  folded,
+  hint,
+  id,
+  label,
+  onToggle,
+  rowsId,
+}: {
+  readonly allDone: boolean;
+  readonly closed: boolean;
+  readonly count: number;
+  readonly delivered: number;
+  readonly folded: boolean;
+  readonly hint: WindowHint;
+  readonly id: string;
+  readonly label: string;
+  readonly onToggle: () => void;
+  readonly rowsId: string;
+}) {
+  const extra = (
+    <>
+      {hint.kind === "running" && !allDone ? (
+        <span className="tour-label-hint">noch {hint.minutesLeft} min</span>
+      ) : null}
+      {hint.kind === "ended" && !allDone && !closed ? (
+        <span className="tour-label-hint is-warn">{copy.ended}</span>
+      ) : null}
+      {closed ? <span className="stamp tone-ok">{copy.closed}</span> : null}
+    </>
+  );
+  if (allDone) {
+    const summary =
+      delivered === count
+        ? `alle ${count} zugestellt`
+        : `alle ${count} erledigt`;
+    return (
+      <h2 className="tour-label" id={id}>
+        <button
+          aria-controls={rowsId}
+          aria-expanded={!folded}
+          className="tour-label-toggle"
+          onClick={onToggle}
+          type="button"
+        >
+          <span>
+            {label} · {summary}
+          </span>
+          <Icon className="tour-label-chevron" icon={ChevronDown} size={16} />
+        </button>
+        {extra}
+      </h2>
+    );
+  }
+  return (
+    <h2 className="tour-label" id={id}>
+      <span>
+        {label} ·{" "}
+        <span className="num">
+          {delivered}/{count}
+        </span>
+      </span>
+      {extra}
+    </h2>
+  );
+}
+
 function stateLabel(drop: DeliveryDropResponse) {
+  if (!deliverable(drop)) return copy.cancelled;
   return drop.state === "delivered"
     ? copy.delivered
     : drop.state === "missed"
@@ -832,309 +1112,414 @@ function stateShape(drop: DeliveryDropResponse) {
       : ("open" as const);
 }
 
-/** The full card: the next stop, or a row or done line tapped open. */
-function StopCard({
-  busy,
-  ended,
-  label,
-  next,
-  onMark,
+/**
+ * An open stop, 56 px: grip, number, name over street, quantity. A tap
+ * shows it in the dock; the stop in the dock carries the zone line.
+ */
+function OpenRow({
+  current,
+  movable,
+  onShow,
   position,
   stop,
 }: {
-  readonly busy: boolean;
-  readonly ended: boolean;
-  /** Window label, "08–10 Uhr". */
-  readonly label: string;
-  readonly next: boolean;
-  readonly onMark: (target: Target) => void;
+  readonly current: boolean;
+  readonly movable: boolean;
+  readonly onShow: () => void;
   readonly position: number;
   readonly stop: TourStop;
+}) {
+  const { drop } = stop;
+  const name = stopName(drop);
+  return (
+    <li
+      className={cn("row tour-row", current && "is-current")}
+      data-commitment-id={drop.commitmentId}
+      data-testid="tour-stop"
+    >
+      {movable ? (
+        <TaskOrderHandle
+          disabled={false}
+          id={drop.commitmentId}
+          noun="Stopp"
+          title={name}
+        />
+      ) : (
+        <span aria-hidden="true" className="tour-handle-space" />
+      )}
+      <span className="tour-pos num">{position}</span>
+      <button
+        aria-current={current ? "true" : undefined}
+        className="tour-row-main"
+        onClick={onShow}
+        type="button"
+      >
+        <span className="tour-row-head">
+          <span className="tour-row-name" data-testid="tour-stop-name">
+            {name}
+          </span>
+          {stop.newForDriver ? <Badge tone="zone">{copy.isNew}</Badge> : null}
+        </span>
+        <span className="tour-row-street">
+          {drop.address?.streetLine1 ?? copy.noAddress}
+        </span>
+      </button>
+      <span className="tour-row-qty num">{dropQuantitiesShort(drop)}</span>
+    </li>
+  );
+}
+
+/**
+ * A done, missed or cancelled stop, 48 px and grey (D15). A tap opens a
+ * compact panel: address, quantity, time of the mark and "Rückgängig".
+ */
+function DoneRow({
+  busy,
+  expanded,
+  onToggle,
+  onUndo,
+  position,
+  stop,
+  zone,
+}: {
+  readonly busy: boolean;
+  readonly expanded: boolean;
+  readonly onToggle: () => void;
+  readonly onUndo: () => void;
+  readonly position: number;
+  readonly stop: TourStop;
+  readonly zone: string;
 }) {
   const { drop, window } = stop;
   const id = drop.commitmentId;
   const name = stopName(drop);
   const address = dropAddress(drop);
-  const located = { lat: null, lon: null, address: address ?? "" };
-  const tel = callHref(drop.contact?.phone ?? null, null);
-  const contactName = drop.contact?.name || copy.contact;
-  const navigation = navigationHref(
-    located,
-    devicePlatform(navigator.userAgent),
-  );
-  const external = navigation.startsWith("https:");
-  const open = drop.state === "open";
+  const undoable = deliverable(drop) && !window.closed;
   return (
-    <article
-      aria-labelledby={`tour-card-${id}`}
-      className={cn("tour-card", next && "is-next", !open && "is-done")}
-      data-testid={next ? "tour-next-stop" : undefined}
-      id={`tour-stop-${id}`}
-    >
-      <p className="tour-card-eyebrow">
-        <span className="tour-pos num">{position}</span>
-        <span>
-          {next ? copy.next : copy.stop} · {label}
-        </span>
-        <StateFlags ended={ended} stop={stop} />
-      </p>
-      <h3 id={`tour-card-${id}`}>{name}</h3>
-      {name !== drop.buyerName ? (
-        <p className="tour-card-buyer">für {drop.buyerName}</p>
-      ) : null}
-      {address && drop.address ? (
-        <a
-          className="tour-address"
-          href={osmHref(located)}
-          rel="noopener"
-          target="_blank"
-        >
-          <Icon icon={MapPin} size={16} />
-          <span>
-            {drop.address.streetLine1}
-            <br />
-            {drop.address.postalCode} {drop.address.city}
-          </span>
-        </a>
-      ) : (
-        <p className="tour-card-muted">{copy.noAddress}</p>
+    <li
+      className={cn(
+        "row tour-row is-done",
+        !deliverable(drop) && "is-cancelled",
+        expanded && "is-expanded",
       )}
-      {/* The driver note (spec §5.1) joins here with Task 12. */}
-      <div className="tour-contact">
-        <div className="tour-contact-text">
-          <strong>{contactName}</strong>
-          <span className="num">
-            {drop.contact?.phone ?? "Lieferkontakt ohne Telefon"}
-          </span>
-        </div>
-        {tel ? (
-          <a
-            aria-label={`${contactName} anrufen`}
-            className={cn(
-              buttonClassName({ size: "lg", variant: "secondary" }),
-              "btn-icon",
-            )}
-            href={tel}
-            title={`${contactName} anrufen`}
-          >
-            <Icon icon={Phone} size={18} />
-          </a>
-        ) : (
-          <Badge tone="neutral">{copy.noPhone}</Badge>
-        )}
-      </div>
-      <p className="tour-qty num">{quantities(drop)}</p>
-      <div className="tour-card-actions">
-        {address ? (
-          <a
-            className={cn(
-              buttonClassName({ size: "lg", variant: "secondary" }),
-              "tour-wide",
-            )}
-            href={navigation}
-            {...(external ? { rel: "noopener", target: "_blank" } : {})}
-          >
-            <Icon icon={Navigation} size={16} />
-            <span className="btn-label">Navigation</span>
-          </a>
-        ) : null}
-        {!deliverable(drop) ? (
-          <p className="tour-wide tour-card-muted">{copy.cancelledOrder}</p>
-        ) : window.closed ? (
-          <p className="tour-wide tour-card-muted">
-            {open ? copy.closedWindow : `${stateLabel(drop)}.`}
+      data-commitment-id={id}
+      data-testid="tour-stop-done"
+    >
+      <span aria-hidden="true" className="tour-handle-space" />
+      <span className="tour-pos num">{position}</span>
+      <button
+        aria-controls={expanded ? `tour-done-${id}` : undefined}
+        aria-expanded={expanded}
+        className="tour-row-main"
+        onClick={onToggle}
+        type="button"
+      >
+        <span className="tour-row-name" data-testid="tour-stop-name">
+          {name}
+        </span>
+      </button>
+      <span className="tour-row-state">
+        <StatusIcon
+          label={stateLabel(drop)}
+          size={20}
+          status={stateShape(drop)}
+        />
+      </span>
+      {expanded ? (
+        <div className="tour-done-panel" id={`tour-done-${id}`}>
+          <p>{address ?? copy.noAddress}</p>
+          <p className="num">{dropQuantities(drop)}</p>
+          <p className="tour-done-state">
+            {stateLabel(drop)}
+            {drop.stateChangedAt
+              ? ` um ${clockMinutes(drop.stateChangedAt, zone)} Uhr`
+              : ""}
           </p>
-        ) : open ? (
-          <>
+          {undoable ? (
             <Button
-              disabled={busy}
-              icon={Check}
-              onClick={() => onMark("delivered")}
-              size="lg"
-              variant="primary"
-            >
-              {copy.delivered}
-            </Button>
-            <Button
-              disabled={busy}
-              icon={X}
-              onClick={() => onMark("missed")}
-              size="lg"
-              variant="secondary"
-            >
-              {copy.missed}
-            </Button>
-          </>
-        ) : (
-          <>
-            <p className="tour-card-state">
-              <StatusIcon
-                label={stateLabel(drop)}
-                size={18}
-                status={stateShape(drop)}
-              />
-              <span>{stateLabel(drop)}.</span>
-            </p>
-            <Button
+              className="tour-done-undo"
               disabled={busy}
               icon={Undo2}
-              onClick={() => onMark("open")}
+              onClick={onUndo}
               size="lg"
               variant="secondary"
             >
               Rückgängig
             </Button>
-          </>
-        )}
-      </div>
-    </article>
+          ) : null}
+        </div>
+      ) : null}
+    </li>
   );
 }
 
-/** An open row (number, name, street, quantity) or a done line; taps open. */
-function StopRow({
-  card,
-  ended,
-  expanded,
-  onToggle,
+/**
+ * The fixed "Nächster Stopp" dock (critique §3 C): name and quantity,
+ * address, map, Navigation / Anrufen / Nicht da, and "Zugestellt" in thumb
+ * reach. It folds to name, quantity and "Zugestellt" for scanning the list.
+ */
+function TourDock({
+  busy,
+  delivered,
+  headingRef,
+  isNext,
+  onMark,
+  onShowNext,
+  position,
+  settled,
+  stop,
+  total,
+  town,
+  windowEnded,
+}: {
+  readonly busy: boolean;
+  readonly delivered: number;
+  readonly headingRef: RefObject<HTMLHeadingElement | null>;
+  readonly isNext: boolean;
+  readonly onMark: (target: Target) => void;
+  readonly onShowNext: () => void;
+  readonly position: number;
+  readonly settled: boolean;
+  readonly stop: TourStop | undefined;
+  readonly total: number;
+  readonly town: string | null;
+  readonly windowEnded: boolean;
+}) {
+  const dock = useRef<HTMLElement | null>(null);
+  useDockHeight(dock);
+  const [folded, setFolded] = useState(readFolded);
+  const swipe = useRef<{ start: number; end: number } | null>(null);
+  const fold = (value: boolean) => {
+    setFolded(value);
+    storeFolded(value);
+  };
+  const onGripDown = (event: PointerEvent<HTMLButtonElement>) => {
+    swipe.current = { start: event.clientY, end: event.clientY };
+  };
+  const onGripUp = (event: PointerEvent<HTMLButtonElement>) => {
+    if (swipe.current) swipe.current.end = event.clientY;
+  };
+  const onGripClick = () => {
+    const moved = swipe.current ? swipe.current.end - swipe.current.start : 0;
+    swipe.current = null;
+    if (moved > DOCK_SWIPE_PX) fold(true);
+    else if (moved < -DOCK_SWIPE_PX) fold(false);
+    else fold(!folded);
+  };
+
+  const drop = stop?.drop;
+  const body =
+    !stop || !drop ? (
+      <div className="tour-dock-body tour-dock-done" key="done">
+        <p className="tour-dock-done-title" ref={headingRef} tabIndex={-1}>
+          {settled
+            ? delivered === total
+              ? copy.allDelivered(total)
+              : copy.allSettled(delivered, total)
+            : copy.onlyClosedLeft}
+        </p>
+        {settled ? <p className="tour-dock-muted">{copy.tellLead}</p> : null}
+      </div>
+    ) : (
+      <DockStop
+        busy={busy}
+        folded={folded}
+        headingRef={headingRef}
+        isNext={isNext}
+        key={drop.commitmentId}
+        onMark={onMark}
+        onShowNext={onShowNext}
+        position={position}
+        stop={stop}
+        town={town}
+        windowEnded={windowEnded}
+      />
+    );
+  return (
+    <section
+      aria-label={isNext || !stop ? copy.next : copy.stop(position)}
+      className={cn("tour-dock", folded && stop && "is-folded")}
+      data-testid="tour-dock"
+      ref={dock}
+    >
+      {stop ? (
+        <button
+          aria-expanded={!folded}
+          aria-label={
+            folded ? "Stoppkarte aufklappen" : "Stoppkarte einklappen"
+          }
+          className="tour-dock-grip"
+          onClick={onGripClick}
+          onPointerDown={onGripDown}
+          onPointerUp={onGripUp}
+          type="button"
+        >
+          <span aria-hidden="true" />
+        </button>
+      ) : null}
+      {body}
+    </section>
+  );
+}
+
+function DockStop({
+  busy,
+  folded,
+  headingRef,
+  isNext,
+  onMark,
+  onShowNext,
   position,
   stop,
+  town,
+  windowEnded,
 }: {
-  readonly card: ReactNode;
-  readonly ended: boolean;
-  readonly expanded: boolean;
-  readonly onToggle: () => void;
+  readonly busy: boolean;
+  readonly folded: boolean;
+  readonly headingRef: RefObject<HTMLHeadingElement | null>;
+  readonly isNext: boolean;
+  readonly onMark: (target: Target) => void;
+  readonly onShowNext: () => void;
   readonly position: number;
   readonly stop: TourStop;
+  readonly town: string | null;
+  readonly windowEnded: boolean;
 }) {
-  const { drop } = stop;
-  const done = drop.state !== "open";
+  const { drop, window } = stop;
+  const name = stopName(drop);
   const address = dropAddress(drop);
-  const id = drop.commitmentId;
-  const name = stopName(drop);
-  return (
-    <li
-      className={cn(
-        "row tour-row",
-        done && "is-done",
-        !deliverable(drop) && "is-cancelled",
-        expanded && "is-expanded",
-      )}
-      data-testid={done ? "tour-stop-done" : "tour-stop"}
+  const tel = callHref(drop.contact?.phone ?? null, null);
+  const contactName = drop.contact?.name || name;
+  const navigation = address
+    ? navigationHref(
+        { address, lat: null, lon: null },
+        devicePlatform(navigator.userAgent),
+      )
+    : null;
+  const external = navigation?.startsWith("https:") ?? false;
+  const canMark = deliverable(drop) && !window.closed;
+  const deliver = (
+    <Button
+      className="tour-go"
+      disabled={busy}
+      icon={Check}
+      onClick={() => onMark("delivered")}
+      size="lg"
+      variant="primary"
     >
-      <div className="tour-row-line">
-        <span className="tour-pos num">{position}</span>
-        <div className="tour-row-main">
-          <button
-            aria-controls={expanded ? `tour-stop-${id}` : undefined}
-            aria-expanded={expanded}
-            className="tour-row-toggle"
-            onClick={onToggle}
-            type="button"
-          >
-            <span className="tour-row-name" data-testid="tour-stop-name">
-              {name}
-            </span>
-            <Icon className="tour-row-chevron" icon={ChevronDown} size={16} />
-          </button>
-          {done ? null : (
-            <p className="tour-row-sub">
-              {address && drop.address ? (
-                <a
-                  aria-label={`${address} in OpenStreetMap`}
-                  className="tour-row-map"
-                  href={osmHref({ lat: null, lon: null, address })}
-                  rel="noopener"
-                  target="_blank"
-                >
-                  <Icon icon={MapPin} size={14} />
-                  <span>{drop.address.streetLine1}</span>
-                </a>
-              ) : null}
-              <span className="num">{quantities(drop)}</span>
-              <StateFlags ended={ended} stop={stop} />
-            </p>
-          )}
-        </div>
-        <span className="tour-row-state">
-          <StatusIcon
-            label={stateLabel(drop)}
-            size={20}
-            status={stateShape(drop)}
-          />
-          {done ? <span aria-hidden="true">{stateLabel(drop)}</span> : null}
-        </span>
-      </div>
-      {expanded ? card : null}
-    </li>
+      {copy.delivered}
+    </Button>
   );
-}
-
-/** Edit mode: grip, number, name, up and down (inside the window only). */
-function EditRow({
-  disabled,
-  first,
-  last,
-  movable,
-  onMove,
-  position,
-  stop,
-}: {
-  readonly disabled: boolean;
-  readonly first: boolean;
-  readonly last: boolean;
-  readonly movable: boolean;
-  readonly onMove: (direction: -1 | 1) => void;
-  readonly position: number;
-  readonly stop: TourStop;
-}) {
-  const { drop } = stop;
-  const name = stopName(drop);
-  const done = drop.state !== "open";
-  return (
-    <li
-      className={cn("row tour-row is-editing", done && "is-done")}
-      data-testid={done ? "tour-stop-done" : "tour-stop"}
-    >
-      <div className="tour-row-line">
-        {movable ? (
-          <TaskOrderHandle
-            disabled={disabled}
-            id={drop.commitmentId}
-            noun="Stopp"
-            title={name}
-          />
-        ) : null}
-        <span className="tour-pos num">{position}</span>
-        <div className="tour-row-main">
-          <span className="tour-row-name" data-testid="tour-stop-name">
-            {name}
-          </span>
-          <span className="tour-row-sub">{drop.address?.streetLine1}</span>
-        </div>
-        {movable ? (
-          <span className="tour-row-tools">
-            <IconButton
-              disabled={disabled || first}
-              focusableWhenDisabled
-              icon={ArrowUp}
-              label={`${name} nach oben`}
-              onClick={() => onMove(-1)}
-              size="lg"
-              variant="secondary"
-            />
-            <IconButton
-              disabled={disabled || last}
-              focusableWhenDisabled
-              icon={ArrowDown}
-              label={`${name} nach unten`}
-              onClick={() => onMove(1)}
-              size="lg"
-              variant="secondary"
-            />
-          </span>
+  const head = (
+    <div className="tour-dock-head">
+      <span className="tour-pos num">{position}</span>
+      <div className="tour-dock-title">
+        <h2 id="tour-dock-name" ref={headingRef} tabIndex={-1}>
+          {name}
+        </h2>
+        {!folded && name !== drop.buyerName ? (
+          <p className="tour-dock-muted">für {drop.buyerName}</p>
         ) : null}
       </div>
-    </li>
+      <span className="tour-qty num" data-testid="tour-dock-qty">
+        {dropQuantitiesShort(drop)}
+      </span>
+    </div>
+  );
+  if (folded) {
+    return (
+      <div className="tour-dock-body is-folded" data-testid="tour-next-stop">
+        {head}
+        {canMark ? deliver : null}
+      </div>
+    );
+  }
+  return (
+    <div className="tour-dock-body" data-testid="tour-next-stop">
+      {isNext ? null : (
+        <p className="tour-dock-eyebrow">
+          <span>{copy.stop(position)}</span>
+          <button className="tour-dock-back" onClick={onShowNext} type="button">
+            {copy.toNext}
+          </button>
+        </p>
+      )}
+      {head}
+      {stop.newForDriver || (windowEnded && !window.closed) ? (
+        <p className="tour-dock-flags">
+          {stop.newForDriver ? <Badge tone="zone">{copy.isNew}</Badge> : null}
+          {windowEnded && !window.closed ? (
+            <Badge tone="warn">{copy.ended}</Badge>
+          ) : null}
+        </p>
+      ) : null}
+      {drop.address ? (
+        <p className="tour-dock-address">
+          {drop.address.streetLine1}
+          {drop.address.city !== town ? (
+            <span>
+              , {drop.address.postalCode} {drop.address.city}
+            </span>
+          ) : (
+            <span className="sr-only">
+              , {drop.address.postalCode} {drop.address.city}
+            </span>
+          )}
+        </p>
+      ) : (
+        <p className="tour-dock-muted">{copy.noAddress}</p>
+      )}
+      {/* The driver note (spec §5.1) joins here with Task 12. */}
+      {address ? <TourMapSlot address={address} lat={null} lon={null} /> : null}
+      {canMark ? (
+        <>
+          <div className="tour-dock-actions">
+            {navigation ? (
+              <a
+                className={cn(
+                  buttonClassName({ size: "lg", variant: "secondary" }),
+                  "tour-nav",
+                )}
+                href={navigation}
+                {...(external ? { rel: "noopener", target: "_blank" } : {})}
+              >
+                <Icon icon={Navigation} size={18} />
+                <span className="btn-label">Navigation</span>
+              </a>
+            ) : null}
+            {tel ? (
+              <a
+                aria-label={`${contactName} anrufen`}
+                className={cn(
+                  buttonClassName({ size: "lg", variant: "secondary" }),
+                  "btn-icon tour-call",
+                )}
+                href={tel}
+                title={`${contactName} anrufen`}
+              >
+                <Icon icon={Phone} size={20} />
+              </a>
+            ) : null}
+            <Button
+              aria-label={`${copy.missedShort} (${copy.missed.toLowerCase()})`}
+              className="tour-missed"
+              disabled={busy}
+              icon={X}
+              onClick={() => onMark("missed")}
+              size="lg"
+              title={copy.missed}
+              variant="secondary"
+            >
+              {copy.missedShort}
+            </Button>
+          </div>
+          {deliver}
+        </>
+      ) : (
+        <p className="tour-dock-muted tour-dock-reason">
+          {deliverable(drop) ? copy.closedWindow : copy.cancelledOrder}
+        </p>
+      )}
+    </div>
   );
 }
