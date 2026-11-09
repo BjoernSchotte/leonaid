@@ -231,3 +231,14 @@ export function windowHintLabel(label: string, hint: WindowHint): string {
     ? `${label} · noch ${hint.minutesLeft} min`
     : label;
 }
+
+/** OpenStreetMap at the pin, or an OSM search for the address (spec §7.1, D15). */
+export function osmHref(stop: {
+  readonly lat: number | null;
+  readonly lon: number | null;
+  readonly address: string;
+}): string {
+  return hasCoord(stop)
+    ? `https://www.openstreetmap.org/?mlat=${stop.lat}&mlon=${stop.lon}#map=18/${stop.lat}/${stop.lon}`
+    : `https://www.openstreetmap.org/search?query=${encodeURIComponent(stop.address)}`;
+}

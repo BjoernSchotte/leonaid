@@ -1,0 +1,305 @@
+/*
+ * Delivery tours. "Meine Tour" (PWA, spec krapfentaxi-touren §7) is scoped
+ * to .tour; it sits on .delivery for the board's filters, stamp and helpers.
+ * Touch targets are 44 px (--control-h-lg); focus uses --focus.
+ */
+.tour {
+  display: grid;
+  gap: var(--s-4);
+  align-content: start;
+  max-width: 720px;
+}
+.tour .page-header {
+  margin-bottom: 0;
+}
+.tour-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.tour .btn-icon.btn-lg {
+  width: var(--control-h-lg);
+}
+.tour-list-head {
+  display: flex;
+  justify-content: flex-end;
+}
+.tour-list-head .btn {
+  height: var(--control-h-lg);
+}
+
+/* ---------- edit mode ---------- */
+.tour-edit-bar {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: var(--hair) solid var(--zone-line);
+  border-radius: var(--r-lg);
+  background: var(--zone-soft);
+  color: var(--zone-ink);
+  font-size: var(--fs-sm);
+}
+.tour-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+/* ---------- window groups ---------- */
+.tour-window {
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+.tour-window.is-closed {
+  background: var(--surface-2);
+}
+.tour-window-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: var(--hair) solid var(--border);
+}
+.tour-window-head h2 {
+  margin-inline-end: auto;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+}
+.tour-rows > li + li {
+  border-top: var(--hair) solid var(--border);
+}
+
+/* The position number: the same chip in card, row and edit row. */
+.tour-pos {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--zone-soft);
+  color: var(--zone-ink);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+}
+
+/* ---------- rows ---------- */
+.tour .row {
+  display: block;
+  min-height: 0;
+  padding: 0;
+  border-bottom: 0;
+}
+.tour .row:hover {
+  background: var(--surface);
+}
+.tour-row-line {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 56px;
+  padding: var(--s-2) var(--s-3) var(--s-2) var(--s-4);
+}
+.tour-row-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.tour-row-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--control-h-lg);
+  margin: calc(-1 * var(--s-2)) 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.tour-row-toggle:focus-visible,
+.tour-address:focus-visible,
+.tour-row-sub a:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.tour-row-name {
+  font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
+}
+.tour-row-chevron {
+  flex: none;
+  color: var(--text-3);
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.tour-row.is-expanded .tour-row-chevron {
+  transform: rotate(180deg);
+}
+.tour-row-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-2);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.tour-row-sub a {
+  color: var(--accent-ink);
+}
+.tour-row-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+}
+.tour-row-tools {
+  display: inline-flex;
+  gap: var(--s-1);
+  flex: none;
+}
+.tour-row.is-editing .task-order-handle {
+  width: var(--control-h-lg);
+  height: var(--control-h-lg);
+  margin-inline-start: calc(-1 * var(--s-2));
+}
+.tour .row[data-dragging] {
+  position: relative;
+  z-index: 2;
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  cursor: grabbing;
+}
+
+/* Done stops stay in place: one greyed line (D15). */
+.tour-row.is-done .tour-row-line {
+  min-height: 48px;
+  background: var(--surface-2);
+}
+.tour-row.is-done .tour-row-name,
+.tour-row.is-done .tour-pos {
+  color: var(--text-3);
+}
+.tour-row.is-done .tour-pos {
+  background: var(--surface-3);
+}
+.tour-row.is-cancelled .tour-row-name {
+  color: var(--text-3);
+  text-decoration: line-through;
+}
+.tour-row.is-expanded .tour-card {
+  margin: 0 var(--s-3) var(--s-3);
+}
+
+/* ---------- the stop card ---------- */
+.tour-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.tour-next {
+  padding: var(--s-3);
+  background: var(--zone-soft);
+}
+.tour-card.is-next {
+  border-color: var(--zone-line);
+  box-shadow: var(--shadow-1);
+}
+.tour-card-eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.tour-card.is-next .tour-pos {
+  background: var(--zone);
+  color: var(--on-accent);
+}
+.tour-card h3 {
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  overflow-wrap: anywhere;
+}
+.tour-card-buyer,
+.tour-card-muted {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.tour-address {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  border-radius: var(--r-sm);
+  color: var(--accent-ink);
+  font-size: var(--fs-md);
+  line-height: var(--lh-ui);
+}
+.tour-address > svg {
+  flex: none;
+  margin-top: 3px;
+}
+.tour-contact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+.tour-contact-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  font-size: var(--fs-sm);
+}
+.tour-contact-text span {
+  color: var(--text-2);
+}
+.tour-qty {
+  font-weight: var(--fw-semibold);
+}
+.tour-card-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2);
+}
+.tour-card-actions .btn {
+  width: 100%;
+  padding-inline: var(--s-2);
+}
+.tour-wide {
+  grid-column: 1 / -1;
+}
+.tour-card-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-weight: var(--fw-semibold);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour .row,
+  .tour-row-chevron {
+    transition: none !important;
+  }
+}

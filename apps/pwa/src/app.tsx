@@ -11,11 +11,15 @@ import {
   ActivityWorkspace,
   CommitmentCapturePage,
   DeliveryBoardPage,
+  FEATURE_FLAGS,
+  FeatureFlagProvider,
   ModuleSearch,
+  MyTourPage,
   resolveModuleRoute,
   RoleDashboardPage,
   SponsorWorkspace,
   useCurrentActionId,
+  useLeonAidBooleanFlag,
   useLocationHref,
 } from "@leonaid/features";
 import {
@@ -255,6 +259,27 @@ const implementedPwaNavigation = new Set([
 ]);
 
 /**
+ * The delivery route: drivers get "Meine Tour" with the flag
+ * `delivery.tours` (spec krapfentaxi-touren §7), else the delivery board.
+ */
+function DeliveryRoute(props: {
+  readonly actionId: string;
+  readonly actions: readonly {
+    readonly actionId: string;
+    readonly actionName: string;
+  }[];
+  readonly client: LeonAidApiClient;
+  readonly offline: boolean;
+}) {
+  const tours = useLeonAidBooleanFlag(FEATURE_FLAGS.deliveryTours);
+  return tours ? (
+    <MyTourPage {...props} />
+  ) : (
+    <DeliveryBoardPage {...props} surface="pwa" />
+  );
+}
+
+/**
  * The shell follows in-page URL changes (the sponsor capture view, Back),
  * so the active tab moves. Only the shell re-renders: the page element
  * comes from App unchanged, and module pages keep reading the URL
@@ -271,10 +296,12 @@ function PwaShell({
   readonly navigation: CurrentIdentityResponse["navigation"];
 }) {
   useLocationHref();
+  const deliveryTours = useLeonAidBooleanFlag(FEATURE_FLAGS.deliveryTours);
   const { active, menu, tabs } = mobileNavigation(
     navigation,
     implementedPwaNavigation,
     window.location,
+    { deliveryTours },
   );
   const { sheet, ...queue } = useQueueShell(client, identity, !props.offline);
   return (
@@ -481,83 +508,84 @@ export function App({ client }: AppProps) {
     : undefined;
 
   return (
-    <OfflineRuntimeContext.Provider value={device.runtime}>
-      <PwaShell
-        campaign={currentAction}
-        client={client}
-        identity={identity.data}
-        navigation={identity.data.navigation}
-        surfaces={surfaces}
-        menuSearch={
-          <ModuleSearch
-            client={client}
-            identity={identity.data}
-            modules={availableModules}
-            surface="pwa"
-          />
-        }
-        notices={<PwaNotices lifecycle={lifecycle} />}
-        offline={!lifecycle.online}
-        onLogout={() => {
-          // §12.5: captures still on the device would be deleted; ask
-          // first. The store counts, not a view that may still be loading.
-          // An unreadable queue asks too (count null).
-          void pendingDeviceEntries(identity.data?.userId ?? null).then(
-            (count) => {
-              if (count === 0) {
-                signOut();
-              } else {
-                setSignOutCount(count);
-                setSignOutOpen(true);
-              }
-            },
-          );
-        }}
-        person={identity.data.displayName}
-        role={identity.data.roleLabels.join(" · ")}
-      >
-        {moduleRoute ? (
-          moduleRoute.render({ client, identity: identity.data })
-        ) : route === "sponsors" ? (
-          <SponsorWorkspace client={client} identity={identity.data} />
-        ) : route === "commitment" ? (
-          <CommitmentCapturePage client={client} identity={identity.data} />
-        ) : route === "follow-ups" ? (
-          <ActivityWorkspace client={client} identity={identity.data} />
-        ) : route === "news" ? (
-          <ActivityFeedPage client={client} surface="pwa" />
-        ) : route === "delivery" ? (
-          <DeliveryBoardPage
-            actionId={driverActionId}
-            actions={driverActions}
-            client={client}
-            offline={!lifecycle.online}
-            surface="pwa"
-          />
-        ) : (
-          <RoleDashboardPage
-            client={client}
-            identity={identity.data}
-            mode="acquirer"
-          />
-        )}
-      </PwaShell>
-      <SignOutWarning
-        count={signOutCount}
-        onCancel={() => setSignOutOpen(false)}
-        onSendFirst={() => {
-          // Send, and show what still needs a decision (L2 of #132).
-          setSignOutOpen(false);
-          void device.runtime.queue?.sendNow();
-          window.dispatchEvent(new Event(OPEN_QUEUE_EVENT));
-        }}
-        onSignOut={() => {
-          setSignOutOpen(false);
-          signOut();
-        }}
-        online={lifecycle.online}
-        open={signOutOpen}
-      />
-    </OfflineRuntimeContext.Provider>
+    <FeatureFlagProvider client={client} identity={identity.data} surface="pwa">
+      <OfflineRuntimeContext.Provider value={device.runtime}>
+        <PwaShell
+          campaign={currentAction}
+          client={client}
+          identity={identity.data}
+          navigation={identity.data.navigation}
+          surfaces={surfaces}
+          menuSearch={
+            <ModuleSearch
+              client={client}
+              identity={identity.data}
+              modules={availableModules}
+              surface="pwa"
+            />
+          }
+          notices={<PwaNotices lifecycle={lifecycle} />}
+          offline={!lifecycle.online}
+          onLogout={() => {
+            // §12.5: captures still on the device would be deleted; ask
+            // first. The store counts, not a view that may still be loading.
+            // An unreadable queue asks too (count null).
+            void pendingDeviceEntries(identity.data?.userId ?? null).then(
+              (count) => {
+                if (count === 0) {
+                  signOut();
+                } else {
+                  setSignOutCount(count);
+                  setSignOutOpen(true);
+                }
+              },
+            );
+          }}
+          person={identity.data.displayName}
+          role={identity.data.roleLabels.join(" · ")}
+        >
+          {moduleRoute ? (
+            moduleRoute.render({ client, identity: identity.data })
+          ) : route === "sponsors" ? (
+            <SponsorWorkspace client={client} identity={identity.data} />
+          ) : route === "commitment" ? (
+            <CommitmentCapturePage client={client} identity={identity.data} />
+          ) : route === "follow-ups" ? (
+            <ActivityWorkspace client={client} identity={identity.data} />
+          ) : route === "news" ? (
+            <ActivityFeedPage client={client} surface="pwa" />
+          ) : route === "delivery" ? (
+            <DeliveryRoute
+              actionId={driverActionId}
+              actions={driverActions}
+              client={client}
+              offline={!lifecycle.online}
+            />
+          ) : (
+            <RoleDashboardPage
+              client={client}
+              identity={identity.data}
+              mode="acquirer"
+            />
+          )}
+        </PwaShell>
+        <SignOutWarning
+          count={signOutCount}
+          onCancel={() => setSignOutOpen(false)}
+          onSendFirst={() => {
+            // Send, and show what still needs a decision (L2 of #132).
+            setSignOutOpen(false);
+            void device.runtime.queue?.sendNow();
+            window.dispatchEvent(new Event(OPEN_QUEUE_EVENT));
+          }}
+          onSignOut={() => {
+            setSignOutOpen(false);
+            signOut();
+          }}
+          online={lifecycle.online}
+          open={signOutOpen}
+        />
+      </OfflineRuntimeContext.Provider>
+    </FeatureFlagProvider>
   );
 }

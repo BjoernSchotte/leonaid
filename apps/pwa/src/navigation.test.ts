@@ -109,6 +109,16 @@ describe("mobile navigation", () => {
     expect(keys).not.toContain("overview-web");
   });
 
+  it("names the delivery entry Meine Tour with delivery tours on", () => {
+    const withDelivery = new Set([...implemented, "delivery"]);
+    const label = (deliveryTours: boolean) =>
+      mobileNavigation(acquirer, withDelivery, at("/app/"), {
+        deliveryTours,
+      }).menu.find((entry) => entry.key === "delivery")?.label;
+    expect(label(false)).toBe("Auslieferung");
+    expect(label(true)).toBe("Meine Tour");
+  });
+
   it("picks the active tab from path and view", () => {
     const { tabs } = mobileNavigation(acquirer, implemented, at("/app/"));
     expect(activeMobileTab(tabs, "/app", "")).toBe("overview-pwa");

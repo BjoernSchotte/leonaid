@@ -82,12 +82,20 @@ const dayMonth = (iso: string, zone: string) =>
     timeZone: zone,
   }).format(new Date(iso));
 
+/** "07–09" (window times in the action's zone). */
+export function deliveryTimeRange(
+  window: Pick<DeliveryBoardWindowResponse, "startsAt" | "endsAt">,
+  zone: string,
+) {
+  return `${clock(window.startsAt, zone)}–${clock(window.endsAt, zone)}`;
+}
+
 /** "Mi 11.11. · 07–09 Uhr" (prototype window label). */
 export function deliveryWindowLabel(
   window: Pick<DeliveryBoardWindowResponse, "startsAt" | "endsAt">,
   zone: string,
 ) {
-  return `${weekday(window.startsAt, zone)} ${dayMonth(window.startsAt, zone)} · ${clock(window.startsAt, zone)}–${clock(window.endsAt, zone)} Uhr`;
+  return `${weekday(window.startsAt, zone)} ${dayMonth(window.startsAt, zone)} · ${deliveryTimeRange(window, zone)} Uhr`;
 }
 
 /** "Mittwoch, 11. November" for an ISO day. */
@@ -139,7 +147,8 @@ function locked(drop: DeliveryDropResponse, closed: boolean, manager: boolean) {
 
 const boxes = (count: number) => `${count} ${count === 1 ? "Box" : "Boxen"}`;
 
-function dropAddress(drop: DeliveryDropResponse) {
+/** "Lieferweg 2, 86150 Augsburg", or null without an address. */
+export function dropAddress(drop: DeliveryDropResponse) {
   const address = drop.address;
   if (!address) return null;
   return `${address.streetLine1}, ${address.postalCode} ${address.city}`;
@@ -799,7 +808,7 @@ export function DeliveryBoardPage({
                 role="radio"
                 type="button"
               >
-                {clock(window.startsAt, zone)}–{clock(window.endsAt, zone)}
+                {deliveryTimeRange(window, zone)}
                 <span className="segment-day">
                   {weekday(window.startsAt, zone)}{" "}
                   {dayMonth(window.startsAt, zone)}

@@ -6,6 +6,7 @@ import {
   moveStop,
   navigationHref,
   nearestNextOrder,
+  osmHref,
   placeStop,
   tourLengthKm,
   windowHint,
@@ -125,6 +126,25 @@ describe("links", () => {
     expect(callHref(" ", "+49 (89) 123/45")).toBe("tel:+498912345");
     expect(callHref("089.1", "2")).toBe("tel:0891");
     expect(callHref(null, "")).toBeNull();
+  });
+});
+
+describe("osmHref", () => {
+  it("points at the pin, else searches the address", () => {
+    expect(
+      osmHref({
+        lat: 48.37,
+        lon: 10.9,
+        address: "Lieferweg 2, 86150 Augsburg",
+      }),
+    ).toBe(
+      "https://www.openstreetmap.org/?mlat=48.37&mlon=10.9#map=18/48.37/10.9",
+    );
+    expect(
+      osmHref({ lat: null, lon: null, address: "Lieferweg 2, 86150 Augsburg" }),
+    ).toBe(
+      "https://www.openstreetmap.org/search?query=Lieferweg%202%2C%2086150%20Augsburg",
+    );
   });
 });
 

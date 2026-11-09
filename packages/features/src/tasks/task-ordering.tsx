@@ -32,11 +32,14 @@ import {
 export function TaskOrdering({
   children,
   ids,
+  noun = "Aufgabe",
   onCancel,
   onMove,
 }: {
   readonly children: ReactNode;
   readonly ids: readonly string[];
+  /** What a row is, for the screen reader announcements ("Stopp"). */
+  readonly noun?: string;
   readonly onCancel: () => void;
   /** `before`/`after` is relative to `targetId`. */
   readonly onMove: (
@@ -73,11 +76,11 @@ export function TaskOrdering({
             "Zum Verschieben Leertaste drücken, mit den Pfeiltasten bewegen und mit Leertaste ablegen. Escape bricht ab.",
         },
         announcements: {
-          onDragStart: () => "Aufgabe aufgenommen.",
+          onDragStart: () => `${noun} aufgenommen.`,
           onDragOver: ({ over }) =>
             over ? "Neue Position gewählt." : "Kein Ziel gewählt.",
           onDragEnd: ({ over }) =>
-            over ? "Aufgabe abgelegt." : "Verschieben abgebrochen.",
+            over ? `${noun} abgelegt.` : "Verschieben abgebrochen.",
           onDragCancel: () => "Verschieben abgebrochen.",
         },
       }}
@@ -120,10 +123,13 @@ function swallowMoveKeys(event: KeyboardEvent<HTMLButtonElement>) {
 export function TaskOrderHandle({
   disabled,
   id,
+  noun = "Aufgabe",
   title,
 }: {
   readonly disabled: boolean;
   readonly id: string;
+  /** What the row is, for the accessible name ("Stopp verschieben: …"). */
+  readonly noun?: string;
   readonly title: string;
 }) {
   const {
@@ -176,7 +182,7 @@ export function TaskOrderHandle({
       className="task-order-handle"
       id={`task-move-${id}`}
       type="button"
-      aria-label={`Aufgabe verschieben: ${title}`}
+      aria-label={`${noun} verschieben: ${title}`}
       title="Ziehen oder mit Leertaste und Pfeiltasten verschieben"
     >
       <GripVertical aria-hidden="true" size={14} />
