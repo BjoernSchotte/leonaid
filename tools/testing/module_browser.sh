@@ -26,6 +26,8 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 shared_services=${shared_services:-"api web pwa proxy rustfs"}
+# Task, knowledge and inbox modules never reach the CRM.
+shared_crm=none
 . "$root/tools/testing/borrow_stack.sh"
 
 compose run --rm --no-deps --user "$(id -u):$(id -g)" \
