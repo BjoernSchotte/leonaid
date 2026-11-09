@@ -23913,7 +23913,7 @@
     },
     "/api/v1/actions/{action_id}/delivery-geo/{commitment_id}": {
       "put": {
-        "description": "The manager's pin for a stop whose address was not found (spec §6.4).",
+        "description": "The manager's pin for a stop whose address was not found (spec §6.4).\n\n409 only when concurrent tour writes exhaust the serialization retries.",
         "operationId": "setDeliveryPin",
         "parameters": [
           {

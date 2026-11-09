@@ -131,7 +131,7 @@
     },
     {
       "oldSha256": "aca564b02d9f66247a2544905611ac02c1a38b7ac43c67b2ca825219938a0814",
-      "newSha256": "22adf01613914d9bf19ba35831853cbf45a5645fdd0c08fba3086e52b115e215",
+      "newSha256": "8091897f0754166efef8742e3eb56308b2bd85d5255502dfc6a51ecdb5753412",
       "changes": [
         "property-newly-required:DeliveryConfigurationResponse.startPoint",
         "property-newly-required:DeliveryDayToursResponse.map",
