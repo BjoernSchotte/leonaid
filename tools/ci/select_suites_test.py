@@ -268,7 +268,10 @@ def main() -> int:
         "apps/campaign-site/emdash-editor-patch.mjs",
         "tools/emdash_spike/auth-patch-proof.mjs",
     )
-    expect(campaign["emdash"] == list(s.EMDASH_GROUPS), f"campaign site: {campaign}")
+    expect(
+        sorted(campaign["emdash"]) == sorted(s.EMDASH_GROUPS),
+        f"campaign site: {campaign}",
+    )
     expect(
         campaign["e2e"] == []
         and campaign["integration"] == []
@@ -339,11 +342,11 @@ def main() -> int:
         and sorted(x for leg in legs for x in leg) == sorted(every),
         f"fast legs keep the budget and lose nothing: {legs}",
     )
-    compose = pr("tools/compose/test.sh")
+    core = pr("tools/core/smoke.py")
     expect(
-        sorted(compose.integration_units()) == ["compose", "profiles"]
-        and "integration:compose" not in compose.deferred,
-        f"a long shard still runs before the merge: {compose.integration_bins()}",
+        core.integration_units() == ["seed-reset"]
+        and "integration:seed-reset" not in core.deferred,
+        f"a long shard still runs before the merge: {core.integration_bins()}",
     )
     # Every Integration unit selected (tools/ci/integration.sh): nothing is
     # dropped, and the fast legs stay within MAX_BINS (runner budget).
@@ -606,8 +609,8 @@ def main() -> int:
         )
     expect(set(s.EMDASH_SECONDS) == set(s.EMDASH_GROUPS), "EMDASH_SECONDS")
     expect(
-        s.leg_estimate("integration", ["compose", "policy"], s.INTEGRATION_SECONDS)
-        == s.LEG_SETUP_SECONDS + 2 * s.SHARD_SETUP_SECONDS["integration"] + 300 + 75,
+        s.leg_estimate("integration", ["seed-reset", "policy"], s.INTEGRATION_SECONDS)
+        == s.LEG_SETUP_SECONDS + 2 * s.SHARD_SETUP_SECONDS["integration"] + 330 + 54,
         "Integration estimates count a stack boot per shard",
     )
     original = dict(s.E2E_SECONDS)
@@ -625,14 +628,14 @@ def main() -> int:
     # E-024): with Golden's 2 and the 6 stack-free jobs within 20 runners.
     expect(total <= 11, f"a complete run must stay at 11 stack legs or fewer: {total}")
     # A small PR packs into one leg; packing is deterministic.
-    small = post("tools/pwa/test.sh", "tools/tasks/test.sh")
+    small = post("tools/inbox/test.sh", "tools/tasks/test.sh")
     legs = json.loads(small.outputs()["e2e"])
     expect(
-        len(legs) == 1 and set(legs[0]["shards"].split()) == {"pwa", "tasks"},
+        len(legs) == 1 and set(legs[0]["shards"].split()) == {"inbox", "tasks"},
         f"two small leaves must share one leg: {legs}",
     )
     expect(
-        small.outputs() == post("tools/tasks/test.sh", "tools/pwa/test.sh").outputs(),
+        small.outputs() == post("tools/tasks/test.sh", "tools/inbox/test.sh").outputs(),
         "packing must not depend on path order",
     )
     expect(s.pack([], s.E2E_SECONDS, 4) == [], "nothing selected packs to no leg")
