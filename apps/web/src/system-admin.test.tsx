@@ -425,4 +425,79 @@ describe("SystemPage", () => {
     );
     expect(screen.queryByText("Vorgang nicht abgeschlossen")).toBeNull();
   });
+
+  it("downloads the data export as a dated JSON file", async () => {
+    const client = renderPage("/admin/privacy");
+    client.exportPrivacySubject.mockResolvedValueOnce(report);
+    const createObjectURL = vi.fn(() => "blob:export");
+    const revokeObjectURL = vi.fn();
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+    const saved: string[] = [];
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        saved.push(this.download);
+      });
+    try {
+      fireEvent.change(screen.getByTestId("privacy-email"), {
+        target: { value: subject },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Nachweise suchen" }));
+      await screen.findByTestId("privacy-summary");
+      fireEvent.click(
+        screen.getByRole("button", { name: "Auskunft erstellen" }),
+      );
+      await waitFor(() => expect(saved).toHaveLength(1));
+      expect(client.exportPrivacySubject).toHaveBeenCalledWith({
+        email: subject,
+      });
+      expect(saved[0]).toMatch(
+        /^leonaid-datenauskunft-\d{4}-\d{2}-\d{2}\.json$/,
+      );
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:export");
+    } finally {
+      click.mockRestore();
+    }
+  });
+
+  it("revokes a consent only after the confirmation", async () => {
+    const client = renderPage("/admin/privacy");
+    client.lookupPrivacySubject.mockResolvedValue({
+      ...report,
+      consents: [
+        {
+          actionId: null,
+          channel: "email",
+          commitmentId: null,
+          evidenceKind: "notice_acknowledgement",
+          grantedAt: "2026-11-01T09:00:00Z",
+          id: "consent-1",
+          legalBasisStatus: "legal_review_pending",
+          purpose: "acquisition",
+          revokedAt: null,
+          source: "public_order",
+          textVersion: "public-order-v1",
+        },
+      ],
+    });
+    fireEvent.change(screen.getByTestId("privacy-email"), {
+      target: { value: subject },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Nachweise suchen" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Kontakt sperren" }),
+    );
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Folgekontakt sperren?",
+    });
+    expect(client.revokePrivacyConsent).not.toHaveBeenCalled();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Kontakt jetzt sperren" }),
+    );
+    await waitFor(() =>
+      expect(client.revokePrivacyConsent).toHaveBeenCalledWith("consent-1", {
+        reason: "Kontaktwunsch der betroffenen Person",
+      }),
+    );
+  });
 });

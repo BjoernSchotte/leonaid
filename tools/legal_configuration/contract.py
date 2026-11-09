@@ -8,7 +8,6 @@ import asyncio
 import json
 import os
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid5
 
@@ -124,10 +123,7 @@ def draft_payload(*, revision: int) -> dict[str, object]:
     }
 
 
-async def seed_sessions(
-    connection: asyncpg.Connection[Any],
-    output: Path,
-) -> dict[str, str]:
+async def seed_sessions(connection: asyncpg.Connection[Any]) -> dict[str, str]:
     now = datetime.now(timezone.utc)
     await connection.execute(
         """
@@ -138,20 +134,18 @@ async def seed_sessions(
         KLARA_ID,
     )
     sessions = (
-        ("SIMONE_SESSION", "simone", SIMONE_ID),
-        ("KLARA_SESSION", "klara", KLARA_ID),
-        ("ANNA_SESSION", "anna", ANNA_ID),
+        ("simone", SIMONE_ID),
+        ("klara", KLARA_ID),
+        ("anna", ANNA_ID),
     )
     await connection.execute(
         "DELETE FROM user_session WHERE user_id = ANY($1::uuid[])",
         [SIMONE_ID, KLARA_ID, ANNA_ID],
     )
     tokens: dict[str, str] = {}
-    lines: list[str] = []
-    for env_name, label, user_id in sessions:
+    for label, user_id in sessions:
         token = token_for(label, user_id)
         tokens[label] = token
-        lines.append(f"{env_name}={token}\n")
         await connection.execute(
             """
             INSERT INTO user_session (
@@ -167,12 +161,10 @@ async def seed_sessions(
             now + SESSION_LIFETIME,
             now,
         )
-    output.write_text("".join(lines), encoding="utf-8")
-    output.chmod(0o600)
     return tokens
 
 
-async def prepare(connection: asyncpg.Connection[Any], sessions_path: Path) -> None:
+async def prepare(connection: asyncpg.Connection[Any]) -> None:
     await connection.execute(
         """
         UPDATE legal_configuration_state
@@ -195,7 +187,7 @@ async def prepare(connection: asyncpg.Connection[Any], sessions_path: Path) -> N
     await connection.execute(
         "DELETE FROM audit_event WHERE entity_type = 'legal_configuration'"
     )
-    tokens = await seed_sessions(connection, sessions_path)
+    tokens = await seed_sessions(connection)
     async with httpx.AsyncClient(
         base_url=require_env("API_BASE_URL").rstrip("/"),
         timeout=60,
@@ -323,6 +315,70 @@ async def prepare(connection: asyncpg.Connection[Any], sessions_path: Path) -> N
             or error_code(stale) != "legal_configuration_revision_conflict"
         ):
             raise ContractFailure("Optimistic revision did not prevent a lost update")
+
+
+async def act() -> None:
+    """The admins' UI steps through the API (the UI is proven in vitest).
+
+    Klara records the e-invoice decision as a new draft and may not approve
+    it herself; Simone approves and activates. Only then does the public
+    Impressum name a provider.
+    """
+    klara = session_headers(token_for("klara", KLARA_ID))
+    simone = session_headers(token_for("simone", SIMONE_ID))
+    async with httpx.AsyncClient(
+        base_url=require_env("API_BASE_URL").rstrip("/"),
+        timeout=60,
+    ) as api:
+        before = await api.get("/api/v1/public/legal-notice")
+        before.raise_for_status()
+        if before.json().get("provider") is not None:
+            raise ContractFailure("Public Impressum names a provider before activation")
+
+        saved = await api.put(
+            "/api/v1/admin/legal/configuration/draft",
+            headers=klara,
+            json={
+                **draft_payload(revision=3),
+                "eInvoiceDecision": "not_required",
+                "eInvoiceEvidenceId": "ERECHNUNG-PILOT-044",
+            },
+        )
+        saved.raise_for_status()
+        state = saved.json()
+        if state.get("revision") != 4 or state["draft"].get("version") != 2:
+            raise ContractFailure(f"Second draft was not created: {state}")
+        version_id = str(state["draft"]["id"])
+
+        own_approval = await api.post(
+            f"/api/v1/admin/legal/configuration/draft/{version_id}/approval",
+            headers=klara,
+            json={"evidenceId": "UI-FREIGABE-PILOT-044", "expectedRevision": 4},
+        )
+        if (
+            own_approval.status_code != 409
+            or error_code(own_approval) != "legal_configuration_four_eyes_required"
+        ):
+            raise ContractFailure("The draft author approved her own draft")
+
+        approved = await api.post(
+            f"/api/v1/admin/legal/configuration/draft/{version_id}/approval",
+            headers=simone,
+            json={"evidenceId": "UI-FREIGABE-PILOT-044", "expectedRevision": 4},
+        )
+        approved.raise_for_status()
+        activated = await api.post(
+            f"/api/v1/admin/legal/configuration/draft/{version_id}/activation",
+            headers=simone,
+            json={"expectedRevision": approved.json()["revision"]},
+        )
+        activated.raise_for_status()
+        final = activated.json()
+        if (
+            final.get("draft") is not None
+            or final.get("active", {}).get("version") != 2
+        ):
+            raise ContractFailure(f"Version 2 is not active: {final}")
 
 
 async def assert_result(connection: asyncpg.Connection[Any]) -> None:
@@ -488,13 +544,14 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
     )
 
 
-async def run(command: str, sessions_path: Path | None) -> None:
+async def run(command: str) -> None:
+    if command == "act":
+        await act()
+        return
     connection = await asyncpg.connect(require_env("CORE_DATABASE_URL"))
     try:
         if command == "prepare":
-            if sessions_path is None:
-                raise ContractFailure("prepare requires --sessions")
-            await prepare(connection, sessions_path)
+            await prepare(connection)
         else:
             await assert_result(connection)
     finally:
@@ -503,10 +560,9 @@ async def run(command: str, sessions_path: Path | None) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=("prepare", "assert"))
-    parser.add_argument("--sessions", type=Path)
+    parser.add_argument("command", choices=("prepare", "act", "assert"))
     arguments = parser.parse_args()
-    asyncio.run(run(arguments.command, arguments.sessions))
+    asyncio.run(run(arguments.command))
 
 
 if __name__ == "__main__":

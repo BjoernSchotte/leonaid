@@ -57,7 +57,7 @@ docker run --rm \
   pytest -p no:cacheprovider tests/unit/test_legal_configuration.py --quiet
 
 compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
-build_shared_images api public pwa web
+build_shared_images api
 if ! compose --profile dev-mail up --detach --wait --wait-timeout 420 \
   core-postgres rustfs mailpit twenty-server twenty-worker; then
   echo "legal-configuration-test: retrying Twenty start once"
@@ -97,59 +97,17 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   /repo/tests/fixtures/golden/v1 \
   /proof/pdfs
 
-compose run --rm --no-deps \
-  --user "$(id -u):$(id -g)" \
-  --env-from-file "$env_file" \
-  --env API_BASE_URL=http://api:8000 \
-  --env PYTHONPATH=/repo:/workspace/src \
-  --volume "$root:/repo:ro" \
-  --volume "$proof:/proof" \
-  --workdir /repo \
-  --entrypoint python \
-  api tools/legal_configuration/contract.py prepare \
-  --sessions /proof/sessions.env
-
-compose up --detach --wait --wait-timeout 420 pwa public web proxy
-
-docker run --rm \
-  --network "${project}_edge" \
-  --env CI=1 \
-  --env HOME=/tmp \
-  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
-  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
-  --env-file "$proof/sessions.env" \
-  --volume "$root:/workspace:ro" \
-  --volume "$proof:/proof" \
-  --workdir /workspace \
-  --user "$(id -u):$(id -g)" \
-  "$PLAYWRIGHT_IMAGE" \
-  node_modules/.bin/playwright test \
-  --config=tests/e2e/pwa.config.mjs \
-  legal-configuration.spec.mjs \
-  --project=chromium-1440 \
-  --output=/tmp/leonaid-legal-results \
-  --trace=retain-on-failure \
-  --reporter=line
-
-for screenshot in legal-draft-desktop.png legal-active-mobile.png; do
-  if [ ! -s "$proof/$screenshot" ]; then
-    echo "legal-configuration-test: ERROR: browser proof is missing: $screenshot" >&2
-    exit 1
-  fi
+for step in prepare act assert; do
+  compose run --rm --no-deps \
+    --user "$(id -u):$(id -g)" \
+    --env-from-file "$env_file" \
+    --env API_BASE_URL=http://api:8000 \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --workdir /repo \
+    --entrypoint python \
+    api tools/legal_configuration/contract.py "$step"
 done
 
-compose run --rm --no-deps \
-  --user "$(id -u):$(id -g)" \
-  --env-from-file "$env_file" \
-  --env API_BASE_URL=http://api:8000 \
-  --env PYTHONPATH=/repo:/workspace/src \
-  --volume "$root:/repo:ro" \
-  --workdir /repo \
-  --entrypoint python \
-  api tools/legal_configuration/contract.py assert
-
-mkdir -p "$root/.artifacts/pilot044"
-cp "$proof"/legal-*.png "$root/.artifacts/pilot044/"
-
-echo "legal-configuration-test: OK: real PostgreSQL versioning,"
-echo "legal-configuration-test:     four-eyes activation and browser UX proven"
+echo "legal-configuration-test: OK: real PostgreSQL versioning and"
+echo "legal-configuration-test:     four-eyes activation proven"

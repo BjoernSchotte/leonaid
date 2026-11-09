@@ -7,26 +7,11 @@ const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
 const goldenPdfDirectory = process.env.LEONAID_E2E_GOLDEN_PDF_DIR;
 const adminSession = process.env.ADMIN_SESSION;
-const acquirerSession = process.env.ACQUIRER_SESSION;
-const financeSession = process.env.FINANCE_SESSION;
-const foreignAdminSession = process.env.FOREIGN_ADMIN_SESSION;
-const actionId = "20000000-0000-4000-8000-000000000001";
-const foreignActionId = "20000000-0000-4000-8000-000000000003";
-const documentId = "90000000-0000-4000-8000-000000000001";
-const assignedCompanyId = "40000000-0000-4000-8000-000000000001";
 // Chromium's built-in PDF viewer extension.
 const CHROMIUM_PDF_VIEWER_ORIGIN =
   "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/";
 
-if (
-  !baseUrl ||
-  !artifactDirectory ||
-  !goldenPdfDirectory ||
-  !adminSession ||
-  !acquirerSession ||
-  !financeSession ||
-  !foreignAdminSession
-) {
+if (!baseUrl || !artifactDirectory || !goldenPdfDirectory || !adminSession) {
   throw new Error("POC-093 browser environment is incomplete");
 }
 
@@ -114,7 +99,11 @@ async function expectStableTopLevelPreview(context, row) {
   return preview;
 }
 
-test("charity admin finds, opens and downloads the Typst PDF byte-identical", async ({
+// Server bytes, filenames, inline/attachment headers and every role boundary
+// are API proofs in tools/documents/contract.py. The browser proves the
+// client side: the Blob download stays byte-identical and Chromium's native
+// viewer renders the authenticated top-level PDF (5e442c64).
+test("charity admin downloads and opens the Typst PDF byte-identical", async ({
   browser,
 }) => {
   const context = await browser.newContext({
@@ -129,26 +118,12 @@ test("charity admin finds, opens and downloads the Typst PDF byte-identical", as
   try {
     const row = await openDocumentRow(page);
     await expectByteIdenticalDownload(row);
-
     const preview = await expectStableTopLevelPreview(context, row);
-    await preview.close();
-
-    await page.screenshot({
-      path: `${artifactDirectory}/document-admin-desktop.png`,
+    await preview.screenshot({
+      path: `${artifactDirectory}/document-pdf-preview.png`,
       fullPage: true,
     });
-
-    // "Dokumente" lists the same immutable PDF with its own download.
-    await page.getByTestId("invoice-section-documents").click();
-    await expect(page).toHaveURL(/\/admin\/invoices\/documents\?action=/);
-    await expect(
-      page.getByRole("heading", { name: "Dokumente" }),
-    ).toBeVisible();
-    const documentRow = page
-      .getByTestId("document-row")
-      .filter({ hasText: "KT26-0001" });
-    await expect(documentRow).toBeVisible();
-    await expectByteIdenticalDownload(documentRow);
+    await preview.close();
     const accessibility = await analyzeAccessibility(page);
     expect(
       accessibility.violations.filter(
@@ -158,96 +133,5 @@ test("charity admin finds, opens and downloads the Typst PDF byte-identical", as
     expect(pageErrors).toEqual([]);
   } finally {
     await context.close();
-  }
-});
-
-test("finance role sees the invoice on mobile; acquisition and foreign actions get no bytes", async ({
-  browser,
-}) => {
-  const financeContext = await browser.newContext({
-    viewport: { width: 390, height: 844 },
-    ignoreHTTPSErrors: true,
-  });
-  await financeContext.addCookies([sessionCookie(financeSession)]);
-  const financePage = await financeContext.newPage();
-  try {
-    const row = await openDocumentRow(financePage);
-    await expect(financePage.getByTestId("invoice-read-only")).toContainText(
-      "Nur lesen.",
-    );
-    await expect(row.getByTestId("preview-document")).toBeVisible();
-    await expect(row.getByTestId("download-document")).toBeVisible();
-    await expectByteIdenticalDownload(row);
-    const preview = await expectStableTopLevelPreview(financeContext, row);
-    await preview.screenshot({
-      path: `${artifactDirectory}/document-finance-pdf-preview.png`,
-      fullPage: true,
-    });
-    await preview.close();
-    await financePage.screenshot({
-      path: `${artifactDirectory}/document-finance-mobile.png`,
-      fullPage: true,
-    });
-  } finally {
-    await financeContext.close();
-  }
-
-  const foreignContext = await browser.newContext({
-    ignoreHTTPSErrors: true,
-  });
-  await foreignContext.addCookies([sessionCookie(foreignAdminSession)]);
-  try {
-    const foreign = await foreignContext.request.get(
-      `${baseUrl}/api/v1/actions/${foreignActionId}/documents/${documentId}/download`,
-    );
-    expect(foreign.status()).toBe(404);
-    expect((await foreign.json()).error.code).toBe(
-      "generated_document_not_found",
-    );
-    expect(await foreign.body()).not.toEqual(
-      await readFile(`${goldenPdfDirectory}/KT26-0001.pdf`),
-    );
-  } finally {
-    await foreignContext.close();
-  }
-
-  const acquirerContext = await browser.newContext({
-    viewport: { width: 390, height: 844 },
-    ignoreHTTPSErrors: true,
-  });
-  await acquirerContext.addCookies([sessionCookie(acquirerSession)]);
-  const acquirerPage = await acquirerContext.newPage();
-  try {
-    await acquirerPage.goto(`${baseUrl}/admin/invoices`);
-    await acquirerPage.waitForURL(`${baseUrl}/app/`);
-    await expect(
-      acquirerPage.getByRole("heading", {
-        name: /^Guten (Morgen|Tag|Abend), Anna\.$/,
-      }),
-    ).toBeVisible();
-    await expect(acquirerPage.getByTestId("invoice-document")).toHaveCount(0);
-    const companyDocuments = await acquirerContext.request.get(
-      `${baseUrl}/api/v1/actions/${actionId}/crm/companies/${assignedCompanyId}/documents`,
-    );
-    const directDownload = await acquirerContext.request.get(
-      `${baseUrl}/api/v1/actions/${actionId}/documents/${documentId}/download`,
-    );
-    expect(companyDocuments.status()).toBe(403);
-    expect((await companyDocuments.json()).error.code).toBe(
-      "document_download_required",
-    );
-    expect(directDownload.status()).toBe(403);
-    expect((await directDownload.json()).error.code).toBe(
-      "document_download_required",
-    );
-    expect(await directDownload.body()).not.toEqual(
-      await readFile(`${goldenPdfDirectory}/KT26-0001.pdf`),
-    );
-    await acquirerPage.screenshot({
-      path: `${artifactDirectory}/document-acquirer-denied.png`,
-      fullPage: true,
-    });
-  } finally {
-    await acquirerContext.close();
   }
 });

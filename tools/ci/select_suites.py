@@ -486,7 +486,6 @@ RULES: tuple[Rule, ...] = (
             "tools/privacy/**",
             "tests/e2e/operations.spec.mjs",
             "tests/e2e/feature-flags.spec.mjs",
-            "tests/e2e/privacy.spec.mjs",
         ),
         e2e("operations"),
         "operations proofs",
