@@ -270,9 +270,7 @@ def main() -> int:
     # The delivery UI and its component tests select the invoices leaf, plus
     # the API contract its path filter (API_PATHS) always adds.
     for path in (
-        "packages/features/src/delivery/my-tour.tsx",
         "packages/features/src/delivery/tours.css",
-        "apps/web/src/my-tour.test.tsx",
         "apps/web/src/delivery-tours.test.tsx",
         "apps/web/src/tour-model.test.ts",
     ):
@@ -283,6 +281,27 @@ def main() -> int:
             and ui["emdash"] == []
             and not post(path).full,
             f"delivery UI {path}: the invoices leaf only: {ui}",
+        )
+    # "Meine Tour" and the offline queue also select the offline journey.
+    for path in (
+        "packages/features/src/delivery/my-tour.tsx",
+        "apps/web/src/my-tour.test.tsx",
+    ):
+        tour = outputs(path)
+        expect(
+            sorted(tour["e2e"]) == ["invoices", "pwa-offline"] and not post(path).full,
+            f"Meine Tour {path}: invoices and pwa-offline: {tour}",
+        )
+    for path in (
+        "packages/features/src/offline/tour-cache.ts",
+        "packages/features/src/offline/queue.ts",
+        "tests/e2e/pwa-offline-tour.spec.mjs",
+    ):
+        offline = outputs(path)
+        expect(
+            sorted(offline["e2e"]) == ["pwa-offline", "pwa-offline-webkit"]
+            and not post(path).full,
+            f"offline UI {path}: the offline leaves: {offline}",
         )
     campaign = outputs(
         "apps/campaign-site/emdash-editor-patch.mjs",

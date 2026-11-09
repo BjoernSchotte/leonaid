@@ -30,6 +30,9 @@ isolation_file="$proof/compose-isolation.yml"
 integration_key=""
 anna_session="poc062-10000000-0000-4000-8000-000000000004-server-session-token-value"
 gesa_session="poc062-10000000-0000-4000-8000-000000000008-server-session-token-value"
+# Dora only drives; tools/pwa/tour_setup.py creates her for the tour spec.
+dora_session="poc062-10000000-0000-4000-8000-0000000000d1-server-session-token-value"
+dora_id="10000000-0000-4000-8000-0000000000d1"
 
 compose() {
   LEONAID_HTTP_PORT="$http_port" \
@@ -143,6 +146,7 @@ playwright() {
     --env LEONAID_E2E_ARTIFACT_DIR=/proof \
     --env ANNA_SESSION="$anna_session" \
     --env GESA_SESSION="$gesa_session" \
+    --env DORA_SESSION="$dora_session" \
     ${browser:+--env LEONAID_E2E_BROWSER=$browser} \
     --volume "$root:/workspace:ro" \
     --volume "$proof:/proof" \
@@ -185,9 +189,23 @@ pwa_sessions() {
 # the API (a new offering price, the flag switched off and on again) by a
 # request file in the proof directory; this watcher applies them in the
 # real database and answers with a done file.
+# Today's tour of tests/e2e/pwa-offline-tour.spec.mjs (setup or teardown).
+tour_setup() {
+  compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+    --env-from-file "$env_file" \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --workdir /repo \
+    --entrypoint python \
+    api tools/pwa/tour_setup.py "$1"
+}
 offline_sql() {
   compose exec -T core-postgres sh -ec \
     'psql -v ON_ERROR_STOP=1 -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+}
+offline_rows() {
+  compose exec -T core-postgres sh -ec \
+    'psql -v ON_ERROR_STOP=1 -q -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 }
 offline_watcher() {
   while :; do
@@ -207,6 +225,14 @@ offline_watcher() {
         window-teardown) printf '%s\n' "UPDATE action_delivery_window SET fully_booked = false WHERE id = '97000000-0000-4000-8000-0000000000a1';" "UPDATE action_delivery_configuration SET enabled = false, revision = revision + 1 WHERE action_id = '20000000-0000-4000-8000-000000000001';" | offline_sql ;;
         flag-off) offline_flag false ;;
         flag-on) offline_flag true ;;
+        tour-setup) tour_setup setup >/dev/null ;;
+        tour-teardown) tour_setup teardown >/dev/null ;;
+        # Only reads noted after this count (the device's offline read).
+        tour-reads-reset) echo "DELETE FROM delivery_read_audit WHERE driver_user_id = '$dora_id';" | offline_sql ;;
+        # The kept first read of today, for the spec to compare.
+        tour-audit) echo "SELECT to_char(first_viewed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') FROM delivery_read_audit WHERE driver_user_id = '$dora_id';" |
+          offline_rows >"$proof/offline-result-tour-audit" ;;
+        tours-off) echo "UPDATE feature_flag SET enabled = false, revision = revision + 1 WHERE key = 'delivery.tours';" | offline_sql ;;
         # A spec that signed a persona out gets the fixed sessions back.
         sessions) pwa_sessions >/dev/null ;;
         *) false ;;
@@ -233,6 +259,7 @@ for browser in $offline_browsers; do
     tests/e2e/pwa-offline-queue.spec.mjs \
     tests/e2e/pwa-offline-decisions.spec.mjs \
     tests/e2e/pwa-offline-queue-faults.spec.mjs \
+    tests/e2e/pwa-offline-tour.spec.mjs \
     --browser="$browser" \
     --output="/proof/test-results-offline-$browser"
 done
@@ -277,9 +304,9 @@ if [ -n "$offline_browsers" ]; then
   for browser in $offline_browsers; do
     evidence="$evidence pwa-offline-start-$browser.png pwa-offline-queue-$browser.png"
   done
-  # The decision UI runs in Chromium only (E-026).
+  # The decision UI and the offline tour run in Chromium only (E-026).
   case " $offline_browsers " in
-    *" chromium "*) evidence="$evidence pwa-offline-decision-chromium.png" ;;
+    *" chromium "*) evidence="$evidence pwa-offline-decision-chromium.png pwa-offline-tour-chromium.png" ;;
   esac
 fi
 for screenshot in $evidence; do

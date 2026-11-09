@@ -140,7 +140,8 @@ E2E_SECONDS = {
     "invoices": 70,
     "commitments": 70,
     "pwa": 119,
-    "pwa-offline": 189,
+    # +10 s: the offline tour journey (pwa-offline-tour, 9.5 s locally).
+    "pwa-offline": 199,
     "pwa-offline-webkit": 84,
     "action-admin": 35,
     "public-orders": 134,
@@ -670,6 +671,22 @@ RULES: tuple[Rule, ...] = (
         ("packages/features/src/invoices/**",),
         e2e("invoices") | {"golden"},
         "invoice UI",
+    ),
+    # "Meine Tour" also works offline (krapfentaxi-touren §9): its offline
+    # journey runs in the pwa-offline leaf (tests/e2e/pwa-offline-tour).
+    Rule(
+        (
+            "packages/features/src/delivery/my-tour.tsx",
+            "apps/web/src/my-tour.test.tsx",
+        ),
+        e2e("invoices", "pwa-offline"),
+        "Meine Tour, online and offline",
+    ),
+    # The offline queue, device store and tour copy of the PWA.
+    Rule(
+        ("packages/features/src/offline/**",),
+        e2e("pwa-offline", "pwa-offline-webkit"),
+        "PWA offline UI",
     ),
     # The delivery board, the tour planner and "Meine Tour" with their web
     # component tests; the delivery journeys run in the invoices leaf.
