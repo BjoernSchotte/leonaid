@@ -312,6 +312,10 @@ async def act(connection: asyncpg.Connection[Any]) -> None:
                 "Revocation did not suppress acquisition and marketing"
             )
 
+        # A fixture may ship erasure cases; the refusal must add none.
+        cases_before = await connection.fetchval(
+            "SELECT count(*) FROM privacy_erasure_case"
+        )
         mismatch = await api.post(
             "/api/v1/admin/privacy/erasures",
             headers=simone,
@@ -334,7 +338,7 @@ async def act(connection: asyncpg.Connection[Any]) -> None:
         )
         if (
             untouched is None
-            or untouched["cases"] != 0
+            or untouched["cases"] != cases_before
             or EMAIL not in str(untouched["snapshot"])
             or untouched["erased_at"] is not None
         ):
