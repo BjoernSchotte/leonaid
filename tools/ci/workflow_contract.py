@@ -191,7 +191,7 @@ def check(path: Path) -> list[str]:
         problems.append("Not every artifact upload also runs after failures.")
     if "tools/ci/run-job.sh" not in text:
         problems.append("Shared log/sanitizing wrapper is missing.")
-    if "tools/ci/integration.sh" not in text or "tools/ci/e2e.sh" not in text:
+    if "./leonaid test-integration" not in text or "./leonaid test-e2e" not in text:
         problems.append("Integration/E2E do not use the local test paths.")
     if "services:" in text:
         problems.append("Workflow must not define services that differ from Compose.")
@@ -204,7 +204,7 @@ def check(path: Path) -> list[str]:
     shards = job_block(text, "integration-shards")
     if "bin: ${{ fromJSON(needs.select.outputs.integration) }}" not in shards:
         problems.append("Integration shards must come from the suite selector.")
-    if "tools/ci/integration.sh $SHARDS" not in shards:
+    if "./leonaid test-integration $SHARDS" not in shards:
         problems.append("Integration bins must run every shard of the bin.")
     for shard in INTEGRATION_SHARDS:
         if shard not in select_suites.INTEGRATION_SHARDS:
@@ -212,7 +212,7 @@ def check(path: Path) -> list[str]:
     leaves = job_block(text, "e2e")
     if "bin: ${{ fromJSON(needs.select.outputs.e2e) }}" not in leaves:
         problems.append("E2E leaves must come from the suite selector.")
-    if "tools/ci/e2e.sh $SHARDS" not in leaves:
+    if "./leonaid test-e2e $SHARDS" not in leaves:
         problems.append("E2E bins must run every leaf of the bin.")
     for shard in E2E_SHARDS:
         if shard not in select_suites.E2E_SHARDS:
@@ -359,10 +359,10 @@ def check_emdash(text: str) -> list[str]:
     if "bin: ${{ fromJSON(needs.select.outputs.emdash) }}" not in cases:
         problems.append("EmDash proof groups must come from the suite selector.")
     if (
-        "sh tools/ci/emdash.sh $EMDASH_GROUPS" not in cases
+        "./leonaid test-emdash $EMDASH_GROUPS" not in cases
         or "tools/ci/run-job.sh" not in cases
     ):
-        problems.append("EmDash proofs do not run through tools/ci/emdash.sh.")
+        problems.append("EmDash proofs do not run through ./leonaid test-emdash.")
     if "continue-on-error" in cases or re.search(
         r"(?i)retry", cases.replace("tools/ci/retry-infra.sh", "")
     ):

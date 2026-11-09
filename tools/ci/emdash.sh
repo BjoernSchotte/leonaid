@@ -7,6 +7,12 @@ set -eu
 # without retries, so an intermittent failure stays visible.
 root=$(cd "$(dirname "$0")/../.." && pwd)
 
+# ./leonaid test-emdash [group...], locally and in CI (E-027); without groups
+# every group runs.
+if [ "$#" -eq 0 ]; then
+  # shellcheck disable=SC2046 # one word per group
+  set -- $(python3 "$root/tools/ci/select_suites.py" --list emdash)
+fi
 if [ "$#" -gt 1 ]; then
   # Leak check after every group, also a failed one (run-shards.sh).
   exec /bin/sh "$root/tools/ci/run-shards.sh" emdash "$root/tools/ci/emdash.sh" "$@"

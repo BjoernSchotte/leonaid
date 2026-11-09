@@ -291,8 +291,11 @@ Commands:
   test-surveys-dependencies
                     Verify the pinned survey dependency and asset license boundary
   test-unit         Run unit tests with Golden Data domain objects
-  test-integration  Infrastructure/contracts; reuse isolated feature fixture
-  test-e2e          Sequential feature/browser tests; no backup/recovery
+  test-integration [SHARD...]
+  test-e2e [SHARD...]
+  test-emdash [GROUP...]
+                    The CI suites, same command as in CI (tools/ci/*.sh);
+                    without arguments every shard (select_suites.py --list)
   seed              Idempotently seed Golden Dataset v1 into real systems
   snapshot [NAME]   Write a deterministic real-system snapshot under .local/
   reset             Safely reset all local core systems to Golden Dataset v1
@@ -4531,18 +4534,12 @@ case "$command" in
     run_python uv run --frozen --no-sync pytest tests/unit
     ;;
   dev) dev ;;
-  test-integration)
+  # One entry point per suite, the same in CI (decision E-027).
+  test-integration | test-e2e | test-emdash)
     require_docker
-    /bin/sh "$root/tools/seed/test.sh" "$root"
-    python3 "$root/tools/testing/shared_stack.py" core tools/compose/profiles.sh
-    /bin/sh "$root/tools/schema/test.sh" "$root"
-    /bin/sh "$root/tools/outbox/test.sh" "$root"
-    /bin/sh "$root/tools/mail_relay/test.sh" "$root"
-    run_feature_tests tools/openapi/test.sh tools/twenty/test.sh tools/twenty/gateway_test.sh tools/twenty/import_test.sh tools/policy/test.sh tools/storage/test.sh tools/documents/test.sh tools/typst/test.sh tools/testkit/test.sh tools/privacy/test.sh tools/legal_configuration/test.sh tools/matching/test.sh tools/assignments/test.sh tools/activities/test.sh tools/activity_feed/test.sh tools/actions/test.sh tools/templates/test.sh
-    ;;
-  test-e2e)
-    run_feature_tests tools/identity/test.sh tools/invitations/test.sh tools/sessions/test.sh tools/action_admin/test.sh tools/pwa/test.sh tools/public_actions/test.sh tools/commitments/test.sh tools/public_orders/test.sh tools/invoices/test.sh tools/invoice_delivery/test.sh tools/invoice_settlements/test.sh tools/feature_flags/test.sh tools/operations/test.sh tools/ui_system/test.sh tools/dashboard/test.sh tools/ux_acceptance/test.sh tools/security/test.sh
-    /bin/sh "$root/tools/golden_journey/test.sh" "$root"
+    suite=${command#test-}
+    shift
+    /bin/sh "$root/tools/ci/$suite.sh" "$@"
     ;;
   test-env-stop) python3 "$root/tools/testing/shared_stack.py" --stop ;;
   fixture-cache)
