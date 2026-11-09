@@ -431,6 +431,34 @@ describe("offline reads (§10)", () => {
     expect(store.tour()?.reads).toEqual([]);
   });
 
+  it("drops a read far ahead of the clock so it never sinks the batch", async () => {
+    const store = new MemoryStore();
+    const good = { readAt: NOW.toISOString(), windowId: OPEN_WINDOW };
+    const drift = {
+      readAt: new Date(NOW.getTime() + 4 * 60_000).toISOString(),
+      windowId: CLOSED_WINDOW,
+    };
+    const ahead = {
+      readAt: new Date(NOW.getTime() + 6 * 60_000).toISOString(),
+      windowId: OPEN_WINDOW,
+    };
+    await store.putCache(
+      ...tourCacheKey(ACTION),
+      cached([openWindow()], [good, ahead, drift]),
+      NOW.toISOString(),
+    );
+    const sent: MyTourReadsRequest[] = [];
+    await sendTourReads(
+      store,
+      async (_actionId, body) => {
+        sent.push(body);
+      },
+      NOW,
+    );
+    expect(sent).toEqual([{ reads: [good, drift] }]);
+    expect(store.tour()?.reads).toEqual([]);
+  });
+
   it("does not send reads older than 14 days", async () => {
     const store = new MemoryStore();
     const old = {

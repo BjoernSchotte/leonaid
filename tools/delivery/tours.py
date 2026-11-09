@@ -355,7 +355,8 @@ async def prove_tours(
         " write reset, five HTTP operations (roles, flag, no-store), manual"
         " pin as lat/lon in my_tour and day_tours (ids-only audit, foreign"
         " order 404), start point and map tiles in both reads, offline reads"
-        " (viewed_on from read_at, foreign window ignored, out of range 422,"
+        " (viewed_on from read_at, earliest read kept, foreign window ignored,"
+        " out of range 422,"
         " both flags, 204 over HTTP)"
     )
 
@@ -859,6 +860,44 @@ async def _prove_offline_reads(fx: _Fixture) -> None:
         assert (
             await client.post(path, json=body((fx.first.id, earlier)))
         ).status_code == 401
+
+    # Reconnecting: the page's online read reaches Core before the offline
+    # read of the same day; the earlier offline time is kept (review 1).
+    await fx.my_tour(driver, on=fx.day)
+    online = await fx.pool.fetchrow(
+        "SELECT viewed_on, first_viewed_at FROM delivery_read_audit"
+        " WHERE driver_user_id=$1 AND window_id=$2"
+        " ORDER BY viewed_on DESC LIMIT 1",
+        driver_id,
+        fx.first.id,
+    )
+    assert online is not None
+    earlier = online["first_viewed_at"] - timedelta(seconds=1)
+    if local_day(earlier, zone) != online["viewed_on"]:
+        earlier = online["first_viewed_at"] - timedelta(microseconds=1)
+    await record(TourRead(fx.first.id, earlier))
+    assert (
+        await fx.pool.fetchval(
+            "SELECT first_viewed_at FROM delivery_read_audit"
+            " WHERE driver_user_id=$1 AND window_id=$2 AND viewed_on=$3",
+            driver_id,
+            fx.first.id,
+            online["viewed_on"],
+        )
+        == earlier
+    )
+    # A later online read of that day leaves it.
+    await fx.my_tour(driver, on=fx.day)
+    assert (
+        await fx.pool.fetchval(
+            "SELECT first_viewed_at FROM delivery_read_audit"
+            " WHERE driver_user_id=$1 AND window_id=$2 AND viewed_on=$3",
+            driver_id,
+            fx.first.id,
+            online["viewed_on"],
+        )
+        == earlier
+    )
 
     # The stop leaves this driver: later reads of the window are ignored.
     await fx.assign(None, stop)

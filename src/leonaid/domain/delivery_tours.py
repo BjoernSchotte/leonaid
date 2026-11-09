@@ -125,7 +125,13 @@ class TourRead:
 
 
 def bounded_read_at(read_at: datetime, *, received_at: datetime) -> datetime:
-    """``read_at`` in UTC, or ``tour_read_out_of_range`` (422)."""
+    """``read_at`` in UTC, or ``tour_read_out_of_range`` (422).
+
+    Accepted: at most 14 days before Core's receive time and at most
+    5 minutes after it. "Not in the future" allows that much clock drift of
+    a phone; a stricter rule would refuse every read of a slightly fast
+    device, at each sync again.
+    """
 
     require_aware(read_at, "read_at")
     require_aware(received_at, "received_at")
@@ -135,7 +141,7 @@ def bounded_read_at(read_at: datetime, *, received_at: datetime) -> datetime:
         raise DomainInvariantError(
             "tour_read_out_of_range",
             "Der Lesezeitpunkt liegt außerhalb des erlaubten Zeitraums "
-            "(höchstens 14 Tage zurück, nicht in der Zukunft). "
+            "(höchstens 14 Tage zurück, höchstens 5 Minuten voraus). "
             "Bitte Datum und Uhrzeit des Geräts prüfen.",
         )
     return read_at.astimezone(timezone.utc)

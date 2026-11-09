@@ -23,6 +23,8 @@ const DAY_MS = 24 * HOUR_MS;
 export const TOUR_KEEP_AFTER_END_MS = 12 * HOUR_MS;
 /** Core accepts offline reads this far back (as unsent queue entries, D5). */
 export const TOUR_READ_KEEP_MS = 14 * DAY_MS;
+/** Core accepts a read this far ahead of its clock (phone clock drift). */
+export const TOUR_READ_MAX_LEAD_MS = 5 * 60_000;
 /** At most this many reads per request (MyTourReadsRequest). */
 export const TOUR_READS_PER_REQUEST = 50;
 
@@ -345,9 +347,10 @@ export async function sendTourReads(
     if (entry.kind !== "tour") continue;
     const cached = await readTour(store, entry.actionId).catch(() => null);
     if (!cached?.reads.length) continue;
-    const due = cached.reads.filter(
-      (read) => now.getTime() - Date.parse(read.readAt) <= TOUR_READ_KEEP_MS,
-    );
+    // Core refuses a whole batch for one read out of its range, so such a
+    // read leaves the device unsent: older than 14 days, or ahead of the
+    // clock beyond the drift (noted while the device clock was wrong).
+    const due = cached.reads.filter((read) => readSendable(read, now));
     const done = new Set<string>(
       cached.reads.filter((read) => !due.includes(read)).map(readKey),
     );
@@ -384,6 +387,15 @@ export async function sendTourReads(
       now,
     );
   }
+}
+
+function readSendable(read: TourRead, now: Date): boolean {
+  const at = Date.parse(read.readAt);
+  return (
+    Number.isFinite(at) &&
+    now.getTime() - at <= TOUR_READ_KEEP_MS &&
+    at - now.getTime() <= TOUR_READ_MAX_LEAD_MS
+  );
 }
 
 function readKey(read: TourRead): string {

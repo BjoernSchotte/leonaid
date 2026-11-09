@@ -510,11 +510,11 @@ export function App({ client }: AppProps) {
 
   return (
     <FeatureFlagProvider
-      // Out of reach of Core, the pages are those of the last online start
-      // (the driver's tour needs `delivery.tours` to show offline).
-      cached={
-        !lifecycle.online || device.startedOffline ? device.cachedFlags : null
-      }
+      // Until Core's first answer in this page the flags are those of the
+      // last online start, so an offline start shows the same pages (the
+      // driver's tour needs `delivery.tours`) and reconnecting does not
+      // flicker through "all off".
+      cached={device.cachedFlags}
       client={client}
       identity={identity.data}
       surface="pwa"

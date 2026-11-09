@@ -2839,8 +2839,9 @@ class MyTourReadRequest(TransportModel):
     window_id: UUID
     read_at: AwareDatetime = Field(
         description="Wann das Gerät die Stopps des Fensters offline zeigte; "
-        "höchstens 14 Tage zurück, nicht in der Zukunft "
-        "(`tour_read_out_of_range`)."
+        "höchstens 14 Tage vor und höchstens 5 Minuten nach der Empfangszeit "
+        "des Servers (Uhrabweichung des Geräts), sonst "
+        "`tour_read_out_of_range` für die ganze Anfrage."
     )
 
 

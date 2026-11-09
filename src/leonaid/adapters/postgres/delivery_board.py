@@ -291,7 +291,12 @@ async def record_read_audit(
     viewed_at: datetime,
     zone: ZoneInfo,
 ) -> None:
-    """The first read of each window per driver and club day (kept 90 days)."""
+    """The first read of each window per driver and club day (kept 90 days).
+
+    The earliest read wins, whatever arrives first: an offline read of
+    "Meine Tour" reaches Core after the online read that reconnecting
+    triggers (krapfentaxi-touren §10). A later read changes nothing.
+    """
 
     await connection.executemany(
         """
@@ -299,7 +304,9 @@ async def record_read_audit(
             driver_user_id, window_id, viewed_on, action_id, first_viewed_at
         )
         VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT DO NOTHING
+        ON CONFLICT (driver_user_id, window_id, viewed_on) DO UPDATE
+        SET first_viewed_at = EXCLUDED.first_viewed_at
+        WHERE delivery_read_audit.first_viewed_at > EXCLUDED.first_viewed_at
         """,
         [
             (
