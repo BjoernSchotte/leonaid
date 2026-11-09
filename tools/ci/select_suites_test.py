@@ -141,8 +141,11 @@ PRECISE: tuple[tuple[str, dict[str, Any]], ...] = (
     ),
     ("tools/ci/emdash.sh", {"emdash": sorted(s.EMDASH_GROUPS)}),
     ("tools/delivery/foundation.py", {"integration": ["delivery"]}),
-    ("tools/pwa/test.sh", {"e2e": ["pwa", "pwa-offline"]}),
-    ("tests/e2e/pwa-offline-queue.spec.mjs", {"e2e": ["pwa-offline"]}),
+    ("tools/pwa/test.sh", {"e2e": ["pwa", "pwa-offline", "pwa-offline-webkit"]}),
+    (
+        "tests/e2e/pwa-offline-queue.spec.mjs",
+        {"e2e": ["pwa-offline", "pwa-offline-webkit"]},
+    ),
     ("tests/e2e/pwa-audit.spec.mjs", {"e2e": ["pwa"]}),
 )
 
@@ -455,7 +458,7 @@ def main() -> int:
         ("src/leonaid/bootstrap/api.py", set(s.E2E_SHARDS)),
         ("src/leonaid/configuration.py", set(s.E2E_SHARDS)),
         ("src/leonaid/adapters/mail/smtp.py", {"membership", "invoice-flows"}),
-        ("src/leonaid/adapters/twenty/gateway.py", {"pwa", "pwa-offline"}),
+        ("src/leonaid/adapters/twenty/gateway.py", set(s.PWA)),
         ("src/leonaid/adapters/typst/invoice_renderer.py", {"invoices"}),
         ("src/leonaid/entrypoints/worker/outbox.py", {"membership", "pwa"}),
     ):

@@ -77,6 +77,7 @@ E2E_SHARDS = (
     "commitments",
     "pwa",
     "pwa-offline",
+    "pwa-offline-webkit",
     "action-admin",
     "public-orders",
     "identity",
@@ -125,6 +126,9 @@ INTEGRATION_SECONDS = {
     # The Contract job (tools/ci/contract.sh) rides in an Integration bin.
     "contract": 155,
 }
+# The PWA leaf runs as three (tools/ci/e2e.sh pwa, pwa-offline,
+# pwa-offline-webkit).
+PWA = ("pwa", "pwa-offline", "pwa-offline-webkit")
 E2E_SECONDS = {
     # Leaf sums of run 42552919966 (#179, Twenty kept between golden leaves;
     # own-stack leaves included). public-catalog: multi_host 146 s minus its
@@ -135,7 +139,11 @@ E2E_SECONDS = {
     "commitments": 41,
     # The pwa leaf (369 s) by mode: local 69 s + 215 s, plus its setup twice.
     "pwa": 110,
-    "pwa-offline": 280,
+    # Run 42579402419: the offline leaf took 292 s, Chromium 126 s and WebKit
+    # 72 s of it; WebKit is its own leaf now, minus two runs (16 s) that
+    # repeat its device-copy deletion. Each pays its stack start (~50 s).
+    "pwa-offline": 200,
+    "pwa-offline-webkit": 110,
     "action-admin": 65,
     # Minus the existing-company UI path and an app width (local -4 s each).
     "public-orders": 127,
@@ -552,11 +560,11 @@ RULES: tuple[Rule, ...] = (
     ),
     Rule(
         ("tests/e2e/pwa-offline*.spec.mjs",),
-        e2e("pwa-offline"),
+        e2e("pwa-offline", "pwa-offline-webkit"),
         "PWA offline specs",
     ),
     Rule(("tests/e2e/pwa*.spec.mjs",), e2e("pwa"), "PWA specs"),
-    Rule(("tools/pwa/**",), e2e("pwa", "pwa-offline"), "PWA proofs"),
+    Rule(("tools/pwa/**",), e2e(*PWA), "PWA proofs"),
     Rule(
         (
             "tests/e2e/identity.spec.mjs",
@@ -669,7 +677,7 @@ RULES: tuple[Rule, ...] = (
     ),
     Rule(
         ("packages/features/src/acquisition/**",),
-        e2e("pwa", "pwa-offline") | {"golden"},
+        e2e(*PWA) | {"golden"},
         "acquisition UI",
     ),
     Rule(
@@ -760,8 +768,6 @@ def everything_but_e2e() -> frozenset[str]:
 # leonaid.application, leonaid.domain, leonaid.adapters.postgres and
 # leonaid.modules.<stem>.*. A changed module selects the owners of every
 # module that imports it, directly or transitively (``e2e_owners``).
-# The PWA leaf runs as two (tools/ci/e2e.sh pwa, pwa-offline).
-PWA = ("pwa", "pwa-offline")
 E2E_OWNERS: dict[str, tuple[str, ...]] = {
     "tasks": ("tasks",),
     "materials": ("knowledge",),

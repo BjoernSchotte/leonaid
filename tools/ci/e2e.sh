@@ -39,6 +39,10 @@ leaves() {
   pwa-offline)
     echo golden tools/pwa/test.sh:offline
     ;;
+  # WebKit as its own leaf, so the packer can spread the offline browsers.
+  pwa-offline-webkit)
+    echo golden tools/pwa/test.sh:offline-webkit
+    ;;
   action-admin|public-orders)
     echo golden "tools/$(printf '%s' "$1" | tr '-' '_')/test.sh"
     ;;
