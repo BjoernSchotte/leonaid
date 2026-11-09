@@ -131,24 +131,26 @@ INTEGRATION_SECONDS = {
     "contract": 178,
 }
 E2E_SECONDS = {
-    "acquisition-management": 156,
-    # 183 s measured plus an estimate for the own-stack multi-host proof (#97).
-    "public-catalog": 300,
-    "membership": 160,
-    "invoices": 120,
-    "commitments": 175,
-    "pwa": 180,
-    "action-templates": 123,
-    "action-admin": 155,
-    "public-orders": 152,
-    "identity": 129,
-    "matching": 103,
-    "tasks": 162,
-    "knowledge": 127,
-    "inbox": 99,
-    "leitsystem-ui": 278,
-    "operations": 294,
-    "invoice-flows": 188,
+    # Leaf sums of run 42537284976 (2026-11-09, after E2E batches 1 and 2).
+    # The old table put pwa at 180 s; it takes 451 s (9 browser/viewport
+    # projects plus two offline browser runs), so one leg reached 885 s.
+    "acquisition-management": 73,
+    "public-catalog": 207,
+    "membership": 70,
+    "invoices": 61,
+    "commitments": 81,
+    "pwa": 451,
+    "action-templates": 52,
+    "action-admin": 83,
+    "public-orders": 87,
+    "identity": 40,
+    "matching": 33,
+    "tasks": 87,
+    "knowledge": 72,
+    "inbox": 48,
+    "leitsystem-ui": 242,
+    "operations": 196,
+    "invoice-flows": 167,
     # Estimate: three single tests on two prepared stacks.
     SMOKE: 240,
 }
