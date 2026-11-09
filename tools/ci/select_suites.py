@@ -219,13 +219,13 @@ FAST_REQUIRED: dict[str, tuple[str, ...]] = {
     "privacy": (
         "tools/privacy/**",
         "tools/legal_configuration/**",
+        "src/leonaid/domain/privacy.py",
         "src/leonaid/application/privacy.py",
         "src/leonaid/adapters/postgres/privacy.py",
+        "src/leonaid/modules/inbox/privacy.py",
         "src/leonaid/application/legal_configuration.py",
         "src/leonaid/adapters/postgres/legal_configuration.py",
         "src/leonaid/domain/legal_configuration.py",
-        "src/leonaid/domain/privacy.py",
-        "src/leonaid/modules/inbox/privacy.py",
     ),
     # The campaign renderer switch is system-admin only (cutover and
     # rollback, tests/integration/test_campaign_renderer_api.py, E-028).
