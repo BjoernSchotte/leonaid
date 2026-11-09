@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
+import signal
 import threading
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -223,8 +225,15 @@ def record_failure(
     return delay
 
 
-async def durable_worker_loop() -> None:
-    while True:
+async def pause(stopping: asyncio.Event, seconds: float) -> None:
+    """Sleep, but wake at once when the worker is told to stop."""
+    with contextlib.suppress(TimeoutError):
+        await asyncio.wait_for(stopping.wait(), seconds)
+
+
+async def durable_worker_loop(stopping: asyncio.Event) -> None:
+    """Claims jobs until SIGTERM; the job in hand always finishes first."""
+    while not stopping.is_set():
         pool = None
         try:
             pool, _, worker = await build_worker(
@@ -236,14 +245,14 @@ async def durable_worker_loop() -> None:
                 ),
                 claim_lease_seconds=CLAIM_LEASE_SECONDS,
             )
-            while True:
+            while not stopping.is_set():
                 handled = await worker.run_once()
                 record_success(outbox_health)
                 if not handled:
-                    await asyncio.sleep(0.25)
+                    await pause(stopping, 0.25)
         except Exception as error:
             delay = record_failure(outbox_health, error)
-            await asyncio.sleep(delay)
+            await pause(stopping, delay)
         finally:
             if pool is not None:
                 await pool.close()
@@ -313,15 +322,38 @@ async def retention_loop() -> None:
 
 
 async def service_loop() -> None:
-    await asyncio.gather(
-        durable_worker_loop(),
-        database_readiness_loop(),
+    """Runs every loop; SIGTERM drains the outbox worker and stops the rest.
+
+    The sweeps (readiness, module loops, retention) work in short database
+    transactions, so cancelling them rolls back at most one batch. Only the
+    outbox worker holds a job that must not be cut off; it stops claiming and
+    finishes the job in hand (compose.yml stop_grace_period covers the
+    longest bounded handler).
+    """
+    stopping = asyncio.Event()
+    asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, stopping.set)
+    worker = asyncio.create_task(durable_worker_loop(stopping))
+    sweeps = [
+        asyncio.create_task(database_readiness_loop()),
         *(
-            loop.run(HealthReporter(health))
+            asyncio.ensure_future(loop.run(HealthReporter(health)))
             for loop, health in zip(MODULE_LOOPS, MODULE_LOOP_HEALTH, strict=True)
         ),
-        retention_loop(),
-    )
+        asyncio.create_task(retention_loop()),
+    ]
+    # The loops never return on their own: the first one to finish is the
+    # drained worker after SIGTERM, or a loop that crashed.
+    await asyncio.wait([worker, *sweeps], return_when=asyncio.FIRST_COMPLETED)
+    stopping.set()
+    for sweep in sweeps:
+        sweep.cancel()
+    results = await asyncio.gather(worker, *sweeps, return_exceptions=True)
+    for result in results:
+        if isinstance(result, BaseException) and not isinstance(
+            result, asyncio.CancelledError
+        ):
+            raise result
+    print(structured_event("worker.stopped"), flush=True)
 
 
 def main() -> None:
