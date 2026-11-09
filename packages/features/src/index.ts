@@ -28,6 +28,7 @@ export * from "./commitments/commitment-admin";
 export * from "./commitments/commitment-capture";
 export * from "./dashboard/dashboard";
 export * from "./delivery/delivery-board";
+export * from "./delivery/tour-model";
 export * from "./invoices/invoice-admin";
 export * from "./modules";
 export * from "./navigation/campaign-selection";
