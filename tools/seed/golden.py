@@ -682,6 +682,31 @@ def action_schedule(
     )
 
 
+def offer_window(
+    offer: JsonObject, action: JsonObject, *, today: date
+) -> tuple[datetime, datetime]:
+    """Availability window the seed writes for one offer.
+
+    Offers of the active action keep their dataset offsets to the action's
+    publication window (2026-07-01 / 2026-11-16 in the dataset) and move with
+    the seeded publication window, so they stay orderable on any seed day.
+    """
+
+    available_from = datetime.fromisoformat(str(offer["availableFrom"]))
+    available_until = datetime.fromisoformat(str(offer["availableUntil"]))
+    if action["status"] != "ACTIVE":
+        return available_from, available_until
+    _, _, seeded_start, seeded_end = action_schedule(action, today=today)
+    dataset_start = datetime.fromisoformat(str(action["publicationStartsAt"]))
+    dataset_end = datetime.fromisoformat(str(action["publicationEndsAt"]))
+    if seeded_start is None or seeded_end is None:
+        raise SeedError("active action without publication window")
+    return (
+        seeded_start + (available_from - dataset_start),
+        seeded_end + (available_until - dataset_end),
+    )
+
+
 def seed_today() -> date:
     return local_day(datetime.now(timezone.utc))
 
@@ -1221,7 +1246,12 @@ async def seed_operational_golden(
         golden_action_ids,
     )
 
+    actions_by_id = {str(action["id"]): action for action in dataset["actions"]}
+    today = seed_today()
     for offer in dataset["offers"]:
+        available_from, available_until = offer_window(
+            offer, actions_by_id[str(offer["actionId"])], today=today
+        )
         await connection.execute(
             """
             INSERT INTO offering (
@@ -1257,8 +1287,8 @@ async def seed_operational_golden(
             offer["piecesPerUnit"],
             offer["unitPriceCents"],
             offer["currency"],
-            datetime.fromisoformat(str(offer["availableFrom"])),
-            datetime.fromisoformat(str(offer["availableUntil"])),
+            available_from,
+            available_until,
         )
 
     assignment_lookup: dict[tuple[str, str, str], str] = {}
