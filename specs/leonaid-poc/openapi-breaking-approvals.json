@@ -119,6 +119,15 @@
         "property-constraint-tightened:UpdateCase.closureNote"
       ],
       "rationale": "The inbox closing note must have at least 10 characters on the server too. The web UI already enforced this, so its requests do not change; any other client could close a case with one character, which was a bug. Approved by Björn Schotte on 2026-11-08 (E-032). Approval is bound to these exact contract hashes and changes."
+    },
+    {
+      "oldSha256": "9d7b395e3fac3fccde46b6f30e077bd13b6b4440a8dd6b08914cab5e8c3ad120",
+      "newSha256": "aca564b02d9f66247a2544905611ac02c1a38b7ac43c67b2ca825219938a0814",
+      "changes": [
+        "property-type-changed:FeatureFlagAdminResponse.key",
+        "property-type-changed:FeatureFlagEvaluationResponse.key"
+      ],
+      "rationale": "Adding the feature flag key delivery.tours widens the FeatureFlagKeyValue enum in two responses. Clients that read flag keys treat unknown keys as off (the generated client and the apps only look up known keys), so this is additive in practice. Decided by the lead under Björn's standing delegation on 2026-11-09 (spec specs/krapfentaxi-touren D14a, same as the earlier pwa.offline_queue flag). Approval is bound to these exact contract hashes and changes."
     }
   ]
 }
