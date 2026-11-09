@@ -221,9 +221,9 @@ if [ "$orders:$mode" = true:migration ]; then
   # Not the worker: it depends on a healthy server, so Compose would wait.
   compose up --detach twenty-server
 fi
-# One parallel build of the images the stack cases start. The later
-# `up --build` calls become cache hits: in CI each of them loaded its image
-# on its own, about 25 s apiece, one after the other.
+# One parallel build of the images the stack cases start; the later starts
+# use exactly these (--no-build). A cache-hit `up --build` still exported
+# and loaded its images in CI (buildx container driver), 4-10 s per call.
 compose build api campaign-site proxy public worker web
 if [ "$mode" = emdash-upgrade ]; then
   . "$root/tools/emdash_spike/emdash-upgrade-legacy.sh"
@@ -238,7 +238,7 @@ fi
 # exited container must also exist for later dependency-checked starts
 # (backup.sh resumes writers). `up --wait` rejects an exited one-off.
 compose up --no-deps --exit-code-from core-volume-init core-volume-init
-compose up --no-deps --build --detach --wait api campaign-site
+compose up --no-deps --no-build --detach --wait api campaign-site
 fixture() {
   compose run --rm --no-deps --volume "$root:/repo:ro" \
     --volume "$proof:/proof" --user "$(id -u):$(id -g)" \
@@ -265,7 +265,7 @@ if [ "$mode" = order-component ] || [ "$mode" = public-http ] || [ "$campaign_ho
 fi
 if [ "$mode" = order-component ]; then
   fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
-  compose up --no-deps --build --detach --wait public proxy
+  compose up --no-deps --no-build --detach --wait public proxy
   visual_proof=$(mktemp -d)
   compose run --rm --no-deps --volume "$visual_proof:/visual-proof" admin-browser \
     node tools/emdash_spike/public-order-component-proof.mjs
@@ -304,7 +304,7 @@ if [ "$mode" != auth ]; then
   fi
   if [ "$mode" = alias-browser ]; then
     fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
-    compose up --no-deps --build --detach --wait web public mailpit worker
+    compose up --no-deps --no-build --detach --wait web public mailpit worker
     visual_proof=$(mktemp -d)
     compose run --rm --no-deps --volume "$visual_proof:/visual-proof" admin-browser \
       node tools/emdash_spike/alias-browser-proof.mjs
@@ -313,7 +313,7 @@ if [ "$mode" != auth ]; then
   fi
   if [ "$mode" = alias-http ]; then
     fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
-    compose up --no-deps --build --detach --wait public
+    compose up --no-deps --no-build --detach --wait public
     fixture /repo/tools/emdash_spike/redirect_http_proof.py
     fixture /repo/tools/emdash_spike/alias_renderer_http_proof.py
     fixture /repo/tools/emdash_spike/alias_http_proof.py
@@ -332,7 +332,7 @@ if [ "$mode" != auth ]; then
   if [ "$mode" = migration ]; then
     fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
     compose run --rm --no-deps --volume "$proof:/proof:ro" krapfentaxi-import-probe
-    compose up --no-deps --build --detach --wait public mailpit worker
+    compose up --no-deps --no-build --detach --wait public mailpit worker
     # The deadline half needs only the published state the order proofs
     # read (WebKit's marker); the commerce half runs all three engines.
     editor_engines=chromium,firefox,webkit
@@ -381,7 +381,7 @@ if [ "$mode" != auth ]; then
   if [ "$mode" = public-http ] || [ "$campaign_hosts" = true ] || [ "$mode" = public-media ]; then
     compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
       node tools/emdash_spike/order-ingress-proof.mjs
-    compose up --no-deps --build --detach --wait public
+    compose up --no-deps --no-build --detach --wait public
     fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-runtime-seed.mjs
     public_probe() {
@@ -515,7 +515,7 @@ if [ "$mode" != auth ]; then
     fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-reference-races /proof/reference-sessions.json
     compose run --rm --no-deps --volume "$proof:/proof:ro" campaign-race-probe \
       node tools/emdash_spike/campaign-media-reference-proof.mjs
-    compose up --no-deps --build --detach --wait public mailpit worker
+    compose up --no-deps --no-build --detach --wait public mailpit worker
     if [ "$mode" = media ]; then
       compose run --rm --no-deps --volume "$proof:/proof:ro" admin-browser \
         node tools/emdash_spike/campaign-media-browser-proof.mjs
@@ -558,7 +558,7 @@ if [ "$mode" != auth ]; then
         node tools/emdash_spike/campaign-isolation-proof.mjs "$@"
     }
     isolation_probe
-    compose up --no-deps --build --detach --wait public mailpit worker
+    compose up --no-deps --no-build --detach --wait public mailpit worker
     compose run --rm --no-deps --volume "$proof:/proof:ro" admin-browser \
       node tools/emdash_spike/campaign-editor-browser-proof.mjs --charity --login
     fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-charity-browser
@@ -639,7 +639,7 @@ if [ "$mode" != auth ]; then
       node tools/emdash_spike/campaign-auth-race-proof.mjs
   fi
   if [ "$mode" = browser ]; then
-    compose up --no-deps --build --detach --wait public
+    compose up --no-deps --no-build --detach --wait public
     browser_probe() {
       compose run --rm --no-deps --volume "$proof:/proof:ro" admin-browser \
         node tools/emdash_spike/admin-browser-proof.mjs "$@"
@@ -652,7 +652,7 @@ if [ "$mode" != auth ]; then
         node tools/emdash_spike/campaign-editor-browser-proof.mjs "$@"
     }
     editor_probe
-    compose up --no-deps --build --detach --wait mailpit worker
+    compose up --no-deps --no-build --detach --wait mailpit worker
     editor_probe --login
     fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-publication
     compose run --rm --no-deps --volume "$proof:/proof:ro" admin-browser \
