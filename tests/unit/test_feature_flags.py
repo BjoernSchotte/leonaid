@@ -152,14 +152,17 @@ def test_delivery_tours_flag_ships_off_and_matches_transport_and_schema() -> Non
     assert definition.default_enabled is False
     assert definition.client_safe is True
     assert "delivery.tours" in get_args(FeatureFlagKeyValue)
-    migration = (
-        Path(__file__).resolve().parents[2]
-        / "migrations/versions/0058_delivery_tours.py"
-    ).read_text(encoding="utf-8")
-    new_keys = next(
-        line for line in migration.splitlines() if line.startswith("NEW_KEYS")
+    import importlib.util
+    import inspect
+
+    path = (
+        Path(__file__).resolve().parents[2] / "migrations/versions/0058_delivery_tours.py"
     )
-    assert new_keys
+    spec = importlib.util.spec_from_file_location("migration_0058", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
     for key in FeatureFlagKey:
-        assert f"'{key.value}'" in migration
-    assert "'delivery.tours', false, 1" in migration
+        assert f"'{key.value}'" in module.NEW_KEYS
+    assert "'delivery.tours'" not in module.OLD_KEYS
+    assert "'delivery.tours', false, 1" in inspect.getsource(module.upgrade)
