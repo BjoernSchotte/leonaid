@@ -14,8 +14,6 @@ import asyncpg
 import httpx
 
 ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
-MUSTERWERK_ID = UUID("40000000-0000-4000-8000-000000000001")
-ANNA_ID = UUID("10000000-0000-4000-8000-000000000004")
 KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 
 
@@ -67,19 +65,15 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         )
     if not isinstance(orders, list) or {
         item.get("scenario") for item in orders if isinstance(item, dict)
-    } != {"new-company", "existing-company", "person-without-company"}:
-        raise VerificationFailure("The three public E2E personas are missing")
+    } != {"new-company", "person-without-company"}:
+        # Reuse of an existing company: tools/public_orders/contract.py.
+        raise VerificationFailure("The two public E2E personas are missing")
 
     expected: dict[str, dict[str, str | int | UUID]] = {
         "new-company": {
             "name": "POC072 Browseratelier GmbH",
             "quantity": 2,
             "recipient": KLARA_ID,
-        },
-        "existing-company": {
-            "name": "Musterwerk GmbH",
-            "quantity": 1,
-            "recipient": ANNA_ID,
         },
         "person-without-company": {
             "name": "Paula Privat",
@@ -155,10 +149,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
                 raise VerificationFailure(
                     f"UI order addresses the wrong activity recipients: {scenario}"
                 )
-            if scenario == "existing-company":
-                if row["twenty_company_id"] != MUSTERWERK_ID:
-                    raise VerificationFailure("UI did not use the existing company")
-            elif scenario == "new-company":
+            if scenario == "new-company":
                 record = await twenty_record(
                     twenty,
                     "companies",
@@ -182,7 +173,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
                     raise VerificationFailure("UI private person is missing in Twenty")
     print(
         "public-orders-ui: OK:",
-        "three visible order paths, focus/input retention and real persistence proven",
+        "two visible order paths, focus/input retention and real persistence proven",
     )
 
 

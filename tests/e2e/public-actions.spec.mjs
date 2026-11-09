@@ -207,22 +207,9 @@ test("public action page stays readable from 320 to 1440 pixels", async ({
   });
 });
 
-test("the home page lists the active campaigns and links their pages", async ({
-  page,
-}) => {
-  const response = await page.goto(`${baseUrl}/`);
-  expect(response?.status()).toBe(200);
+test("the home page campaign list fits phone and desktop", async ({ page }) => {
+  await page.goto(`${baseUrl}/`);
   const list = page.getByTestId("public-campaign-list");
-  await expect(
-    list.getByRole("heading", { level: 2, name: "Aktuelle Aktionen" }),
-  ).toBeVisible();
-  // The current Krapfentaxi edition links its alias page with the order
-  // form; the archived 2025 edition is not listed.
-  const hrefs = await list
-    .getByRole("link")
-    .evaluateAll((links) => links.map((link) => link.getAttribute("href")));
-  expect(hrefs.filter((path) => path === "/krapfentaxi")).toHaveLength(1);
-  expect(hrefs.some((path) => path.includes("krapfentaxi-2025"))).toBe(false);
   const link = list.locator('a[href="/krapfentaxi"]');
   for (const [width, height] of [
     [390, 844],
@@ -241,62 +228,80 @@ test("the home page lists the active campaigns and links their pages", async ({
   await expect(page).toHaveURL(/\/krapfentaxi$/);
 });
 
-test("the footer names the provider and links Impressum and Datenschutz on every public page", async ({
+// Server-rendered links and the active campaigns: HTML answers, no browser
+// (E-026). The legal pages' layout and a11y stay in the browser below.
+test("public pages link the active campaigns, Impressum and Datenschutz", async ({
+  request,
+}) => {
+  const html = async (path) => {
+    const response = await request.get(`${baseUrl}${path}`);
+    expect(response.status(), path).toBe(200);
+    return response.text();
+  };
+  // The markup from a marker on: the links that follow it.
+  const after = (text, marker, path) => {
+    const index = text.indexOf(marker);
+    expect(index, `${path}: ${marker}`).toBeGreaterThan(-1);
+    return text.slice(index);
+  };
+  const legalLinks = (text, path) => {
+    for (const [href, label] of [
+      ["/impressum", "Impressum"],
+      ["/datenschutz", "Datenschutz"],
+    ]) {
+      expect(text, path).toMatch(
+        new RegExp(`<a [^>]*href="${href}"[^>]*>\\s*${label}\\s*<`),
+      );
+    }
+  };
+
+  // The current Krapfentaxi edition links its alias page with the order
+  // form; the archived 2025 edition is not listed.
+  const home = await html("/");
+  const campaigns = after(home, 'data-testid="public-campaign-list"', "/");
+  const list = campaigns.slice(0, campaigns.indexOf("</section>"));
+  expect(list).toContain("Aktuelle Aktionen");
+  const hrefs = [...list.matchAll(/<a [^>]*href="([^"]+)"/g)].map(
+    (match) => match[1],
+  );
+  expect(hrefs.filter((path) => path === "/krapfentaxi")).toHaveLength(1);
+  expect(hrefs.some((path) => path.includes("krapfentaxi-2025"))).toBe(false);
+
+  // Action page: provider and address, Impressum and the privacy page; the
+  // per-action notice stays on the page and links the full policy.
+  const action = await html("/krapfentaxi");
+  const footer = after(action, "data-footer-legal", "/krapfentaxi");
+  expect(footer).toMatch(
+    /<span [^>]*data-footer-provider[^>]*>\s*Lions Hilfswerk LeonAid Golden e\.V\. · Clubweg 1 · 86150 Augsburg\s*</,
+  );
+  legalLinks(footer, "/krapfentaxi");
+  expect(action.match(/id="datenschutz"/g)).toHaveLength(1);
+  expect(action).toMatch(
+    /<a [^>]*(data-privacy-full-link[^>]*href="\/datenschutz"|href="\/datenschutz"[^>]*data-privacy-full-link)/,
+  );
+
+  // Pages without an action and the legal pages themselves keep both links
+  // (a live survey: surveys-completion-message.spec.mjs); sign-in,
+  // invitation and e-mail change pages link both as well.
+  for (const [path, marker] of [
+    ["/", "data-footer-legal"],
+    ["/impressum", "data-footer-legal"],
+    ["/datenschutz", "data-footer-legal"],
+    ["/login", "data-auth-legal"],
+    ["/invite", "data-auth-legal"],
+    ["/email-change", "data-auth-legal"],
+  ]) {
+    legalLinks(after(await html(path), marker, path), path);
+  }
+});
+
+test("the Impressum and the privacy page render the legal configuration", async ({
   browserName,
   page,
 }) => {
   test.skip(browserName !== "chromium", "Content check; parity is above.");
   const provider = "Lions Hilfswerk LeonAid Golden e.V.";
   const address = "Clubweg 1 · 86150 Augsburg";
-
-  // Action page: provider and address, Impressum and the privacy page; the
-  // per-action notice stays on the page and links the full policy.
-  await page.goto(`${baseUrl}/krapfentaxi`);
-  const legal = page.locator("[data-footer-legal]");
-  await expect(legal.locator("[data-footer-provider]")).toHaveText(
-    `${provider} · ${address}`,
-  );
-  await expect(legal.getByRole("link", { name: "Impressum" })).toHaveAttribute(
-    "href",
-    "/impressum",
-  );
-  await expect(
-    legal.getByRole("link", { name: "Datenschutz" }),
-  ).toHaveAttribute("href", "/datenschutz");
-  await expect(page.locator("#datenschutz")).toHaveCount(1);
-  await expect(page.locator("[data-privacy-full-link]")).toHaveAttribute(
-    "href",
-    "/datenschutz",
-  );
-
-  // Pages without an action and the legal pages themselves keep both links
-  // (a live survey: surveys-completion-message.spec.mjs).
-  for (const path of ["/", "/impressum", "/datenschutz"]) {
-    await page.goto(`${baseUrl}${path}`);
-    const footer = page.locator("[data-footer-legal]");
-    await expect(
-      footer.getByRole("link", { name: "Impressum" }),
-      path,
-    ).toHaveAttribute("href", "/impressum");
-    await expect(
-      footer.getByRole("link", { name: "Datenschutz" }),
-      path,
-    ).toHaveAttribute("href", "/datenschutz");
-  }
-
-  // Sign-in, invitation and e-mail change pages link both as well.
-  for (const path of ["/login", "/invite", "/email-change"]) {
-    await page.goto(`${baseUrl}${path}`);
-    const links = page.locator("[data-auth-legal]");
-    await expect(
-      links.getByRole("link", { name: "Impressum" }),
-      path,
-    ).toHaveAttribute("href", "/impressum");
-    await expect(
-      links.getByRole("link", { name: "Datenschutz" }),
-      path,
-    ).toHaveAttribute("href", "/datenschutz");
-  }
 
   // The Impressum comes from the active legal configuration.
   for (const [width, height] of [
@@ -445,7 +450,6 @@ test("the public header links signed-in visitors to their apps", async ({
     for (const path of ["/krapfentaxi", "/"]) {
       for (const [width, height] of [
         [390, 844],
-        [768, 1024],
         [1440, 900],
       ]) {
         await signedIn.setViewportSize({ width, height });

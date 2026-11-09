@@ -143,9 +143,10 @@ E2E_SECONDS = {
     "pwa": 110,
     "pwa-offline": 280,
     "action-admin": 65,
-    "public-orders": 133,
+    # Minus the existing-company UI path and an app width (local -4 s each).
+    "public-orders": 127,
     "identity": 60,
-    "tasks": 111,
+    "tasks": 106,
     "knowledge": 66,
     "inbox": 48,
     "leitsystem-ui": 261,
