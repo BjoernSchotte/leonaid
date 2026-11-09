@@ -470,6 +470,13 @@ async def _prove_orders(fx: _Fixture) -> None:
     )
 
     # manager saves base order; repeat with stale revision but same order is a no-op
+    # The HTTP section saved Anna's order as it stood (by assignment time and
+    # random ids); clear it so the order below always differs from the start.
+    await fx.pool.execute(
+        "UPDATE commitment_delivery SET base_position = NULL, driver_position = NULL,"
+        " driver_ordered_at = NULL WHERE driver_user_id = $1",
+        fx.anna_id,
+    )
     start = await fx.tour_of(fx.anna_id)
     assert sorted(_flat(start)) == sorted([a1, a2, a3, a4])
     assert [item.window_id for item in start.windows] == [fx.first.id, fx.second.id]
