@@ -161,9 +161,12 @@ class Failed:
 GeocodeOutcome = Found | NotFound | Failed
 
 
-# The house number at the end of a street line: "25", "25a", "12 a", "5-7".
+# The first house number after the street name: "25", "25a", "12 a", "5-7".
+# A letter counts only when it stands alone ("12 a", not "12 links"), and a
+# number before a dot is an ordinal ("17. Juni"), not a house number.
 _HOUSE_NUMBER = re.compile(
-    r"(?<!\w)(\d+\s*[^\W\d_]?(?:\s*[-/]\s*\d+\s*[^\W\d_]?)?)\s*\Z"
+    r"(?<!\w)(\d+(?:\s*[^\W\d_](?!\w))?"
+    r"(?:\s*[-/]\s*\d+(?:\s*[^\W\d_](?!\w))?)?)(?![\d.])"
 )
 
 
@@ -172,9 +175,16 @@ def _compact(value: str) -> str:
 
 
 def query_house_number(query: GeocodeQuery) -> str | None:
-    """The house number of the street line, compact and case-folded."""
+    """The house number of the street line, compact and case-folded.
 
-    match = _HOUSE_NUMBER.search(query.street)
+    None when there is none, or when the line starts with a digit (then it
+    is unclear which number is the house number).
+    """
+
+    street = query.street.lstrip()
+    if street[:1].isdigit():
+        return None
+    match = _HOUSE_NUMBER.search(street)
     return _compact(match[1]) if match else None
 
 
@@ -197,7 +207,9 @@ def accept(
         return False
     wanted = query_house_number(query)
     if wanted is None:
-        return True
+        # A digit that is no clear house number: do not guess, the manager
+        # sets the pin.
+        return not any(char.isdigit() for char in query.street)
     # "5;7" is one object with two numbers.
     return wanted in {_compact(part) for part in re.split(r"[;,]", house_number)}
 

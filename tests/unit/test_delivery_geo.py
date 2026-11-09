@@ -96,7 +96,6 @@ def test_accept_house_number_ranges_and_lists() -> None:
 
 def test_query_house_number_only_from_the_end_of_the_street_line() -> None:
     assert query_house_number(QUERY) == "1"
-    assert query_house_number(GeocodeQuery("Straße 17. Juni", "1", "x", "DE")) is None
     assert (
         query_house_number(GeocodeQuery("Straße des 17. Juni 5", "1", "x", "DE")) == "5"
     )
@@ -185,3 +184,40 @@ def test_start_address_is_parsed_into_a_structured_query(
     address: str, expected: GeocodeQuery | None
 ) -> None:
     assert start_geocode_query(address) == expected
+
+
+@pytest.mark.parametrize(
+    ("street", "number"),
+    [
+        ("Hauptstraße 12 links", "12"),
+        ("Hauptstraße 12 EG", "12"),
+        ("Hauptstraße 12, Hof 3", "12"),
+        ("Am Schloßplatz 1", "1"),
+        ("Marktstraße 48a", "48a"),
+        ("Hauptstr. 12-14", "12-14"),
+        ("Hauptstr. 12 a links", "12a"),
+        ("Hauptstraße", None),
+    ],
+)
+def test_query_house_number_first_number_after_the_name(
+    street: str, number: str | None
+) -> None:
+    assert query_house_number(GeocodeQuery(street, "83646", "Bad Tölz", "DE")) == number
+
+
+def test_accept_finds_a_house_number_followed_by_text() -> None:
+    query = GeocodeQuery("Hauptstraße 12 links", "83646", "Bad Tölz", "DE")
+    assert accept("83646", "12", 30, query)
+    assert not accept("83646", "13", 30, query)
+    assert not accept("83646", None, 26, query)
+    hof = GeocodeQuery("Hauptstraße 12, Hof 3", "83646", "Bad Tölz", "DE")
+    assert accept("83646", "12", 30, hof)
+    assert not accept("83646", None, 26, hof)
+
+
+@pytest.mark.parametrize("street", ["12 Hauptstraße", "Straße 17. Juni", "Gasse A2"])
+def test_accept_rejects_every_hit_for_an_unclear_house_number(street: str) -> None:
+    query = GeocodeQuery(street, "83646", "Bad Tölz", "DE")
+    assert query_house_number(query) is None
+    assert not accept("83646", None, 26, query)
+    assert not accept("83646", "12", 30, query)
