@@ -340,8 +340,9 @@ services:
       LEONAID_GEOCODER_URL: ${LEONAID_GEOCODER_URL:-}
       LEONAID_GEOCODER_USER_AGENT: ${LEONAID_GEOCODER_USER_AGENT:-}
       LEONAID_GEOCODING_INTERVAL_SECONDS: ${LEONAID_GEOCODING_INTERVAL_SECONDS:-}
-      # Names the installation in the geocoder's User-Agent. The dev worker
-      # has no egress network, so lookups there end as `failed` rows.
+      # Names the installation in the geocoder's User-Agent. Test stacks have
+      # no egress, so lookups there end as `failed` rows; the dev stack adds
+      # one in its local overlay (infra/compose/README.md).
       LEONAID_PUBLIC_BASE_URL: ${LEONAID_ADMIN_BASE_URL:-https://localhost:${LEONAID_HTTPS_PORT:-8443}}
     volumes:
       - survey-erasure-archive:/recovery/survey-erasure

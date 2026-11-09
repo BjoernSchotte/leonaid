@@ -81,10 +81,15 @@ never names or contacts, with the User-Agent `LEONAID_GEOCODER_USER_AGENT`
 (default `LeonAid (<LEONAID_PUBLIC_BASE_URL>)`). The result is cached per
 order in `delivery_geo`; an address that is not found is not asked again,
 and a timeout or provider error is retried at most three times, an hour
-apart. A changed address is looked up again. Logs carry only counts; the
-metric `leonaid_worker_geocoding_lookups_total` counts lookups. In the pilot
-the worker reaches the geocoder through the `mail-egress` network; the dev
-stack has no egress, so lookups there end as failures. The map tiles come
+apart. A changed address is looked up again. The same loop looks up the
+start point of each action (where the drivers pick up the Krapfen) once per
+address; the API never asks the geocoder. A start address must read
+"Street 1, 12345 Town", otherwise it counts as not found and the manager sets
+the pin. Logs carry only counts; the metric
+`leonaid_worker_geocoding_lookups_total` counts lookups. In the pilot the
+worker reaches the geocoder through the `mail-egress` network; the dev stack
+gives it the network `geocoder-egress` (`compose.dev-local.yml`). Test stacks
+have no egress, so lookups there end as failures. The map tiles come
 from `LEONAID_MAP_TILE_URL` (default OpenStreetMap) with
 `LEONAID_MAP_ATTRIBUTION`; a tile URL on another host must name its origin
 in `LEONAID_MAP_TILE_ORIGIN`. Invalid values stop the worker at start with

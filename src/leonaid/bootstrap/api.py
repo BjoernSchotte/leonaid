@@ -34,7 +34,8 @@ from leonaid.bootstrap.registry import (
     register_routes,
     split_enabled,
 )
-from leonaid.configuration import Settings
+from leonaid.configuration import MapSettings, Settings
+from leonaid.domain.delivery_tours import MapTiles
 from leonaid.modules.surveys.jobs import SURVEY_EVENT_TYPES
 from leonaid.modules.surveys.navigation import navigation as survey_navigation
 from leonaid.adapters.postgres.outbox import complete_resolved_event
@@ -175,10 +176,14 @@ def build_delivery_board_service(
 
 
 def build_delivery_tour_service(
-    pool: asyncpg.Pool[Any], flags: FeatureFlagService
+    pool: asyncpg.Pool[Any], flags: FeatureFlagService, maps: MapSettings
 ) -> DeliveryTourService:
     """Tours answer 404 while the flag ``delivery.tours`` is off."""
-    return DeliveryTourService(AsyncpgDeliveryTourRepository(pool), flags)
+    return DeliveryTourService(
+        AsyncpgDeliveryTourRepository(pool),
+        flags,
+        MapTiles(tile_url=maps.tile_url, attribution=maps.attribution),
+    )
 
 
 def build_order_cancellation_service(

@@ -7,6 +7,11 @@ write (retry.py): the day's windows ``FOR SHARE``, then the tour's orders
 ``FOR SHARE`` and their delivery rows ``FOR UPDATE``, each in id order. A
 closure (window ``FOR UPDATE``) and an assignment (order ``FOR UPDATE``)
 therefore wait for a running tour write, and the other way round.
+
+Stops carry the coordinates of their current address (``delivery_geo``, a
+stale row is left out); both reads carry the action's start point. A manual
+pin locks the order ``FOR SHARE`` before its ``delivery_geo`` row, the same
+order as the geocoding job.
 """
 
 from __future__ import annotations
@@ -18,6 +23,13 @@ from uuid import UUID
 
 import asyncpg
 
+from leonaid.adapters.postgres.delivery import read_start
+from leonaid.adapters.postgres.delivery_geo import (
+    current_address_hash,
+    current_points,
+    write_manual_pin,
+)
+from leonaid.adapters.postgres.privacy import ERASED_RECIPIENT_NAME
 from leonaid.adapters.postgres.delivery_board import (
     action_context,
     active_drivers,
@@ -38,6 +50,7 @@ from leonaid.domain.delivery_board import (
     DeliveryDrop,
     board_day,
 )
+from leonaid.domain.delivery_geo import GeoPoint
 from leonaid.domain.delivery_tours import (
     DayTours,
     DriverTour,
@@ -165,6 +178,7 @@ def _driver_tour(
     windows: dict[UUID, asyncpg.Record],
     drops: Sequence[DeliveryDrop],
     positions: dict[UUID, asyncpg.Record],
+    points: dict[UUID, GeoPoint],
 ) -> tuple[DriverTour, tuple[TourStop, ...]]:
     stops = tuple(
         _tour_stop(drop, windows[drop.window_id], positions[drop.commitment_id])
@@ -176,7 +190,7 @@ def _driver_tour(
         if stop.driver_position is not None
         and positions[stop.commitment_id]["driver_ordered_at"] is not None
     ]
-    views = stop_views(stops, {drop.commitment_id: drop for drop in drops})
+    views = stop_views(stops, {drop.commitment_id: drop for drop in drops}, points)
     tour = DriverTour(
         driver_user_id=driver_user_id,
         driver_name=driver_name,
@@ -189,7 +203,9 @@ def _driver_tour(
 
 
 def _unassigned(
-    drops: Sequence[DeliveryDrop], windows: dict[UUID, asyncpg.Record]
+    drops: Sequence[DeliveryDrop],
+    windows: dict[UUID, asyncpg.Record],
+    points: dict[UUID, GeoPoint],
 ) -> tuple[TourWindow, ...]:
     """Stops without a driver, by window, in the board's order."""
 
@@ -205,6 +221,7 @@ def _unassigned(
                 driver_rank=None,
                 effective_rank=rank,
                 new_for_driver=False,
+                point=points.get(drop.commitment_id),
             )
         )
     return _grouped(views, windows)
@@ -295,6 +312,9 @@ class AsyncpgDeliveryTourRepository:
             windows=windows,
             drops=drops,
             positions=positions,
+            points=await current_points(
+                connection, [drop.commitment_id for drop in drops]
+            ),
         )
 
     async def day_tours(
@@ -323,6 +343,7 @@ class AsyncpgDeliveryTourRepository:
                 )
                 selected = board_day(days, day, local_day(viewed_at, zone))
                 drivers = await active_drivers(connection, action_id)
+                start = await read_start(connection, action_id)
                 if selected is None:
                     return DayTours(
                         action_id=action_id,
@@ -333,6 +354,7 @@ class AsyncpgDeliveryTourRepository:
                         unassigned=(),
                         tours=(),
                         drivers=drivers,
+                        start=start,
                     )
                 windows = await _day_windows(
                     connection,
@@ -362,6 +384,9 @@ class AsyncpgDeliveryTourRepository:
                     driver_user_id=None,
                     lock=False,
                 )
+                points = await current_points(
+                    connection, [drop.commitment_id for drop in drops]
+                )
         names = {driver.user_id: driver.display_name for driver in drivers}
         by_driver: dict[UUID, list[DeliveryDrop]] = {driver: [] for driver in names}
         for drop in drops:
@@ -378,6 +403,7 @@ class AsyncpgDeliveryTourRepository:
                     windows=windows,
                     drops=held,
                     positions=positions,
+                    points=points,
                 )[0]
                 for driver_user_id, held in by_driver.items()
             ),
@@ -390,10 +416,13 @@ class AsyncpgDeliveryTourRepository:
             day=selected,
             days=days,
             unassigned=_unassigned(
-                [drop for drop in drops if drop.driver_user_id is None], windows
+                [drop for drop in drops if drop.driver_user_id is None],
+                windows,
+                points,
             ),
             tours=tuple(tours),
             drivers=drivers,
+            start=start,
         )
 
     async def my_tour(
@@ -428,6 +457,7 @@ class AsyncpgDeliveryTourRepository:
                     sorted({local_day(row["starts_at"], zone) for row in rows})
                 )
                 selected = board_day(days, day, local_day(viewed_at, zone))
+                start = await read_start(connection, action_id)
                 tour: DriverTour | None = None
                 if selected is not None:
                     windows = await _day_windows(
@@ -460,6 +490,7 @@ class AsyncpgDeliveryTourRepository:
             timezone=zone.key,
             days=days,
             tour=tour,
+            start=start,
         )
 
     # ---------- writes ----------
@@ -637,5 +668,114 @@ class AsyncpgDeliveryTourRepository:
                 manager=not driver,
             )
             return updated
+
+        return await self._write(command)
+
+    async def set_pin(
+        self,
+        *,
+        action_id: UUID,
+        commitment_id: UUID,
+        point: GeoPoint,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> TourStopView:
+        """The manager's pin for a stop of this action (spec §6.4).
+
+        Only an order on the board can be pinned: deliverable, in a window,
+        with an address, not erased. The audit names ids only.
+        """
+
+        async def command(connection: asyncpg.Connection[Any]) -> TourStopView:
+            _, zone = await action_context(connection, action_id)
+            digest = await current_address_hash(connection, action_id, commitment_id)
+            row = await connection.fetchrow(
+                """
+                SELECT commitment.status,
+                    commitment.delivery_recipient_snapshot ->> 'recipientName'
+                        AS recipient,
+                    window_row.starts_at, delivery.driver_user_id
+                FROM commitment
+                JOIN action_delivery_window AS window_row
+                  ON window_row.id = commitment.delivery_window_id
+                LEFT JOIN commitment_delivery AS delivery
+                  ON delivery.commitment_id = commitment.id
+                WHERE commitment.id = $1 AND commitment.action_id = $2
+                """,
+                commitment_id,
+                action_id,
+            )
+            if (
+                digest is None
+                or row is None
+                or row["status"] not in DELIVERABLE_ORDER_STATUSES
+                or row["recipient"] == ERASED_RECIPIENT_NAME
+            ):
+                raise ResourceNotFound(
+                    "delivery_drop_not_found",
+                    "Diese Lieferung wurde nicht gefunden.",
+                )
+            await write_manual_pin(
+                connection,
+                action_id=action_id,
+                commitment_id=commitment_id,
+                point=point,
+                address_digest=digest,
+                at=occurred_at,
+            )
+            # Coordinates are personal data: ids only (spec §10).
+            await insert_audit(
+                connection,
+                action_id=action_id,
+                actor_user_id=actor_user_id,
+                event_type="delivery.pin_set",
+                entity_type="commitment",
+                entity_id=commitment_id,
+                request_id=request_id,
+                payload={"commitmentId": str(commitment_id)},
+                occurred_at=occurred_at,
+            )
+            day = local_day(row["starts_at"], zone)
+            windows = await _day_windows(
+                connection, action_id=action_id, zone_key=zone.key, day=day, lock=False
+            )
+            driver_user_id = row["driver_user_id"]
+            if driver_user_id is not None:
+                tour, _ = await self._tour(
+                    connection,
+                    action_id=action_id,
+                    driver_user_id=driver_user_id,
+                    driver_name=await _driver_name(connection, driver_user_id),
+                    day=day,
+                    windows=windows,
+                    manager=True,
+                )
+                groups = tour.windows
+            else:
+                drops = [
+                    drop
+                    for drop in await fetch_drops(
+                        connection,
+                        action_id=action_id,
+                        window_ids=list(windows),
+                        driver_user_id=None,
+                        manager=True,
+                    )
+                    if drop.driver_user_id is None
+                    and drop.order_status in DELIVERABLE_ORDER_STATUSES
+                ]
+                groups = _unassigned(
+                    drops,
+                    windows,
+                    await current_points(
+                        connection, [drop.commitment_id for drop in drops]
+                    ),
+                )
+            for group in groups:
+                for stop in group.stops:
+                    if stop.drop.commitment_id == commitment_id:
+                        return stop
+            raise RuntimeError("the pinned stop is missing from its tour")
 
         return await self._write(command)

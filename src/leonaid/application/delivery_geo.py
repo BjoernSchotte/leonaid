@@ -6,6 +6,10 @@ address, or a failure that is due again) and records each outcome. The job
 runs only while ``delivery.tours`` is on and only for delivery days from
 today on. One advisory lock keeps two workers from asking the geocoder twice.
 The job never logs or stores an address outside ``delivery_geo``.
+
+The same run first looks up the actions' start points (D11). Only the worker
+has an egress network, so a saved start address waits for it; an address the
+geocoder cannot take apart is stored as not found without a request.
 """
 
 from __future__ import annotations
@@ -22,7 +26,9 @@ from leonaid.domain.delivery_geo import (
     GeocodeOutcome,
     GeocodeQuery,
     GeoPoint,
+    NotFound,
     PendingGeocode,
+    PendingStartGeocode,
 )
 from leonaid.domain.feature_flags import FeatureFlagKey
 
@@ -63,6 +69,22 @@ class DeliveryGeoRepository(Protocol):
         at: datetime,
     ) -> None: ...
 
+    async def pending_starts(
+        self, *, now: datetime, limit: int
+    ) -> Sequence[PendingStartGeocode]: ...
+
+    async def record_start(
+        self,
+        action_id: UUID,
+        address: str,
+        outcome: GeocodeOutcome,
+        *,
+        geocoder: str,
+        at: datetime,
+    ) -> bool:
+        """Store the outcome while ``address`` is still the start without a point."""
+        ...
+
 
 class FlagSwitch(Protocol):
     async def installation_enabled(self, key: FeatureFlagKey) -> bool: ...
@@ -80,7 +102,8 @@ class GeocodingJob:
         self._flags = flags
 
     async def run_once(self, *, now: datetime, limit: int = 30) -> int:
-        """Look up at most ``limit`` stops; returns the number of lookups."""
+        """Look up at most ``limit`` start points and stops; returns the
+        number of geocoder requests."""
 
         require_aware(now, "now")
         if limit < 1:
@@ -90,12 +113,28 @@ class GeocodingJob:
         async with self._repository.exclusive() as acquired:
             if not acquired:
                 return 0
+            geocoder = self._geocoder.provider_id
+            starts = await self._repository.pending_starts(now=now, limit=limit)
+            requests = 0
+            for start in starts:
+                if start.query is None:
+                    outcome: GeocodeOutcome = NotFound()
+                else:
+                    outcome = await self._geocoder.lookup(start.query)
+                    requests += 1
+                await self._repository.record_start(
+                    start.action_id,
+                    start.address,
+                    outcome,
+                    geocoder=geocoder,
+                    at=now,
+                )
+            if len(starts) >= limit:
+                return requests
             pending = await self._repository.pending(
-                today=local_day(now), now=now, limit=limit
+                today=local_day(now), now=now, limit=limit - len(starts)
             )
             for item in pending:
                 outcome = await self._geocoder.lookup(item.query)
-                await self._repository.record(
-                    item, outcome, geocoder=self._geocoder.provider_id, at=now
-                )
-            return len(pending)
+                await self._repository.record(item, outcome, geocoder=geocoder, at=now)
+            return requests + len(pending)

@@ -6,7 +6,8 @@ server on 127.0.0.1 with canned answers per postal code. The proof shows the
 flag and day scope, that only the four address fields leave the server, the
 stored ``found``/``not_found``/``failed`` rows and their retry, the 1 request/s
 throttle, stale rows after an address change, the manual pin, the advisory
-lock, and the privacy erasure.
+lock, the privacy erasure, and the action's start point (D11): the worker
+looks it up once per address, the API never does.
 """
 
 from __future__ import annotations
@@ -50,7 +51,11 @@ from leonaid.domain.commitments import (
     DeliveryRecipientSnapshot,
     InvoiceRecipientSnapshot,
 )
-from leonaid.domain.delivery import DeliveryContactSnapshot, DeliveryWindow
+from leonaid.domain.delivery import (
+    DeliveryContactSnapshot,
+    DeliveryStartPoint,
+    DeliveryWindow,
+)
 from leonaid.domain.delivery_geo import Found, GeocodeQuery, GeoPoint, PendingGeocode
 from leonaid.domain.identity import (
     AccountStatus,
@@ -308,6 +313,7 @@ async def prove_geocoding(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) -
             await _prove_changed_address_and_pin(fx)
             await _prove_advisory_lock(fx)
             await _prove_privacy_erasure(fx)
+            await _prove_start_point(fx)
         finally:
             await fx.flag(False)
             await fx.close()
@@ -316,7 +322,8 @@ async def prove_geocoding(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) -
         " fields only, no address in audit/outbox, found/not_found/failed rows"
         " with three retries an hour apart, 1 request/s, changed address"
         " re-geocodes, manual pin kept until the address changes, one run per"
-        " advisory lock, erasure deletes the row"
+        " advisory lock, erasure deletes the row, start point looked up once"
+        " per address (kept on a label change, a hand-set point wins)"
     )
 
 
@@ -527,3 +534,95 @@ async def _prove_privacy_erasure(fx: _Fixture) -> None:
     # The placeholder address of an erased order is never sent.
     assert await fx.job().run_once(now=NOW) == 0
     assert fx.server.taken() == []
+
+
+async def _prove_start_point(fx: _Fixture) -> None:
+    schedules = AsyncpgDeliveryRepository(fx.pool)
+
+    async def save(start: DeliveryStartPoint | None) -> DeliveryStartPoint | None:
+        current = await schedules.get(fx.action_id)
+        return (await schedules.save(replace(current, start=start))).start
+
+    found = "Startweg 1, 10178 Berlin"
+    saved = await save(DeliveryStartPoint("Bäckerei", found, None))
+    assert saved == DeliveryStartPoint("Bäckerei", found, None, locating=True)
+    # Saving never asks the geocoder; the worker does.
+    assert fx.server.taken() == []
+    assert await fx.job().run_once(now=NOW) == 1
+    (request,) = fx.server.taken()
+    assert set(request["params"]) == QUERY_KEYS
+    assert (
+        request["params"]["street"],
+        request["params"]["postalcode"],
+        request["params"]["city"],
+    ) == ("Startweg 1", "10178", "Berlin")
+    start = (await schedules.get(fx.action_id)).start
+    assert start == DeliveryStartPoint(
+        "Bäckerei", found, GeoPoint.parse("52.521", "13.41")
+    )
+    row = await fx.pool.fetchrow(
+        "SELECT start_geo_outcome, start_geo_attempts, start_geocoder"
+        " FROM action_delivery_configuration WHERE action_id=$1",
+        fx.action_id,
+    )
+    assert row is not None and tuple(row) == (
+        "found",
+        1,
+        "nominatim:127.0.0.1",
+    )
+    # Found once: never asked again, and a label change keeps the point.
+    assert await fx.job().run_once(now=NOW + timedelta(days=1)) == 0
+    renamed = await save(DeliveryStartPoint("Backstube", found, None))
+    assert renamed == DeliveryStartPoint("Backstube", found, start.point)
+    assert await fx.job().run_once(now=NOW) == 0
+
+    # An address without "street, postcode city": not found, no request.
+    vague = await save(DeliveryStartPoint("Bäckerei", "Am Markt", None))
+    assert vague is not None and vague.point is None and vague.locating
+    assert await fx.job().run_once(now=NOW) == 0
+    assert fx.server.taken() == []
+    assert (await schedules.get(fx.action_id)).start == DeliveryStartPoint(
+        "Bäckerei", "Am Markt", None, locating=False
+    )
+
+    # A provider failure is retried an hour later, like a stop.
+    await save(DeliveryStartPoint("Bäckerei", "Startweg 2, 50000 Köln", None))
+    assert await fx.job().run_once(now=NOW) == 1
+    stored = (await schedules.get(fx.action_id)).start
+    assert stored is not None and stored.point is None and stored.locating
+    assert await fx.job().run_once(now=NOW) == 0
+    assert await fx.job().run_once(now=NOW + timedelta(hours=1)) == 1
+    fx.server.taken()
+    # A late answer for an address the manager changed meanwhile is dropped.
+    assert not await fx.repository.record_start(
+        fx.action_id,
+        "Startweg 2, 50000 Köln (alt)",
+        Found(GeoPoint.parse("1", "1"), 0.9),
+        geocoder="nominatim:127.0.0.1",
+        at=NOW,
+    )
+
+    # A point set by hand wins and is never looked up.
+    pinned = GeoPoint.parse("50.9375", "6.9603")
+    hand = await save(DeliveryStartPoint("Bäckerei", "Domplatz, Köln", pinned))
+    assert hand == DeliveryStartPoint("Bäckerei", "Domplatz, Köln", pinned)
+    assert await fx.job().run_once(now=NOW + timedelta(hours=3)) == 0
+    assert fx.server.taken() == []
+    # The database refuses a point without an address.
+    try:
+        await fx.pool.execute(
+            "UPDATE action_delivery_configuration SET start_label=NULL,"
+            " start_address=NULL WHERE action_id=$1",
+            fx.action_id,
+        )
+    except asyncpg.CheckViolationError:
+        pass
+    else:
+        raise AssertionError("start point without an address was stored")
+    assert await save(None) is None
+    row = await fx.pool.fetchrow(
+        "SELECT start_lat, start_geo_outcome, start_geo_attempts"
+        " FROM action_delivery_configuration WHERE action_id=$1",
+        fx.action_id,
+    )
+    assert row is not None and tuple(row) == (None, None, 0)

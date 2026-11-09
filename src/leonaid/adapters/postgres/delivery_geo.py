@@ -8,12 +8,16 @@ a few hundred rows for a club. A write first locks the order ``FOR SHARE``
 and compares its current address with the hash the lookup was made for, so a
 delivery completion or a privacy erasure in between wins and the stale
 outcome is dropped.
+
+The action's start point (D11) is looked up by the same job: its lookup
+state lives in ``action_delivery_configuration`` and is written only while
+the stored address is still the one that was asked for.
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Collection, Sequence
 from contextlib import asynccontextmanager
 from datetime import date, datetime
 from typing import Any
@@ -32,9 +36,12 @@ from leonaid.domain.delivery_geo import (
     GeoOutcome,
     GeoPoint,
     PendingGeocode,
+    PendingStartGeocode,
     StoredGeo,
     address_hash,
     is_pending,
+    retry_due,
+    start_geocode_query,
 )
 
 # One geocoding run per installation at a time (all workers share it).
@@ -65,6 +72,90 @@ def geocode_query(snapshot: object) -> GeocodeQuery | None:
         return None
     street, postal_code, city, country = (str(value) for value in fields)
     return GeocodeQuery(street, postal_code, city, country)
+
+
+async def current_points(
+    connection: asyncpg.Connection[Any], commitment_ids: Collection[UUID]
+) -> dict[UUID, GeoPoint]:
+    """Found coordinates of the orders whose address is still the one pinned.
+
+    A row for a former address (delivery completion) is stale and left out.
+    """
+
+    if not commitment_ids:
+        return {}
+    rows = await connection.fetch(
+        """
+        SELECT geo.commitment_id, geo.lat, geo.lon, geo.address_hash,
+            commitment.delivery_recipient_snapshot
+        FROM delivery_geo AS geo
+        JOIN commitment ON commitment.id = geo.commitment_id
+        WHERE geo.commitment_id = ANY($1::uuid[]) AND geo.outcome = 'found'
+        """,
+        list(commitment_ids),
+    )
+    points: dict[UUID, GeoPoint] = {}
+    for row in rows:
+        query = geocode_query(row["delivery_recipient_snapshot"])
+        if query is not None and address_hash(query) == row["address_hash"]:
+            points[row["commitment_id"]] = GeoPoint(row["lat"], row["lon"])
+    return points
+
+
+async def current_address_hash(
+    connection: asyncpg.Connection[Any], action_id: UUID, commitment_id: UUID
+) -> str | None:
+    """Locks the order ``FOR SHARE``; None without a usable address."""
+
+    snapshot = await connection.fetchval(
+        """
+        SELECT delivery_recipient_snapshot FROM commitment
+        WHERE id = $1 AND action_id = $2
+        FOR SHARE
+        """,
+        commitment_id,
+        action_id,
+    )
+    query = geocode_query(snapshot)
+    return None if query is None else address_hash(query)
+
+
+async def write_manual_pin(
+    connection: asyncpg.Connection[Any],
+    *,
+    action_id: UUID,
+    commitment_id: UUID,
+    point: GeoPoint,
+    address_digest: str,
+    at: datetime,
+) -> None:
+    """The manager's pin for the order's current address (spec §6.4)."""
+
+    await connection.execute(
+        """
+        INSERT INTO delivery_geo (
+            commitment_id, action_id, lat, lon, source, outcome,
+            address_hash, geocoded_at, geocoder, attempts
+        )
+        VALUES ($1, $2, $3, $4, 'manual', 'found', $5, $6, $7, 1)
+        ON CONFLICT (commitment_id) DO UPDATE SET
+            lat = EXCLUDED.lat,
+            lon = EXCLUDED.lon,
+            source = 'manual',
+            outcome = 'found',
+            address_hash = EXCLUDED.address_hash,
+            geocoded_at = EXCLUDED.geocoded_at,
+            geocoder = EXCLUDED.geocoder,
+            attempts = 1
+        """,
+        commitment_id,
+        action_id,
+        point.lat,
+        point.lon,
+        address_digest,
+        at,
+        MANUAL_GEOCODER,
+    )
 
 
 class AsyncpgDeliveryGeoRepository:
@@ -157,21 +248,6 @@ class AsyncpgDeliveryGeoRepository:
                 break
         return found
 
-    async def _current_hash(
-        self, connection: asyncpg.Connection[Any], action_id: UUID, commitment_id: UUID
-    ) -> str | None:
-        snapshot = await connection.fetchval(
-            """
-            SELECT delivery_recipient_snapshot FROM commitment
-            WHERE id = $1 AND action_id = $2
-            FOR SHARE
-            """,
-            commitment_id,
-            action_id,
-        )
-        query = geocode_query(snapshot)
-        return None if query is None else address_hash(query)
-
     async def record(
         self,
         pending: PendingGeocode,
@@ -183,7 +259,7 @@ class AsyncpgDeliveryGeoRepository:
         point = outcome.point if isinstance(outcome, Found) else None
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                current = await self._current_hash(
+                current = await current_address_hash(
                     connection, pending.action_id, pending.commitment_id
                 )
                 if current != pending.address_hash:
@@ -235,34 +311,98 @@ class AsyncpgDeliveryGeoRepository:
     ) -> None:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                current = await self._current_hash(connection, action_id, commitment_id)
+                current = await current_address_hash(
+                    connection, action_id, commitment_id
+                )
                 if current is None:
                     raise ResourceNotFound(
                         "delivery_address_missing",
                         "Diese Bestellung hat keine Lieferadresse.",
                     )
-                await connection.execute(
-                    """
-                    INSERT INTO delivery_geo (
-                        commitment_id, action_id, lat, lon, source, outcome,
-                        address_hash, geocoded_at, geocoder, attempts
-                    )
-                    VALUES ($1, $2, $3, $4, 'manual', 'found', $5, $6, $7, 1)
-                    ON CONFLICT (commitment_id) DO UPDATE SET
-                        lat = EXCLUDED.lat,
-                        lon = EXCLUDED.lon,
-                        source = 'manual',
-                        outcome = 'found',
-                        address_hash = EXCLUDED.address_hash,
-                        geocoded_at = EXCLUDED.geocoded_at,
-                        geocoder = EXCLUDED.geocoder,
-                        attempts = 1
-                    """,
-                    commitment_id,
-                    action_id,
-                    point.lat,
-                    point.lon,
-                    current,
-                    at,
-                    MANUAL_GEOCODER,
+                await write_manual_pin(
+                    connection,
+                    action_id=action_id,
+                    commitment_id=commitment_id,
+                    point=point,
+                    address_digest=current,
+                    at=at,
                 )
+
+    async def pending_starts(
+        self, *, now: datetime, limit: int
+    ) -> Sequence[PendingStartGeocode]:
+        """Start addresses without a point that were never asked or may retry."""
+
+        rows = await self._pool.fetch(
+            """
+            SELECT configuration.action_id, configuration.start_address,
+                configuration.start_geo_outcome,
+                configuration.start_geo_attempts,
+                configuration.start_geocoded_at
+            FROM action_delivery_configuration AS configuration
+            JOIN charity_action AS action ON action.id = configuration.action_id
+            WHERE configuration.enabled
+              AND action.status <> 'archived'
+              AND configuration.start_address IS NOT NULL
+              AND configuration.start_lat IS NULL
+              AND configuration.start_geo_outcome IS DISTINCT FROM 'not_found'
+              AND EXISTS (
+                  SELECT 1 FROM charity_action_capability
+                  WHERE action_id = configuration.action_id
+                    AND capability = 'delivery'
+              )
+            ORDER BY configuration.action_id
+            """
+        )
+        found: list[PendingStartGeocode] = []
+        for row in rows:
+            outcome = row["start_geo_outcome"]
+            if outcome is not None and not retry_due(
+                GeoOutcome(outcome),
+                row["start_geo_attempts"],
+                row["start_geocoded_at"],
+                now,
+            ):
+                continue
+            address = str(row["start_address"])
+            found.append(
+                PendingStartGeocode(
+                    action_id=row["action_id"],
+                    address=address,
+                    query=start_geocode_query(address),
+                )
+            )
+            if len(found) == limit:
+                break
+        return found
+
+    async def record_start(
+        self,
+        action_id: UUID,
+        address: str,
+        outcome: GeocodeOutcome,
+        *,
+        geocoder: str,
+        at: datetime,
+    ) -> bool:
+        """Store the outcome while ``address`` is still the start without a point."""
+
+        point = outcome.point if isinstance(outcome, Found) else None
+        status = await self._pool.execute(
+            """
+            UPDATE action_delivery_configuration SET
+                start_lat = $3, start_lon = $4,
+                start_geo_outcome = $5,
+                start_geo_attempts = start_geo_attempts + 1,
+                start_geocoded_at = $6, start_geocoder = $7
+            WHERE action_id = $1 AND start_address = $2 AND start_lat IS NULL
+            """,
+            action_id,
+            address,
+            point.lat if point else None,
+            point.lon if point else None,
+            outcome.outcome.value,
+            at,
+            geocoder,
+        )
+        return str(status).endswith(" 1")

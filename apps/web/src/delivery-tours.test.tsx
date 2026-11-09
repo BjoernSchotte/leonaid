@@ -96,10 +96,17 @@ function stop(
     driverRank: null,
     drop: value,
     effectiveRank: rank,
+    lat: null,
+    lon: null,
     newForDriver: false,
     ...extra,
   };
 }
+
+const TILES = {
+  attribution: "© OpenStreetMap-Mitwirkende",
+  tileUrl: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+};
 
 const W1 = { start: `${DAY}T07:00:00Z`, end: `${DAY}T09:00:00Z` };
 const W2 = { start: `${DAY}T09:00:00Z`, end: `${DAY}T11:00:00Z` };
@@ -134,6 +141,8 @@ function dayTours(
       { displayName: "Fahrerin Anna", userId: "anna" },
       { displayName: "Fahrer Ben", userId: "ben" },
     ],
+    map: TILES,
+    startPoint: null,
     timezone: "Europe/Berlin",
     tours: [
       {

@@ -207,6 +207,7 @@ describe("before sending (§10.3)", () => {
         actionId: "action",
         enabled: true,
         revision: 1,
+        startPoint: null,
         timezone: "Europe/Berlin",
         windows: [window("w1", fullyBooked, retired)],
       },

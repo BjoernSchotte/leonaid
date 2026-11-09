@@ -16,17 +16,64 @@ from leonaid.application.errors import Conflict, ResourceNotFound
 from leonaid.domain.calendar import INSTALLATION_TIME_ZONE
 from leonaid.domain.delivery import (
     DeliveryConfiguration,
+    DeliveryStartPoint,
     DeliveryWindow,
     DeliveryContactSnapshot,
+    merged_start,
 )
+from leonaid.domain.delivery_geo import MAX_ATTEMPTS, GeoOutcome, GeoPoint
 from leonaid.domain.errors import DomainInvariantError
+
+
+def start_point(row: asyncpg.Record) -> DeliveryStartPoint | None:
+    """The start point of a configuration row with the ``start_*`` columns."""
+
+    if row["start_address"] is None:
+        return None
+    point = (
+        None
+        if row["start_lat"] is None
+        else GeoPoint(row["start_lat"], row["start_lon"])
+    )
+    outcome = row["start_geo_outcome"]
+    return DeliveryStartPoint(
+        label=row["start_label"],
+        address=row["start_address"],
+        point=point,
+        # The worker still looks it up: never asked, or a failure with
+        # tries left (the hour between tries is the worker's business).
+        locating=point is None
+        and (
+            outcome is None
+            or (
+                outcome == GeoOutcome.FAILED.value
+                and row["start_geo_attempts"] < MAX_ATTEMPTS
+            )
+        ),
+    )
+
+
+START_COLUMNS = """c.start_label, c.start_address, c.start_lat, c.start_lon,
+    c.start_geo_outcome, c.start_geo_attempts"""
+
+
+async def read_start(
+    connection: asyncpg.Connection[Any], action_id: UUID
+) -> DeliveryStartPoint | None:
+    row = await connection.fetchrow(
+        f"SELECT {START_COLUMNS} FROM action_delivery_configuration c"
+        " WHERE c.action_id = $1",
+        action_id,
+    )
+    return None if row is None else start_point(row)
 
 
 async def read_configuration(
     connection: asyncpg.Connection[Any], action_id: UUID
 ) -> DeliveryConfiguration:
     row = await connection.fetchrow(
-        """SELECT c.enabled, c.timezone, c.revision FROM charity_action a
+        f"""SELECT c.enabled, c.timezone, c.revision, {START_COLUMNS}
+        FROM charity_action a
         LEFT JOIN action_delivery_configuration c ON c.action_id = a.id WHERE a.id = $1""",
         action_id,
     )
@@ -43,6 +90,7 @@ async def read_configuration(
         enabled=bool(row["enabled"]),
         timezone=zone_name,
         revision=int(row["revision"] or 1),
+        start=start_point(row),
         windows=tuple(
             DeliveryWindow(
                 id=item["id"],
@@ -179,6 +227,48 @@ async def _audit_fully_booked(
     )
 
 
+async def _write_start(
+    connection: asyncpg.Connection[Any],
+    action_id: UUID,
+    stored: DeliveryStartPoint | None,
+    start: DeliveryStartPoint | None,
+) -> None:
+    """Store the start point; a new address or point resets the lookup state.
+
+    The same address with the same point changes only the label, so a
+    point the worker stored since ``stored`` was read stays.
+    """
+
+    if (
+        start is not None
+        and stored is not None
+        and start.address == stored.address
+        and start.point == stored.point
+    ):
+        await connection.execute(
+            "UPDATE action_delivery_configuration SET start_label = $2"
+            " WHERE action_id = $1",
+            action_id,
+            start.label,
+        )
+        return
+    point = None if start is None else start.point
+    await connection.execute(
+        """
+        UPDATE action_delivery_configuration SET
+            start_label = $2, start_address = $3, start_lat = $4, start_lon = $5,
+            start_geo_outcome = NULL, start_geo_attempts = 0,
+            start_geocoded_at = NULL, start_geocoder = NULL
+        WHERE action_id = $1
+        """,
+        action_id,
+        None if start is None else start.label,
+        None if start is None else start.address,
+        None if point is None else point.lat,
+        None if point is None else point.lon,
+    )
+
+
 class AsyncpgDeliveryRepository:
     def __init__(self, pool: asyncpg.Pool[Any]) -> None:
         self._pool = pool
@@ -283,6 +373,12 @@ class AsyncpgDeliveryRepository:
                     configuration.enabled,
                     configuration.timezone,
                     current.revision + 1,
+                )
+                await _write_start(
+                    connection,
+                    configuration.action_id,
+                    current.start,
+                    merged_start(current.start, configuration.start),
                 )
                 stored = {window.id: window for window in current.windows}
                 for window in configuration.windows:

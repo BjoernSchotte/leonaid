@@ -6068,6 +6068,17 @@
             "title": "Expectedrevision",
             "type": "integer"
           },
+          "startPoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryStartPointRequest"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Absent: the stored start point stays. Null: no start point."
+          },
           "timezone": {
             "maxLength": 100,
             "minLength": 1,
@@ -6108,6 +6119,16 @@
             "title": "Revision",
             "type": "integer"
           },
+          "startPoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryStartPointResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "timezone": {
             "title": "Timezone",
             "type": "string"
@@ -6125,7 +6146,8 @@
           "enabled",
           "timezone",
           "revision",
-          "windows"
+          "windows",
+          "startPoint"
         ],
         "title": "DeliveryConfigurationResponse",
         "type": "object"
@@ -6200,6 +6222,19 @@
             "title": "Drivers",
             "type": "array"
           },
+          "map": {
+            "$ref": "#/components/schemas/MapTilesResponse"
+          },
+          "startPoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryStartPointResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "timezone": {
             "title": "Timezone",
             "type": "string"
@@ -6227,7 +6262,9 @@
           "days",
           "unassigned",
           "tours",
-          "drivers"
+          "drivers",
+          "startPoint",
+          "map"
         ],
         "title": "DeliveryDayToursResponse",
         "type": "object"
@@ -6517,6 +6554,128 @@
         "title": "DeliveryDropResponse",
         "type": "object"
       },
+      "DeliveryPinRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "lat": {
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Lon",
+            "type": "number"
+          }
+        },
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "title": "DeliveryPinRequest",
+        "type": "object"
+      },
+      "DeliveryStartPointRequest": {
+        "additionalProperties": false,
+        "description": "Where the drivers pick up the Krapfen (D11). Without lat/lon the\nstored point of the same address stays; a new address is looked up by\nthe server later.",
+        "properties": {
+          "address": {
+            "description": "One line, best \"Straße Nr, PLZ Ort\" so it can be found.",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Address",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "maximum": 90.0,
+                "minimum": -90.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lon": {
+            "anyOf": [
+              {
+                "maximum": 180.0,
+                "minimum": -180.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lon"
+          }
+        },
+        "required": [
+          "label",
+          "address"
+        ],
+        "title": "DeliveryStartPointRequest",
+        "type": "object"
+      },
+      "DeliveryStartPointResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "title": "Address",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "locating": {
+            "title": "Locating",
+            "type": "boolean"
+          },
+          "lon": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lon"
+          }
+        },
+        "required": [
+          "label",
+          "address",
+          "lat",
+          "lon",
+          "locating"
+        ],
+        "title": "DeliveryStartPointResponse",
+        "type": "object"
+      },
       "DeliveryStateRequest": {
         "additionalProperties": false,
         "description": "Target state: delivered, missed (\"Nicht angetroffen\", spec D13) or\nopen when neither is set.",
@@ -6653,6 +6812,28 @@
             "title": "Effectiverank",
             "type": "integer"
           },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lon": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lon"
+          },
           "newForDriver": {
             "title": "Newfordriver",
             "type": "boolean"
@@ -6663,7 +6844,9 @@
           "baseRank",
           "driverRank",
           "effectiveRank",
-          "newForDriver"
+          "newForDriver",
+          "lat",
+          "lon"
         ],
         "title": "DeliveryTourStopResponse",
         "type": "object"
@@ -9741,6 +9924,26 @@
         "title": "LogoutResponse",
         "type": "object"
       },
+      "MapTilesResponse": {
+        "additionalProperties": false,
+        "description": "Leaflet tile URL template ({z}/{x}/{y}) and the attribution to show.",
+        "properties": {
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "tileUrl": {
+            "title": "Tileurl",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tileUrl",
+          "attribution"
+        ],
+        "title": "MapTilesResponse",
+        "type": "object"
+      },
       "Material": {
         "additionalProperties": false,
         "properties": {
@@ -10677,6 +10880,19 @@
             "title": "Days",
             "type": "array"
           },
+          "map": {
+            "$ref": "#/components/schemas/MapTilesResponse"
+          },
+          "startPoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryStartPointResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "timezone": {
             "title": "Timezone",
             "type": "string"
@@ -10697,7 +10913,9 @@
           "actionName",
           "timezone",
           "days",
-          "tour"
+          "tour",
+          "startPoint",
+          "map"
         ],
         "title": "MyTourResponse",
         "type": "object"
@@ -23688,6 +23906,130 @@
           }
         },
         "summary": "Save Delivery Configuration",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/delivery-geo/{commitment_id}": {
+      "put": {
+        "description": "The manager's pin for a stop whose address was not found (spec §6.4).",
+        "operationId": "setDeliveryPin",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "commitment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Commitment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryPinRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryTourStopResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Set Delivery Pin",
         "tags": [
           "actions"
         ]

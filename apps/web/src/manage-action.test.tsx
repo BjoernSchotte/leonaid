@@ -13,10 +13,11 @@ import {
   type ActionManagementResponse,
   type CharityActionConfigurationResponse,
   type CharityActionResponse,
+  type CurrentIdentityResponse,
   type DeliveryConfigurationResponse,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
-import { ManageActionPage } from "@leonaid/features";
+import { FeatureFlagProvider, ManageActionPage } from "@leonaid/features";
 import { HotkeyProvider, ToastProvider } from "@leonaid/ui";
 
 import { actionLocation } from "../../../packages/features/src/action-admin/manage-action";
@@ -132,6 +133,7 @@ const delivery: DeliveryConfigurationResponse = {
   actionId,
   enabled: true,
   revision: 4,
+  startPoint: null,
   timezone: "Europe/Berlin",
   windows: [
     {
@@ -261,19 +263,46 @@ function fakeClient(state: ActionManagementResponse = management()) {
 async function renderPage(
   hash = "",
   client: ReturnType<typeof fakeClient> = fakeClient(),
+  { tours = false }: { readonly tours?: boolean } = {},
 ) {
   window.history.replaceState(null, "", `/admin/actions/${actionId}${hash}`);
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
+  const page = (
+    <ManageActionPage
+      actionId={actionId}
+      client={client as unknown as LeonAidApiClient}
+    />
+  );
   render(
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <HotkeyProvider>
-          <ManageActionPage
-            actionId={actionId}
-            client={client as unknown as LeonAidApiClient}
-          />
+          {tours ? (
+            <FeatureFlagProvider
+              client={
+                {
+                  ...client,
+                  getFeatureFlagEvaluations: vi.fn(async () => ({
+                    flags: [{ enabled: true, key: "delivery.tours" }],
+                  })),
+                } as unknown as LeonAidApiClient
+              }
+              identity={
+                {
+                  actionMemberships: [],
+                  globalRoles: ["charity_admin"],
+                  userId: "klara",
+                } as unknown as CurrentIdentityResponse
+              }
+              surface="web"
+            >
+              {page}
+            </FeatureFlagProvider>
+          ) : (
+            page
+          )}
         </HotkeyProvider>
       </ToastProvider>
     </QueryClientProvider>,
@@ -725,6 +754,119 @@ describe("action detail", () => {
         }),
       ),
     );
+  });
+
+  it("start point fields round-trip", async () => {
+    const stored: DeliveryConfigurationResponse = {
+      ...delivery,
+      startPoint: {
+        address: "Marktstraße 50, 83646 Bad Tölz",
+        label: "Bäckerei",
+        lat: 47.7601,
+        locating: false,
+        lon: 11.5589,
+      },
+    };
+    const client = fakeClient();
+    client.getDeliveryConfiguration.mockResolvedValue(stored);
+    client.saveDeliveryConfiguration.mockResolvedValue({
+      ...stored,
+      revision: 5,
+      startPoint: {
+        address: "Marktstraße 27, 83646 Bad Tölz",
+        label: "Backstube",
+        lat: null,
+        locating: true,
+        lon: null,
+      },
+    });
+    await renderPage("#delivery", client, { tours: true });
+    const label = (await screen.findByTestId(
+      "delivery-start-label",
+    )) as HTMLInputElement;
+    const address = screen.getByTestId(
+      "delivery-start-address",
+    ) as HTMLInputElement;
+    expect(label.value).toBe("Bäckerei");
+    expect(address.value).toBe("Marktstraße 50, 83646 Bad Tölz");
+    expect(screen.getByTestId("delivery-start-status").textContent).toContain(
+      "Auf der Karte",
+    );
+    fireEvent.change(label, { target: { value: "Backstube" } });
+    fireEvent.change(address, {
+      target: { value: "Marktstraße 27, 83646 Bad Tölz" },
+    });
+    fireEvent.click(screen.getByTestId("delivery-start-save"));
+    await waitFor(() =>
+      expect(client.saveDeliveryConfiguration).toHaveBeenCalledWith(actionId, {
+        enabled: true,
+        expectedRevision: 4,
+        startPoint: {
+          address: "Marktstraße 27, 83646 Bad Tölz",
+          label: "Backstube",
+        },
+        timezone: "Europe/Berlin",
+        windows: [
+          {
+            deliveryOn: "2099-11-12",
+            endsAt: "11:00:00",
+            id: "w1",
+            retired: false,
+            startsAt: "09:00:00",
+          },
+        ],
+      }),
+    );
+    expect(
+      (await screen.findByTestId("delivery-start-status")).textContent,
+    ).toContain("wird gesucht");
+    expect(
+      (screen.getByTestId("delivery-start-label") as HTMLInputElement).value,
+    ).toBe("Backstube");
+  });
+
+  it("start point: hint when the address was not found, multi-line refused", async () => {
+    const client = fakeClient();
+    client.getDeliveryConfiguration.mockResolvedValue({
+      ...delivery,
+      startPoint: {
+        address: "Am Markt",
+        label: "Bäckerei",
+        lat: null,
+        locating: false,
+        lon: null,
+      },
+    });
+    await renderPage("#delivery", client, { tours: true });
+    expect(
+      (await screen.findByTestId("delivery-start-status")).textContent,
+    ).toBe("Startpunkt nicht gefunden – Pin auf der Karte setzen");
+    fireEvent.change(screen.getByTestId("delivery-start-label"), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByTestId("delivery-start-save"));
+    expect(
+      await screen.findByText("Bitte eine Bezeichnung angeben."),
+    ).toBeTruthy();
+    expect(client.saveDeliveryConfiguration).not.toHaveBeenCalled();
+  });
+
+  it("start point: no fields without the tours flag; window saves leave it out", async () => {
+    const client = await renderPage("#delivery");
+    await screen.findByTestId("delivery-windows");
+    expect(screen.queryByTestId("delivery-start-label")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /stilllegen$/ }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Fenster stilllegen",
+      }),
+    );
+    await waitFor(() =>
+      expect(client.saveDeliveryConfiguration).toHaveBeenCalled(),
+    );
+    const [, body] = client.saveDeliveryConfiguration.mock
+      .calls[0] as unknown as [string, object];
+    expect(body).not.toHaveProperty("startPoint");
   });
 
   it("lists the active alias, the redirects and the permanent address", async () => {

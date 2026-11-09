@@ -7,7 +7,8 @@ This file remains the low-level Compose reference.
 
 `compose.yml` is the only committed definition for local development and
 integration tests. `compose.dev-local.yml` only mounts uncommitted local
-extensions into the dev proxy (see below).
+extensions into the dev proxy and gives the dev worker internet egress for
+geocoding (see below).
 
 The default start contains Caddy, FastAPI, core worker/PostgreSQL, web, PWA,
 public web, Twenty server/worker/PostgreSQL/Valkey (service `twenty-redis`)
@@ -101,6 +102,11 @@ checkout's default dev project adds these files:
    `proxy` service, read-only:
    - `.local/dev/caddy.d` → `/etc/caddy/local.d`
    - `.local/dev/static` → `/srv/local-static`
+
+   It also attaches the `worker` to the network `geocoder-egress`, which is
+   not internal. The dev worker can then geocode delivery addresses and start
+   points against the public Nominatim. Test stacks keep their internal-only
+   networks, so lookups there fail and are retried.
 2. `.local/dev/compose.override.yml`, if it exists. It is an ordinary Compose
    file and can add or change services of the dev stack.
 

@@ -30,6 +30,11 @@ MANUAL_GEOCODER = "manual"
 _PLACES = Decimal("0.000001")
 _FAILURE_CODE = re.compile(r"[a-z][a-z0-9_]{0,39}\Z")
 _SEPARATOR = "\x1f"
+# "Street 1, 83646 Town" with an optional ", AT" country code (D11 start point).
+_START_ADDRESS = re.compile(
+    r"\s*(?P<street>[^,]*\S)\s*,\s*(?P<postal>\d{4,5})\s+(?P<city>[^,]*\S)"
+    r"\s*(?:,\s*(?P<country>[A-Za-z]{2}))?\s*\Z"
+)
 
 
 class GeoOutcome(StrEnum):
@@ -82,6 +87,25 @@ class GeocodeQuery:
     postal_code: str
     city: str
     country_code: str
+
+
+def start_geocode_query(address: str) -> GeocodeQuery | None:
+    """The structured query of a one-line start address; None if it is vague.
+
+    The geocoder takes street, postal code and city apart, so the start
+    address must read "Marktstraße 50, 83646 Bad Tölz". Anything else is
+    not looked up; the manager sets the pin by hand.
+    """
+
+    match = _START_ADDRESS.match(address)
+    if match is None:
+        return None
+    return GeocodeQuery(
+        " ".join(match["street"].split()),
+        match["postal"],
+        " ".join(match["city"].split()),
+        (match["country"] or "DE").upper(),
+    )
 
 
 def _normalized(value: str) -> str:
@@ -186,3 +210,12 @@ class PendingGeocode:
     delivery_on: date
     query: GeocodeQuery
     address_hash: str
+
+
+@dataclass(frozen=True, slots=True)
+class PendingStartGeocode:
+    """An action's start address to look up; ``query`` None: not parseable."""
+
+    action_id: UUID
+    address: str
+    query: GeocodeQuery | None

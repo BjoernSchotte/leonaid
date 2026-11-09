@@ -58,6 +58,14 @@
   gap: var(--s-2);
   font-size: var(--fs-sm);
 }
+.delivery-windows .delivery-start {
+  margin-top: var(--s-4);
+  padding-top: var(--s-5);
+  border-top: var(--hair) solid var(--border);
+}
+.delivery-windows .delivery-start .tab-head {
+  justify-content: flex-start;
+}
 :is(.campaign, .delivery-windows) .form-grid {
   display: grid;
   gap: var(--s-4);

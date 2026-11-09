@@ -86,10 +86,15 @@ dem User-Agent `LEONAID_GEOCODER_USER_AGENT` (Standard
 `LeonAid (<LEONAID_PUBLIC_BASE_URL>)`). Das Ergebnis liegt pro Bestellung in
 `delivery_geo`; eine nicht gefundene Adresse wird nicht erneut gefragt, ein
 Timeout oder Anbieterfehler höchstens dreimal im Abstand von einer Stunde.
-Eine geänderte Adresse wird neu abgefragt. Logs enthalten nur Zahlen; die
-Metrik `leonaid_worker_geocoding_lookups_total` zählt die Abfragen. Im Pilot
+Eine geänderte Adresse wird neu abgefragt. Dieselbe Schleife fragt den
+Startpunkt jeder Aktion (wo die Fahrer die Krapfen abholen) einmal pro Adresse
+ab; die API fragt den Geocoder nie. Eine Startadresse muss
+„Straße 1, 12345 Ort“ lauten, sonst gilt sie als nicht gefunden und die
+Verwaltung setzt den Pin. Logs enthalten nur Zahlen; die Metrik
+`leonaid_worker_geocoding_lookups_total` zählt die Abfragen. Im Pilot
 erreicht der Worker den Geocoder über das Netz `mail-egress`; der Dev-Stack
-hat keinen Ausgang, dort enden Abfragen als Fehler. Die Kartenkacheln kommen
+gibt ihm das Netz `geocoder-egress` (`compose.dev-local.yml`). Test-Stacks
+haben keinen Ausgang, dort enden Abfragen als Fehler. Die Kartenkacheln kommen
 von `LEONAID_MAP_TILE_URL` (Standard OpenStreetMap) mit
 `LEONAID_MAP_ATTRIBUTION`; eine Kachel-URL auf einem anderen Host muss ihren
 Origin in `LEONAID_MAP_TILE_ORIGIN` nennen. Ungültige Werte stoppen den

@@ -64,11 +64,50 @@ class DeliveryWindowFullyBookedRequest(TransportModel):
     fully_booked: bool
 
 
+Latitude = Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
+Longitude = Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
+
+
+class DeliveryStartPointRequest(TransportModel):
+    """Where the drivers pick up the Krapfen (D11). Without lat/lon the
+    stored point of the same address stays; a new address is looked up by
+    the server later."""
+
+    label: str = Field(min_length=1, max_length=80)
+    address: str = Field(
+        min_length=1,
+        max_length=200,
+        description='One line, best "Straße Nr, PLZ Ort" so it can be found.',
+    )
+    lat: Latitude | None = None
+    lon: Longitude | None = None
+
+    @model_validator(mode="after")
+    def whole_point(self) -> DeliveryStartPointRequest:
+        if (self.lat is None) != (self.lon is None):
+            raise ValueError("lat and lon come together")
+        return self
+
+
+class DeliveryStartPointResponse(TransportModel):
+    label: str
+    address: str
+    lat: float | None
+    lon: float | None
+    # The server will still look the address up; false with no point means
+    # "not found – set the pin on the map".
+    locating: bool
+
+
 class DeliveryConfigurationRequest(TransportModel):
     expected_revision: int = Field(ge=1)
     enabled: bool
     timezone: str = Field(min_length=1, max_length=100)
     windows: list[DeliveryWindowRequest] = Field(max_length=1000)
+    start_point: DeliveryStartPointRequest | None = Field(
+        default=None,
+        description="Absent: the stored start point stays. Null: no start point.",
+    )
 
 
 class DeliveryConfigurationResponse(TransportModel):
@@ -77,6 +116,8 @@ class DeliveryConfigurationResponse(TransportModel):
     timezone: str
     revision: int
     windows: list[DeliveryWindowResponse]
+    # Managers only; null in the public order form and in capture.
+    start_point: DeliveryStartPointResponse | None
 
 
 class PlatformInformationResponse(TransportModel):
@@ -2735,6 +2776,21 @@ class DeliveryTourStopResponse(TransportModel):
     driver_rank: int | None
     effective_rank: int
     new_for_driver: bool
+    # Coordinates of the current address; null until found or pinned.
+    lat: float | None
+    lon: float | None
+
+
+class DeliveryPinRequest(TransportModel):
+    lat: Latitude
+    lon: Longitude
+
+
+class MapTilesResponse(TransportModel):
+    """Leaflet tile URL template ({z}/{x}/{y}) and the attribution to show."""
+
+    tile_url: str
+    attribution: str
 
 
 class DeliveryTourWindowResponse(TransportModel):
@@ -2763,6 +2819,8 @@ class DeliveryDayToursResponse(TransportModel):
     unassigned: list[DeliveryTourWindowResponse]
     tours: list[DeliveryTourResponse]
     drivers: list[DeliveryBoardDriverResponse]
+    start_point: DeliveryStartPointResponse | None
+    map: MapTilesResponse
 
 
 class MyTourResponse(TransportModel):
@@ -2771,6 +2829,8 @@ class MyTourResponse(TransportModel):
     timezone: str
     days: list[date]
     tour: DeliveryTourResponse | None
+    start_point: DeliveryStartPointResponse | None
+    map: MapTilesResponse
 
 
 class DeliveryTourOrderRequest(TransportModel):

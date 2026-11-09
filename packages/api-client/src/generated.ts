@@ -130,20 +130,23 @@ export type DashboardResponse = { readonly acquirer: AcquirerDashboardResponse |
 export type DeliveryBoardDriverResponse = { readonly displayName: string; readonly userId: string; };
 export type DeliveryBoardResponse = { readonly actionId: string; readonly actionName: string; readonly day: string | null; readonly days: Array<string>; readonly drivers: Array<DeliveryBoardDriverResponse>; readonly followUpTasks: boolean; readonly manager: boolean; readonly timezone: string; readonly windows: Array<DeliveryBoardWindowResponse>; };
 export type DeliveryBoardWindowResponse = { readonly closure: DeliveryWindowClosureResponse | null; readonly drops: Array<DeliveryDropResponse>; readonly endsAt: string; readonly fullyBooked: boolean; readonly id: string; readonly retired: boolean; readonly startsAt: string; };
-export type DeliveryConfigurationRequest = { readonly enabled: boolean; readonly expectedRevision: number; readonly timezone: string; readonly windows: Array<DeliveryWindowRequest>; };
-export type DeliveryConfigurationResponse = { readonly actionId: string; readonly enabled: boolean; readonly revision: number; readonly timezone: string; readonly windows: Array<DeliveryWindowResponse>; };
+export type DeliveryConfigurationRequest = { readonly enabled: boolean; readonly expectedRevision: number; readonly startPoint?: DeliveryStartPointRequest | null; readonly timezone: string; readonly windows: Array<DeliveryWindowRequest>; };
+export type DeliveryConfigurationResponse = { readonly actionId: string; readonly enabled: boolean; readonly revision: number; readonly startPoint: DeliveryStartPointResponse | null; readonly timezone: string; readonly windows: Array<DeliveryWindowResponse>; };
 export type DeliveryContactRequest = { readonly name?: string | null; readonly phone?: string | null; };
-export type DeliveryDayToursResponse = { readonly actionId: string; readonly actionName: string; readonly day: string | null; readonly days: Array<string>; readonly drivers: Array<DeliveryBoardDriverResponse>; readonly timezone: string; readonly tours: Array<DeliveryTourResponse>; readonly unassigned: Array<DeliveryTourWindowResponse>; };
+export type DeliveryDayToursResponse = { readonly actionId: string; readonly actionName: string; readonly day: string | null; readonly days: Array<string>; readonly drivers: Array<DeliveryBoardDriverResponse>; readonly map: MapTilesResponse; readonly startPoint: DeliveryStartPointResponse | null; readonly timezone: string; readonly tours: Array<DeliveryTourResponse>; readonly unassigned: Array<DeliveryTourWindowResponse>; };
 export type DeliveryDriverAssignmentRequest = { readonly commitmentIds: Array<string>; readonly driverUserId: string | null; };
 export type DeliveryDriverAssignmentResponse = { readonly changed: number; };
 export type DeliveryDropAddressResponse = { readonly city: string; readonly postalCode: string; readonly recipientName: string; readonly streetLine1: string; };
 export type DeliveryDropContactResponse = { readonly name: string | null; readonly phone: string | null; };
 export type DeliveryDropQuantityResponse = { readonly quantity: number; readonly unit: "box" | "piece" | "package" | "sponsoring"; };
 export type DeliveryDropResponse = { readonly address: DeliveryDropAddressResponse | null; readonly buyerName: string; readonly commitmentId: string; readonly contact: DeliveryDropContactResponse | null; readonly driverName: string | null; readonly driverUserId: string | null; readonly missedAtClosure: boolean; readonly orderStatus: "draft" | "review_ready" | "confirmed" | "invoiced" | "cancelled" | null; readonly quantities: Array<DeliveryDropQuantityResponse>; readonly revision: number; readonly state: "open" | "delivered" | "missed"; readonly stateChangedAt: string | null; readonly stateChangedByName: string | null; readonly totalBoxes: number; readonly windowId: string; };
+export type DeliveryPinRequest = { readonly lat: number; readonly lon: number; };
+export type DeliveryStartPointRequest = { readonly address: string; readonly label: string; readonly lat?: number | null; readonly lon?: number | null; };
+export type DeliveryStartPointResponse = { readonly address: string; readonly label: string; readonly lat: number | null; readonly locating: boolean; readonly lon: number | null; };
 export type DeliveryStateRequest = { readonly delivered: boolean; readonly expectedRevision: number; readonly missed?: boolean; };
 export type DeliveryTourOrderRequest = { readonly commitmentIds: Array<string>; readonly day: string; readonly expectedRevision: string; };
 export type DeliveryTourResponse = { readonly day: string; readonly driverName: string; readonly driverOrderedAt: string | null; readonly driverUserId: string; readonly revision: string; readonly windows: Array<DeliveryTourWindowResponse>; };
-export type DeliveryTourStopResponse = { readonly baseRank: number; readonly driverRank: number | null; readonly drop: DeliveryDropResponse; readonly effectiveRank: number; readonly newForDriver: boolean; };
+export type DeliveryTourStopResponse = { readonly baseRank: number; readonly driverRank: number | null; readonly drop: DeliveryDropResponse; readonly effectiveRank: number; readonly lat: number | null; readonly lon: number | null; readonly newForDriver: boolean; };
 export type DeliveryTourWindowResponse = { readonly closed: boolean; readonly endsAt: string; readonly startsAt: string; readonly stops: Array<DeliveryTourStopResponse>; readonly windowId: string; };
 export type DeliveryWindowClosureResponse = { readonly closedAt: string; readonly closedByName: string; readonly missedCount: number; };
 export type DeliveryWindowClosureResultResponse = { readonly followUp: "tasks" | "board"; readonly missedCount: number; };
@@ -211,6 +214,7 @@ export type ListMember = { readonly access: "viewer" | "editor"; readonly active
 export type ListMembers = { readonly items: Array<ListMember>; readonly nextOffset: number | null; readonly ownerUserId: string; readonly revision: number; };
 export type LoginDispatchResponse = { readonly status: "queued"; };
 export type LogoutResponse = { readonly status: "signed_out"; };
+export type MapTilesResponse = { readonly attribution: string; readonly tileUrl: string; };
 export type Material = { readonly actionId: string | null; readonly currentVersion: number; readonly id: string; readonly ownerUserId: string; readonly revision: number; readonly title: string; };
 export type MaterialAccess = { readonly accessRevision: number; readonly ownerUserId: string; };
 export type MaterialMember = { readonly access: "viewer" | "editor"; readonly active: boolean; readonly displayName: string; readonly userId: string; };
@@ -231,7 +235,7 @@ export type MovePlacement = { readonly after?: string | null; readonly before?: 
 export type MoveSiteRootRequest = { readonly actionId: string; readonly commandId: string; readonly revision: number; readonly segment?: string | null; };
 export type MoveTask = { readonly context: "list" | "personal"; readonly expectedOrderRevision: number; readonly expectedPlanRevision?: number | null; readonly expectedTaskRevision?: number | null; readonly idempotencyKey: string; readonly placement: MovePlacement; readonly targetDate?: string | null; readonly targetEpicId?: string | null; };
 export type Mutation = { readonly expectedRevision: number; readonly operationId: string; };
-export type MyTourResponse = { readonly actionId: string; readonly actionName: string; readonly days: Array<string>; readonly timezone: string; readonly tour: DeliveryTourResponse | null; };
+export type MyTourResponse = { readonly actionId: string; readonly actionName: string; readonly days: Array<string>; readonly map: MapTilesResponse; readonly startPoint: DeliveryStartPointResponse | null; readonly timezone: string; readonly tour: DeliveryTourResponse | null; };
 export type NavigationItemResponse = { readonly href: string; readonly key: string; readonly label: string; readonly surface: "web" | "pwa"; };
 export type NpsSegments = { readonly detractors: number; readonly passives: number; readonly promoters: number; };
 export type OperationalAlertResponse = { readonly category: string; readonly name: string; readonly runbookUrl: string; readonly severity: "P0" | "P1" | "P2"; readonly summary: string; };
@@ -1131,6 +1135,23 @@ export class LeonAidApiClient {
   ): Promise<DeliveryConfigurationResponse> {
     return this.request<DeliveryConfigurationResponse>(
       `/api/v1/actions/${encodeURIComponent(String(actionId))}/delivery-configuration`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async setDeliveryPin(
+    actionId: string,
+    commitmentId: string,
+    body: DeliveryPinRequest,
+    options: RequestOptions = {},
+  ): Promise<DeliveryTourStopResponse> {
+    return this.request<DeliveryTourStopResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/delivery-geo/${encodeURIComponent(String(commitmentId))}`,
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

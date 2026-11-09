@@ -133,7 +133,12 @@ from leonaid.application.public_orders import (
 from leonaid.application.search import SearchService
 from leonaid.application.sessions import SessionService
 from leonaid.application.sponsor_matching import SponsorMatchingService
-from leonaid.configuration import Settings, load_module_settings, load_settings
+from leonaid.configuration import (
+    Settings,
+    load_map_settings,
+    load_module_settings,
+    load_settings,
+)
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.platform import PlatformIdentity
 from leonaid.entrypoints.fastapi.routes import router
@@ -432,7 +437,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             pool, disabled_modules, mail_links=order_mail_links
         )
         application.state.delivery_tour_service = build_delivery_tour_service(
-            pool, application.state.feature_flag_service
+            pool, application.state.feature_flag_service, load_map_settings()
         )
         legal_configuration_repository = AsyncpgLegalConfigurationRepository(pool)
         application.state.legal_configuration_service = LegalConfigurationService(

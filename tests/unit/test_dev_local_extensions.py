@@ -3,8 +3,8 @@
 The dev stack may load a committed overlay that mounts .local/dev into the
 proxy, plus a developer's own compose.override.yml. These guards keep the
 mechanism dev-only: the base stack and the pilot never reference it, the
-overlay adds nothing but read-only proxy mounts, and the Caddyfile imports the
-snippets only at the documented place.
+overlay adds nothing but read-only proxy mounts and the dev worker's geocoder
+egress, and the Caddyfile imports the snippets only at the documented place.
 """
 
 import re
@@ -72,10 +72,16 @@ def test_base_compose_has_no_local_mounts() -> None:
             assert ".local" not in source, f"{name} mounts {source}"
 
 
-def test_dev_overlay_only_adds_read_only_proxy_mounts() -> None:
+def test_dev_overlay_only_adds_proxy_mounts_and_worker_egress() -> None:
     overlay = _compose(OVERLAY)
-    assert set(overlay) == {"services"}
-    assert set(overlay["services"]) == {"proxy"}
+    assert set(overlay) == {"services", "networks"}
+    assert set(overlay["services"]) == {"proxy", "worker"}
+    # The dev worker's only addition: an egress network for the geocoder.
+    assert overlay["services"]["worker"] == {"networks": ["geocoder-egress"]}
+    assert overlay["networks"] == {"geocoder-egress": {}}
+    base = _compose("infra/compose/compose.yml")
+    assert "geocoder-egress" not in base["networks"]
+    assert "geocoder-egress" not in base["services"]["worker"]["networks"]
     proxy = overlay["services"]["proxy"]
     assert set(proxy) == {"volumes"}
     assert proxy["volumes"] == [

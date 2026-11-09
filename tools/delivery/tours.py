@@ -3,8 +3,9 @@
 Proves the feature flag gate, base and driver order writes with their
 revision and no-op rules, the driver's scope, tour membership changes
 (assignment, reassignment, cancellation, window change), the read audit of
-"Meine Tour", discarding a driver order, and the driver's "Nicht
-angetroffen" through window closure and reopening (Rulings 1, 5, 6).
+"Meine Tour", discarding a driver order, the driver's "Nicht angetroffen"
+through window closure and reopening (Rulings 1, 5, 6), and the manual pin
+with the start point and the map tiles in both tour reads.
 """
 
 from __future__ import annotations
@@ -43,15 +44,23 @@ from leonaid.domain.commitments import (
     DeliveryRecipientSnapshot,
     InvoiceRecipientSnapshot,
 )
-from leonaid.domain.delivery import DeliveryContactSnapshot, DeliveryWindow
+from leonaid.domain.delivery import (
+    DeliveryContactSnapshot,
+    DeliveryStartPoint,
+    DeliveryWindow,
+)
 from leonaid.domain.delivery_board import DeliveryDrop, DropState
-from leonaid.domain.delivery_tours import DayTours, DriverTour, MyTour
+from leonaid.domain.delivery_geo import GeoPoint
+from leonaid.domain.delivery_tours import DayTours, DriverTour, MapTiles, MyTour
 from leonaid.domain.identity import ActionRole, IdentityPrincipal
 from leonaid.modules.tasks.delivery_follow_up import TaskDeliveryFollowUp
 from tools.delivery.board import _expect, _principal, _user
 from tools.delivery.http_configuration import http_app
 
 REQUEST = "tours-proof"
+TILES = MapTiles("/e2e-tiles/{z}/{x}/{y}.svg", "© OpenStreetMap-Mitwirkende")
+# An order of the Golden legacy action: not part of the proof's action.
+FOREIGN_ORDER = UUID("80000000-0000-4000-8000-000000000001")
 
 
 def _ids(tour: DriverTour) -> list[list[UUID]]:
@@ -78,7 +87,7 @@ class _Fixture:
             OpenFeatureBooleanEvaluator(LeonAidFeatureProvider()),
         )
         self.tours = DeliveryTourService(
-            AsyncpgDeliveryTourRepository(pool), self.flags
+            AsyncpgDeliveryTourRepository(pool), self.flags, TILES
         )
         self.board = DeliveryBoardService(
             AsyncpgDeliveryBoardRepository(pool, lambda _c: TaskDeliveryFollowUp()),
@@ -309,6 +318,7 @@ async def prove_tours(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) -> No
         await _prove_access_and_audit(fx)
         await _prove_discard(fx)
         await prove_driver_missed(fx)
+        await prove_pins_and_start(fx)
     finally:
         await pool.execute(
             "UPDATE feature_flag SET enabled=false, revision=revision+1"
@@ -318,7 +328,9 @@ async def prove_tours(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) -> No
         "TOURS PASS: flag gate, base order with no-op and revision conflict,"
         " driver order beside the base order, driver scope, foreign driver"
         " refused, one read audit per window and day, discard and empty driver"
-        " write reset, five HTTP operations (roles, flag, no-store)"
+        " write reset, five HTTP operations (roles, flag, no-store), manual"
+        " pin as lat/lon in my_tour and day_tours (ids-only audit, foreign"
+        " order 404), start point and map tiles in both reads"
     )
 
 
@@ -845,3 +857,168 @@ async def prove_driver_missed(fx: _Fixture) -> None:
         " drop at closure (Ruling 5), reopen keeps the driver's mark (Ruling 6),"
         " closed window order kept for drivers"
     )
+
+
+def _stop(windows: list[dict[str, object]], commitment_id: UUID) -> dict[str, object]:
+    found = [
+        stop
+        for window in windows
+        for stop in window["stops"]  # type: ignore[attr-defined]
+        if stop["drop"]["commitmentId"] == str(commitment_id)
+    ]
+    assert len(found) == 1, (commitment_id, found)
+    return found[0]  # type: ignore[no-any-return]
+
+
+async def prove_pins_and_start(fx: _Fixture) -> None:
+    """Manual pin (spec §6.4) and start point (D11) in both tour reads."""
+
+    schedules = AsyncpgDeliveryRepository(fx.pool)
+    configuration = await schedules.get(fx.action_id)
+    bakery = DeliveryStartPoint(
+        "Bäckerei", "Marktstraße 50, 83646 Bad Tölz", GeoPoint.parse(47.7601, 11.5589)
+    )
+    await schedules.save(replace(configuration, start=bakery))
+    open_id = await fx.order("Tour Pin offen", fx.second.id)
+    app, identity = http_app(fx.admin)
+    app.state.delivery_tour_service = fx.tours
+    base = f"/api/v1/actions/{fx.action_id}"
+    day = fx.day.isoformat()
+    pin = {"lat": 52.520008, "lon": 13.404954}
+    expected_map = {"tileUrl": TILES.tile_url, "attribution": TILES.attribution}
+    expected_start = {
+        "label": "Bäckerei",
+        "address": "Marktstraße 50, 83646 Bad Tölz",
+        "lat": 47.7601,
+        "lon": 11.5589,
+        "locating": False,
+    }
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        # Before: no coordinates yet. Earlier sections moved stops around,
+        # so the pinned stops are taken from the current tours.
+        overview = (await client.get(f"{base}/delivery-board/tours?day={day}")).json()
+        anna = next(
+            t for t in overview["tours"] if t["driverUserId"] == str(fx.anna_id)
+        )
+        anna_ids = [
+            UUID(stop["drop"]["commitmentId"])
+            for window in anna["windows"]
+            for stop in window["stops"]
+        ]
+        assert len(anna_ids) >= 2, anna_ids
+        pinned, other = anna_ids[0], anna_ids[1]
+        assert _stop(anna["windows"], pinned)["lat"] is None
+        assert overview["map"] == expected_map
+        assert overview["startPoint"] == expected_start
+
+        # The manager pins an assigned and an unassigned stop.
+        response = await client.put(f"{base}/delivery-geo/{pinned}", json=pin)
+        assert response.status_code == 200, response.text
+        assert response.headers["cache-control"] == "private, no-store"
+        stop = response.json()
+        assert stop["drop"]["commitmentId"] == str(pinned)
+        assert (stop["lat"], stop["lon"]) == (pin["lat"], pin["lon"])
+        assert stop["effectiveRank"] >= 1
+        response = await client.put(
+            f"{base}/delivery-geo/{open_id}", json={"lat": 52.5, "lon": 13.4}
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["drop"]["driverUserId"] is None
+        row = await fx.pool.fetchrow(
+            "SELECT source, outcome, geocoder, lat, lon FROM delivery_geo"
+            " WHERE commitment_id=$1",
+            pinned,
+        )
+        assert row is not None
+        assert (row["source"], row["outcome"], row["geocoder"]) == (
+            "manual",
+            "found",
+            "manual",
+        )
+        assert (float(row["lat"]), float(row["lon"])) == (pin["lat"], pin["lon"])
+        # Audit: ids only, never coordinates (spec §10).
+        events = await fx.pool.fetch(
+            "SELECT entity_type, entity_id, payload FROM audit_event"
+            " WHERE action_id=$1 AND event_type='delivery.pin_set'"
+            " AND request_id='delivery-http-proof' ORDER BY occurred_at, id",
+            fx.action_id,
+        )
+        assert [json.loads(event["payload"]) for event in events] == [
+            {"commitmentId": str(pinned)},
+            {"commitmentId": str(open_id)},
+        ]
+        assert all(
+            event["entity_type"] == "commitment" for event in events
+        ) and "52.52" not in str([event["payload"] for event in events])
+
+        overview = (await client.get(f"{base}/delivery-board/tours?day={day}")).json()
+        anna = next(
+            t for t in overview["tours"] if t["driverUserId"] == str(fx.anna_id)
+        )
+        seen = _stop(anna["windows"], pinned)
+        assert (seen["lat"], seen["lon"]) == (pin["lat"], pin["lon"])
+        assert _stop(anna["windows"], other)["lat"] is None
+        assert _stop(overview["unassigned"], open_id)["lat"] == 52.5
+
+        # The driver sees the same pin, the start point and the tiles.
+        identity.current = fx.anna
+        mine = (await client.get(f"{base}/my-tour?day={day}")).json()
+        seen = _stop(mine["tour"]["windows"], pinned)
+        assert (seen["lat"], seen["lon"]) == (pin["lat"], pin["lon"])
+        assert mine["map"] == expected_map and mine["startPoint"] == expected_start
+        # Drivers may not pin.
+        response = await client.put(f"{base}/delivery-geo/{pinned}", json=pin)
+        assert response.status_code == 403, response.text
+
+        identity.current = fx.admin
+        # Another action's order, an unknown id: 404, nothing written.
+        for outside in (FOREIGN_ORDER, uuid4()):
+            response = await client.put(f"{base}/delivery-geo/{outside}", json=pin)
+            assert response.status_code == 404, response.text
+            assert response.json() == {"code": "delivery_drop_not_found"}
+            assert (
+                await fx.pool.fetchval(
+                    "SELECT count(*) FROM delivery_geo WHERE commitment_id=$1",
+                    outside,
+                )
+                == 0
+            )
+        # Out of range or half a point: 422.
+        for body in ({"lat": 91, "lon": 1}, {"lat": 1, "lon": 181}, {"lat": 1}):
+            response = await client.put(f"{base}/delivery-geo/{pinned}", json=body)
+            assert response.status_code == 422, (body, response.text)
+
+        # A changed address makes the pin stale: no coordinates any more.
+        await fx.pool.execute(
+            """
+            UPDATE commitment SET delivery_recipient_snapshot =
+                delivery_recipient_snapshot
+                || jsonb_build_object('streetLine1', 'Neuer Weg 9'::text)
+            WHERE id = $1
+            """,
+            pinned,
+        )
+        overview = (await client.get(f"{base}/delivery-board/tours?day={day}")).json()
+        anna = next(
+            t for t in overview["tours"] if t["driverUserId"] == str(fx.anna_id)
+        )
+        assert _stop(anna["windows"], pinned)["lat"] is None
+
+        # Flag off: the pin answers 404 like every tour operation.
+        await fx.pool.execute(
+            "UPDATE feature_flag SET enabled=false, revision=revision+1"
+            " WHERE key='delivery.tours'"
+        )
+        try:
+            response = await client.put(f"{base}/delivery-geo/{other}", json=pin)
+            assert response.status_code == 404
+            assert response.json() == {"code": "feature_flag_disabled"}
+        finally:
+            await fx.pool.execute(
+                "UPDATE feature_flag SET enabled=true, revision=revision+1"
+                " WHERE key='delivery.tours'"
+            )
+    # Leave the action without a start point for the later proofs.
+    await schedules.save(replace(await schedules.get(fx.action_id), start=None))

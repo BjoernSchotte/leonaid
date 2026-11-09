@@ -94,6 +94,8 @@ function stop(
     driverRank: null,
     drop: value,
     effectiveRank: rank,
+    lat: null,
+    lon: null,
     newForDriver: false,
     ...extra,
   };
@@ -121,6 +123,11 @@ function myTour(
     actionId,
     actionName: "Krapfentaxi",
     days: [day],
+    map: {
+      attribution: "© OpenStreetMap-Mitwirkende",
+      tileUrl: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    },
+    startPoint: null,
     timezone: "Europe/Berlin",
     tour: {
       day,

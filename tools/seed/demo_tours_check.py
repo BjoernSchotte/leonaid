@@ -2,7 +2,8 @@
 
 ``fingerprint`` prints a digest of every row the demo seed may touch;
 ``drivers`` reads the delivery board as Dora and as Emil, the way the app
-does for their session, and checks they see exactly their own stops.
+does for their session, and checks they see exactly their own stops, and
+that the action names the bakery as its start point.
 """
 
 from __future__ import annotations
@@ -15,9 +16,12 @@ from typing import Any
 
 import asyncpg
 
+from leonaid.adapters.postgres.delivery import AsyncpgDeliveryRepository
 from tools.seed.demo_tours import (
     board_service,
     ACTION_ID,
+    START_ADDRESS,
+    START_LABEL,
     DELIVERY_DAY,
     DORA,
     DRIVERS,
@@ -36,7 +40,8 @@ SELECT md5(concat_ws('|',
         ORDER BY commitment_id) FROM commitment_delivery),
     (SELECT string_agg(concat_ws(',', id, starts_at, ends_at, retired),
         ';' ORDER BY id) FROM action_delivery_window),
-    (SELECT string_agg(concat_ws(',', action_id, enabled, revision),
+    (SELECT string_agg(concat_ws(',', action_id, enabled, revision,
+        start_label, start_address),
         ';' ORDER BY action_id) FROM action_delivery_configuration),
     (SELECT string_agg(concat_ws(',', id, status, updated_at), ';'
         ORDER BY id) FROM offering),
@@ -53,6 +58,10 @@ async def fingerprint(pool: asyncpg.Pool[Any]) -> None:
 
 
 async def drivers(pool: asyncpg.Pool[Any]) -> None:
+    start = (await AsyncpgDeliveryRepository(pool).get(ACTION_ID)).start
+    assert start is not None, "the demo action has no start point"
+    assert (start.label, start.address) == (START_LABEL, START_ADDRESS), start
+    print(f"demo-tours-test: start point {start.label}, {start.address}")
     service = board_service(pool)
     keys = {
         str(row["idempotency_key"]): str(row["commitment_id"])

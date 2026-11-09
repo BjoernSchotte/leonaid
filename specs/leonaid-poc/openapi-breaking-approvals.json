@@ -128,6 +128,21 @@
         "property-type-changed:FeatureFlagEvaluationResponse.key"
       ],
       "rationale": "Adding the feature flag key delivery.tours widens the FeatureFlagKeyValue enum in two responses. Clients that read flag keys treat unknown keys as off (the generated client and the apps only look up known keys), so this is additive in practice. Decided by the lead under Björn's standing delegation on 2026-11-09 (spec specs/krapfentaxi-touren D14a, same as the earlier pwa.offline_queue flag). Approval is bound to these exact contract hashes and changes."
+    },
+    {
+      "oldSha256": "aca564b02d9f66247a2544905611ac02c1a38b7ac43c67b2ca825219938a0814",
+      "newSha256": "22adf01613914d9bf19ba35831853cbf45a5645fdd0c08fba3086e52b115e215",
+      "changes": [
+        "property-newly-required:DeliveryConfigurationResponse.startPoint",
+        "property-newly-required:DeliveryDayToursResponse.map",
+        "property-newly-required:DeliveryDayToursResponse.startPoint",
+        "property-newly-required:DeliveryTourStopResponse.lat",
+        "property-newly-required:DeliveryTourStopResponse.lon",
+        "property-newly-required:MyTourResponse.map",
+        "property-newly-required:MyTourResponse.startPoint",
+        "property-newly-required:PrivacyOrderDeliveryResponse.coordinates"
+      ],
+      "rationale": "Delivery tours slice 2 (specs/krapfentaxi-touren §5, §6.4, §11, D11, D14 b) adds response fields only: the stop coordinates (lat/lon), the action's start point and the map tiles in the tour reads, the start point in the delivery configuration, and the coordinates in the privacy report (Task 9). They are always present (null when unknown), so the generator marks them required. No field is removed or narrowed and no request gets stricter: startPoint in the configuration request is optional and its absence keeps the stored value. The only clients are the generated client and the apps of this repository, regenerated in the same change. Decided by the implementer under Björn's standing delegation on 2026-11-09. Approval is bound to these exact contract hashes and changes."
     }
   ]
 }

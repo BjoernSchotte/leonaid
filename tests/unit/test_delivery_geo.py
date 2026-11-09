@@ -20,6 +20,7 @@ from leonaid.domain.delivery_geo import (
     address_hash,
     is_pending,
     retry_due,
+    start_geocode_query,
 )
 from leonaid.domain.errors import DomainInvariantError
 
@@ -108,3 +109,29 @@ def test_outcomes_name_their_stored_value() -> None:
     assert Failed("timeout").outcome is GeoOutcome.FAILED
     with pytest.raises(DomainInvariantError):
         Failed("Marienplatz 1 failed")
+
+
+@pytest.mark.parametrize(
+    ("address", "expected"),
+    [
+        (
+            "Marktstraße 50, 83646 Bad Tölz",
+            GeocodeQuery("Marktstraße 50", "83646", "Bad Tölz", "DE"),
+        ),
+        (
+            "  Marktstraße 50 ,83646   Bad Tölz ",
+            GeocodeQuery("Marktstraße 50", "83646", "Bad Tölz", "DE"),
+        ),
+        (
+            "Getreidegasse 9, 5020 Salzburg, AT",
+            GeocodeQuery("Getreidegasse 9", "5020", "Salzburg", "AT"),
+        ),
+        ("Marktstraße 50 Bad Tölz", None),
+        ("Marktstraße 50, Bad Tölz", None),
+        ("Marktstraße 50, 83646", None),
+    ],
+)
+def test_start_address_is_parsed_into_a_structured_query(
+    address: str, expected: GeocodeQuery | None
+) -> None:
+    assert start_geocode_query(address) == expected
