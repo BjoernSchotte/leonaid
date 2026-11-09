@@ -3,6 +3,14 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
+# Leaf mode (tools/ci/e2e.sh pwa, pwa-offline): "ui" runs the browser
+# matrix, audit and outage specs, "offline" the offline queue in two
+# browsers; without a mode both run.
+mode=${2:-all}
+case "$mode" in
+  all | ui | offline) ;;
+  *) echo "pwa-test: ERROR: unknown mode $mode" >&2; exit 64 ;;
+esac
 . "$root/tools/testing/owned_teardown.sh"
 . "$root/infra/locks/images.env"
 
@@ -127,45 +135,36 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
 
 compose up --detach --wait --wait-timeout 420 pwa proxy
 
-docker run --rm \
-  --network "${project}_edge" \
-  --env CI=1 \
-  --env HOME=/tmp \
-  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
-  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
-  --env ANNA_SESSION="$anna_session" \
-  --env GESA_SESSION="$gesa_session" \
-  --volume "$root:/workspace:ro" \
-  --volume "$proof:/proof" \
-  --workdir /workspace \
-  --user "$(id -u):$(id -g)" \
-  "$PLAYWRIGHT_IMAGE" \
-  node_modules/.bin/playwright test \
-  --config=tests/e2e/pwa.config.mjs \
-  pwa.spec.mjs \
-  --output=/proof/test-results-matrix \
-  --trace=retain-on-failure \
-  --reporter=line
+# One Playwright run against the proxy; LEONAID_E2E_BROWSER only when $browser
+# is set (the offline specs branch on it).
+playwright() {
+  # shellcheck disable=SC2086 # the optional --env is one word or none
+  docker run --rm \
+    --network "${project}_edge" \
+    --env CI=1 \
+    --env HOME=/tmp \
+    --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+    --env LEONAID_E2E_ARTIFACT_DIR=/proof \
+    --env ANNA_SESSION="$anna_session" \
+    --env GESA_SESSION="$gesa_session" \
+    ${browser:+--env LEONAID_E2E_BROWSER=$browser} \
+    --volume "$root:/workspace:ro" \
+    --volume "$proof:/proof" \
+    --workdir /workspace \
+    --user "$(id -u):$(id -g)" \
+    "$PLAYWRIGHT_IMAGE" \
+    node_modules/.bin/playwright test --trace=retain-on-failure --reporter=line "$@"
+}
+browser=""
 
-docker run --rm \
-  --network "${project}_edge" \
-  --env CI=1 \
-  --env HOME=/tmp \
-  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
-  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
-  --env ANNA_SESSION="$anna_session" \
-  --volume "$root:/workspace:ro" \
-  --volume "$proof:/proof" \
-  --workdir /workspace \
-  --user "$(id -u):$(id -g)" \
-  "$PLAYWRIGHT_IMAGE" \
-  node_modules/.bin/playwright test \
-  tests/e2e/pwa-audit.spec.mjs \
-  --browser=chromium \
-  --output=/proof/test-results-audit \
-  --trace=retain-on-failure \
-  --reporter=line
+if [ "$mode" != offline ]; then
+playwright --config=tests/e2e/pwa.config.mjs pwa.spec.mjs \
+  --output=/proof/test-results-matrix
+playwright tests/e2e/pwa-audit.spec.mjs --browser=chromium \
+  --output=/proof/test-results-audit
+fi
 
+if [ "$mode" != ui ]; then
 # Offline queue (specs/pwa-offline-queue §16): the flag is switched on only
 # for its own specs; every other PWA spec proves the copy without it.
 offline_flag() {
@@ -234,29 +233,14 @@ offline_watcher_pid=$!
 offline_flag true
 for browser in chromium webkit; do
   pwa_sessions
-  docker run --rm \
-    --network "${project}_edge" \
-    --env CI=1 \
-    --env HOME=/tmp \
-    --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
-    --env LEONAID_E2E_ARTIFACT_DIR=/proof \
-    --env ANNA_SESSION="$anna_session" \
-    --env LEONAID_E2E_BROWSER="$browser" \
-    --volume "$root:/workspace:ro" \
-    --volume "$proof:/proof" \
-    --workdir /workspace \
-    --user "$(id -u):$(id -g)" \
-    "$PLAYWRIGHT_IMAGE" \
-    node_modules/.bin/playwright test \
-    tests/e2e/pwa-offline.spec.mjs \
+  playwright tests/e2e/pwa-offline.spec.mjs \
     tests/e2e/pwa-offline-queue.spec.mjs \
     tests/e2e/pwa-offline-decisions.spec.mjs \
     tests/e2e/pwa-offline-queue-faults.spec.mjs \
     --browser="$browser" \
-    --output="/proof/test-results-offline-$browser" \
-    --trace=retain-on-failure \
-    --reporter=line
+    --output="/proof/test-results-offline-$browser"
 done
+browser=""
 kill "$offline_watcher_pid" 2>/dev/null || true
 offline_flag false
 # Each browser run of pwa-offline-queue.spec.mjs sent one offline draft
@@ -276,45 +260,28 @@ if [ "$offline_orders" != "2 2" ]; then
   exit 1
 fi
 pwa_sessions
+fi
 
+if [ "$mode" != offline ]; then
 compose stop twenty-server
 
-docker run --rm \
-  --network "${project}_edge" \
-  --env CI=1 \
-  --env HOME=/tmp \
-  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
-  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
-  --env ANNA_SESSION="$anna_session" \
-  --volume "$root:/workspace:ro" \
-  --volume "$proof:/proof" \
-  --workdir /workspace \
-  --user "$(id -u):$(id -g)" \
-  "$PLAYWRIGHT_IMAGE" \
-  node_modules/.bin/playwright test \
-  tests/e2e/pwa-error.spec.mjs \
-  --browser=chromium \
-  --output=/proof/test-results-error \
-  --trace=retain-on-failure \
-  --reporter=line
+playwright tests/e2e/pwa-error.spec.mjs --browser=chromium \
+  --output=/proof/test-results-error
+fi
 
-for project in chromium-390 chromium-768 chromium-1440 firefox-390 webkit-390; do
-  screenshot="$proof/pwa-list-$project.png"
-  if [ ! -s "$screenshot" ]; then
-    echo "pwa-test: ERROR: browser evidence is missing: $screenshot" >&2
-    exit 1
-  fi
-done
-for screenshot in \
-  pwa-empty-chromium-390.png \
-  pwa-update-chromium.png \
-  pwa-offline-chromium.png \
-  pwa-offline-start-chromium.png \
-  pwa-offline-start-webkit.png \
-  pwa-offline-queue-chromium.png \
-  pwa-offline-queue-webkit.png \
-  pwa-offline-decision-chromium.png \
-  pwa-error-chromium-390.png; do
+evidence=""
+if [ "$mode" != offline ]; then
+  evidence="pwa-list-chromium-390.png pwa-list-chromium-768.png
+    pwa-list-chromium-1440.png pwa-list-firefox-390.png pwa-list-webkit-390.png
+    pwa-empty-chromium-390.png pwa-update-chromium.png pwa-offline-chromium.png
+    pwa-error-chromium-390.png"
+fi
+if [ "$mode" != ui ]; then
+  evidence="$evidence pwa-offline-start-chromium.png pwa-offline-start-webkit.png
+    pwa-offline-queue-chromium.png pwa-offline-queue-webkit.png
+    pwa-offline-decision-chromium.png"
+fi
+for screenshot in $evidence; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "pwa-test: ERROR: browser evidence is missing: $screenshot" >&2
     exit 1
@@ -324,5 +291,5 @@ done
 mkdir -p "$root/.artifacts/poc062"
 cp "$proof"/pwa-*.png "$root/.artifacts/poc062/"
 
-echo "pwa-test: OK: PWA, real visibility boundaries, contacts, 5 browser/viewport projects,"
+echo "pwa-test: OK ($mode): PWA, real visibility boundaries, contacts, 5 browser/viewport projects,"
 echo "pwa-test:     a11y, text scaling, touch, offline, update, empty and outage states proven"
