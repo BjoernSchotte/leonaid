@@ -128,11 +128,12 @@ test("S2 quick capture requires a visible editable list and keeps URL filters", 
   await context.close();
 });
 
+// One width per layout branch: wide pane, overlay pane, admin sheet and the
+// narrowest app sheet (the app at 390 px: modules-tasks.spec.mjs).
 for (const [surface, width] of [
   ["admin", 1440],
   ["admin", 1024],
   ["admin", 720],
-  ["app", 390],
   ["app", 320],
 ]) {
   test(`${surface} ${width}px: S2 responsive details, compact list tools and guarded navigation`, async ({

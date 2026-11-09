@@ -1,7 +1,8 @@
 #!/bin/sh
 set -eu
 
-# Usage: e2e.sh <shard> [<shard>...]
+# Usage: ./leonaid test-e2e [<shard>...], locally and in CI (E-027); without
+# shards every shard of the selector runs.
 # Several shards form one CI bin (tools/ci/select_suites.py). Their leaves
 # run on one shared stack per fixture kind: tools/testing/shared_stack.py
 # restores the stopped fixture volumes before every leaf, so each leaf still
@@ -12,8 +13,8 @@ set -eu
 root=$(cd "$(dirname "$0")/../.." && pwd)
 
 if [ "$#" -eq 0 ]; then
-  echo "ci-e2e: ERROR: at least one shard required" >&2
-  exit 64
+  # shellcheck disable=SC2046 # one word per shard
+  set -- $(python3 "$root/tools/ci/select_suites.py" --list e2e)
 fi
 
 # Prints one "<kind> <leaf script>..." line per fixture kind of one shard.
@@ -28,7 +29,7 @@ leaves() {
     # Admin host + public host on their own stack (specs/multi-domain stage 1).
     echo own tools/multi_host/test.sh
     ;;
-  invitations|sessions|commitments|invoices)
+  commitments|invoices)
     echo golden "tools/$1/test.sh"
     ;;
   # Two leaves so the packer can put them on different legs (E-033).
@@ -38,7 +39,7 @@ leaves() {
   pwa-offline)
     echo golden tools/pwa/test.sh:offline
     ;;
-  action-admin|public-actions|public-orders)
+  action-admin|public-orders)
     echo golden "tools/$(printf '%s' "$1" | tr '-' '_')/test.sh"
     ;;
   # Leitsystem shell: tokens, contrast, visual baselines, dashboard, UX gates.
@@ -56,9 +57,6 @@ leaves() {
     ;;
   tasks|knowledge|inbox)
     echo core "tools/$1/test.sh"
-    ;;
-  public)
-    echo golden tools/public_actions/test.sh tools/public_orders/test.sh
     ;;
   # Short smoke leg (LEONAID_E2E_SMOKE=1, set below): one real login, one
   # list view, one public order; each leaf filters its specs to that test.
