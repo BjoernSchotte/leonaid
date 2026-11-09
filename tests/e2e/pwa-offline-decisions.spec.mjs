@@ -146,6 +146,10 @@ async function recordContact(page, { outcome, note, nextAction }) {
   await page.getByTestId("activity-submit").click();
 }
 
+// Chromium only (E-026 addendum): queue decision UI. Sign-out deleting the
+// device data runs in WebKit in pwa-offline.spec.mjs (D6).
+test.skip(({ browserName }) => browserName === "webkit");
+
 test("a follow-up that met a newer one is the acquirer's decision (D1)", async ({
   browser,
   browserName,
