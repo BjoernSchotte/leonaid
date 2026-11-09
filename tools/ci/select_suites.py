@@ -104,33 +104,26 @@ FLAGS = ("contract", "golden", "surveys", "api", "pins")
 # selected shards are bin-packed into at most MAX_BINS jobs per kind of about
 # TARGET_SECONDS of test time each. Every shard still runs exactly once, each
 # on its own fresh stack (tools/ci/integration.sh, e2e.sh). Integration
-# seconds are the bin times of run 42521057525 (2026-11-08), E2E seconds the
-# test-step durations of PR run 42360553738; refresh them from the
+# seconds are bin times, E2E seconds leaf sums; refresh them from the
 # "ci-integration: bin: <shard> passed (<n>s)" lines when a shard grows a lot.
 INTEGRATION_SECONDS = {
-    # Bin time of run 42547017244 (#177): the suite's only cold start, the
-    # golden.py second seed and the restart persistence asserts.
+    # Bin times of run 42547017244 (#177, 2026-11-09).
     "seed-reset": 365,
-    "typst": 42,
-    "storage": 103,
+    "typst": 53,
+    "storage": 66,
     "documents": 94,
-    "profiles": 90,
-    "crm-gateway": 92,
-    "crm-import": 66,
-    # 130 s, minus its own cold Twenty start: it runs on the fixture now.
-    "twenty-install": 60,
-    "policy": 54,
-    # About 240 s since the renderer API test joined it (#153).
-    "schema-outbox": 240,
+    "profiles": 99,
+    "crm-gateway": 77,
+    "crm-import": 41,
+    "twenty-install": 52,
+    "policy": 46,
+    "schema-outbox": 263,
     "delivery": 14,
-    # Local run 171 s incl. fixture restore: generation, typecheck and the
-    # live contract, without the former job's Twenty pull and boot.
-    "api-contract": 120,
-    # Bin times of run 42547017244 (#177).
+    "api-contract": 36,
     "privacy": 113,
     "acquisition-contracts": 251,
     # The Contract job (tools/ci/contract.sh) rides in an Integration bin.
-    "contract": 192,
+    "contract": 155,
 }
 E2E_SECONDS = {
     # Leaf sums of run 42552919966 (#179, Twenty kept between golden leaves;
@@ -802,9 +795,7 @@ E2E_OWNERS: dict[str, tuple[str, ...]] = {
     "invitations": ("membership",),
     "policies": ("identity",),
     "feature_flags": ("operations",),
-    "privacy": ("operations",),
     "operations": ("operations",),
-    "legal_configuration": ("operations",),
     "dashboard": ("leitsystem-ui",),
     "search": ("leitsystem-ui",),
     "public_orders": ("public-orders",),
@@ -868,6 +859,12 @@ E2E_NEUTRAL: dict[str, str] = {
     "documents, including their browser coverage",
     "leonaid.adapters.postgres.documents": "document proofs run in Integration / "
     "documents, including their browser coverage",
+    # Erasure, suppression and the four-eyes activation: browser-free
+    # contracts in Integration / privacy, the admin UI in web vitest (#177).
+    # The other privacy modules reach leaves through their importers.
+    "leonaid.application.legal_configuration": "privacy and legal contracts run in Integration / privacy",
+    "leonaid.adapters.postgres.privacy": "privacy and legal contracts run in Integration / privacy",
+    "leonaid.adapters.postgres.legal_configuration": "privacy and legal contracts run in Integration / privacy",
 }
 
 OWNER_PACKAGES = (
@@ -1348,7 +1345,12 @@ def summary(selection: Selection) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--event", required=True)
+    parser.add_argument("--event")
+    parser.add_argument(
+        "--list",
+        choices=("integration", "e2e", "emdash"),
+        help="print every shard of a kind (./leonaid test-<kind> without shards)",
+    )
     parser.add_argument("--base", help="git base revision for pull_request")
     parser.add_argument("--head", default="HEAD")
     parser.add_argument(
@@ -1370,6 +1372,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--explain", action="store_true", help="print per-path rules")
     args = parser.parse_args(argv)
+    if args.list:
+        kinds = {
+            "integration": INTEGRATION_SHARDS,
+            "e2e": E2E_SHARDS,
+            "emdash": EMDASH_GROUPS,
+        }
+        print(" ".join(kinds[args.list]))
+        return 0
+    if not args.event:
+        parser.error("--event is required")
 
     paths: list[str] = []
     # A push diffs only when the workflow found the last green run on main
