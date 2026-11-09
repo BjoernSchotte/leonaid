@@ -508,7 +508,7 @@ jobs:
 
   backup-recovery:
     # Nightly and on dispatch: full restore, upgrade rollback, the backup
-    # target, the first install and the pilot restore/release paths.
+    # target, the first install, the pilot paths and the SMTP relay modes.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     name: Nightly backup / ${{ matrix.command }}
     runs-on: ubuntu-24.04
@@ -524,6 +524,7 @@ jobs:
           - test-pilot-install
           - test-pilot-import
           - test-pilot-release
+          - test-mail-relay
     env:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/${{ matrix.command }}
     steps:
