@@ -150,6 +150,8 @@ frontend_lane() {
   run_bun bun run test:ui
   # PWA navigation and the column query rewrite of the PWA build.
   run_bun bun run test:pwa
+  # Web component tests (jsdom); the real-API file runs in tools/action_admin.
+  run_bun bun run test:components
   # Legal-notice cache of the public pages (footer and /impressum).
   run_bun bun run test:public
   # Admin/site origins and the Live View URL of the campaign site.
