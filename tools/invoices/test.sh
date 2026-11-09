@@ -101,14 +101,7 @@ compose up --detach --wait --wait-timeout 420 api
 
 fi
 
-compose --profile dev-mail run --rm --user "$(id -u):$(id -g)" --no-deps \
-  --env-from-file "$env_file" \
-  --volume "$root:/repo:ro" \
-  --volume "$proof/pdfs:/proof/pdfs:ro" \
-  --entrypoint python \
-  api /repo/tools/seed/golden.py seed \
-  /repo/tests/fixtures/golden/v1 \
-  /proof/pdfs
+golden_seed
 
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
@@ -121,14 +114,7 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
 
 # The server contract changes the real CRM address on purpose. So the
 # golden state is fully reset before the browser proof.
-compose --profile dev-mail run --rm --user "$(id -u):$(id -g)" --no-deps \
-  --env-from-file "$env_file" \
-  --volume "$root:/repo:ro" \
-  --volume "$proof/pdfs:/proof/pdfs:ro" \
-  --entrypoint python \
-  api /repo/tools/seed/golden.py seed \
-  /repo/tests/fixtures/golden/v1 \
-  /proof/pdfs
+golden_seed
 
 compose run --rm --no-deps \
   --user "$(id -u):$(id -g)" \

@@ -3,12 +3,14 @@ set -eu
 root=$(cd "$(dirname "$0")/../.." && pwd)
 . "$root/infra/locks/images.env"
 . "$root/tools/testing/phase.sh"
+# The test stack's pulled images; else the first leaf pulls them (5-8 s).
+stack="$TWENTY_IMAGE $POSTGRES_IMAGE $VALKEY_IMAGE $RUSTFS_IMAGE $MAILPIT_IMAGE $ALPINE_IMAGE"
 case ${1:-} in
   toolchains) images="" ;;
-  seed) images="$TWENTY_IMAGE" ;;
-  browser) images="$TWENTY_IMAGE $PLAYWRIGHT_IMAGE" ;;
+  seed) images=$stack ;;
+  browser) images="$stack $PLAYWRIGHT_IMAGE" ;;
   # API contract: the images of the API's stack, without the toolchains.
-  api-stack) images="$TWENTY_IMAGE $POSTGRES_IMAGE $VALKEY_IMAGE $RUSTFS_IMAGE $ALPINE_IMAGE" ;;
+  api-stack) images=$stack ;;
   *) echo 'Expected toolchains, seed, browser or api-stack prefetch profile' >&2; exit 64 ;;
 esac
 proof=$(mktemp -d)
