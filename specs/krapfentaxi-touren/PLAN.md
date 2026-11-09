@@ -220,9 +220,17 @@ with the role `driver`.
   - quantities ("12 Krapfen, 2 Kisten"),
   - the driver note, if there is one.
   - Buttons: "Navigation", "Zugestellt", "Nicht angetroffen".
-- **The other stops** are compact rows in effective order: number, name,
-  street, quantity, status icon. Delivered and missed stops move to a
-  collapsed "Erledigt" group at the end.
+- **The other stops** are rows in effective order, inside their window
+  group: number, name, street, quantity, status icon.
+- **Done stops stay in place** (Björn, 2026-11-09, D15). A delivered or
+  missed stop does not move and does not disappear. It shrinks to one
+  greyed-out line (number, name, status) and expands on tap to the full
+  card, so "Rückgängig" and the details stay reachable.
+- **The address is a link to OpenStreetMap** (D15). Tapping the address
+  (card and row) opens `https://www.openstreetmap.org/?mlat=<lat>&mlon=<lon>#map=18/<lat>/<lon>`
+  in a new tab. Without coordinates (slice 1) it opens the OSM search
+  `https://www.openstreetmap.org/search?query=<address>`. "Navigation"
+  stays the button for turn-by-turn in the phone's map app.
 - **"Reihenfolge ändern"** switches the list to edit mode:
   - drag handles,
   - up and down buttons (44 px touch targets, keyboard-accessible),
@@ -393,6 +401,7 @@ OpenAPI changes go through the existing breaking check and approval file.
 | D12 | No separate prototype. Build it directly in the real app (web admin + PWA), behind the feature flag `delivery-tours`, in slices that can be shown early. Discuss on the dev instance. | Björn | 2026-11-09 |
 | D13 | The driver may mark a stop "Nicht angetroffen" (`missed`) during the day. Today `missed` only appears at window closure. The same withdrawal rule as "Zugestellt" applies. The manager sees it at once and can reassign. | Lead | 2026-11-09 |
 | D14 | Plan review rulings: (a) The feature flag key is `delivery.tours` (repo convention). (b) Tile URL and attribution come in the tour responses, because there is no runtime config endpoint. (c) Writes carry `day` in the body. (d) There is a new `POST /actions/{id}/my-tour/reads` for offline read audit. (e) Geocoding failures are stored as `not_found`/`failed` rows so the geocoder is not asked again and again (this replaces "no row" in §8.2), with `importance` ≥ 0.05 plus a postal-code match. (f) A window change via delivery completion resets the stop's positions. (g) The offline tour needs both flags, `pwa.offline_queue` and `delivery.tours`. | Lead | 2026-11-09 |
+| D15 | Driver view: done stops stay in place, greyed and collapsed, expandable on tap. The address links to OpenStreetMap. | Björn | 2026-11-09 |
 | D5 | Geocoding on the server via Nominatim API, with no names. Manual pin as fallback. | Lead | 2026-11-09 |
 | D6 | Optimization is only the straight-line "nearest next" suggestion. No routing service. | Lead | 2026-11-09 |
 | D7 | Leaflet, bundled. No MapLibre or vector tiles. Fewer dependencies, and raster OSM is enough. | Lead | 2026-11-09 |
