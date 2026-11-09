@@ -89,6 +89,15 @@ html:has(.pwa) {
   flex: none;
   align-items: center;
 }
+/* Page slots (PageBarPortal): a filled sub line replaces the role line. */
+.pwa-bar-page-sub:empty,
+.pwa-campaign:has(.pwa-bar-page-sub:not(:empty))
+  .pwa-campaign-sub:not(.pwa-bar-page-sub) {
+  display: none;
+}
+.pwa-bar-page-end {
+  display: contents;
+}
 .pwa-net,
 .pwa-menu-button {
   display: grid;

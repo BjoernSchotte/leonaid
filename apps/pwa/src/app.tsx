@@ -12,8 +12,10 @@ import {
   CommitmentCapturePage,
   FEATURE_FLAGS,
   FeatureFlagProvider,
+  driverStanding,
   ModuleSearch,
   PwaDeliveryPage,
+  PwaDriverStart,
   resolveModuleRoute,
   RoleDashboardPage,
   SponsorWorkspace,
@@ -265,11 +267,15 @@ const implementedPwaNavigation = new Set([
  */
 function PwaShell({
   client,
+  driver,
+  driverOnly,
   identity,
   navigation,
   ...props
 }: Omit<MobileShellProps, "active" | "menuItems" | "tabs"> & {
   readonly client: LeonAidApiClient;
+  readonly driver: boolean;
+  readonly driverOnly: boolean;
   readonly identity: CurrentIdentityResponse;
   readonly navigation: CurrentIdentityResponse["navigation"];
 }) {
@@ -279,7 +285,7 @@ function PwaShell({
     navigation,
     implementedPwaNavigation,
     window.location,
-    { deliveryTours },
+    { deliveryTours, driver, driverOnly },
   );
   const { sheet, ...queue } = useQueueShell(client, identity, !props.offline);
   return (
@@ -460,11 +466,25 @@ export function App({ client }: AppProps) {
       ?.actionId ??
     driverActions[0]?.actionId ??
     "";
+  const driverActionName = driverActions.find(
+    (membership) => membership.actionId === driverActionId,
+  )?.actionName;
+  // The bar names the action the page works in: the tour's on the tour,
+  // and never the acquirer's empty text for someone who only drives.
   const currentAction =
+    (route === "delivery" ? driverActionName : undefined) ??
     memberships.find((membership) => membership.actionId === currentActionId)
       ?.actionName ??
     memberships[0]?.actionName ??
+    driverActionName ??
     "Keine aktive Akquise-Aktion";
+  const { driver, driverOnly } = driverStanding(
+    identity.data.actionMemberships,
+    currentActionId,
+  );
+  const atStart =
+    window.location.pathname.replace(/\/+$/, "") ===
+    PWA_BASE.replace(/\/+$/, "");
 
   // Members with back-office roles reach the admin app from here and may
   // choose the acquisition app as their start area (specs/multi-domain §6.7).
@@ -491,6 +511,8 @@ export function App({ client }: AppProps) {
         <PwaShell
           campaign={currentAction}
           client={client}
+          driver={driver}
+          driverOnly={driverOnly}
           identity={identity.data}
           navigation={identity.data.navigation}
           surfaces={surfaces}
@@ -538,6 +560,24 @@ export function App({ client }: AppProps) {
               actions={driverActions}
               client={client}
               offline={!lifecycle.online}
+            />
+          ) : driverOnly && atStart ? (
+            <PwaDriverStart
+              delivery={
+                <PwaDeliveryPage
+                  actionId={driverActionId}
+                  actions={driverActions}
+                  client={client}
+                  offline={!lifecycle.online}
+                />
+              }
+              fallback={
+                <RoleDashboardPage
+                  client={client}
+                  identity={identity.data}
+                  mode="acquirer"
+                />
+              }
             />
           ) : (
             <RoleDashboardPage

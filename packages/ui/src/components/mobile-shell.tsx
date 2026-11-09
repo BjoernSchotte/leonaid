@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type MouseEvent,
@@ -26,6 +27,7 @@ import { Button, buttonClassName } from "./button";
 import { ConfirmDialog } from "./confirm-dialog";
 import { LeaveGuardContext, LeaveGuardRegistry } from "./leave-guard";
 import { LegalLinks } from "./legal-links";
+import { PageBarContext } from "./page-bar";
 import {
   resolvedTheme,
   setThemePreference,
@@ -268,6 +270,12 @@ function MobileShellFrame({
 }: MobileShellProps & { readonly registry: LeaveGuardRegistry }) {
   useFocusNotObscured();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [barSub, setBarSub] = useState<HTMLElement | null>(null);
+  const [barEnd, setBarEnd] = useState<HTMLElement | null>(null);
+  const pageBar = useMemo(
+    () => ({ sub: barSub, end: barEnd }),
+    [barSub, barEnd],
+  );
   const [theme, setTheme] = useState<ThemeMode>(storedTheme);
   const { hasUnsavedWork, mainRef, question, requestLeave } =
     useShellLeaveGuard(registry);
@@ -324,8 +332,15 @@ function MobileShellFrame({
               {role ? `${role} · ` : ""}
               <span data-testid="display-name">{person}</span>
             </span>
+            {/* A page's own line ("Meine Tour · Sa 05.12.") replaces the
+                role line while it is filled (CSS :empty). */}
+            <span
+              className="pwa-campaign-sub pwa-bar-page-sub"
+              ref={setBarSub}
+            />
           </span>
           <span className="pwa-bar-end">
+            <span className="pwa-bar-page-end" ref={setBarEnd} />
             {queue ? (
               <button
                 aria-haspopup="dialog"
@@ -409,7 +424,9 @@ function MobileShellFrame({
         </div>
         {notices}
         <main className="pwa-main" id="main" ref={mainRef} tabIndex={-1}>
-          <div className="pwa-screen">{children}</div>
+          <PageBarContext.Provider value={pageBar}>
+            <div className="pwa-screen">{children}</div>
+          </PageBarContext.Provider>
         </main>
         {tabs.length ? (
           <nav aria-label="App-Navigation" className="pwa-tabs">

@@ -60,6 +60,24 @@ export function placeStop(
   return rest;
 }
 
+/**
+ * A local order (a move that is saving) kept to the tour's current stops:
+ * gone stops drop out, a stop added since goes to the end of its own
+ * window, not of the whole tour. Windows follow `base`.
+ */
+export function reconcileOrder(
+  local: readonly string[],
+  base: readonly string[],
+  windowOf: (id: string) => string,
+): string[] {
+  const windows = [...new Set(base.map(windowOf))];
+  return windows.flatMap((window) => {
+    const current = base.filter((id) => windowOf(id) === window);
+    const known = local.filter((id) => current.includes(id));
+    return [...known, ...current.filter((id) => !known.includes(id))];
+  });
+}
+
 const EARTH_RADIUS_KM = 6371.0088;
 const rad = (deg: number) => (deg * Math.PI) / 180;
 

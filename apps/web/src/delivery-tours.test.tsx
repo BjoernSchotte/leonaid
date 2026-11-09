@@ -380,17 +380,81 @@ describe("Touren planner", () => {
     const [early, late] = within(anna).getAllByTestId("tour-window");
     expect(names(early!)).toEqual(["Bäckerei Kern", "Autohaus Nord"]);
     expect(names(late!)).toEqual(["Praxis Süd"]);
-    expect(within(anna).getByTestId("tour-ends").textContent).toBe(
-      "Erster: Bäckerei Kern · Letzter: Praxis Süd",
+    // The load per window instead of first and last stop.
+    expect(
+      within(within(anna).getByTestId("tour-load"))
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["08–10: 2 Stopps, 6 Boxen", "10–12: 1 Stopp, 3 Boxen"]);
+    // No coordinates yet: no length at all.
+    expect(within(anna).queryByTestId("tour-length")).toBeNull();
+    // One hint line; no save button (every move saves).
+    expect(screen.getByTestId("tour-plan-hint").textContent).toContain(
+      "Wählen Sie Stopps aus",
     );
-    // No coordinates yet: no length.
-    expect(within(anna).getByTestId("tour-length").textContent).toBe(
-      "Strecke –",
-    );
+    expect(within(anna).queryByTestId("tour-save-order")).toBeNull();
 
     const ben = column("ben");
     expect(within(ben).getByTestId("tour-count").textContent).toBe("0");
     expect(within(ben).getByText(/Noch keine Stopps/)).toBeTruthy();
+  });
+
+  it("shows the quantities the driver sees and dims delivered stops in place", async () => {
+    const client = fakeClient(
+      dayTours({
+        anna: {
+          windows: [
+            win("w1", [
+              stop(
+                drop("c1", "Bäckerei Kern", "w1", "anna", {
+                  quantities: [{ quantity: 6, unit: "piece" }],
+                  revision: 1,
+                  state: "delivered",
+                  totalBoxes: 0,
+                }),
+                1,
+              ),
+              stop(
+                drop("c2", "Autohaus Nord", "w1", "anna", {
+                  quantities: [{ quantity: 24, unit: "piece" }],
+                  totalBoxes: 0,
+                }),
+                2,
+              ),
+            ]),
+          ],
+        },
+      }),
+    );
+    await renderPlanner(client);
+    const rows = within(column("anna")).getAllByTestId("tour-stop");
+    // Not "0 Boxen": the same source as "Meine Tour".
+    expect(rows[0]!.textContent).toContain("6 Stück");
+    expect(rows[1]!.textContent).toContain("24 Stück");
+    expect(rows.map((row) => row.textContent)).not.toContainEqual(
+      expect.stringContaining("0 Boxen"),
+    );
+    expect(rows[0]!.classList.contains("is-done")).toBe(true);
+    expect(rows[1]!.classList.contains("is-done")).toBe(false);
+    expect(
+      within(within(column("anna")).getByTestId("tour-load")).getByRole(
+        "listitem",
+      ).textContent,
+    ).toBe("08–10: 2 Stopps, 30 Stk");
+  });
+
+  it("an empty Nicht zugeordnet says all stops are assigned", async () => {
+    const tours = dayTours();
+    const client = fakeClient({ ...tours, unassigned: [] });
+    await renderPlanner(client);
+    expect(
+      within(screen.getByTestId("tour-unassigned")).getByText(
+        "Alle Stopps zugeordnet.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByTestId("tour-plan-hint").textContent).toContain(
+      "Sortiert wird nur innerhalb eines Lieferfensters",
+    );
   });
 
   it("assign selected stops to a driver calls assignDeliveryDriver", async () => {
@@ -425,16 +489,10 @@ describe("Touren planner", () => {
     );
   });
 
-  it("button reorder then save sends saveDeliveryTourOrder with revision and day", async () => {
+  it("a move saves on its own with revision and day; Rückgängig restores the order", async () => {
     const client = fakeClient(dayTours());
     await renderPlanner(client);
     const anna = column("anna");
-    const save = within(anna).getByTestId("tour-save-order");
-    expect(
-      save.getAttribute("aria-disabled") === "true" ||
-        save.hasAttribute("disabled"),
-    ).toBe(true);
-
     fireEvent.click(
       within(anna).getByRole("button", { name: "Bäckerei Kern nach unten" }),
     );
@@ -443,49 +501,69 @@ describe("Touren planner", () => {
       "Bäckerei Kern",
       "Praxis Süd",
     ]);
-    expect(within(anna).getByText("Nicht gespeichert")).toBeTruthy();
-    // The last stop of 08–10 has no way down into 10–12.
+    // The last stop of 08–10 has no way down into 10–12: the arrow hides.
     const down = within(anna).getByRole("button", {
       name: "Bäckerei Kern nach unten",
     });
     expect(down.getAttribute("aria-disabled")).toBe("true");
+    expect(down.classList.contains("is-edge")).toBe(true);
 
-    fireEvent.click(within(anna).getByTestId("tour-save-order"));
-    await waitFor(() =>
-      expect(client.saveDeliveryTourOrder).toHaveBeenCalledWith(
-        actionId,
-        "anna",
-        {
-          commitmentIds: ["c2", "c1", "c3"],
-          day: DAY,
-          expectedRevision: "r1",
-        },
-      ),
+    await screen.findByText(
+      "Reihenfolge für Fahrerin Anna gespeichert.",
+      undefined,
+      { timeout: 3_000 },
     );
-    await waitFor(() =>
-      expect(within(anna).queryByText("Nicht gespeichert")).toBeNull(),
+    expect(client.saveDeliveryTourOrder).toHaveBeenCalledTimes(1);
+    expect(client.saveDeliveryTourOrder).toHaveBeenCalledWith(
+      actionId,
+      "anna",
+      {
+        commitmentIds: ["c2", "c1", "c3"],
+        day: DAY,
+        expectedRevision: "r1",
+      },
     );
     expect(names(anna)).toEqual([
       "Autohaus Nord",
       "Bäckerei Kern",
       "Praxis Süd",
     ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Rückgängig" }));
+    await screen.findByText(
+      "Vorherige Reihenfolge für Fahrerin Anna wiederhergestellt.",
+      undefined,
+      { timeout: 3_000 },
+    );
+    expect(client.saveDeliveryTourOrder).toHaveBeenLastCalledWith(
+      actionId,
+      "anna",
+      {
+        commitmentIds: ["c1", "c2", "c3"],
+        day: DAY,
+        expectedRevision: "r2",
+      },
+    );
+    expect(names(anna)).toEqual([
+      "Bäckerei Kern",
+      "Autohaus Nord",
+      "Praxis Süd",
+    ]);
   });
 
-  it("a stop joining a column with a draft goes to the end of its own window", async () => {
+  it("a stop joining a column goes to the end of its own window and moves from there", async () => {
     const client = fakeClient(dayTours());
     await renderPlanner(client);
     const anna = column("anna");
     fireEvent.click(
       within(anna).getByRole("button", { name: "Bäckerei Kern nach unten" }),
     );
-    expect(names(anna)).toEqual([
-      "Autohaus Nord",
-      "Bäckerei Kern",
-      "Praxis Süd",
-    ]);
+    await waitFor(
+      () => expect(client.saveDeliveryTourOrder).toHaveBeenCalledTimes(1),
+      { timeout: 3_000 },
+    );
 
-    // Café Mitte (08–10) joins Anna while her draft is open.
+    // Café Mitte (08–10) joins Anna.
     fireEvent.click(
       screen.getByRole("checkbox", { name: "Café Mitte auswählen" }),
     );
@@ -494,7 +572,6 @@ describe("Touren planner", () => {
       await screen.findByRole("option", { name: /Fahrerin Anna/ }),
     );
     await waitFor(() => expect(names(anna)).toHaveLength(4));
-
     expect(names(anna)).toEqual([
       "Autohaus Nord",
       "Bäckerei Kern",
@@ -513,12 +590,8 @@ describe("Touren planner", () => {
         .getAllByTestId("tour-stop")
         .map((row) => row.querySelector(".tour-pos")?.textContent),
     ).toEqual(["1", "2", "3", "4"]);
-    expect(within(anna).getByTestId("tour-ends").textContent).toBe(
-      "Erster: Autohaus Nord · Letzter: Praxis Süd",
-    );
-    expect(within(anna).getByText("Nicht gespeichert")).toBeTruthy();
 
-    // Up and down work for the new stop inside its window.
+    // Up works for the new stop inside its window, on the new revision.
     fireEvent.click(
       within(anna).getByRole("button", { name: "Café Mitte nach oben" }),
     );
@@ -528,24 +601,18 @@ describe("Touren planner", () => {
       "Bäckerei Kern",
       "Praxis Süd",
     ]);
-    expect(
-      within(anna)
-        .getByRole("button", { name: "Café Mitte nach unten" })
-        .getAttribute("aria-disabled"),
-    ).toBeNull();
-
-    // The draft follows the new revision of the manager's own assignment.
-    fireEvent.click(within(anna).getByTestId("tour-save-order"));
-    await waitFor(() =>
-      expect(client.saveDeliveryTourOrder).toHaveBeenCalledWith(
-        actionId,
-        "anna",
-        {
-          commitmentIds: ["c2", "c4", "c1", "c3"],
-          day: DAY,
-          expectedRevision: "r1+",
-        },
-      ),
+    await waitFor(
+      () =>
+        expect(client.saveDeliveryTourOrder).toHaveBeenLastCalledWith(
+          actionId,
+          "anna",
+          {
+            commitmentIds: ["c2", "c4", "c1", "c3"],
+            day: DAY,
+            expectedRevision: "r2+",
+          },
+        ),
+      { timeout: 3_000 },
     );
   });
 
@@ -561,7 +628,6 @@ describe("Touren planner", () => {
       "Autohaus Nord",
       "Praxis Süd",
     ]);
-    expect(within(anna).queryByText("Nicht gespeichert")).toBeNull();
     expect(client.assignDeliveryDriver).not.toHaveBeenCalled();
 
     // Inside the window the keyboard move works.
@@ -573,7 +639,16 @@ describe("Touren planner", () => {
         "Praxis Süd",
       ]),
     );
-    expect(within(anna).getByText("Nicht gespeichert")).toBeTruthy();
+    // Only the move inside the window saved.
+    await waitFor(
+      () => expect(client.saveDeliveryTourOrder).toHaveBeenCalledTimes(1),
+      { timeout: 3_000 },
+    );
+    expect(client.saveDeliveryTourOrder).toHaveBeenCalledWith(
+      actionId,
+      "anna",
+      { commitmentIds: ["c2", "c1", "c3"], day: DAY, expectedRevision: "r1" },
+    );
   });
 
   it("dragging a stop onto another column assigns it", async () => {
@@ -676,10 +751,10 @@ describe("Touren planner", () => {
       "Für den Vorschlag fehlen Koordinaten.",
     );
     fireEvent.click(suggest);
-    expect(within(column("anna")).queryByText("Nicht gespeichert")).toBeNull();
+    expect(client.saveDeliveryTourOrder).not.toHaveBeenCalled();
   });
 
-  it("polling paused while draft dirty", async () => {
+  it("polling pauses while a move saves", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const client = fakeClient(dayTours());
     await renderPlanner(client);
@@ -689,27 +764,26 @@ describe("Touren planner", () => {
     await act(() => vi.advanceTimersByTimeAsync(BOARD_POLL_MS + 50));
     expect(calls() - before).toBe(1);
 
+    // A move just before the poll: the poll waits for the save.
+    await act(() => vi.advanceTimersByTimeAsync(BOARD_POLL_MS - 300));
     fireEvent.click(
       within(column("anna")).getByRole("button", {
         name: "Bäckerei Kern nach unten",
       }),
     );
     before = calls();
-    await act(() => vi.advanceTimersByTimeAsync(BOARD_POLL_MS * 2 + 50));
+    await act(() => vi.advanceTimersByTimeAsync(400));
     expect(calls() - before).toBe(0);
+    await act(() => vi.advanceTimersByTimeAsync(400));
+    expect(client.saveDeliveryTourOrder).toHaveBeenCalledTimes(1);
 
-    // Discarding the draft resumes polling.
-    fireEvent.click(
-      within(column("anna")).getByRole("button", {
-        name: "Änderung verwerfen",
-      }),
-    );
+    // Saved: polling runs again.
     before = calls();
     await act(() => vi.advanceTimersByTimeAsync(BOARD_POLL_MS + 50));
-    expect(calls() - before).toBe(1);
+    expect(calls() - before).toBeGreaterThanOrEqual(1);
   });
 
-  it("changing the day with an unsaved draft asks first", async () => {
+  it("changing the day sends a waiting move first, without asking", async () => {
     const client = fakeClient(dayTours({ days: [DAY, "2099-12-06"] }));
     const onDayChange = vi.fn();
     await renderPlanner(client, onDayChange);
@@ -721,26 +795,18 @@ describe("Touren planner", () => {
     fireEvent.change(screen.getByTestId("tour-day"), {
       target: { value: "2099-12-06" },
     });
-    const dialog = await screen.findByRole("alertdialog");
-    expect(onDayChange).not.toHaveBeenCalled();
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Weiter bearbeiten" }),
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(onDayChange).toHaveBeenCalledWith("2099-12-06");
+    await waitFor(() =>
+      expect(client.saveDeliveryTourOrder).toHaveBeenCalledWith(
+        actionId,
+        "anna",
+        { commitmentIds: ["c2", "c1", "c3"], day: DAY, expectedRevision: "r1" },
+      ),
     );
-    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
-    expect(onDayChange).not.toHaveBeenCalled();
-
-    fireEvent.change(screen.getByTestId("tour-day"), {
-      target: { value: "2099-12-06" },
-    });
-    fireEvent.click(
-      within(await screen.findByRole("alertdialog")).getByRole("button", {
-        name: "Verwerfen",
-      }),
-    );
-    await waitFor(() => expect(onDayChange).toHaveBeenCalledWith("2099-12-06"));
   });
 
-  it("a stale order on save drops the draft and reloads", async () => {
+  it("a stale order on save shows the current tour again", async () => {
     const client = fakeClient(dayTours());
     vi.mocked(client.saveDeliveryTourOrder).mockRejectedValueOnce(
       new ApiError(409, {
@@ -753,9 +819,10 @@ describe("Touren planner", () => {
     fireEvent.click(
       within(anna).getByRole("button", { name: "Bäckerei Kern nach unten" }),
     );
-    fireEvent.click(within(anna).getByTestId("tour-save-order"));
-    await waitFor(() =>
-      expect(within(anna).queryByText("Nicht gespeichert")).toBeNull(),
+    await screen.findByText(
+      "Die Tour wurde inzwischen geändert. Die Touren zeigen jetzt den aktuellen Stand.",
+      undefined,
+      { timeout: 3_000 },
     );
     expect(names(anna)).toEqual([
       "Bäckerei Kern",
