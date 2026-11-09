@@ -183,7 +183,54 @@ function fakeClient(initial: DeliveryDayToursResponse) {
   };
   return {
     getDeliveryTours: vi.fn(async () => response),
-    assignDeliveryDriver: vi.fn(async () => ({ changed: 1 })),
+    // Unassigned stops join the end of their window in the driver's tour.
+    assignDeliveryDriver: vi.fn(
+      async (
+        _action: string,
+        body: { commitmentIds: string[]; driverUserId: string | null },
+      ) => {
+        const moving = response.unassigned
+          .flatMap((item) => item.stops)
+          .filter((entry) =>
+            body.commitmentIds.includes(entry.drop.commitmentId),
+          );
+        const driver = body.driverUserId;
+        if (!driver || !moving.length) return { changed: 0 };
+        response = {
+          ...response,
+          unassigned: response.unassigned
+            .map((item) => ({
+              ...item,
+              stops: item.stops.filter((entry) => !moving.includes(entry)),
+            }))
+            .filter((item) => item.stops.length),
+        };
+        changeTour(driver, (tour) => {
+          let windows = [...tour.windows];
+          for (const entry of moving) {
+            const id = entry.drop.windowId as "w1" | "w2";
+            const existing = windows.find((item) => item.windowId === id);
+            const joined = {
+              ...entry,
+              baseRank: (existing?.stops.length ?? 0) + 1,
+              effectiveRank: (existing?.stops.length ?? 0) + 1,
+              drop: { ...entry.drop, driverUserId: driver },
+            };
+            windows = existing
+              ? windows.map((item) =>
+                  item === existing
+                    ? { ...item, stops: [...item.stops, joined] }
+                    : item,
+                )
+              : [...windows, win(id, [joined])].sort((a, b) =>
+                  a.windowId.localeCompare(b.windowId),
+                );
+          }
+          return { ...tour, revision: `${tour.revision}+`, windows };
+        });
+        return { changed: moving.length };
+      },
+    ),
     saveDeliveryTourOrder: vi.fn(
       async (
         _action: string,
@@ -423,6 +470,83 @@ describe("Touren planner", () => {
       "Bäckerei Kern",
       "Praxis Süd",
     ]);
+  });
+
+  it("a stop joining a column with a draft goes to the end of its own window", async () => {
+    const client = fakeClient(dayTours());
+    await renderPlanner(client);
+    const anna = column("anna");
+    fireEvent.click(
+      within(anna).getByRole("button", { name: "Bäckerei Kern nach unten" }),
+    );
+    expect(names(anna)).toEqual([
+      "Autohaus Nord",
+      "Bäckerei Kern",
+      "Praxis Süd",
+    ]);
+
+    // Café Mitte (08–10) joins Anna while her draft is open.
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Café Mitte auswählen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Fahrer zuordnen" }));
+    fireEvent.click(
+      await screen.findByRole("option", { name: /Fahrerin Anna/ }),
+    );
+    await waitFor(() => expect(names(anna)).toHaveLength(4));
+
+    expect(names(anna)).toEqual([
+      "Autohaus Nord",
+      "Bäckerei Kern",
+      "Café Mitte",
+      "Praxis Süd",
+    ]);
+    const [early, late] = within(anna).getAllByTestId("tour-window");
+    expect(names(early!)).toEqual([
+      "Autohaus Nord",
+      "Bäckerei Kern",
+      "Café Mitte",
+    ]);
+    expect(names(late!)).toEqual(["Praxis Süd"]);
+    expect(
+      within(anna)
+        .getAllByTestId("tour-stop")
+        .map((row) => row.querySelector(".tour-pos")?.textContent),
+    ).toEqual(["1", "2", "3", "4"]);
+    expect(within(anna).getByTestId("tour-ends").textContent).toBe(
+      "Erster: Autohaus Nord · Letzter: Praxis Süd",
+    );
+    expect(within(anna).getByText("Nicht gespeichert")).toBeTruthy();
+
+    // Up and down work for the new stop inside its window.
+    fireEvent.click(
+      within(anna).getByRole("button", { name: "Café Mitte nach oben" }),
+    );
+    expect(names(anna)).toEqual([
+      "Autohaus Nord",
+      "Café Mitte",
+      "Bäckerei Kern",
+      "Praxis Süd",
+    ]);
+    expect(
+      within(anna)
+        .getByRole("button", { name: "Café Mitte nach unten" })
+        .getAttribute("aria-disabled"),
+    ).toBeNull();
+
+    // The draft follows the new revision of the manager's own assignment.
+    fireEvent.click(within(anna).getByTestId("tour-save-order"));
+    await waitFor(() =>
+      expect(client.saveDeliveryTourOrder).toHaveBeenCalledWith(
+        actionId,
+        "anna",
+        {
+          commitmentIds: ["c2", "c4", "c1", "c3"],
+          day: DAY,
+          expectedRevision: "r1+",
+        },
+      ),
+    );
   });
 
   it("drag across windows is ignored", async () => {

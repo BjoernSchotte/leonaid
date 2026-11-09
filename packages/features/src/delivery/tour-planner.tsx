@@ -234,10 +234,20 @@ function planModel(data: DeliveryDayToursResponse | undefined) {
 const sameOrder = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && a.every((id, index) => id === b[index]);
 
-/** A draft kept to the tour's current stops; stops added since go last. */
-const reconcile = (draft: readonly string[], base: readonly string[]) => {
-  const known = draft.filter((id) => base.includes(id));
-  return [...known, ...base.filter((id) => !known.includes(id))];
+/** A draft kept to the tour's current stops; stops added since go last in their window. */
+const reconcile = (
+  draft: readonly string[],
+  base: readonly string[],
+  windowOf: (id: string) => string,
+) => {
+  // Window by window, in the base's window order: a stop added since the
+  // draft goes to the end of its own window, not of the whole tour.
+  const windows = [...new Set(base.map(windowOf))];
+  return windows.flatMap((window) => {
+    const current = base.filter((id) => windowOf(id) === window);
+    const known = draft.filter((id) => current.includes(id));
+    return [...known, ...current.filter((id) => !known.includes(id))];
+  });
 };
 
 const boxes = (count: number) => `${count} ${count === 1 ? "Box" : "Boxen"}`;
@@ -326,7 +336,7 @@ export function TourPlanner({
   /** The draft of a column, kept to its current stops, or null. */
   const draftOf = (lane: PlanLane) => {
     const draft = drafts[lane.key];
-    return draft ? reconcile(draft.ids, lane.base) : null;
+    return draft ? reconcile(draft.ids, lane.base, windowOf) : null;
   };
   const shownOf = (lane: PlanLane) =>
     viewing.has(lane.key) && lane.tour?.driverOrderedAt
