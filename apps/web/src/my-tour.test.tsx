@@ -1102,7 +1102,7 @@ describe("PWA delivery route", () => {
       </QueryClientProvider>,
     );
     await screen.findByRole("heading", { name: "Auslieferung" });
-    expect(getDeliveryBoard).toHaveBeenCalled();
+    await waitFor(() => expect(getDeliveryBoard).toHaveBeenCalled());
     expect(client.getMyTour).not.toHaveBeenCalled();
   });
 
@@ -1176,7 +1176,7 @@ describe("PWA delivery route", () => {
     renderRoute(client);
     // Flag off: the board, not an endless skeleton and not the tour.
     await screen.findByRole("heading", { name: "Auslieferung" });
-    expect(getDeliveryBoard).toHaveBeenCalled();
+    await waitFor(() => expect(getDeliveryBoard).toHaveBeenCalled());
     expect(client.getMyTour).not.toHaveBeenCalled();
   });
 
