@@ -80,6 +80,7 @@ run_python() {
 
 if [ -n "${LEONAID_TEST_STACK:-}" ]; then
   shared_services="proxy worker mailpit"
+  shared_crm=none
   . "$root/tools/testing/borrow_stack.sh"
 else
 # Refuse existing resources and unreadable inventories before Docker mutations.

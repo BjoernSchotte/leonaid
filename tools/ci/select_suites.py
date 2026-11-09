@@ -62,7 +62,8 @@ INTEGRATION_SHARDS = (
     "crm-import",
     "twenty-install",
     "policy",
-    "schema-outbox",
+    "schema",
+    "outbox",
     "delivery",
     # The live OpenAPI contract on the prepared fixture (tools/openapi/test.sh).
     "api-contract",
@@ -108,23 +109,27 @@ FLAGS = ("contract", "golden", "surveys", "api", "pins")
 # seconds are bin times, E2E seconds leaf sums; refresh them from the
 # "ci-integration: bin: <shard> passed (<n>s)" lines when a shard grows a lot.
 INTEGRATION_SECONDS = {
-    # Bin times of run 42547017244 (#177, 2026-11-09).
-    "seed-reset": 365,
-    "typst": 53,
-    "storage": 66,
-    "documents": 94,
-    "profiles": 99,
-    "crm-gateway": 77,
-    "crm-import": 41,
+    # Bin times of run 42569824316 (#180, 2026-11-09). A bin's first shard
+    # also pays its stack's preparation, so these are leg costs, not test
+    # times. schema and outbox ran as one shard: 199 s and 63 s by the log.
+    "seed-reset": 336,
+    "typst": 32,
+    "storage": 47,
+    "documents": 65,
+    "profiles": 58,
+    "crm-gateway": 76,
+    "crm-import": 68,
     "twenty-install": 52,
-    "policy": 46,
-    "schema-outbox": 263,
-    "delivery": 14,
+    "policy": 48,
+    "schema": 199,
+    "outbox": 63,
+    "delivery": 12,
     "api-contract": 36,
-    "privacy": 113,
-    "acquisition-contracts": 251,
+    # Minus the lazy Twenty pulls (39 s, 31 s) that the leg prefetch removes.
+    "privacy": 121,
+    "acquisition-contracts": 179,
     # The Contract job (tools/ci/contract.sh) rides in an Integration bin.
-    "contract": 155,
+    "contract": 118,
 }
 # The PWA leaf runs as three (tools/ci/e2e.sh pwa, pwa-offline,
 # pwa-offline-webkit).
@@ -186,9 +191,10 @@ LEG_SETUP_SECONDS = 150
 SHARD_SETUP_SECONDS = {"integration": 90, "e2e": 0, "emdash": 90}
 LOAD_WARNING = 0.75
 MAX_BINS = {"integration": 4, "e2e": 4}
-# Integration shards that start Twenty: its image (about 40 s of pulls in
-# the policy leg of run 42504505501) is prefetched beside the layer import.
-SEED_BOOTSTRAP = frozenset({"seed-reset", "twenty-install", "policy"})
+# Integration shards that never start Twenty. Every other leg prefetches its
+# image beside the layer import: run 42569824316 pulled it lazily for 31 s
+# and 39 s inside the first leaf of two legs (acquisition-contracts, privacy).
+TWENTY_FREE = frozenset({"delivery", "schema-outbox", "schema", "outbox"})
 
 # Fast tier (pull requests): Integration shards and Contract that a specific
 # rule selects run before the merge, packed into legs of FAST_LEG_SECONDS of
@@ -239,7 +245,7 @@ FAST_REQUIRED: dict[str, tuple[str, ...]] = {
     ),
     # The campaign renderer switch is system-admin only (cutover and
     # rollback, tests/integration/test_campaign_renderer_api.py, E-028).
-    "schema-outbox": (
+    "schema": (
         "tests/integration/test_campaign_renderer_api.py",
         "src/leonaid/adapters/postgres/campaign_aliases.py",
         "src/leonaid/application/campaign_renderer.py",
@@ -415,22 +421,20 @@ RULES: tuple[Rule, ...] = (
             "tests/e2e/tasks-*.spec.mjs",
             "tests/e2e/modules-tasks.spec.mjs",
         ),
-        # Its server rules are contracts in Integration / schema-outbox.
-        e2e("tasks") | integration("schema-outbox"),
+        # Its server rules are contracts in Integration / schema.
+        e2e("tasks") | integration("schema"),
         "tasks module",
     ),
     # tools/schema/test.sh also runs the tasks schema contract.
-    Rule(
-        ("tools/tasks/**",), e2e("tasks") | integration("schema-outbox"), "tasks proofs"
-    ),
-    # Materials module: its contracts run in Integration / schema-outbox.
+    Rule(("tools/tasks/**",), e2e("tasks") | integration("schema"), "tasks proofs"),
+    # Materials module: its contracts run in Integration / schema.
     Rule(
         (
             "src/leonaid/modules/materials/**",
             "packages/features/src/materials/**",
             "tools/materials/**",
         ),
-        e2e("knowledge") | integration("schema-outbox"),
+        e2e("knowledge") | integration("schema"),
         "materials module",
     ),
     # Knowledge module.
@@ -447,7 +451,7 @@ RULES: tuple[Rule, ...] = (
     # tools/schema/test.sh also runs the knowledge schema contracts.
     Rule(
         ("tools/knowledge/**",),
-        e2e("knowledge") | integration("schema-outbox"),
+        e2e("knowledge") | integration("schema"),
         "knowledge proofs",
     ),
     # Inbox module.
@@ -459,13 +463,13 @@ RULES: tuple[Rule, ...] = (
             "apps/public/src/components/PublicInbox.astro",
             "apps/public/src/lib/modules.ts",
         ),
-        e2e("inbox") | integration("schema-outbox"),
+        e2e("inbox") | integration("schema"),
         "inbox module",
     ),
     # tools/schema/test.sh also runs the inbox schema contracts.
     Rule(
         ("tools/inbox/**",),
-        e2e("inbox") | integration("schema-outbox"),
+        e2e("inbox") | integration("schema"),
         "inbox proofs",
     ),
     # The shared axe scan serves every browser suite, the survey specs and the
@@ -529,14 +533,14 @@ RULES: tuple[Rule, ...] = (
     Rule(
         (
             "tools/schema/**",
-            "tools/outbox/**",
             "tests/integration/test_order_cancellation_api.py",
             "tests/integration/test_offline_capture_api.py",
             "tests/integration/test_campaign_renderer_api.py",
         ),
-        integration("schema-outbox"),
-        "schema/outbox proofs",
+        integration("schema"),
+        "schema proofs",
     ),
+    Rule(("tools/outbox/**",), integration("outbox"), "outbox proofs"),
     Rule(("tools/storage/**",), integration("storage"), "storage proofs"),
     Rule(
         ("tools/documents/**", "tests/e2e/documents.spec.mjs"),
@@ -861,7 +865,7 @@ E2E_NEUTRAL: dict[str, str] = {
     "leonaid.entrypoints.crm_match_keys": "operator CLI (pilot repair units), "
     "covered by Integration / crm-gateway",
     "leonaid.entrypoints.material_cleanup": "operator CLI, covered by the "
-    "materials schema contracts in Integration / schema-outbox",
+    "materials schema contracts in Integration / schema",
     "leonaid.application.documents": "document proofs run in Integration / "
     "documents, including their browser coverage",
     "leonaid.adapters.postgres.documents": "document proofs run in Integration / "
@@ -1068,7 +1072,7 @@ def matrix(
 
 
 def integration_bootstrap(names: Sequence[str]) -> str:
-    return "seed" if SEED_BOOTSTRAP & set(names) else "toolchains"
+    return "toolchains" if set(names) <= TWENTY_FREE else "seed"
 
 
 def emdash_bootstrap(names: Sequence[str]) -> str:

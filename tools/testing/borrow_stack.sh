@@ -12,6 +12,8 @@ mkdir "$LEONAID_TEST_STACK/in-use" || {
 }
 shared_leaf_owned=true
 owned=false
+# shared_crm=none: the leaf never reaches the CRM; no key, no Twenty.
+if [ "${shared_crm:-}" = none ]; then integration_key=""; fi
 compose() {
   LEONAID_HTTP_PORT=8080 LEONAID_HTTPS_PORT=8443 \
     TWENTY_INTEGRATION_API_KEY="$integration_key" \
@@ -19,7 +21,9 @@ compose() {
       --file "$root/infra/compose/compose.yml" \
       --file "$LEONAID_TEST_STACK/compose.yml" \
       --file "$root/tools/testing/shared-runtime.yml" \
-      --file "$LEONAID_TEST_STACK/services.yml" --profile dev-mail "$@"
+      --file "$LEONAID_TEST_STACK/services.yml" \
+      ${shared_crm:+--file "$root/tools/testing/no-crm-runtime.yml"} \
+      --profile dev-mail "$@"
 }
 if [ -f "$LEONAID_TEST_STACK/integration.env" ]; then
   cp "$LEONAID_TEST_STACK/integration.env" "$proof/integration.env"
