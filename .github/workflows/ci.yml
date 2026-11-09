@@ -161,7 +161,7 @@ jobs:
         env:
           SHARDS: ${{ matrix.bin.shards }}
         # One word per shard; every shard runs on its own fresh stack.
-        run: bash tools/ci/run-job.sh "integration-${{ matrix.bin.id }}" bash tools/ci/integration.sh $SHARDS
+        run: bash tools/ci/run-job.sh "integration-${{ matrix.bin.id }}" ./leonaid test-integration $SHARDS
       - name: Publish integration evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -211,7 +211,7 @@ jobs:
         env:
           SHARDS: ${{ matrix.bin.shards }}
         # One word per shard.
-        run: bash tools/ci/run-job.sh "e2e-${{ matrix.bin.id }}" bash tools/ci/e2e.sh $SHARDS
+        run: bash tools/ci/run-job.sh "e2e-${{ matrix.bin.id }}" ./leonaid test-e2e $SHARDS
       - name: Publish browser evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -262,7 +262,7 @@ jobs:
           EMDASH_ID: ${{ matrix.bin.id }}
           EMDASH_GROUPS: ${{ matrix.bin.shards }}
         # One word per group.
-        run: bash tools/ci/run-job.sh "emdash-$EMDASH_ID" sh tools/ci/emdash.sh $EMDASH_GROUPS
+        run: bash tools/ci/run-job.sh "emdash-$EMDASH_ID" ./leonaid test-emdash $EMDASH_GROUPS
       - name: Publish EmDash proof evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

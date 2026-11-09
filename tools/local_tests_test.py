@@ -15,20 +15,18 @@ from tools.testing.local_stack import LocalStack, fingerprints
 
 
 class LocalTests(unittest.TestCase):
-    def test_default_groups_are_disjoint_and_exclude_recovery(self):
+    def test_suite_commands_are_the_ci_entry_points(self):
         root = Path(__file__).resolve().parents[1]
         cli = (root / "leonaid").read_text()
-        integration = cli.split("  test-integration)\n")[1].split("    ;;")[0]
-        e2e = cli.split("  test-e2e)\n")[1].split("    ;;")[0]
         import re
 
-        groups = [
-            set(re.findall(r"tools/[a-z_/]+\.sh", part)) for part in (integration, e2e)
-        ]
-        self.assertFalse(groups[0] & groups[1])
-        for part in (integration, e2e):
-            self.assertNotIn("backup", part)
-            self.assertNotIn("upgrade", part)
+        # E-027: no hand-kept leaf lists; the CI scripts own the suites.
+        suites = cli.split("  test-integration | test-e2e | test-emdash)\n")[1]
+        self.assertIn('/bin/sh "$root/tools/ci/$suite.sh" "$@"', suites.split(";;")[0])
+        for script in ("integration", "e2e"):
+            text = (root / f"tools/ci/{script}.sh").read_text()
+            self.assertNotIn("tools/backup/", text)
+            self.assertNotIn("tools/upgrade/", text)
         # Every survey check mode belongs to exactly one shard of
         # ./leonaid test-surveys.
         shards = cli.split("test_surveys() {\n")[1].split("\n}\n")[0]

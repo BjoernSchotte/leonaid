@@ -359,8 +359,7 @@ Normal PR/main-push CI runs separate Integration shards for the one cold start
 (Compose, with the Core API smoke on it), seed idempotency/mutation/reset, schema,
 outbox, storage, documents, Typst, Twenty installation, CRM gateway, CRM import and
 policy (on the prepared fixture). Pilot import includes a
-real backup/restore and runs nightly instead. `bash tools/ci/integration.sh`
-also excludes pilot import by default; that shard remains explicitly selectable.
+real backup/restore and runs nightly instead (`./leonaid test-pilot-import`).
 
 Survey checks without a stack run under their own names: the `survey-core`,
 `survey-validation-candidate` and `survey-dependencies` lanes of
@@ -532,12 +531,12 @@ for shorter feedback time.
 
 ## Local development
 
-Normal `./leonaid test-integration` and `./leonaid test-e2e` have disjoint
-script inventories and never invoke backup/upgrade acceptance. Integration owns
-cold infrastructure/schema checks, CRM contracts, policy, templates, storage,
-documents/Typst and testkit. E2E owns the remaining feature/browser groups and the
-standalone Golden Journey. The latter deliberately proves fresh installations.
-Mail relay and cold infrastructure tests also retain their specialized setup.
+`./leonaid test-integration|test-e2e|test-emdash [shard...]` are the CI
+entry points themselves (`tools/ci/integration.sh`, `e2e.sh`, `emdash.sh`,
+decision E-027): CI calls the same commands with the shards of its bin.
+Without shards every shard of `select_suites.py` runs (Integration plus
+Contract). Golden Journey (`./leonaid test-golden-journey`), mail relay and
+backup/upgrade acceptance have their own commands.
 
 Compatible individual commands (for example `./leonaid test-actions`) and
 aggregates automatically reuse a private fixture under `.local/test-stack`.
@@ -575,7 +574,7 @@ instead of resetting running tests. Different worktrees remain independent.
 
 ```sh
 ./leonaid test-actions             # cache-backed targeted feature test
-./leonaid test-e2e                 # sequential features, reset between each
+./leonaid test-e2e pwa             # one CI shard, exactly as its CI leg runs it
 ./leonaid test-env-stop            # remove only this checkout's test fixture
 LEONAID_TEST_FRESH=1 ./leonaid test-actions  # isolated fresh setup and teardown
 ./leonaid test-recovery            # explicitly run backup/recovery acceptance

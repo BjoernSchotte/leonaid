@@ -3,6 +3,12 @@ set -eu
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
 
+# The same entry point locally and in CI (E-027): ./leonaid test-integration
+# [shard...]; without shards every shard of the selector runs, and Contract.
+if [ "$#" -eq 0 ]; then
+  # shellcheck disable=SC2046 # one word per shard
+  set -- $(python3 "$root/tools/ci/select_suites.py" --list integration) contract
+fi
 # Several shards (one CI bin, tools/ci/select_suites.py): each runs on its own
 # fresh stack, in order; a failure does not stop the later shards, the bin
 # fails at the end and names every failed shard. tools/ci/leak-check.sh fails
@@ -12,19 +18,11 @@ if [ "$#" -gt 1 ]; then
   exec /bin/sh "$root/tools/ci/run-shards.sh" integration "$root/tools/ci/integration.sh" "$@"
 fi
 
-shard=${1:-all}
+shard=$1
 
 case "$shard" in
-  all)
-    for part in profiles seed schema outbox storage documents typst crm policy delivery; do
-      /bin/sh "$root/tools/ci/integration.sh" "$part"
-    done
-    ;;
   profiles)
     python3 "$root/tools/testing/shared_stack.py" core tools/compose/profiles.sh
-    ;;
-  seed)
-    /bin/sh "$root/tools/seed/test.sh" "$root"
     ;;
   seed-reset)
     if [ -n "${LEONAID_CI_FIXTURE:-}" ]; then
@@ -35,12 +33,6 @@ case "$shard" in
     ;;
   schema-outbox)
     /bin/sh "$root/tools/schema/test.sh" "$root"
-    /bin/sh "$root/tools/outbox/test.sh" "$root"
-    ;;
-  schema)
-    /bin/sh "$root/tools/schema/test.sh" "$root"
-    ;;
-  outbox)
     /bin/sh "$root/tools/outbox/test.sh" "$root"
     ;;
   storage|documents|typst)
@@ -57,11 +49,6 @@ case "$shard" in
   crm-import)
     python3 "$root/tools/testing/shared_stack.py" golden \
       tools/twenty/import_test.sh
-    ;;
-  crm)
-    for part in twenty-install crm-gateway crm-import; do
-      /bin/sh "$root/tools/ci/integration.sh" "$part"
-    done
     ;;
   api-contract)
     # The live API contract on the fixture (generation and types: Lint)
@@ -91,9 +78,6 @@ case "$shard" in
   # OpenAPI and cross-system contracts; rides in an Integration bin.
   contract)
     /bin/sh "$root/tools/ci/contract.sh"
-    ;;
-  pilot-import)
-    /bin/sh "$root/tools/pilot_import/test.sh" "$root"
     ;;
   *)
     echo "ci-integration: ERROR: unknown shard: $shard" >&2

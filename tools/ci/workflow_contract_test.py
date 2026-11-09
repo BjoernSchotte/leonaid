@@ -133,13 +133,13 @@ CI_MUTATIONS = (
         "Integration shards must come from the suite selector",
     ),
     (
-        "tools/ci/integration.sh $SHARDS",
-        "tools/ci/integration.sh core",
+        "./leonaid test-integration $SHARDS",
+        "./leonaid test-integration core",
         "Integration bins must run every shard of the bin",
     ),
     (
-        "tools/ci/e2e.sh $SHARDS",
-        "tools/ci/e2e.sh tasks",
+        "./leonaid test-e2e $SHARDS",
+        "./leonaid test-e2e tasks",
         "E2E bins must run every leaf of the bin",
     ),
     (
@@ -168,9 +168,9 @@ CI_MUTATIONS = (
         "EmDash proof groups must come from the suite selector",
     ),
     (
-        "sh tools/ci/emdash.sh $EMDASH_GROUPS",
-        "sh tools/ci/emdash.sh static",
-        "EmDash proofs do not run through tools/ci/emdash.sh",
+        "./leonaid test-emdash $EMDASH_GROUPS",
+        "./leonaid test-emdash static",
+        "EmDash proofs do not run through ./leonaid test-emdash",
     ),
     (
         "    name: EmDash proof ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n",
