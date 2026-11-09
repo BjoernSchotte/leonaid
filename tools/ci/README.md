@@ -370,7 +370,7 @@ help` lists them): nine after the merge and with `full-ci`, four more
 (recovery, exports-recovery, restic, pilot) nightly and on dispatch, beside
 the nightly backup proofs (job `backup-recovery`: test-backup, test-upgrade,
 test-pilot-backup, test-pilot-deployment, test-pilot-install,
-test-pilot-import, test-pilot-release).
+test-pilot-import, test-pilot-release, test-mail-relay).
 
 The CI gate requires every selected survey shard. `Survey gate` is still a
 required check of the ruleset; ci.yml's job `survey-gate` mirrors the CI
