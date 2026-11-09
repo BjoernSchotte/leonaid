@@ -7,10 +7,21 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { setOfflineStart } from "@leonaid/features/offline";
+import type {
+  CurrentIdentityResponse,
+  LeonAidApiClient,
+} from "@leonaid/api-client";
+import {
+  ACTIVE_USER_KEY,
+  forgetDevice,
+  setOfflineStart,
+} from "@leonaid/features/offline";
+
+import { prepareDevice } from "./device";
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  window.localStorage.clear();
 });
 
 function stubCaches() {
@@ -79,5 +90,59 @@ describe("offline start for an installing worker (§8.1)", () => {
     expect(worker.messages).toEqual([
       { enabled: false, type: "OFFLINE_START" },
     ]);
+  });
+});
+
+const USER_ID = "30000000-0000-4000-8000-000000000001";
+
+/** IndexedDB as far as a deletion needs it. */
+function stubIndexedDb() {
+  const deleted: string[] = [];
+  vi.stubGlobal("indexedDB", {
+    deleteDatabase: (name: string) => {
+      deleted.push(name);
+      const request: { onsuccess?: () => void } = {};
+      setTimeout(() => request.onsuccess?.(), 0);
+      return request;
+    },
+  });
+  return deleted;
+}
+
+describe("offline start with the flag off (§8.5)", () => {
+  const client = {
+    getFeatureFlagEvaluations: async () => ({ flags: [] }),
+  } as unknown as LeonAidApiClient;
+  const identity = {
+    actionMemberships: [
+      {
+        actionId: "20000000-0000-4000-8000-000000000001",
+        actionName: "Krapfentaxi 2026",
+        role: "acquirer",
+      },
+    ],
+    userId: USER_ID,
+  } as unknown as CurrentIdentityResponse;
+
+  it("leaves Cache Storage alone on a device that kept nothing", async () => {
+    // Every online start forgets; a Cache API call cut off by the next
+    // navigation is a page error in WebKit ("Context is stopped").
+    const open = vi.fn();
+    vi.stubGlobal("caches", { open });
+    const deleted = stubIndexedDb();
+    await expect(prepareDevice(client, identity)).resolves.toBeNull();
+    expect(open).not.toHaveBeenCalled();
+    expect(deleted).toEqual([`leonaid-pwa-v1-${USER_ID}`]);
+  });
+
+  it("switches the offline start off while a device user is recorded", async () => {
+    const entries = stubCaches();
+    stubIndexedDb();
+    window.localStorage.setItem(ACTIVE_USER_KEY, USER_ID);
+    await setOfflineStart(true);
+    expect(entries.size).toBe(1);
+    await forgetDevice(USER_ID);
+    expect(entries.size).toBe(0);
+    expect(window.localStorage.getItem(ACTIVE_USER_KEY)).toBeNull();
   });
 });
