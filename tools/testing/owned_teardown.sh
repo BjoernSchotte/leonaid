@@ -142,3 +142,17 @@ remove_owned_project_images() {
       echo "test-isolation: built image $teardown_image is still in use; kept" >&2
   done
 }
+
+# golden_seed
+#   Seeds Golden Data v1 into the leaf's stack (tools/seed/golden.py seed).
+#   Needs compose, $env_file, $root and the PDFs in $proof/pdfs.
+golden_seed() {
+  compose --profile dev-mail run --rm --user "$(id -u):$(id -g)" --no-deps \
+    --env-from-file "$env_file" \
+    --volume "$root:/repo:ro" \
+    --volume "$proof/pdfs:/proof/pdfs:ro" \
+    --entrypoint python \
+    api /repo/tools/seed/golden.py seed \
+    /repo/tests/fixtures/golden/v1 \
+    /proof/pdfs
+}

@@ -101,14 +101,7 @@ compose up --detach --wait --wait-timeout 420 api
 
 fi
 
-compose --profile dev-mail run --rm --user "$(id -u):$(id -g)" --no-deps \
-  --env-from-file "$env_file" \
-  --volume "$root:/repo:ro" \
-  --volume "$proof/pdfs:/proof/pdfs:ro" \
-  --entrypoint python \
-  api /repo/tools/seed/golden.py seed \
-  /repo/tests/fixtures/golden/v1 \
-  /proof/pdfs
+golden_seed
 
 compose run --rm --no-deps \
   --user "$(id -u):$(id -g)" \
