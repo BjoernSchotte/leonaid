@@ -297,6 +297,8 @@ Commands:
                     The CI suites, same command as in CI (tools/ci/*.sh);
                     without arguments every shard (select_suites.py --list)
   seed              Idempotently seed Golden Dataset v1 into real systems
+  demo-tours        Add demo drivers and Bad Tölz orders for 2026-12-05
+                    on top of the Golden data (idempotent, after seed)
   snapshot [NAME]   Write a deterministic real-system snapshot under .local/
   reset             Safely reset all local core systems to Golden Dataset v1
   help              Show this help
@@ -4280,6 +4282,19 @@ seed_systems() {
   generate_test_logins
 }
 
+# Demo delivery day on top of the Golden data (tools/seed/demo_tours.py):
+# drivers Dora and Emil Fahrer and 14 Bad Tölz orders on 2026-12-05.
+seed_demo_tours() {
+  require_docker
+  compose --profile dev-mail up --detach --wait --wait-timeout 420
+  compose --profile dev-mail run --rm --no-deps \
+    --user "$host_user" --env HOME=/tmp \
+    --env-from-file "$root/.env.local" \
+    --volume "$root:/repo:ro" \
+    --entrypoint python \
+    api /repo/tools/seed/demo_tours.py
+}
+
 seed_development() {
   require_docker
   provision_twenty
@@ -4916,6 +4931,7 @@ case "$command" in
     import_crm "$@"
     ;;
   seed) seed_development ;;
+  demo-tours) seed_demo_tours ;;
   snapshot) snapshot_systems "${2:-golden-v1.json}" ;;
   reset) reset_systems ;;
   help|-h|--help) usage ;;
