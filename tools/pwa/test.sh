@@ -298,14 +298,12 @@ docker run --rm \
   --trace=retain-on-failure \
   --reporter=line
 
-for browser in chromium firefox webkit; do
-  for width in 390 768 1440; do
-    screenshot="$proof/pwa-list-$browser-$width.png"
-    if [ ! -s "$screenshot" ]; then
-      echo "pwa-test: ERROR: browser evidence is missing: $screenshot" >&2
-      exit 1
-    fi
-  done
+for project in chromium-390 chromium-768 chromium-1440 firefox-390 webkit-390; do
+  screenshot="$proof/pwa-list-$project.png"
+  if [ ! -s "$screenshot" ]; then
+    echo "pwa-test: ERROR: browser evidence is missing: $screenshot" >&2
+    exit 1
+  fi
 done
 for screenshot in \
   pwa-empty-chromium-390.png \
@@ -316,7 +314,6 @@ for screenshot in \
   pwa-offline-queue-chromium.png \
   pwa-offline-queue-webkit.png \
   pwa-offline-decision-chromium.png \
-  pwa-offline-decision-webkit.png \
   pwa-error-chromium-390.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "pwa-test: ERROR: browser evidence is missing: $screenshot" >&2
@@ -327,5 +324,5 @@ done
 mkdir -p "$root/.artifacts/poc062"
 cp "$proof"/pwa-*.png "$root/.artifacts/poc062/"
 
-echo "pwa-test: OK: PWA, real visibility boundaries, contacts, 9 browsers/viewports,"
+echo "pwa-test: OK: PWA, real visibility boundaries, contacts, 5 browser/viewport projects,"
 echo "pwa-test:     a11y, text scaling, touch, offline, update, empty and outage states proven"

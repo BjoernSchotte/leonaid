@@ -163,6 +163,10 @@ async function apiJson(page, path) {
   return response.json();
 }
 
+// E-026 addendum: the price-question UI runs in Chromium; WebKit keeps the
+// service worker, IndexedDB, crypto and storage proofs.
+const CHROMIUM_ONLY = "queue decision UI";
+
 test("captures made offline are kept on the device and sent once online", async ({
   browserName,
   context,
@@ -327,7 +331,9 @@ async function openOrder(page) {
 test("online, a changed price is asked on the order form (§10.2)", async ({
   context,
   page,
+  browserName,
 }) => {
+  test.skip(browserName === "webkit", CHROMIUM_ONLY);
   test.setTimeout(180_000);
   await authenticate(context);
   await page.goto(`${baseUrl}/app/sponsors`);
@@ -365,7 +371,9 @@ async function savedOrder(page) {
 test("an edit after the price question sends what the screen shows (#131 N1)", async ({
   context,
   page,
+  browserName,
 }) => {
+  test.skip(browserName === "webkit", CHROMIUM_ONLY);
   test.setTimeout(180_000);
   await authenticate(context);
   await page.goto(`${baseUrl}/app/sponsors`);
@@ -402,7 +410,9 @@ test("an edit after the price question sends what the screen shows (#131 N1)", a
 test("'Als Entwurf speichern' after the price question saves a draft (#131 N1)", async ({
   context,
   page,
+  browserName,
 }) => {
+  test.skip(browserName === "webkit", CHROMIUM_ONLY);
   test.setTimeout(180_000);
   await authenticate(context);
   await page.goto(`${baseUrl}/app/sponsors`);

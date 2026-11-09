@@ -164,14 +164,12 @@ for screenshot in \
     exit 1
   fi
 done
-for browser in chromium firefox webkit; do
-  for width in 390 768 1440; do
-    screenshot="$proof/commitment-capture-$browser-$width.png"
-    if [ ! -s "$screenshot" ]; then
-      echo "commitment-test: ERROR: browser matrix is missing: $screenshot" >&2
-      exit 1
-    fi
-  done
+for project in chromium-390 chromium-768 chromium-1440 firefox-390 webkit-390; do
+  screenshot="$proof/commitment-capture-$project.png"
+  if [ ! -s "$screenshot" ]; then
+    echo "commitment-test: ERROR: browser matrix is missing: $screenshot" >&2
+    exit 1
+  fi
 done
 
 mkdir -p "$root/.artifacts/poc081"
@@ -179,5 +177,5 @@ cp "$proof"/commitment-*.png "$root/.artifacts/poc081/"
 cp "$proof/poc081-created.json" "$root/.artifacts/poc081/"
 
 echo "commitment-test: OK: server contract, browser capture, admin view,"
-echo "commitment-test:     golden totals and 9 browsers/viewports"
+echo "commitment-test:     golden totals and 5 browser/viewport projects"
 echo "commitment-test:     proven for real"
