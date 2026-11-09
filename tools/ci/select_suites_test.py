@@ -603,9 +603,9 @@ def main() -> int:
             f"{key}: leg ids must be 1..n",
         )
     for leg in json.loads(complete["integration"]):
-        seed = bool(s.SEED_BOOTSTRAP & set(leg["shards"].split()))
+        free = set(leg["shards"].split()) <= s.TWENTY_FREE
         expect(
-            leg["bootstrap"] == ("seed" if seed else "toolchains"),
+            leg["bootstrap"] == ("toolchains" if free else "seed"),
             f"integration bootstrap: {leg}",
         )
     full_selection = s.select("push", [])
