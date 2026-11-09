@@ -15,6 +15,10 @@ from typing import Any
 import asyncpg
 from pydantic import SecretStr
 
+from leonaid.adapters.feature_flags.openfeature import (
+    LeonAidFeatureProvider,
+    OpenFeatureBooleanEvaluator,
+)
 from leonaid.adapters.mail.invoice_smtp import InvoiceSmtpHandler
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.adapters.mail.smtp import SmtpMailHandler
@@ -23,7 +27,10 @@ from leonaid.adapters.operations import structured_event
 from leonaid.adapters.postgres.activity_projection import (
     ActionProgressActivityHandler,
 )
+from leonaid.adapters.nominatim import NominatimGeocoder
+from leonaid.adapters.postgres.delivery_geo import AsyncpgDeliveryGeoRepository
 from leonaid.adapters.postgres.documents import AsyncpgGeneratedDocumentRepository
+from leonaid.adapters.postgres.feature_flags import AsyncpgFeatureFlagRepository
 from leonaid.adapters.postgres.invoice_deliveries import (
     AsyncpgInvoiceDeliveryRepository,
 )
@@ -36,7 +43,9 @@ from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.storage import S3ObjectStorage
 from leonaid.adapters.twenty.gateway import TwentyCrmGateway, TwentyGatewaySettings
 from leonaid.adapters.typst import TypstInvoiceRenderer
+from leonaid.application.delivery_geo import GeocodingJob
 from leonaid.application.documents import InvoiceDocumentStorageHandler
+from leonaid.application.feature_flags import FeatureFlagService
 from leonaid.application.crm import CrmGateway
 from leonaid.application.object_storage import ObjectStorage
 from leonaid.application.order_mails import (
@@ -53,7 +62,11 @@ from leonaid.bootstrap.registry import (
     collect_handlers,
     split_enabled,
 )
-from leonaid.configuration import load_mail_transport_settings, load_module_settings
+from leonaid.configuration import (
+    MapSettings,
+    load_mail_transport_settings,
+    load_module_settings,
+)
 from leonaid.domain.outbox import ClaimedOutboxEvent, RetryPolicy
 from leonaid.modules.inbox.jobs import (
     INBOX_HANDLER_TIMEOUTS,
@@ -341,3 +354,19 @@ async def build_worker(
         on_close=crm.close if crm is not None else None,
     )
     return pool, queue, worker
+
+
+def build_geocoding_job(
+    pool: asyncpg.Pool[Any], settings: MapSettings
+) -> tuple[GeocodingJob, NominatimGeocoder]:
+    """The geocoding job and its HTTP client; the caller closes the client."""
+
+    geocoder = NominatimGeocoder(settings.geocoder_url, settings.geocoder_user_agent)
+    flags = FeatureFlagService(
+        AsyncpgFeatureFlagRepository(pool),
+        OpenFeatureBooleanEvaluator(LeonAidFeatureProvider()),
+    )
+    return (
+        GeocodingJob(AsyncpgDeliveryGeoRepository(pool), geocoder, flags),
+        geocoder,
+    )

@@ -12,6 +12,7 @@ from uuid import UUID
 
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.delivery import DeliveryContactSnapshot
+from leonaid.domain.delivery_geo import GeoPoint
 from leonaid.domain.identity import require_aware
 
 EMAIL = re.compile(r"^[^@\s]+@[^@\s]+$")
@@ -160,6 +161,8 @@ class PrivacyOrderDelivery:
     delivery_window_id: UUID | None
     delivery_window_snapshot: dict[str, str] | None
     delivery_contact: DeliveryContactSnapshot | None
+    # Geocoded or pinned coordinates of the delivery address (delivery_geo).
+    coordinates: GeoPoint | None = None
 
 
 @dataclass(frozen=True, slots=True)

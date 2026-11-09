@@ -338,12 +338,19 @@ class PrivacyRetentionResponse(TransportModel):
     audit_days: int
 
 
+class GeoPointResponse(TransportModel):
+    lat: float
+    lon: float
+
+
 class PrivacyOrderDeliveryResponse(TransportModel):
     commitment_id: UUID
     action_id: UUID
     delivery_window_id: UUID | None
     delivery_window_snapshot: dict[str, str] | None
     delivery_contact: DeliveryContactRequest | None
+    # Geocoded or pinned coordinates of the delivery address.
+    coordinates: GeoPointResponse | None
 
 
 class PrivacySubjectReportResponse(TransportModel):

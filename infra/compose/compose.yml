@@ -241,6 +241,13 @@ services:
       MAIL_HEALTH_URL: http://mailpit:8025/mail/api/v1/info
       WORKER_HEALTH_URL: http://worker:8010/health/ready
       MAIL_TEST_API_URL: http://mailpit:8025/mail
+      # Map tiles and geocoder (specs/krapfentaxi-touren §8). Empty = OSM
+      # standard tiles and the public Nominatim.
+      LEONAID_MAP_TILE_URL: ${LEONAID_MAP_TILE_URL:-}
+      LEONAID_MAP_TILE_ORIGIN: ${LEONAID_MAP_TILE_ORIGIN:-}
+      LEONAID_MAP_ATTRIBUTION: ${LEONAID_MAP_ATTRIBUTION:-}
+      LEONAID_GEOCODER_URL: ${LEONAID_GEOCODER_URL:-}
+      LEONAID_GEOCODER_USER_AGENT: ${LEONAID_GEOCODER_USER_AGENT:-}
     volumes:
       - maintenance-state:/run/leonaid-maintenance:ro
       - survey-erasure-archive:/recovery/survey-erasure
@@ -325,6 +332,17 @@ services:
       OUTBOX_MAX_ATTEMPTS: "5"
       OUTBOX_BASE_BACKOFF_SECONDS: "5"
       OUTBOX_CLAIM_LEASE_SECONDS: "300"
+      # Map tiles and geocoder (specs/krapfentaxi-touren §8). Empty = OSM
+      # standard tiles and the public Nominatim.
+      LEONAID_MAP_TILE_URL: ${LEONAID_MAP_TILE_URL:-}
+      LEONAID_MAP_TILE_ORIGIN: ${LEONAID_MAP_TILE_ORIGIN:-}
+      LEONAID_MAP_ATTRIBUTION: ${LEONAID_MAP_ATTRIBUTION:-}
+      LEONAID_GEOCODER_URL: ${LEONAID_GEOCODER_URL:-}
+      LEONAID_GEOCODER_USER_AGENT: ${LEONAID_GEOCODER_USER_AGENT:-}
+      LEONAID_GEOCODING_INTERVAL_SECONDS: ${LEONAID_GEOCODING_INTERVAL_SECONDS:-}
+      # Names the installation in the geocoder's User-Agent. The dev worker
+      # has no egress network, so lookups there end as `failed` rows.
+      LEONAID_PUBLIC_BASE_URL: ${LEONAID_ADMIN_BASE_URL:-https://localhost:${LEONAID_HTTPS_PORT:-8443}}
     volumes:
       - survey-erasure-archive:/recovery/survey-erasure
     networks:

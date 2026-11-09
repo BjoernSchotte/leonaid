@@ -7632,6 +7632,25 @@
         "title": "GeneratedDocumentResponse",
         "type": "object"
       },
+      "GeoPointResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          }
+        },
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "title": "GeoPointResponse",
+        "type": "object"
+      },
       "HandOverAcquisitionAssignmentRequest": {
         "additionalProperties": false,
         "properties": {
@@ -12370,6 +12389,16 @@
             "title": "Commitmentid",
             "type": "string"
           },
+          "coordinates": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GeoPointResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "deliveryContact": {
             "anyOf": [
               {
@@ -12412,7 +12441,8 @@
           "actionId",
           "deliveryWindowId",
           "deliveryWindowSnapshot",
-          "deliveryContact"
+          "deliveryContact",
+          "coordinates"
         ],
         "title": "PrivacyOrderDeliveryResponse",
         "type": "object"

@@ -3,6 +3,7 @@
 import json
 from dataclasses import replace
 from datetime import datetime, timezone
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 import asyncpg
@@ -15,10 +16,12 @@ from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.order_cancellation import (
     AsyncpgOrderCancellationRepository,
 )
+from leonaid.adapters.postgres.delivery_geo import AsyncpgDeliveryGeoRepository
 from leonaid.adapters.postgres.privacy import AsyncpgPrivacyRepository
 from leonaid.application.delivery_completion import delivery_completion_version
 from leonaid.application.order_cancellation import OrderCancellationRequest
 from leonaid.application.privacy import PrivacyService
+from leonaid.domain.delivery_geo import GeoPoint
 from leonaid.domain.identity import (
     AccountStatus,
     GlobalRole,
@@ -72,6 +75,23 @@ async def prove_privacy(pool: asyncpg.Pool, admin_id: UUID) -> None:
     app, identity = http_app(actor)
     app.state.privacy_service = PrivacyService(repo)
     email = "customer@example.invalid"
+    # A pinned delivery address: its coordinates are personal data too.
+    pinned = await pool.fetchrow(
+        """
+        SELECT id, action_id FROM commitment
+        WHERE lower(customer_snapshot ->> 'email') = $1
+          AND delivery_recipient_snapshot IS NOT NULL
+        ORDER BY created_at, id LIMIT 1
+        """,
+        email,
+    )
+    assert pinned is not None
+    await AsyncpgDeliveryGeoRepository(pool).set_pin(
+        action_id=pinned["action_id"],
+        commitment_id=pinned["id"],
+        point=GeoPoint(Decimal("48.137154"), Decimal("11.576124")),
+        at=now,
+    )
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
@@ -89,6 +109,11 @@ async def prove_privacy(pool: asyncpg.Pool, admin_id: UUID) -> None:
             for item in with_contact
         )
         assert any(item["deliveryWindowId"] is None for item in details)
+        assert [
+            item["coordinates"]
+            for item in details
+            if item["commitmentId"] == str(pinned["id"])
+        ] == [{"lat": 48.137154, "lon": 11.576124}]
         identity.current = replace(actor, global_roles=frozenset())
         assert (
             await client.post("/api/v1/admin/privacy/lookup", json={"email": email})
@@ -171,6 +196,10 @@ async def prove_privacy(pool: asyncpg.Pool, admin_id: UUID) -> None:
     assert cancellation["note_snapshot"] is None
     assert cancellation["reason_snapshot"] == cancel_request.reason
     assert not (await repo.subject_report(email)).order_deliveries
+    assert not await pool.fetchval(
+        "SELECT count(*) FROM delivery_geo WHERE commitment_id = ANY($1::uuid[])",
+        list(before),
+    )
     legacy_result = await app.state.privacy_service.erase(
         actor,
         email="legacy@leonaid.invalid",
@@ -183,5 +212,5 @@ async def prove_privacy(pool: asyncpg.Pool, admin_id: UUID) -> None:
         == invoices
     )
     print(
-        "KLF-030 privacy PASS: scoped HTTP lookup, export delivery snapshots/contact, historical nulls, 401/403, erasure removes contacts and the cancellation note, windows and invoice snapshots retained"
+        "KLF-030 privacy PASS: scoped HTTP lookup, export delivery snapshots/contact, historical nulls, 401/403, erasure removes contacts, coordinates and the cancellation note, windows and invoice snapshots retained"
     )

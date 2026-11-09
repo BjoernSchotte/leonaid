@@ -39,7 +39,8 @@ prüft die Loopback-Bindung und gibt den Befehl
 Arbeitsplatz startet, bevor sie `http://localhost:PORT` öffnet.
 Datenbanken, der Valkey-Queue-Speicher, S3 und interne APIs
 bleiben in Compose-Netzen. Im Pilot sind nur Worker und Twenty-Worker im Netz
-`mail-egress`, dem einzigen Weg zum externen SMTP-Relay. Twenty versendet nur
+`mail-egress`, dem einzigen Weg zum externen SMTP-Relay und für den Worker
+zum Geocoder. Twenty versendet nur
 mit `MAIL_SMTP_MODE=tls` (implizites TLS auf Port 465), weil sein SMTP-Client
 STARTTLS nicht erzwingen kann. Bei `starttls` starten die Twenty-Container mit
 dem Logger-Mailtreiber und versenden nichts; `pilot-doctor` warnt, blockiert
@@ -71,6 +72,28 @@ die Outbox-Zähler unter **System › Hintergrundaufgaben** (`/admin/system/jobs
 für das Aufbewahrungsfenster. `docker compose run --rm worker python -m
 leonaid.entrypoints.worker.outbox retention-sweep` startet einen Durchlauf von
 Hand.
+
+## Geocoding der Lieferadressen
+
+Der Worker führt für die Karte der Liefertouren eine Schleife `geocoding`
+aus. Sie arbeitet nur, solange das Feature-Flag `delivery.tours` an ist, und
+nur für Bestellungen mit Liefertag ab heute. Einmal pro
+`LEONAID_GEOCODING_INTERVAL_SECONDS` (Standard `60`) fragt sie höchstens 30
+Adressen bei `LEONAID_GEOCODER_URL` ab (Standard: das öffentliche Nominatim,
+`https://nominatim.openstreetmap.org/search`), eine Anfrage pro Sekunde. Sie
+sendet nur Straße, Postleitzahl, Ort und Land, nie Namen oder Kontakte, mit
+dem User-Agent `LEONAID_GEOCODER_USER_AGENT` (Standard
+`LeonAid (<LEONAID_PUBLIC_BASE_URL>)`). Das Ergebnis liegt pro Bestellung in
+`delivery_geo`; eine nicht gefundene Adresse wird nicht erneut gefragt, ein
+Timeout oder Anbieterfehler höchstens dreimal im Abstand von einer Stunde.
+Eine geänderte Adresse wird neu abgefragt. Logs enthalten nur Zahlen; die
+Metrik `leonaid_worker_geocoding_lookups_total` zählt die Abfragen. Im Pilot
+erreicht der Worker den Geocoder über das Netz `mail-egress`; der Dev-Stack
+hat keinen Ausgang, dort enden Abfragen als Fehler. Die Kartenkacheln kommen
+von `LEONAID_MAP_TILE_URL` (Standard OpenStreetMap) mit
+`LEONAID_MAP_ATTRIBUTION`; eine Kachel-URL auf einem anderen Host muss ihren
+Origin in `LEONAID_MAP_TILE_ORIGIN` nennen. Ungültige Werte stoppen den
+Worker beim Start mit `worker.configuration.invalid`.
 
 ## Clubname
 
