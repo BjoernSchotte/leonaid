@@ -8,7 +8,6 @@ from decimal import Decimal
 import pytest
 
 from leonaid.domain.delivery_geo import (
-    MIN_IMPORTANCE,
     Failed,
     Found,
     GeocodeQuery,
@@ -19,6 +18,7 @@ from leonaid.domain.delivery_geo import (
     accept,
     address_hash,
     is_pending,
+    query_house_number,
     retry_due,
     start_geocode_query,
 )
@@ -43,14 +43,64 @@ def test_address_hash_ignores_case_and_spacing_only() -> None:
         assert address_hash(changed) != address_hash(QUERY)
 
 
-def test_accept_requires_matching_postcode_and_importance() -> None:
-    assert MIN_IMPORTANCE == 0.05
-    assert accept("80331", 0.05, QUERY)
-    assert accept(" 80331 ", 0.4, QUERY)
-    assert not accept("80333", 0.9, QUERY)
-    assert not accept(None, 0.9, QUERY)
-    assert not accept("80331", 0.049, QUERY)
-    assert not accept("80331", None, QUERY)
+def test_accept_takes_an_exact_house_hit_regardless_of_importance() -> None:
+    # Nominatim's importance of an exact hit is about 6e-5; it is not looked at.
+    assert accept("80331", "1", 30, QUERY)
+    assert accept(" 80331 ", " 1 ", 30, QUERY)
+    # A house number alone, or a rank alone (street query without number), is enough.
+    assert accept("80331", "1", None, QUERY)
+    street = GeocodeQuery("Marienplatz", "80331", "München", "DE")
+    assert accept("80331", None, 26, street)
+
+
+def test_accept_rejects_other_postcode_or_missing_postcode() -> None:
+    assert not accept("80333", "1", 30, QUERY)
+    assert not accept(None, "1", 30, QUERY)
+
+
+def test_accept_rejects_other_house_number() -> None:
+    assert not accept("80331", "2", 30, QUERY)
+    assert not accept("80331", "11", 30, QUERY)
+    assert not accept("80331", "1a", 30, QUERY)
+
+
+def test_accept_rejects_street_level_hit_when_query_has_a_number() -> None:
+    assert not accept("80331", None, 26, QUERY)
+    assert not accept("80331", "", 22, QUERY)
+
+
+def test_accept_rejects_coarse_hit_without_house_number() -> None:
+    street = GeocodeQuery("Marienplatz", "80331", "München", "DE")
+    assert not accept("80331", None, 25, street)
+    assert not accept("80331", None, None, street)
+
+
+def test_accept_house_number_ignores_case_and_spacing() -> None:
+    query = GeocodeQuery("Ludwigstraße 25a", "83646", "Bad Tölz", "DE")
+    assert accept("83646", "25 a", 30, query)
+    assert accept("83646", "25A", 30, query)
+    spaced = GeocodeQuery("Ludwigstraße 25 A", "83646", "Bad Tölz", "DE")
+    assert accept("83646", "25a", 30, spaced)
+    assert not accept("83646", "25", 30, query)
+    assert not accept("83646", "25b", 30, query)
+
+
+def test_accept_house_number_ranges_and_lists() -> None:
+    query = GeocodeQuery("Hauptstraße 5-7", "83646", "Bad Tölz", "DE")
+    assert accept("83646", "5-7", 30, query)
+    assert accept("83646", "5-7;9", 30, query)
+    assert not accept("83646", "5", 30, query)
+    single = GeocodeQuery("Hauptstraße 5", "83646", "Bad Tölz", "DE")
+    assert accept("83646", "5;7", 30, single)
+
+
+def test_query_house_number_only_from_the_end_of_the_street_line() -> None:
+    assert query_house_number(QUERY) == "1"
+    assert query_house_number(GeocodeQuery("Straße 17. Juni", "1", "x", "DE")) is None
+    assert (
+        query_house_number(GeocodeQuery("Straße des 17. Juni 5", "1", "x", "DE")) == "5"
+    )
+    assert query_house_number(GeocodeQuery("Am Hang 12 a", "1", "x", "DE")) == "12a"
 
 
 def test_retry_due_only_for_failed_under_three_attempts() -> None:
@@ -104,7 +154,7 @@ def test_geo_point_is_validated_and_quantised() -> None:
 
 def test_outcomes_name_their_stored_value() -> None:
     point = GeoPoint(Decimal(1), Decimal(2))
-    assert Found(point, 0.5).outcome is GeoOutcome.FOUND
+    assert Found(point).outcome is GeoOutcome.FOUND
     assert NotFound().outcome is GeoOutcome.NOT_FOUND
     assert Failed("timeout").outcome is GeoOutcome.FAILED
     with pytest.raises(DomainInvariantError):

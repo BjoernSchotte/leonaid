@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import threading
 import time as monotonic
 from collections.abc import Iterator
@@ -79,13 +80,17 @@ QUERY_KEYS = {
     "limit",
 }
 PHONE = "+49 30 98765"
-# Canned answers per postal code: lat, lon, importance and returned postcode.
+# Canned answers per postal code: lat, lon, returned postcode and whether the
+# hit is the house (else only the street). Like the real Nominatim, the
+# importance is tiny even for an exact house hit.
+IMPORTANCE = 5.9e-05
 FOUND = {
-    "10115": ("52.532000", "13.384000", 0.41, "10115"),
-    "10178": ("52.521000", "13.410000", 0.33, "10178"),
-    "10117": ("52.517000", "13.389000", 0.01, "10117"),  # too unsure
-    "10119": ("52.530000", "13.400000", 0.50, "10999"),  # other postcode
+    "10115": ("52.532000", "13.384000", "10115", True),
+    "10178": ("52.521000", "13.410000", "10178", True),
+    "10117": ("52.517000", "13.389000", "10117", False),  # street only
+    "10119": ("52.530000", "13.400000", "10999", True),  # other postcode
 }
+_TRAILING_NUMBER = re.compile(r"(\d+\s*[^\W\d_]?)\s*\Z")
 SLOW_POSTCODE = "99999"  # answers after 2 s; the geocoder gives up at 0.5 s
 BROKEN_POSTCODE = "50000"  # 503
 
@@ -133,13 +138,19 @@ class _GeocoderHandler(BaseHTTPRequestHandler):
         answer = FOUND.get(postcode)
         document: list[dict[str, Any]] = []
         if answer is not None:
-            lat, lon, importance, returned = answer
+            lat, lon, returned, house_level = answer
+            address = {"postcode": returned, "city": params.get("city")}
+            number = _TRAILING_NUMBER.search(params.get("street", ""))
+            if house_level and number is not None:
+                address["house_number"] = number[1]
             document.append(
                 {
                     "lat": lat,
                     "lon": lon,
-                    "importance": importance,
-                    "address": {"postcode": returned, "city": params.get("city")},
+                    "importance": IMPORTANCE,
+                    "place_rank": 30 if house_level else 26,
+                    "addresstype": "building" if house_level else "road",
+                    "address": address,
                 }
             )
         self._send(200, json.dumps(document).encode())
@@ -454,7 +465,7 @@ async def _prove_changed_address_and_pin(fx: _Fixture) -> None:
     await fx.move(fx.second, "Zwischenstand 1", "10115")
     (old,) = await fx.repository.pending(today=TODAY, now=NOW, limit=30)
     await fx.move(fx.second, "Endstand 2", "10178")
-    lookup = Found(GeoPoint(Decimal(1), Decimal(1)), 0.9)
+    lookup = Found(GeoPoint(Decimal(1), Decimal(1)))
     assert not await fx.repository.record(old, lookup, geocoder="proof", at=NOW)
     kept = await fx.row(fx.second)
     assert kept is not None and kept["lat"] == Decimal("52.521000")
@@ -606,7 +617,7 @@ async def _prove_start_point(fx: _Fixture) -> None:
     assert not await fx.repository.record_start(
         fx.action_id,
         "Startweg 2, 50000 Köln (alt)",
-        Found(GeoPoint.parse("1", "1"), 0.9),
+        Found(GeoPoint.parse("1", "1")),
         geocoder="nominatim:127.0.0.1",
         at=NOW,
     )

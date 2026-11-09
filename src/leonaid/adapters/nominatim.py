@@ -103,15 +103,18 @@ def _outcome(document: Any, query: GeocodeQuery) -> GeocodeOutcome:
     if not isinstance(hit, dict):
         raise ValueError("not a result")
     address = hit.get("address")
-    postcode = address.get("postcode") if isinstance(address, dict) else None
-    importance = hit.get("importance")
-    if not isinstance(importance, (int, float)) or isinstance(importance, bool):
-        importance = None
+    if not isinstance(address, dict):
+        address = {}
+    postcode = address.get("postcode")
+    house_number = address.get("house_number")
+    place_rank = hit.get("place_rank")
+    if isinstance(place_rank, bool) or not isinstance(place_rank, int):
+        place_rank = None
     if not accept(
         postcode if isinstance(postcode, str) else None,
-        float(importance) if importance is not None else None,
+        house_number if isinstance(house_number, str) else None,
+        place_rank,
         query,
     ):
         return NotFound()
-    assert importance is not None
-    return Found(GeoPoint.parse(hit["lat"], hit["lon"]), float(importance))
+    return Found(GeoPoint.parse(hit["lat"], hit["lon"]))

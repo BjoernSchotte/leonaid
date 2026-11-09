@@ -19,9 +19,10 @@ from uuid import UUID
 
 from leonaid.domain.errors import DomainInvariantError
 
-# Nominatim's importance of a structured street hit is about 0.05-0.3; below
-# that the hit is a guess. To be calibrated on the dev instance (D14 e).
-MIN_IMPORTANCE = 0.05
+# Nominatim's place_rank of a street is 26, of a building 30. A hit with a
+# house number or a rank of at least 26 is accepted; the house number of the
+# query then decides whether it is the right one.
+MIN_PLACE_RANK = 26
 MAX_ATTEMPTS = 3
 RETRY_AFTER = timedelta(hours=1)
 # Geocoder id of a pin the manager set by hand.
@@ -127,7 +128,6 @@ def address_hash(query: GeocodeQuery) -> str:
 @dataclass(frozen=True, slots=True)
 class Found:
     point: GeoPoint
-    importance: float
 
     @property
     def outcome(self) -> GeoOutcome:
@@ -161,17 +161,45 @@ class Failed:
 GeocodeOutcome = Found | NotFound | Failed
 
 
-def accept(
-    result_postcode: str | None, importance: float | None, query: GeocodeQuery
-) -> bool:
-    """A hit counts only in the asked postal code and when it is not a guess."""
+# The house number at the end of a street line: "25", "25a", "12 a", "5-7".
+_HOUSE_NUMBER = re.compile(
+    r"(?<!\w)(\d+\s*[^\W\d_]?(?:\s*[-/]\s*\d+\s*[^\W\d_]?)?)\s*\Z"
+)
 
-    if result_postcode is None or importance is None:
+
+def _compact(value: str) -> str:
+    return "".join(value.split()).casefold()
+
+
+def query_house_number(query: GeocodeQuery) -> str | None:
+    """The house number of the street line, compact and case-folded."""
+
+    match = _HOUSE_NUMBER.search(query.street)
+    return _compact(match[1]) if match else None
+
+
+def accept(
+    result_postcode: str | None,
+    result_house_number: str | None,
+    place_rank: int | None,
+    query: GeocodeQuery,
+) -> bool:
+    """A hit counts only at house level, in the asked postal code and at the
+    asked house number. Nominatim's importance says nothing about an address
+    (about 6e-5 even for an exact hit), so it is not used."""
+
+    if result_postcode is None:
         return False
-    return (
-        result_postcode.strip() == query.postal_code.strip()
-        and importance >= MIN_IMPORTANCE
-    )
+    house_number = (result_house_number or "").strip()
+    if not house_number and (place_rank is None or place_rank < MIN_PLACE_RANK):
+        return False
+    if result_postcode.strip() != query.postal_code.strip():
+        return False
+    wanted = query_house_number(query)
+    if wanted is None:
+        return True
+    # "5;7" is one object with two numbers.
+    return wanted in {_compact(part) for part in re.split(r"[;,]", house_number)}
 
 
 def retry_due(
