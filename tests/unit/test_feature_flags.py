@@ -156,7 +156,8 @@ def test_delivery_tours_flag_ships_off_and_matches_transport_and_schema() -> Non
     import inspect
 
     path = (
-        Path(__file__).resolve().parents[2] / "migrations/versions/0058_delivery_tours.py"
+        Path(__file__).resolve().parents[2]
+        / "migrations/versions/0058_delivery_tours.py"
     )
     spec = importlib.util.spec_from_file_location("migration_0058", path)
     assert spec is not None and spec.loader is not None
