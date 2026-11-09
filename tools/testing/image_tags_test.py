@@ -12,7 +12,9 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-os.environ["LEONAID_IMAGE_REPOSITORY"] = "leonaid-local-selftest"
+# Docker tags are host-global: concurrent checks in other checkouts must not
+# remove this run's tags (their cleanup lists the whole repository).
+os.environ["LEONAID_IMAGE_REPOSITORY"] = f"leonaid-local-selftest-{os.getpid()}"
 import image_tags
 from ci_fixture import environment
 
@@ -190,7 +192,7 @@ class ComposeMirrorTests(unittest.TestCase):
 class TaggingTests(unittest.TestCase):
     """adopt/record/prune with the real Docker CLI in a test-only repository."""
 
-    project = "leonaid-imagetagtest"
+    project = f"leonaid-imagetagtest-{os.getpid()}"
 
     def setUp(self):
         self.alpine = next(
