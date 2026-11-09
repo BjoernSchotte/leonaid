@@ -158,8 +158,9 @@ run_browser() {
     "$@"
 }
 
+# The role dashboards ride on this stack and seed (E-043).
 run_browser tests/e2e/ux-acceptance.spec.mjs tests/e2e/command-palette.spec.mjs \
-  tests/e2e/command-palette-faults.spec.mjs \
+  tests/e2e/command-palette-faults.spec.mjs tests/e2e/dashboard.spec.mjs \
   --output=/browser-results/run
 
 # Review Focus #1: with modules switched off, the palette offers neither
@@ -189,7 +190,10 @@ done
 for screenshot in \
   ux-admin-desktop.png \
   ux-acquirer-mobile.png \
-  ux-public-order-mobile.png; do
+  ux-public-order-mobile.png \
+  dashboard-acquirer-mobile.png \
+  dashboard-admin-desktop.png \
+  dashboard-empty-desktop.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "ux-acceptance-test: ERROR: browser evidence missing: $screenshot" >&2
     exit 1
@@ -200,6 +204,10 @@ mkdir -p "$artifact_directory"
 cp "$proof"/performance-report.json "$artifact_directory/"
 cp "$proof"/ux-*.json "$artifact_directory/"
 cp "$proof"/ux-*.png "$artifact_directory/"
+mkdir -p "$root/.artifacts/poc101"
+cp "$proof"/dashboard-*.png "$root/.artifacts/poc101/"
 
 echo "ux-acceptance-test: OK: admin, acquirer and public,"
 echo "ux-acceptance-test:     keyboard, screen reader, 200 %, a11y and performance proven"
+echo "dashboard-test: OK: golden metrics against real SQL aggregates,"
+echo "dashboard-test:     roles, drilldowns, empty view and A11y proven"

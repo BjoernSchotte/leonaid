@@ -109,58 +109,48 @@ FLAGS = ("contract", "golden", "surveys", "api", "pins")
 # seconds are bin times, E2E seconds leaf sums; refresh them from the
 # "ci-integration: bin: <shard> passed (<n>s)" lines when a shard grows a lot.
 INTEGRATION_SECONDS = {
-    # Bin times of run 42569824316 (#180, 2026-11-09). A bin's first shard
-    # also pays its stack's preparation, so these are leg costs, not test
-    # times. schema and outbox ran as one shard: 199 s and 63 s by the log.
-    "seed-reset": 336,
-    "typst": 32,
-    "storage": 47,
-    "documents": 65,
-    "profiles": 58,
-    "crm-gateway": 76,
-    "crm-import": 68,
-    "twenty-install": 52,
-    "policy": 48,
-    "schema": 199,
-    "outbox": 63,
-    "delivery": 12,
-    "api-contract": 36,
-    # Minus the lazy Twenty pulls (39 s, 31 s) that the leg prefetch removes.
-    "privacy": 121,
-    # E-041: one stack and seed; 192 s (run 42599007828) minus five boots,
-    # seeds and resets, plus ~50 s wait for the API's Twenty budget.
-    "acquisition-contracts": 115,
+    # Bin times of run 42615740437 (#201 merged, 2026-11-09). A bin's first
+    # shard also pays its stack's preparation, so these are leg costs.
+    "seed-reset": 212,
+    "typst": 48,
+    "storage": 46,
+    "documents": 113,
+    "profiles": 70,
+    "crm-gateway": 58,
+    "crm-import": 29,
+    "twenty-install": 37,
+    "policy": 31,
+    "schema": 189,
+    "outbox": 44,
+    "delivery": 8,
+    "api-contract": 34,
+    "privacy": 83,
+    "acquisition-contracts": 92,
     # The Contract job (tools/ci/contract.sh) rides in an Integration bin.
-    "contract": 118,
+    "contract": 95,
 }
 # The PWA leaf runs as three (tools/ci/e2e.sh pwa, pwa-offline,
 # pwa-offline-webkit).
 PWA = ("pwa", "pwa-offline", "pwa-offline-webkit")
 E2E_SECONDS = {
-    # Leaf sums of run 42552919966 (#179, Twenty kept between golden leaves;
-    # own-stack leaves included). public-catalog: multi_host 146 s minus its
-    # Twenty boot (91 s), which the leaf no longer starts.
-    "public-catalog": 164,
-    "membership": 97,
-    "invoices": 50,
-    "commitments": 41,
-    # The pwa leaf (369 s) by mode: local 69 s + 215 s, plus its setup twice.
-    "pwa": 110,
-    # Run 42579402419: the offline leaf took 292 s, Chromium 126 s and WebKit
-    # 72 s of it; WebKit is its own leaf now, minus two runs (16 s) that
-    # repeat its device-copy deletion. Each pays its stack start (~50 s).
-    "pwa-offline": 200,
-    "pwa-offline-webkit": 110,
-    "action-admin": 65,
-    # Minus the existing-company UI path and an app width (local -4 s each).
-    "public-orders": 127,
-    "identity": 60,
-    "tasks": 106,
-    "knowledge": 66,
-    "inbox": 48,
-    "leitsystem-ui": 261,
-    "operations": 92,
-    "invoice-flows": 115,
+    # Leaf sums of run 42606864760 (2026-11-09). E-043: leitsystem-ui 243 s
+    # minus the dashboard leaf's stack start and reset (39 s).
+    "public-catalog": 114,
+    "membership": 49,
+    "invoices": 70,
+    "commitments": 70,
+    "pwa": 119,
+    "pwa-offline": 189,
+    "pwa-offline-webkit": 84,
+    "action-admin": 35,
+    "public-orders": 134,
+    "identity": 37,
+    "tasks": 93,
+    "knowledge": 45,
+    "inbox": 32,
+    "leitsystem-ui": 204,
+    "operations": 122,
+    "invoice-flows": 161,
     # Estimate: three single tests on two prepared stacks.
     SMOKE: 240,
 }
@@ -179,10 +169,9 @@ EMDASH_SECONDS = {
     "campaign-edge": 346,
     "static": 105,
 }
-# Average test seconds per leg; MAX_BINS caps the count. Integration then
-# fills all its legs, small E2E selections still share one.
-# 300 s: the six E2E legs of E-037 fill (about 1700 s of leaves).
-TARGET_SECONDS = 300
+# Average test seconds per leg; MAX_BINS caps the count. 300 s per leg
+# minus about 110 s of fixed preparation (E-043).
+TARGET_SECONDS = 190
 # ci.yml timeout-minutes of each leg kind (workflow_contract.py keeps them
 # equal). A leg's estimate is its shards' seconds plus LEG_SETUP_SECONDS; the
 # selector warns at LOAD_WARNING of the timeout, before a growing shard table
@@ -193,8 +182,8 @@ LEG_SETUP_SECONDS = 150
 # one fixture kind share one (tools/ci/e2e.sh).
 SHARD_SETUP_SECONDS = {"integration": 90, "e2e": 0, "emdash": 90}
 LOAD_WARNING = 0.75
-# E-037: six E2E legs; the offline leaf no longer sets the floor (#193).
-MAX_BINS = {"integration": 4, "e2e": 6}
+# E-043: the smallest counts at which every packed leg fits 300 s.
+MAX_BINS = {"integration": 6, "e2e": 8}
 # Integration shards that never start Twenty. Every other leg prefetches its
 # image beside the layer import: run 42569824316 pulled it lazily for 31 s
 # and 39 s inside the first leaf of two legs (acquisition-contracts, privacy).

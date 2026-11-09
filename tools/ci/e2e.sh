@@ -48,7 +48,8 @@ leaves() {
     ;;
   # Leitsystem shell: tokens, contrast, visual baselines, dashboard, UX gates.
   leitsystem-ui)
-    echo golden tools/ui_system/test.sh tools/ux_acceptance/test.sh tools/dashboard/test.sh
+    # ux_acceptance also runs the dashboard spec (E-043).
+    echo golden tools/ui_system/test.sh tools/ux_acceptance/test.sh
     ;;
   operations)
     echo golden tools/operations/test.sh tools/feature_flags/test.sh
