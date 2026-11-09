@@ -15,6 +15,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from uuid import UUID, uuid4
 
 import asyncpg
+import httpx
 
 from leonaid.adapters.feature_flags.openfeature import (
     LeonAidFeatureProvider,
@@ -48,6 +49,7 @@ from leonaid.domain.delivery_tours import DayTours, DriverTour, MyTour
 from leonaid.domain.identity import ActionRole, IdentityPrincipal
 from leonaid.modules.tasks.delivery_follow_up import TaskDeliveryFollowUp
 from tools.delivery.board import _expect, _principal, _user
+from tools.delivery.http_configuration import http_app
 
 REQUEST = "tours-proof"
 
@@ -300,6 +302,7 @@ async def prove_tours(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) -> No
         " WHERE key='delivery.tours'"
     )
     try:
+        await prove_tour_http(fx)
         await _prove_orders(fx)
         await prove_tour_membership_changes(fx)
         await _prove_access_and_audit(fx)
@@ -314,8 +317,140 @@ async def prove_tours(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) -> No
         "TOURS PASS: flag gate, base order with no-op and revision conflict,"
         " driver order beside the base order, driver scope, foreign driver"
         " refused, one read audit per window and day, discard and empty driver"
-        " write reset"
+        " write reset, five HTTP operations (roles, flag, no-store)"
     )
+
+
+async def prove_tour_http(fx: _Fixture) -> None:
+    """The five tour operations over ASGI: roles, flag gate, no-store."""
+    app, identity = http_app(fx.admin)
+    app.state.delivery_tour_service = fx.tours
+    base = f"/api/v1/actions/{fx.action_id}"
+    day = fx.day.isoformat()
+    manager_paths = {
+        "get": f"{base}/delivery-board/tours?day={day}",
+        "put": f"{base}/delivery-board/tours/{fx.anna_id}/order",
+        "delete": f"{base}/delivery-board/tours/{fx.anna_id}/driver-order?day={day}",
+    }
+    driver_paths = {"get": f"{base}/my-tour?day={day}", "put": f"{base}/my-tour/order"}
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+
+        def order_body(tour: dict[str, object]) -> dict[str, object]:
+            ids = [
+                stop["drop"]["commitmentId"]
+                for window in tour["windows"]  # type: ignore[attr-defined]
+                for stop in window["stops"]
+            ]
+            return {
+                "day": day,
+                "expectedRevision": tour["revision"],
+                "commitmentIds": ids,
+            }
+
+        async def call(name: str, method: str, path: str, body: object = None):  # type: ignore[no-untyped-def]
+            response = await client.request(method, path, json=body)
+            assert response.headers["cache-control"] == "private, no-store" or (
+                response.status_code != 200
+            ), name
+            return response
+
+        # Manager: the day overview, then base order and discard.
+        response = await call("day", "GET", manager_paths["get"])
+        assert response.status_code == 200, response.text
+        assert response.headers["cache-control"] == "private, no-store"
+        overview = response.json()
+        assert overview["day"] == day and overview["unassigned"]
+        anna = next(
+            t for t in overview["tours"] if t["driverUserId"] == str(fx.anna_id)
+        )
+        body = order_body(anna)
+        response = await call("base", "PUT", manager_paths["put"], body)
+        assert response.status_code == 200, response.text
+        assert response.headers["cache-control"] == "private, no-store"
+        assert response.json()["driverUserId"] == str(fx.anna_id)
+        response = await call("discard", "DELETE", manager_paths["delete"])
+        assert response.status_code == 200, response.text
+        assert response.headers["cache-control"] == "private, no-store"
+        assert response.json()["driverOrderedAt"] is None
+        # Strict request bodies: unknown fields and a missing day are refused.
+        assert (
+            await client.put(manager_paths["put"], json={**body, "extra": 1})
+        ).status_code == 422
+        assert (
+            await client.delete(
+                f"{base}/delivery-board/tours/{fx.anna_id}/driver-order"
+            )
+        ).status_code == 422
+        # A driver may not use the manager operations.
+        identity.current = fx.anna
+        assert (await client.get(manager_paths["get"])).status_code == 403
+        assert (await client.put(manager_paths["put"], json=body)).status_code == 403
+        assert (await client.delete(manager_paths["delete"])).status_code == 403
+
+        # Driver: own tour, own order, empty list resets.
+        response = await call("mine", "GET", driver_paths["get"])
+        assert response.status_code == 200, response.text
+        assert response.headers["cache-control"] == "private, no-store"
+        mine = response.json()
+        assert mine["tour"]["driverUserId"] == str(fx.anna_id)
+        own = order_body(mine["tour"])
+        response = await call("own", "PUT", driver_paths["put"], own)
+        assert response.status_code == 200, response.text
+        assert response.headers["cache-control"] == "private, no-store"
+        saved = response.json()
+        assert saved["driverOrderedAt"] is not None
+        response = await call(
+            "reset",
+            "PUT",
+            driver_paths["put"],
+            {**own, "expectedRevision": saved["revision"], "commitmentIds": []},
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["driverOrderedAt"] is None
+        # A driver of another action and a manager (no driver role) are refused.
+        for outsider in (fx.foreign, fx.admin):
+            identity.current = outsider
+            assert (await client.get(driver_paths["get"])).status_code == 403
+            assert (await client.put(driver_paths["put"], json=own)).status_code == 403
+        identity.current = None
+        assert (await client.get(driver_paths["get"])).status_code == 401
+
+        # Flag off: every operation answers 404 feature_flag_disabled.
+        await fx.pool.execute(
+            "UPDATE feature_flag SET enabled=false, revision=revision+1"
+            " WHERE key='delivery.tours'"
+        )
+        try:
+            for actor, calls in (
+                (
+                    fx.admin,
+                    (
+                        ("GET", manager_paths["get"], None),
+                        ("PUT", manager_paths["put"], body),
+                        ("DELETE", manager_paths["delete"], None),
+                    ),
+                ),
+                (
+                    fx.anna,
+                    (
+                        ("GET", driver_paths["get"], None),
+                        ("PUT", driver_paths["put"], own),
+                    ),
+                ),
+            ):
+                identity.current = actor
+                for method, path, payload in calls:
+                    response = await client.request(method, path, json=payload)
+                    assert response.status_code == 404, (method, path, response.text)
+                    assert response.json() == {"code": "feature_flag_disabled"}
+        finally:
+            await fx.pool.execute(
+                "UPDATE feature_flag SET enabled=true, revision=revision+1"
+                " WHERE key='delivery.tours'"
+            )
 
 
 async def _prove_orders(fx: _Fixture) -> None:

@@ -2721,6 +2721,60 @@ class DeliveryDriverAssignmentResponse(TransportModel):
     changed: int
 
 
+class DeliveryTourStopResponse(TransportModel):
+    drop: DeliveryDropResponse
+    base_rank: int
+    # None while the driver has no own order.
+    driver_rank: int | None
+    effective_rank: int
+    new_for_driver: bool
+
+
+class DeliveryTourWindowResponse(TransportModel):
+    window_id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    closed: bool
+    stops: list[DeliveryTourStopResponse]
+
+
+class DeliveryTourResponse(TransportModel):
+    driver_user_id: UUID
+    driver_name: str
+    day: date
+    revision: str
+    driver_ordered_at: datetime | None
+    windows: list[DeliveryTourWindowResponse]
+
+
+class DeliveryDayToursResponse(TransportModel):
+    action_id: UUID
+    action_name: str
+    timezone: str
+    day: date | None
+    days: list[date]
+    unassigned: list[DeliveryTourWindowResponse]
+    tours: list[DeliveryTourResponse]
+    drivers: list[DeliveryBoardDriverResponse]
+
+
+class MyTourResponse(TransportModel):
+    action_id: UUID
+    action_name: str
+    timezone: str
+    days: list[date]
+    tour: DeliveryTourResponse | None
+
+
+class DeliveryTourOrderRequest(TransportModel):
+    """Stop ids of one tour in the wanted order. A driver may send an empty
+    list to go back to the planned order."""
+
+    day: date
+    expected_revision: str = Field(min_length=1, max_length=64)
+    commitment_ids: list[UUID] = Field(max_length=500)
+
+
 class DeliveryWindowClosureResultResponse(TransportModel):
     missed_count: int
     follow_up: Literal["tasks", "board"]

@@ -19,6 +19,8 @@ from fastapi.responses import PlainTextResponse
 
 from leonaid.application.delivery import DeliveryService
 from leonaid.application.delivery_board import DeliveryBoardService
+from leonaid.application.delivery_tours import DeliveryTourService
+from leonaid.domain.delivery_tours import DayTours, DriverTour, MyTour, TourWindow
 from leonaid.domain.delivery_board import DeliveryBoard, DeliveryDrop
 from leonaid.application.delivery_completion import (
     DeliveryCompletionDraft,
@@ -44,7 +46,13 @@ from leonaid.entrypoints.fastapi.schemas import (
     DeliveryDropContactResponse,
     DeliveryDropQuantityResponse,
     DeliveryDropResponse,
+    DeliveryDayToursResponse,
     DeliveryStateRequest,
+    DeliveryTourOrderRequest,
+    DeliveryTourResponse,
+    DeliveryTourStopResponse,
+    DeliveryTourWindowResponse,
+    MyTourResponse,
     DeliveryWindowClosureResponse,
     DeliveryWindowClosureResultResponse,
     DeliveryWindowReopenResponse,
@@ -5677,3 +5685,193 @@ async def reopen_delivery_window(
         occurred_at=datetime.now(timezone.utc),
     )
     return DeliveryWindowReopenResponse(reopened_count=reopened)
+
+
+# ---------- Delivery tours ----------
+
+
+def delivery_tour_service(request: Request) -> DeliveryTourService:
+    return cast(DeliveryTourService, request.app.state.delivery_tour_service)
+
+
+def delivery_tour_window_response(window: TourWindow) -> DeliveryTourWindowResponse:
+    return DeliveryTourWindowResponse(
+        window_id=window.window_id,
+        starts_at=window.starts_at,
+        ends_at=window.ends_at,
+        closed=window.closed,
+        stops=[
+            DeliveryTourStopResponse(
+                drop=delivery_drop_response(stop.drop),
+                base_rank=stop.base_rank,
+                driver_rank=stop.driver_rank,
+                effective_rank=stop.effective_rank,
+                new_for_driver=stop.new_for_driver,
+            )
+            for stop in window.stops
+        ],
+    )
+
+
+def delivery_tour_response(tour: DriverTour) -> DeliveryTourResponse:
+    return DeliveryTourResponse(
+        driver_user_id=tour.driver_user_id,
+        driver_name=tour.driver_name,
+        day=tour.day,
+        revision=tour.revision,
+        driver_ordered_at=tour.driver_ordered_at,
+        windows=[delivery_tour_window_response(window) for window in tour.windows],
+    )
+
+
+def day_tours_response(tours: DayTours) -> DeliveryDayToursResponse:
+    return DeliveryDayToursResponse(
+        action_id=tours.action_id,
+        action_name=tours.action_name,
+        timezone=tours.timezone,
+        day=tours.day,
+        days=list(tours.days),
+        unassigned=[delivery_tour_window_response(w) for w in tours.unassigned],
+        tours=[delivery_tour_response(tour) for tour in tours.tours],
+        drivers=[
+            DeliveryBoardDriverResponse(
+                user_id=driver.user_id, display_name=driver.display_name
+            )
+            for driver in tours.drivers
+        ],
+    )
+
+
+def my_tour_response(mine: MyTour) -> MyTourResponse:
+    return MyTourResponse(
+        action_id=mine.action_id,
+        action_name=mine.action_name,
+        timezone=mine.timezone,
+        days=list(mine.days),
+        tour=delivery_tour_response(mine.tour) if mine.tour else None,
+    )
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/delivery-board/tours",
+    operation_id="getDeliveryTours",
+    response_model=DeliveryDayToursResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def get_delivery_tours(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+    day: date | None = None,
+) -> DeliveryDayToursResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    tours = await delivery_tour_service(request).day_tours(
+        actor, action_id, day=day, viewed_at=datetime.now(timezone.utc)
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    return day_tours_response(tours)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/delivery-board/tours/{driver_user_id}/order",
+    operation_id="saveDeliveryTourOrder",
+    response_model=DeliveryTourResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def save_delivery_tour_order(
+    action_id: UUID,
+    driver_user_id: UUID,
+    body: DeliveryTourOrderRequest,
+    request: Request,
+    response: Response,
+) -> DeliveryTourResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    tour = await delivery_tour_service(request).save_base_order(
+        actor,
+        action_id,
+        driver_user_id,
+        day=body.day,
+        ordered_ids=body.commitment_ids,
+        expected_revision=body.expected_revision,
+        request_id=request_id(request),
+        occurred_at=datetime.now(timezone.utc),
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    return delivery_tour_response(tour)
+
+
+@router.delete(
+    "/api/v1/actions/{action_id}/delivery-board/tours/{driver_user_id}/driver-order",
+    operation_id="discardDeliveryDriverOrder",
+    response_model=DeliveryTourResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def discard_delivery_driver_order(
+    action_id: UUID,
+    driver_user_id: UUID,
+    day: date,
+    request: Request,
+    response: Response,
+) -> DeliveryTourResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    tour = await delivery_tour_service(request).discard_driver_order(
+        actor,
+        action_id,
+        driver_user_id,
+        day=day,
+        request_id=request_id(request),
+        occurred_at=datetime.now(timezone.utc),
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    return delivery_tour_response(tour)
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/my-tour",
+    operation_id="getMyTour",
+    response_model=MyTourResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def get_my_tour(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+    day: date | None = None,
+) -> MyTourResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    mine = await delivery_tour_service(request).my_tour(
+        actor, action_id, day=day, viewed_at=datetime.now(timezone.utc)
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    return my_tour_response(mine)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/my-tour/order",
+    operation_id="saveMyTourOrder",
+    response_model=DeliveryTourResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def save_my_tour_order(
+    action_id: UUID,
+    body: DeliveryTourOrderRequest,
+    request: Request,
+    response: Response,
+) -> DeliveryTourResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    tour = await delivery_tour_service(request).save_driver_order(
+        actor,
+        action_id,
+        day=body.day,
+        ordered_ids=body.commitment_ids,
+        expected_revision=body.expected_revision,
+        request_id=request_id(request),
+        occurred_at=datetime.now(timezone.utc),
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    return delivery_tour_response(tour)
