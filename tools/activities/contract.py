@@ -145,7 +145,8 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         initial.raise_for_status()
         initial_body = initial.json()
         initial_names = {item["partyDisplayName"] for item in initial_body["workItems"]}
-        if initial_names != {"Musterwerk GmbH", "Doppelkontakt AG"}:
+        # Earlier contracts on the same seed may add their own parties (E-041).
+        if not {"Musterwerk GmbH", "Doppelkontakt AG"} <= initial_names:
             raise ContractFailure(
                 f"Anna's work queue is wrong: {sorted(initial_names)}"
             )
@@ -250,7 +251,11 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         )
         board.raise_for_status()
         board_body = board.json()
-        items = board_body["workItems"]
+        items = [
+            item
+            for item in board_body["workItems"]
+            if item["partyDisplayName"] in {"Musterwerk GmbH", "Doppelkontakt AG"}
+        ]
         if [item["partyDisplayName"] for item in items[:2]] != [
             "Musterwerk GmbH",
             "Doppelkontakt AG",
