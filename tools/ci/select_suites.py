@@ -76,6 +76,7 @@ E2E_SHARDS = (
     "invoices",
     "commitments",
     "pwa",
+    "pwa-offline",
     "action-admin",
     "public-orders",
     "identity",
@@ -140,7 +141,9 @@ E2E_SECONDS = {
     "membership": 70,
     "invoices": 61,
     "commitments": 81,
-    "pwa": 451,
+    # Leaf pwa (371 s, run 42547017244) split by mode; local 69 s + 215 s.
+    "pwa": 95,
+    "pwa-offline": 300,
     "action-admin": 83,
     "public-orders": 87,
     "identity": 40,
@@ -555,7 +558,13 @@ RULES: tuple[Rule, ...] = (
         e2e("commitments"),
         "commitment proofs",
     ),
-    Rule(("tools/pwa/**", "tests/e2e/pwa*.spec.mjs"), e2e("pwa"), "PWA proofs"),
+    Rule(
+        ("tests/e2e/pwa-offline*.spec.mjs",),
+        e2e("pwa-offline"),
+        "PWA offline specs",
+    ),
+    Rule(("tests/e2e/pwa*.spec.mjs",), e2e("pwa"), "PWA specs"),
+    Rule(("tools/pwa/**",), e2e("pwa", "pwa-offline"), "PWA proofs"),
     Rule(
         (
             "tests/e2e/identity.spec.mjs",
@@ -668,7 +677,7 @@ RULES: tuple[Rule, ...] = (
     ),
     Rule(
         ("packages/features/src/acquisition/**",),
-        e2e("pwa") | {"golden"},
+        e2e("pwa", "pwa-offline") | {"golden"},
         "acquisition UI",
     ),
     Rule(
@@ -759,16 +768,18 @@ def everything_but_e2e() -> frozenset[str]:
 # leonaid.application, leonaid.domain, leonaid.adapters.postgres and
 # leonaid.modules.<stem>.*. A changed module selects the owners of every
 # module that imports it, directly or transitively (``e2e_owners``).
+# The PWA leaf runs as two (tools/ci/e2e.sh pwa, pwa-offline).
+PWA = ("pwa", "pwa-offline")
 E2E_OWNERS: dict[str, tuple[str, ...]] = {
     "tasks": ("tasks",),
     "materials": ("knowledge",),
     "inbox": ("inbox",),
     "knowledge": ("knowledge",),
-    "acquisition": ("pwa",),
-    "sponsor_matching": ("pwa",),
-    "crm_matching": ("pwa",),
-    "activities": ("pwa",),
-    "assignments": ("pwa",),
+    "acquisition": PWA,
+    "sponsor_matching": PWA,
+    "crm_matching": PWA,
+    "activities": PWA,
+    "assignments": PWA,
     "activity_feed": ("public-catalog",),
     "activity_projection": ("public-catalog",),
     "campaign_aliases": ("public-catalog",),
@@ -805,7 +816,7 @@ _MESSAGING = (
     "membership",
     "invoice-flows",
     "public-orders",
-    "pwa",
+    *PWA,
 )
 ALL_E2E = "*"
 # Modules the reverse import graph cannot reach: LeonAid wires adapters and
@@ -817,7 +828,7 @@ MODULE_OWNERS: tuple[tuple[str, tuple[str, ...] | str], ...] = (
     ("leonaid.adapters.mail", ("membership", "invoice-flows", "public-orders")),
     (
         "leonaid.adapters.twenty",
-        ("pwa", "public-orders"),
+        (*PWA, "public-orders"),
     ),
     ("leonaid.adapters.typst", ("invoices", "invoice-flows")),
     ("leonaid.adapters.storage", ("knowledge", "inbox", "invoices")),

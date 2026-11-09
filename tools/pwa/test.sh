@@ -3,6 +3,14 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
+# Leaf mode (tools/ci/e2e.sh pwa, pwa-offline): "ui" runs the browser
+# matrix, audit and outage specs, "offline" the offline queue in two
+# browsers; without a mode both run.
+mode=${2:-all}
+case "$mode" in
+  all | ui | offline) ;;
+  *) echo "pwa-test: ERROR: unknown mode $mode" >&2; exit 64 ;;
+esac
 . "$root/tools/testing/owned_teardown.sh"
 . "$root/infra/locks/images.env"
 
@@ -127,6 +135,8 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
 
 compose up --detach --wait --wait-timeout 420 pwa proxy
 
+if [ "$mode" != offline ]; then
+
 docker run --rm \
   --network "${project}_edge" \
   --env CI=1 \
@@ -165,7 +175,9 @@ docker run --rm \
   --output=/proof/test-results-audit \
   --trace=retain-on-failure \
   --reporter=line
+fi
 
+if [ "$mode" != ui ]; then
 # Offline queue (specs/pwa-offline-queue §16): the flag is switched on only
 # for its own specs; every other PWA spec proves the copy without it.
 offline_flag() {
@@ -276,7 +288,9 @@ if [ "$offline_orders" != "2 2" ]; then
   exit 1
 fi
 pwa_sessions
+fi
 
+if [ "$mode" != offline ]; then
 compose stop twenty-server
 
 docker run --rm \
@@ -297,24 +311,21 @@ docker run --rm \
   --output=/proof/test-results-error \
   --trace=retain-on-failure \
   --reporter=line
+fi
 
-for project in chromium-390 chromium-768 chromium-1440 firefox-390 webkit-390; do
-  screenshot="$proof/pwa-list-$project.png"
-  if [ ! -s "$screenshot" ]; then
-    echo "pwa-test: ERROR: browser evidence is missing: $screenshot" >&2
-    exit 1
-  fi
-done
-for screenshot in \
-  pwa-empty-chromium-390.png \
-  pwa-update-chromium.png \
-  pwa-offline-chromium.png \
-  pwa-offline-start-chromium.png \
-  pwa-offline-start-webkit.png \
-  pwa-offline-queue-chromium.png \
-  pwa-offline-queue-webkit.png \
-  pwa-offline-decision-chromium.png \
-  pwa-error-chromium-390.png; do
+evidence=""
+if [ "$mode" != offline ]; then
+  evidence="pwa-list-chromium-390.png pwa-list-chromium-768.png
+    pwa-list-chromium-1440.png pwa-list-firefox-390.png pwa-list-webkit-390.png
+    pwa-empty-chromium-390.png pwa-update-chromium.png pwa-offline-chromium.png
+    pwa-error-chromium-390.png"
+fi
+if [ "$mode" != ui ]; then
+  evidence="$evidence pwa-offline-start-chromium.png pwa-offline-start-webkit.png
+    pwa-offline-queue-chromium.png pwa-offline-queue-webkit.png
+    pwa-offline-decision-chromium.png"
+fi
+for screenshot in $evidence; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "pwa-test: ERROR: browser evidence is missing: $screenshot" >&2
     exit 1
@@ -324,5 +335,5 @@ done
 mkdir -p "$root/.artifacts/poc062"
 cp "$proof"/pwa-*.png "$root/.artifacts/poc062/"
 
-echo "pwa-test: OK: PWA, real visibility boundaries, contacts, 5 browser/viewport projects,"
+echo "pwa-test: OK ($mode): PWA, real visibility boundaries, contacts, 5 browser/viewport projects,"
 echo "pwa-test:     a11y, text scaling, touch, offline, update, empty and outage states proven"
