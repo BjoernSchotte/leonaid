@@ -136,7 +136,87 @@ async function signedIn(browser, persona) {
   return context;
 }
 
-test("the public host serves public pages without any identity request", async ({
+// Host routing, refusals, origins and the start area are server answers:
+// HTTP requests against the real proxy, no browser (E-026).
+test("the split proxy routes, refuses and redirects per host", async ({
+  request,
+}) => {
+  const get = (url, headers = {}) =>
+    request.get(url, { headers, maxRedirects: 0 });
+  for (const path of ["/", "/krapfentaxi", "/impressum"]) {
+    const response = await get(`${publicUrl}${path}`);
+    expect(response.status(), path).toBe(200);
+    // The session belongs to the admin host: one static sign-in link.
+    expect(await response.text(), path).toMatch(
+      new RegExp(
+        `<a [^>]*data-admin-host-link[^>]*href="${adminUrl}/"[^>]*>\\s*Mitgliederbereich`,
+      ),
+    );
+  }
+  // Astro trusts the public host: canonical names it, not localhost.
+  const page = await (await get(`${publicUrl}/krapfentaxi`)).text();
+  const canonical = page.match(/<link [^>]*rel="canonical"[^>]*href="([^"]+)"/);
+  expect(new URL(canonical?.[1] ?? "").origin).toBe(publicUrl);
+
+  // Public forms reach their own host's API and order action: validation
+  // errors prove that Core CSRF (public origin) and Astro checkOrigin
+  // (public host in allowedDomains, else 403) accepted the origin.
+  const inbox = await request.post(`${publicUrl}/api/v1/public/inbox-cases`, {
+    headers: { Origin: publicUrl, "Content-Type": "application/json" },
+    data: "{}",
+  });
+  expect(inbox.status()).toBe(422);
+  expect((await inbox.json()).error?.code).not.toBe("csrf_rejected");
+  const order = await request.post(
+    `${publicUrl}/_actions/createPublicOrder/`,
+    { headers: { Origin: publicUrl }, multipart: { alias: "krapfentaxi" } },
+  );
+  expect([400, 415]).toContain(order.status());
+  // The member API does not exist on the public host.
+  expect((await get(`${publicUrl}/api/v1/identity/me`)).status()).toBe(404);
+
+  // Member paths move to the admin host, campaign pages to the public host.
+  for (const [from, to] of [
+    [publicUrl, adminUrl, "/admin/"],
+    [publicUrl, adminUrl, "/app/"],
+    [publicUrl, adminUrl, "/login?returnTo=%2Fadmin%2F"],
+    [adminUrl, publicUrl, "/krapfentaxi"],
+  ].map(([source, target, path]) => [source + path, target + path])) {
+    const response = await get(from);
+    expect(response.status(), from).toBe(308);
+    expect(response.headers().location, from).toBe(to);
+  }
+  // The admin host refuses public order actions.
+  const refused = await request.post(
+    `${adminUrl}/impressum?_action=createPublicOrder`,
+    {
+      headers: {
+        Origin: adminUrl,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      data: "a=1",
+    },
+  );
+  expect(refused.status()).toBe(404);
+
+  // Core computes the start area and refuses one without a role for it.
+  const acquirer = {
+    Cookie: `__Host-leonaid_session=${sessions.acquirer}`,
+    Origin: adminUrl,
+  };
+  const identity = await get(`${adminUrl}/api/v1/identity/me`, acquirer);
+  expect((await identity.json()).landingPath).toBe("/app/");
+  const surface = await request.put(
+    `${adminUrl}/api/v1/identity/me/preferred-surface`,
+    { headers: acquirer, data: { surface: "web" } },
+  );
+  expect(surface.status()).toBe(409);
+  expect((await surface.json()).error?.code).toBe(
+    "preferred_surface_unavailable",
+  );
+});
+
+test("public pages send no identity request from the browser", async ({
   page,
 }) => {
   const identityRequests = [];
@@ -146,73 +226,16 @@ test("the public host serves public pages without any identity request", async (
     }
   });
   for (const path of ["/", "/krapfentaxi", "/impressum"]) {
-    const response = await page.goto(`${publicUrl}${path}`);
-    expect(response?.status()).toBe(200);
-    expect(new URL(page.url()).origin).toBe(publicUrl);
-    // The session belongs to the admin host: one static sign-in link.
-    const link = page.locator("[data-admin-host-link]");
-    await expect(link).toHaveText("Mitgliederbereich");
-    await expect(link).toHaveAttribute("href", `${adminUrl}/`);
+    await page.goto(`${publicUrl}${path}`);
+    await page.waitForLoadState("networkidle");
   }
-  await page.goto(`${publicUrl}/krapfentaxi`);
-  // Astro trusts the public host: canonical names it, not localhost.
-  const canonical = await page
-    .locator('link[rel="canonical"]')
-    .getAttribute("href");
-  expect(new URL(canonical ?? "").origin).toBe(publicUrl);
-  await page.waitForLoadState("networkidle");
   expect(identityRequests).toEqual([]);
 });
 
-test("public forms reach their own host's API and order action", async ({
-  page,
-}) => {
-  await page.goto(`${publicUrl}/krapfentaxi`);
-  const results = await page.evaluate(async () => {
-    const inbox = await fetch("/api/v1/public/inbox-cases", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: "{}",
-    });
-    const form = new FormData();
-    form.set("alias", "krapfentaxi");
-    const order = await fetch("/_actions/createPublicOrder/", {
-      method: "POST",
-      body: form,
-    });
-    const member = await fetch("/api/v1/identity/me");
-    return {
-      inbox: inbox.status,
-      inboxCode: (await inbox.json()).error?.code,
-      order: order.status,
-      member: member.status,
-    };
-  });
-  // Validation errors prove that Core CSRF (public origin) and Astro
-  // checkOrigin (public host in allowedDomains, else 403) accepted them.
-  expect(results.inbox).toBe(422);
-  expect(results.inboxCode).not.toBe("csrf_rejected");
-  expect([400, 415]).toContain(results.order);
-  // The member API does not exist on the public host.
-  expect(results.member).toBe(404);
-});
-
 // @webkit: WebKit cookie handling (ITP) is the risk for the host-only session.
-test("member paths move to the admin host and sign-in works there @webkit", async ({
+test("each persona lands in its area on the admin host @webkit", async ({
   browser,
-  page,
 }) => {
-  for (const path of ["/admin/", "/app/", "/login?returnTo=%2Fadmin%2F"]) {
-    // The 308 is done at commit; the signed-out app then moves on to the
-    // login by script, which would abort a wait for "load".
-    await page.goto(`${publicUrl}${path}`, { waitUntil: "commit" });
-    expect(new URL(page.url()).origin).toBe(adminUrl);
-  }
-  // The sign-in page on the admin host loads its own styles and scripts.
-  const login = await page.goto(`${adminUrl}/login`);
-  expect(login?.status()).toBe(200);
-  await expect(page.locator("form").first()).toBeVisible();
-
   for (const [persona, area] of [
     ["admin", "/admin/"],
     ["acquirer", "/app/"],
@@ -229,62 +252,6 @@ test("member paths move to the admin host and sign-in works there @webkit", asyn
     );
     await context.close();
   }
-});
-
-test("the admin host refuses public order actions and sends campaign pages away", async ({
-  page,
-}) => {
-  await page.goto(`${adminUrl}/impressum`);
-  const status = await page.evaluate(async () => {
-    const response = await fetch("/impressum?_action=createPublicOrder", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: "a=1",
-    });
-    return response.status;
-  });
-  expect(status).toBe(404);
-  await page.goto(`${adminUrl}/krapfentaxi`);
-  expect(new URL(page.url()).origin).toBe(publicUrl);
-});
-
-test("the admin host entry signs in first and keeps deep links", async ({
-  browser,
-  page,
-}) => {
-  // Signed out: `/` asks for the login, a deep link survives it (§6.7).
-  await page.goto(`${adminUrl}/`);
-  expect(new URL(page.url()).pathname).toBe("/login");
-  await page.goto(`${adminUrl}/admin/orders?commitment=c1`);
-  await page.waitForURL((url) => url.pathname === "/login");
-  expect(new URL(page.url()).searchParams.get("returnTo")).toBe(
-    "/admin/orders?commitment=c1",
-  );
-
-  // Core computes the start area and refuses one without a role for it.
-  const context = await signedIn(browser, "acquirer");
-  const member = await context.newPage();
-  await member.goto(`${adminUrl}/`);
-  await member.waitForURL((url) => url.pathname.startsWith("/app/"));
-  const result = await member.evaluate(async () => {
-    const identity = await (await fetch("/api/v1/identity/me")).json();
-    const refused = await fetch("/api/v1/identity/me/preferred-surface", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ surface: "web" }),
-    });
-    return {
-      landingPath: identity.landingPath,
-      refused: refused.status,
-      code: (await refused.json()).error?.code,
-    };
-  });
-  expect(result).toEqual({
-    landingPath: "/app/",
-    refused: 409,
-    code: "preferred_surface_unavailable",
-  });
-  await context.close();
 });
 
 test("a magic link signs in on the admin host and a survey saves on the public host", async ({

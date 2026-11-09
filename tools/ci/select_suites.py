@@ -136,7 +136,9 @@ E2E_SECONDS = {
     # The old table put pwa at 180 s; it takes 451 s (9 browser/viewport
     # projects plus two offline browser runs), so one leg reached 885 s.
     # Minus activity_feed (36 s), now Integration / acquisition-contracts.
-    "public-catalog": 171,
+    # Run 42552919966: public_actions 109 s plus multi_host 146 s minus its
+    # Twenty boot (91 s), which the leaf no longer starts.
+    "public-catalog": 164,
     "membership": 70,
     "invoices": 61,
     "commitments": 81,
