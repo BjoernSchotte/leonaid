@@ -54,14 +54,17 @@ def decide_state_change(
     manager: bool,
     assigned_driver: bool,
     missed_at_closure: bool = False,
+    missed: bool = False,
 ) -> StateChange | None:
-    """The transition for "mark delivered" (``delivered``) or its undo.
+    """The transition for "mark delivered" (``delivered``), "mark not met"
+    (``missed``) or the undo of either (neither set).
 
     Returns None when the drop already is in the target state (idempotent).
     Raises a ``DeliveryBoardError`` when the viewer may not make the change.
 
-    Open window: the assigned driver or a manager ticks and undoes freely.
-    Closed window, managers only:
+    Open window: the assigned driver or a manager ticks, marks missed and
+    undoes freely (spec D13: "Nicht angetroffen" during the day).
+    Closed window, managers only, and only the closure marks drops missed:
 
     - a drop missed at closure may be delivered later, which closes its
       "Nachliefern" follow-up; undoing that later delivery makes it missed
@@ -71,6 +74,8 @@ def decide_state_change(
     - every other undo needs the window reopened.
     """
 
+    if delivered and missed:
+        raise ValueError("A drop cannot be delivered and missed at once.")
     if not (manager or assigned_driver):
         raise DeliveryBoardError(
             "delivery_not_assigned",
@@ -78,17 +83,24 @@ def decide_state_change(
             status=403,
         )
     if not window_closed:
-        if current is DropState.MISSED:
-            # Only a closure makes drops missed; reopening clears it again.
-            raise DeliveryBoardError(
-                "delivery_state_invalid",
-                "Diese Lieferung ist als nicht geliefert vermerkt.",
-            )
-        target = DropState.DELIVERED if delivered else DropState.OPEN
+        target = (
+            DropState.MISSED
+            if missed
+            else DropState.DELIVERED
+            if delivered
+            else DropState.OPEN
+        )
         if target is current:
             return None
         return StateChange(new_state=target, follow_up_needed=None)
     if not manager:
+        raise DeliveryBoardError(
+            "delivery_window_closed",
+            "Dieses Lieferfenster ist abgeschlossen.",
+        )
+    if missed:
+        if current is DropState.MISSED:
+            return None
         raise DeliveryBoardError(
             "delivery_window_closed",
             "Dieses Lieferfenster ist abgeschlossen.",

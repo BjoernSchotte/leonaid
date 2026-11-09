@@ -123,10 +123,60 @@ def test_managers_tick_an_open_drop_in_a_closed_window_without_follow_up() -> No
     )
 
 
-def test_missed_only_exists_in_closed_windows() -> None:
+def test_driver_marks_missed_in_an_open_window_and_withdraws_it() -> None:
+    # Spec D13: "Nicht angetroffen" during the day, same rule as delivered.
+    assert change(delivered=False, missed=True) == StateChange(
+        new_state=MISSED, follow_up_needed=None
+    )
+    assert change(current=MISSED, delivered=False) == StateChange(
+        new_state=OPEN, follow_up_needed=None
+    )
+    assert change(current=MISSED, delivered=False, missed=True) is None
+    # Found on a second try: missed becomes delivered, and back.
+    assert change(current=MISSED) == StateChange(
+        new_state=DELIVERED, follow_up_needed=None
+    )
+    assert change(current=DELIVERED, delivered=False, missed=True) == StateChange(
+        new_state=MISSED, follow_up_needed=None
+    )
+    assert change(
+        delivered=False, missed=True, manager=True, assigned_driver=False
+    ) == StateChange(new_state=MISSED, follow_up_needed=None)
+
+
+def test_others_may_not_mark_a_drop_missed() -> None:
     with pytest.raises(DeliveryBoardError) as refused:
-        change(current=MISSED, manager=True)
-    assert refused.value.code == "delivery_state_invalid"
+        change(delivered=False, missed=True, assigned_driver=False)
+    assert refused.value.code == "delivery_not_assigned"
+
+
+def test_only_the_closure_marks_missed_in_a_closed_window() -> None:
+    for manager in (False, True):
+        with pytest.raises(DeliveryBoardError) as refused:
+            change(
+                delivered=False,
+                missed=True,
+                window_closed=True,
+                manager=manager,
+                assigned_driver=not manager,
+            )
+        assert refused.value.code == "delivery_window_closed"
+    assert (
+        change(
+            current=MISSED,
+            delivered=False,
+            missed=True,
+            window_closed=True,
+            manager=True,
+            assigned_driver=False,
+        )
+        is None
+    )
+
+
+def test_a_drop_cannot_be_delivered_and_missed_at_once() -> None:
+    with pytest.raises(ValueError):
+        change(delivered=True, missed=True)
 
 
 @pytest.mark.parametrize(
