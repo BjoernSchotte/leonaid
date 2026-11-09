@@ -153,6 +153,13 @@ const DOCK_SWIPE_PX = 24;
 
 type Target = "delivered" | "missed" | "open";
 
+/** Where a move was made: its save and cache update stay there. */
+interface OrderContext {
+  readonly actionId: string;
+  readonly day: string;
+  readonly queryKey: readonly unknown[];
+}
+
 interface TourStop {
   readonly drop: DeliveryDropResponse;
   readonly window: DeliveryTourWindowResponse;
@@ -400,21 +407,27 @@ export function MyTourPage({
   const windowOf = (id: string) => windowOfStop(model.stops, id);
 
   // Each move saves at once (D16); a conflict reloads the tour.
-  const autosave = useOrderAutosave<DeliveryTourResponse>({
-    save: (_key, ids, revision) =>
-      client.saveMyTourOrder(actionId, {
+  // Day, action and cache entry are those of the move, never of the page
+  // at the time the save goes out (the driver may switch the day first).
+  const autosave = useOrderAutosave<DeliveryTourResponse, OrderContext>({
+    save: (_key, ids, revision, context) =>
+      client.saveMyTourOrder(context.actionId, {
         commitmentIds: [...ids],
-        day: tour?.day ?? day ?? "",
+        day: context.day,
         expectedRevision: revision,
       }),
     revisionOf: (saved) => saved.revision,
-    onSaved: (_key, saved) =>
-      queries.setQueryData<MyTourResponse>(queryKey, (current) =>
-        current ? { ...current, tour: saved } : current,
+    onSaved: (_key, saved, context) =>
+      queries.setQueryData<MyTourResponse>(context.queryKey, (current) =>
+        current?.tour?.day === saved.day
+          ? { ...current, tour: saved }
+          : current,
       ),
-    onFailed: (_key, error) => {
+    onFailed: (_key, error, context) => {
       toast?.show({ title: errorText(error), tone: "error" });
-      if (isStale(error)) void refresh();
+      if (isStale(error)) {
+        void queries.invalidateQueries({ queryKey: context.queryKey });
+      }
     },
     savedText: () => copy.saved,
     undoneText: () => copy.undone,
@@ -559,7 +572,11 @@ export function MyTourPage({
     if (!tour) return;
     const next = placeStop(order, id, targetId, side, windowOf);
     if (next.every((value, index) => value === order[index])) return;
-    autosave.move(MY_ORDER, next, order, tour.revision);
+    autosave.move(MY_ORDER, next, order, tour.revision, {
+      actionId,
+      day: tour.day,
+      queryKey,
+    });
     const stop = model.stops.get(id);
     if (stop) {
       setAnnouncement(
@@ -578,12 +595,15 @@ export function MyTourPage({
   const toggleExpanded = toggle(setExpanded);
   const toggleWindow = toggle(setOpenedWindows);
 
+  // A waiting move goes out first, for the day and action it was made in.
   const chooseAction = (value: string) => {
+    void autosave.release(MY_ORDER);
     setDay(null);
     setShownId(null);
     replaceActionInUrl(value);
   };
   const chooseDay = (value: string) => {
+    void autosave.release(MY_ORDER);
     setDay(value);
     setShownId(null);
   };
@@ -597,7 +617,13 @@ export function MyTourPage({
       onAction={chooseAction}
       onDay={chooseDay}
       onReset={() => {
-        if (tour) resetOrder.mutate(tour);
+        // The reset replaces a waiting move; it waits for a running save
+        // and then uses the revision that save returned.
+        void autosave.cancel(MY_ORDER).then(() => {
+          const current =
+            queries.getQueryData<MyTourResponse>(queryKey)?.tour ?? tour;
+          if (current) resetOrder.mutate(current);
+        });
       }}
       resetting={resetOrder.isPending}
       total={counted.length}
@@ -1475,7 +1501,7 @@ function DockStop({
               </a>
             ) : null}
             <Button
-              aria-label={copy.missed}
+              aria-label={`${copy.missedShort} (${copy.missed.toLowerCase()})`}
               className="tour-missed"
               disabled={busy}
               icon={X}

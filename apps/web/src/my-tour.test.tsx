@@ -325,7 +325,8 @@ describe("Meine Tour", () => {
     ).toBe("tel:+49821123");
     expect(next.getByRole("button", { name: "Zugestellt" })).toBeTruthy();
     expect(
-      next.getByRole("button", { name: "Nicht angetroffen" }).textContent,
+      next.getByRole("button", { name: "Nicht da (nicht angetroffen)" })
+        .textContent,
     ).toBe("Nicht da");
     // No contact panel: the phone is the call button.
     expect(screen.queryByText("Lieferkontakt")).toBeNull();
@@ -400,7 +401,7 @@ describe("Meine Tour", () => {
     const client = fakeClient(myTour());
     await renderTour(client);
     fireEvent.click(
-      within(card()).getByRole("button", { name: "Nicht angetroffen" }),
+      within(card()).getByRole("button", { name: /Nicht angetroffen/i }),
     );
     await screen.findByText("Bäckerei Kern: nicht angetroffen.");
     expect(client.setDeliveryState).toHaveBeenCalledWith(actionId, "c1", {
@@ -498,6 +499,54 @@ describe("Meine Tour", () => {
       expectedRevision: "r2",
     });
     expect(names()).toEqual(["Bäckerei Kern", "Autohaus Nord", "Praxis Süd"]);
+  });
+
+  it("a move right before a day switch saves for its own day and leaves the new day's tour alone", async () => {
+    stackRows();
+    const DAY2 = "2099-12-06";
+    const first = myTour();
+    const client = fakeClient({ ...first, days: [DAY, DAY2] });
+    const second: MyTourResponse = {
+      ...myTour({
+        day: DAY2,
+        windows: [
+          tourWindow("w9", `${DAY2}T07:00:00Z`, `${DAY2}T09:00:00Z`, [
+            stop(drop("c8", "Hotel Ost", "w9"), 1),
+            stop(drop("c9", "Kanzlei West", "w9"), 2),
+          ]),
+        ],
+      }),
+      days: [DAY, DAY2],
+    };
+    const loadFirst = vi.mocked(client.getMyTour).getMockImplementation()!;
+    vi.mocked(client.getMyTour).mockImplementation(
+      async (action: string, query?: { day?: string | null }) =>
+        query?.day === DAY2 ? second : loadFirst(action, query),
+    );
+    const { queries } = await renderTour(client);
+    await keyboardMove("Bäckerei Kern", "ArrowDown");
+    expect(names()).toEqual(["Autohaus Nord", "Bäckerei Kern", "Praxis Süd"]);
+    // Switch the day before the pause is over.
+    fireEvent.click(screen.getByRole("button", { name: "Tour-Menü" }));
+    fireEvent.change(await screen.findByTestId("tour-day-select"), {
+      target: { value: DAY2 },
+    });
+    await waitFor(() =>
+      expect(client.saveMyTourOrder).toHaveBeenCalledWith(actionId, {
+        commitmentIds: ["c2", "c1", "c3"],
+        day: DAY,
+        expectedRevision: "r1",
+      }),
+    );
+    await waitFor(() => expect(names()).toEqual(["Hotel Ost", "Kanzlei West"]));
+    await screen.findByText("Reihenfolge gespeichert.");
+    expect(
+      queries.getQueryData<MyTourResponse>(["my-tour", actionId, DAY2])?.tour,
+    ).toEqual(second.tour);
+    expect(names()).toEqual(["Hotel Ost", "Kanzlei West"]);
+    // The switch carried no undo for a tour no longer on screen.
+    expect(screen.queryByRole("button", { name: "Rückgängig" })).toBeNull();
+    window.history.replaceState({}, "", "/");
   });
 
   it("chained moves go out as one save", async () => {

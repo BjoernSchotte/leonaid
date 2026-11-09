@@ -7,6 +7,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
@@ -501,12 +502,10 @@ describe("Touren planner", () => {
       "Bäckerei Kern",
       "Praxis Süd",
     ]);
-    // The last stop of 08–10 has no way down into 10–12: the arrow hides.
-    const down = within(anna).getByRole("button", {
-      name: "Bäckerei Kern nach unten",
-    });
-    expect(down.getAttribute("aria-disabled")).toBe("true");
-    expect(down.classList.contains("is-edge")).toBe(true);
+    // The last stop of 08–10 has no way down into 10–12: no arrow.
+    expect(
+      within(anna).queryByRole("button", { name: "Bäckerei Kern nach unten" }),
+    ).toBeNull();
 
     await screen.findByText(
       "Reihenfolge für Fahrerin Anna gespeichert.",
@@ -752,6 +751,104 @@ describe("Touren planner", () => {
     );
     fireEvent.click(suggest);
     expect(client.saveDeliveryTourOrder).not.toHaveBeenCalled();
+  });
+
+  it("a move right before a day switch saves for its own day and leaves the new day's columns alone", async () => {
+    const DAY2 = "2099-12-06";
+    const client = fakeClient(dayTours({ days: [DAY, DAY2] }));
+    const second: DeliveryDayToursResponse = {
+      ...dayTours({ days: [DAY, DAY2] }),
+      day: DAY2,
+      tours: [
+        {
+          day: DAY2,
+          driverName: "Fahrerin Anna",
+          driverOrderedAt: null,
+          driverUserId: "anna",
+          revision: "d2",
+          windows: [
+            win("w1", [stop(drop("c7", "Hotel Ost", "w1", "anna"), 1)]),
+          ],
+        },
+      ],
+      unassigned: [],
+    };
+    const loadFirst = vi
+      .mocked(client.getDeliveryTours)
+      .getMockImplementation()!;
+    vi.mocked(client.getDeliveryTours).mockImplementation(
+      async (action: string, query?: { day?: string | null }) =>
+        query?.day === DAY2 ? second : loadFirst(action, query),
+    );
+    const queries = newQueries();
+    function Switching() {
+      const [day, setDay] = useState(DAY);
+      return (
+        <TourPlanner
+          actionId={actionId}
+          client={client}
+          day={day}
+          onDayChange={setDay}
+        />
+      );
+    }
+    render(
+      <QueryClientProvider client={queries}>
+        <ToastProvider>
+          <Switching />
+        </ToastProvider>
+      </QueryClientProvider>,
+    );
+    await screen.findAllByTestId("tour-column");
+    fireEvent.click(
+      within(column("anna")).getByRole("button", {
+        name: "Bäckerei Kern nach unten",
+      }),
+    );
+    fireEvent.change(screen.getByTestId("tour-day"), {
+      target: { value: DAY2 },
+    });
+    await waitFor(() =>
+      expect(client.saveDeliveryTourOrder).toHaveBeenCalledWith(
+        actionId,
+        "anna",
+        { commitmentIds: ["c2", "c1", "c3"], day: DAY, expectedRevision: "r1" },
+      ),
+    );
+    await waitFor(() => expect(names(column("anna"))).toEqual(["Hotel Ost"]));
+    await screen.findByText("Reihenfolge für Fahrerin Anna gespeichert.");
+    expect(
+      queries.getQueryData<DeliveryDayToursResponse>([
+        "delivery-tours",
+        actionId,
+        DAY2,
+      ]),
+    ).toEqual(second);
+    expect(names(column("anna"))).toEqual(["Hotel Ost"]);
+  });
+
+  it("an arrow that would leave the window is not there to focus; focus stays in the row", async () => {
+    const client = fakeClient(dayTours());
+    await renderPlanner(client);
+    const anna = column("anna");
+    expect(
+      within(anna).queryByRole("button", { name: "Bäckerei Kern nach oben" }),
+    ).toBeNull();
+    expect(
+      within(anna).queryByRole("button", { name: "Autohaus Nord nach unten" }),
+    ).toBeNull();
+    const down = within(anna).getByRole("button", {
+      name: "Bäckerei Kern nach unten",
+    });
+    down.focus();
+    fireEvent.click(down);
+    // Bäckerei Kern is now last in 08–10: its down arrow is gone, focus
+    // moved to its up arrow.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        within(anna).getByRole("button", { name: "Bäckerei Kern nach oben" }),
+      ),
+    );
   });
 
   it("polling pauses while a move saves", async () => {

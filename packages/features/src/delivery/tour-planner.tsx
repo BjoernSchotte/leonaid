@@ -20,7 +20,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 
 import {
   ApiError,
@@ -149,6 +149,13 @@ interface PlanStop {
   readonly window: DeliveryTourWindowResponse;
   readonly lane: string;
   readonly newForDriver: boolean;
+}
+
+/** Where a move was made: its save and cache update stay there. */
+interface PlanContext {
+  readonly day: string;
+  readonly laneName: string;
+  readonly queryKey: readonly unknown[];
 }
 
 interface PlanLane {
@@ -309,43 +316,44 @@ export function TourPlanner({
     toast?.show({ title: errorText(error), tone: "error" });
 
   // Save on drop (D19 2a): each move saves after a short pause, with the
-  // revision it started from; a conflict reloads the columns.
-  const laneName = (key: string) =>
-    planModel(
-      queries.getQueryData<DeliveryDayToursResponse>(queryKey),
-    ).lanes.find((lane) => lane.key === key)?.name ?? "";
-  const autosave = useOrderAutosave<DeliveryTourResponse>({
-    save: (key, ids, revision) => {
-      const current = queries.getQueryData<DeliveryDayToursResponse>(queryKey);
-      const tour = current?.tours.find((item) => item.driverUserId === key);
-      return client.saveDeliveryTourOrder(actionId, key, {
+  // revision it started from, for the day and cache entry it was made in
+  // (a day switch sends it first); a conflict reloads the columns.
+  const autosave = useOrderAutosave<DeliveryTourResponse, PlanContext>({
+    save: (key, ids, revision, context) =>
+      client.saveDeliveryTourOrder(actionId, key, {
         commitmentIds: [...ids],
-        day: tour?.day ?? current?.day ?? day ?? "",
+        day: context.day,
         expectedRevision: revision,
-      });
-    },
+      }),
     revisionOf: (saved) => saved.revision,
-    onSaved: (_key, updated) => {
-      queries.setQueryData<DeliveryDayToursResponse>(queryKey, (current) =>
-        current
-          ? {
-              ...current,
-              tours: current.tours.map((tour) =>
-                tour.driverUserId === updated.driverUserId ? updated : tour,
-              ),
-            }
-          : current,
+    onSaved: (_key, updated, context) => {
+      queries.setQueryData<DeliveryDayToursResponse>(
+        context.queryKey,
+        (current) =>
+          current && current.day === updated.day
+            ? {
+                ...current,
+                tours: current.tours.map((tour) =>
+                  tour.driverUserId === updated.driverUserId ? updated : tour,
+                ),
+              }
+            : current,
       );
       void queries.invalidateQueries({
         queryKey: ["delivery-board", actionId],
       });
     },
-    onFailed: (_key, error) => {
+    onFailed: (_key, error, context) => {
       showError(error);
-      if (isStale(error)) void refresh();
+      if (isStale(error)) {
+        void Promise.all([
+          queries.invalidateQueries({ queryKey: context.queryKey }),
+          queries.invalidateQueries({ queryKey: ["delivery-board", actionId] }),
+        ]);
+      }
     },
-    savedText: (key) => copy.saved(laneName(key)),
-    undoneText: (key) => copy.undone(laneName(key)),
+    savedText: (_key, context) => copy.saved(context.laneName),
+    undoneText: (_key, context) => copy.undone(context.laneName),
   });
   const saving = autosave.dirty;
   useLeaveGuard(saving);
@@ -382,7 +390,11 @@ export function TourPlanner({
     if (!lane.tour) return;
     const current = shownOf(lane);
     if (sameOrder(next, current)) return;
-    autosave.move(lane.key, next, current, lane.tour.revision);
+    autosave.move(lane.key, next, current, lane.tour.revision, {
+      day: lane.tour.day,
+      laneName: lane.name,
+      queryKey,
+    });
     const stop = id ? model.stops.get(id) : undefined;
     if (stop && id) {
       setAnnouncement(
@@ -393,7 +405,7 @@ export function TourPlanner({
 
   /** Sends waiting moves first, then runs `leave` (day or view change). */
   const guarded = (leave: () => void) => {
-    for (const lane of lanes) autosave.flush(lane.key);
+    for (const lane of lanes) void autosave.release(lane.key);
     leave();
   };
 
@@ -1010,6 +1022,17 @@ function StopRow({
         ? "Nicht angetroffen"
         : null;
   const choosable = !stop.window.closed;
+  // A row moved to a window edge loses that arrow: focus goes to the other
+  // one, so a keyboard user keeps their place.
+  const up = useRef<HTMLButtonElement | null>(null);
+  const down = useRef<HTMLButtonElement | null>(null);
+  const pressed = useRef<-1 | 1 | null>(null);
+  useEffect(() => {
+    const direction = pressed.current;
+    pressed.current = null;
+    if (direction === -1 && first) down.current?.focus();
+    if (direction === 1 && last) up.current?.focus();
+  });
   return (
     <li
       className={cn(
@@ -1070,24 +1093,39 @@ function StopRow({
       </label>
       {orderable ? (
         <span className="tour-stop-tools">
-          <IconButton
-            className={first ? "is-edge" : undefined}
-            disabled={busy || first}
-            focusableWhenDisabled
-            icon={ArrowUp}
-            label={`${name} nach oben`}
-            onClick={() => onMove(-1)}
-            size="sm"
-          />
-          <IconButton
-            className={last ? "is-edge" : undefined}
-            disabled={busy || last}
-            focusableWhenDisabled
-            icon={ArrowDown}
-            label={`${name} nach unten`}
-            onClick={() => onMove(1)}
-            size="sm"
-          />
+          {/* No arrow at a window edge: nothing to reach or to focus. */}
+          {first ? (
+            <span aria-hidden="true" className="tour-stop-tools-space" />
+          ) : (
+            <IconButton
+              disabled={busy}
+              focusableWhenDisabled
+              icon={ArrowUp}
+              label={`${name} nach oben`}
+              onClick={() => {
+                pressed.current = -1;
+                onMove(-1);
+              }}
+              ref={up}
+              size="sm"
+            />
+          )}
+          {last ? (
+            <span aria-hidden="true" className="tour-stop-tools-space" />
+          ) : (
+            <IconButton
+              disabled={busy}
+              focusableWhenDisabled
+              icon={ArrowDown}
+              label={`${name} nach unten`}
+              onClick={() => {
+                pressed.current = 1;
+                onMove(1);
+              }}
+              ref={down}
+              size="sm"
+            />
+          )}
         </span>
       ) : null}
     </li>
