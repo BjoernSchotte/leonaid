@@ -98,8 +98,10 @@ export async function claimDevice(userId: string): Promise<void> {
   if (!deviceStorageAvailable()) return;
   const active = activeDeviceUser();
   if (active && active.toLowerCase() !== userId.toLowerCase()) {
-    clearActiveDeviceUser();
+    // Off first: the offline start is on only while a device user is
+    // recorded (see forgetDevice).
     await setOfflineStart(false);
+    clearActiveDeviceUser();
   }
   // The deletion waits while an open tab of the other person still holds
   // the database. No page opens another user's database, so after a short
@@ -112,12 +114,16 @@ export async function claimDevice(userId: string): Promise<void> {
 
 /** Sign-out (either app) or flag off: the database and the records. */
 export async function forgetDevice(userId: string | null): Promise<void> {
-  await setOfflineStart(false);
+  const active = activeDeviceUser();
+  // The offline start is switched on only after the device user is
+  // recorded, and off before that record goes: without one there is
+  // nothing to switch off. The PWA forgets on every online start with the
+  // flag off; a Cache API call still running when the page navigates away
+  // makes WebKit log "Cache API operation failed: Context is stopped".
+  if (active) await setOfflineStart(false);
   if (!deviceStorageAvailable()) return;
   const users = new Set(
-    [userId, activeDeviceUser()].filter((value): value is string =>
-      Boolean(value),
-    ),
+    [userId, active].filter((value): value is string => Boolean(value)),
   );
   clearActiveDeviceUser();
   await Promise.all([...users].map((user) => deleteDeviceStore(user)));

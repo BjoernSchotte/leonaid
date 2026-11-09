@@ -65,10 +65,9 @@ case "$shard" in
       tools/privacy/test.sh tools/legal_configuration/test.sh
     ;;
   acquisition-contracts)
-    # Browser-free API contracts of acquisition, actions and templates.
-    python3 "$root/tools/testing/shared_stack.py" golden \
-      tools/matching/test.sh tools/assignments/test.sh tools/activities/test.sh \
-      tools/activity_feed/test.sh tools/actions/test.sh tools/templates/test.sh
+    # Browser-free API contracts of acquisition, actions and templates:
+    # one stack, one Golden seed, no reset in between (E-041).
+    /bin/sh "$root/tools/testing/acquisition_contracts.sh" "$root"
     ;;
   policy)
     # On the prepared fixture (Twenty provisioned): the proof is the
