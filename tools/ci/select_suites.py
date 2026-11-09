@@ -179,7 +179,8 @@ EMDASH_SECONDS = {
 }
 # Average test seconds per leg; MAX_BINS caps the count. Integration then
 # fills all its legs, small E2E selections still share one.
-TARGET_SECONDS = 400
+# 300 s: the six E2E legs of E-037 fill (about 1700 s of leaves).
+TARGET_SECONDS = 300
 # ci.yml timeout-minutes of each leg kind (workflow_contract.py keeps them
 # equal). A leg's estimate is its shards' seconds plus LEG_SETUP_SECONDS; the
 # selector warns at LOAD_WARNING of the timeout, before a growing shard table
@@ -190,7 +191,8 @@ LEG_SETUP_SECONDS = 150
 # one fixture kind share one (tools/ci/e2e.sh).
 SHARD_SETUP_SECONDS = {"integration": 90, "e2e": 0, "emdash": 90}
 LOAD_WARNING = 0.75
-MAX_BINS = {"integration": 4, "e2e": 4}
+# E-037: six E2E legs; the offline leaf no longer sets the floor (#193).
+MAX_BINS = {"integration": 4, "e2e": 6}
 # Integration shards that never start Twenty. Every other leg prefetches its
 # image beside the layer import: run 42569824316 pulled it lazily for 31 s
 # and 39 s inside the first leaf of two legs (acquisition-contracts, privacy).
