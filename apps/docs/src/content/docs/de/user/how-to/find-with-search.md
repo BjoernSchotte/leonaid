@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 1
 reviewedRevision: 1
-verifiedAgainst: 225fc66fd2f98b8127fea32a158acc6e51d39de1
+verifiedAgainst: e2e199217b9b0d23fc0ad225051cfc36fe01daf5
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -63,8 +63,14 @@ finden.
 - Löscht jemand einen Sponsor im CRM, verschwindet er in der folgenden Nacht
   aus der Suche. Seine Zuordnungen bleiben in der Sponsor-Pipeline und in der
   Akquise-App stehen, mit dem Namen **Im CRM nicht mehr vorhanden** und ohne
-  Kontaktdaten. Ein Charity-Admin kann sie weiter übergeben oder abschließen.
+  Kontaktdaten. Als Charity-Admin schließt du eine solche Zuordnung im Detail
+  mit **Zuordnung abschließen** ab; sie gilt dann als **Abgesagt**.
 - Nach einer Datenschutz-Löschung ist der Sponsor sofort nicht mehr zu finden.
+  Das gilt auch für die Firma einer Bestellung, deren Ansprechperson die
+  Löschung verlangt hat. Der Sponsor bleibt verborgen, auch wenn er im CRM noch
+  steht. Erst wenn jemand ihn neu erfasst oder ein Charity-Admin ihn neu
+  zuordnet, findet die Suche ihn wieder, mit dem Namen, den das CRM dann hat.
+  Eine Übergabe zählt nicht als neue Zuordnung.
 
 ## Wenn du nichts findest
 

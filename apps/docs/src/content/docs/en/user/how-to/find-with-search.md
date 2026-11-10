@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 1
 reviewedRevision: 1
-verifiedAgainst: 225fc66fd2f98b8127fea32a158acc6e51d39de1
+verifiedAgainst: e2e199217b9b0d23fc0ad225051cfc36fe01daf5
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -64,8 +64,14 @@ search cannot find them.
 - If someone deletes a sponsor in the CRM, the sponsor leaves the search in
   the following night. Its assignments stay in the Sponsor-Pipeline and in
   the acquisition app, named **Im CRM nicht mehr vorhanden** and without
-  contact data. A charity admin can still hand them over or close them.
-- After a privacy erasure, the sponsor can no longer be found at once.
+  contact data. As a charity admin you close such an assignment in its detail
+  with **Zuordnung abschließen**; it then counts as **Abgesagt**.
+- After a privacy erasure, the sponsor can no longer be found at once. This
+  also applies to the company of an order whose contact person asked for the
+  erasure. The sponsor stays hidden even if it is still in the CRM. Only when
+  someone captures it again or a charity admin assigns it again does the
+  search find it, with the name the CRM then holds. A handover does not count
+  as a new assignment.
 
 ## If you find nothing
 

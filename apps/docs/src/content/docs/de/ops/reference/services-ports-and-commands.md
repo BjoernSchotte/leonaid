@@ -6,7 +6,7 @@ audience: [ops]
 diataxis: reference
 contentRevision: 21
 reviewedRevision: 21
-verifiedAgainst: 225fc66fd2f98b8127fea32a158acc6e51d39de1
+verifiedAgainst: e2e199217b9b0d23fc0ad225051cfc36fe01daf5
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -112,8 +112,10 @@ Die Suche der Verwaltung findet Sponsoren über die Tabelle
 Twenty, die eine Akquise-Zuordnung hat, nur Name und Ort. Die Worker-Schleife
 `sponsor_search_sync` hält sie aktuell:
 
-- Alle 15 Minuten liest sie die in den letzten 30 Minuten in Twenty
-  geänderten Firmen und Personen und aktualisiert die vorhandenen Einträge.
+- Alle 15 Minuten liest sie die in Twenty geänderten Firmen und Personen
+  und aktualisiert die vorhandenen Einträge. Sie liest ab dem Beginn des
+  letzten vollständigen Laufs (minus 5 Minuten, mindestens 30 Minuten,
+  höchstens 26 Stunden zurück); fehlgeschlagene Läufe verlieren so nichts.
 - Einmal pro Nacht, nach 03:00 Uhr Ortszeit, liest sie jede zugeordnete
   Firma und Person neu (50 pro Anfrage), ergänzt fehlende Einträge und löscht
   Einträge ohne Zuordnung oder ohne Datensatz in Twenty. Nach dem Upgrade
@@ -123,12 +125,18 @@ Twenty, die eine Akquise-Zuordnung hat, nur Name und Ort. Die Worker-Schleife
   Antwort `429`. Ein unvollständiger nächtlicher Durchlauf setzt nach einer
   Minute an derselben Stelle fort.
 
-Ohne `TWENTY_INTEGRATION_API_KEY` ruht die Schleife. Ist Twenty nicht
-erreichbar, endet der Lauf, die Schleife bleibt gesund, und der nächste Lauf
-versucht es erneut. Jeder Lauf mit Anfragen schreibt das Ereignis
+Ohne `TWENTY_INTEGRATION_API_KEY` ruht die Schleife. Beendet ein CRM-Fehler
+einen Lauf (Twenty nicht erreichbar, Schlüssel abgelehnt, `429`), bleibt die
+Schleife gesund; sie wartet dann eine Minute und verdoppelt die Pause nach
+jedem weiteren Fehler bis auf 15 Minuten. Die Metrik
+`leonaid_worker_sponsor_search_last_success_age_seconds` nennt das Alter des
+letzten vollständigen Laufs, `leonaid_worker_sponsor_search_crm_errors_total`
+zählt die Fehlläufe. Nach 24 Stunden ohne vollständigen Lauf meldet das
+Pilot-Monitoring `LeonAidSponsorSearchStale` (P2); der Alarm erscheint auch
+unter **System**. Jeder Lauf mit Anfragen schreibt das Ereignis
 `worker.sponsor_search.synced` mit Art (`full` oder `changed`), Zahl der
-Anfragen, geschriebenen und gelöschten Einträgen, `rateLimited` und
-`crmError`; Namen stehen nie im Log. Mehrere Worker stimmen sich über eine
+Anfragen, geschriebenen und gelöschten Einträgen, `rateLimited`, `crmError`
+und `failedRuns`; Namen stehen nie im Log. Mehrere Worker stimmen sich über eine
 Datenbanksperre ab, es läuft immer nur einer.
 
 ## Clubname

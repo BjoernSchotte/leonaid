@@ -6,7 +6,7 @@ audience: [ops]
 diataxis: reference
 contentRevision: 21
 reviewedRevision: 21
-verifiedAgainst: 225fc66fd2f98b8127fea32a158acc6e51d39de1
+verifiedAgainst: e2e199217b9b0d23fc0ad225051cfc36fe01daf5
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -108,7 +108,9 @@ acquisition assignment it holds the name and the city, and nothing else. The
 worker loop `sponsor_search_sync` keeps it current:
 
 - Every 15 minutes it reads the companies and people that changed in Twenty
-  in the last 30 minutes and updates the entries that exist.
+  and updates the entries that exist. It reads from the start of the last
+  complete run (minus 5 minutes, at least 30 minutes and at most 26 hours
+  back), so failed runs lose nothing.
 - Once a night, after 03:00 local time, it reads every assigned company and
   person again (50 per request), adds missing entries and deletes entries
   without an assignment or without a record in Twenty. After the upgrade to
@@ -118,12 +120,18 @@ worker loop `sponsor_search_sync` keeps it current:
   answer. An unfinished nightly pass continues at the same place after one
   minute.
 
-Without `TWENTY_INTEGRATION_API_KEY` the loop idles. If Twenty is not
-reachable, the run ends, the loop stays healthy, and the next run tries
-again. Every run with requests writes the event
+Without `TWENTY_INTEGRATION_API_KEY` the loop idles. If a CRM error ends a
+run (Twenty not reachable, key refused, `429`), the loop stays healthy; it
+then waits one minute and doubles the pause after each further error, up to
+15 minutes. The metric
+`leonaid_worker_sponsor_search_last_success_age_seconds` gives the age of the
+last complete run, `leonaid_worker_sponsor_search_crm_errors_total` counts
+the failed runs. After 24 hours without a complete run the pilot monitoring
+raises `LeonAidSponsorSearchStale` (P2); the alert also shows under
+**System**. Every run with requests writes the event
 `worker.sponsor_search.synced` with its kind (`full` or `changed`), the
-number of requests, the written and deleted entries, `rateLimited` and
-`crmError`; names never appear in the log. Several workers coordinate through
+number of requests, the written and deleted entries, `rateLimited`,
+`crmError` and `failedRuns`; names never appear in the log. Several workers coordinate through
 a database lock, so only one runs at a time.
 
 ## Club name
