@@ -348,12 +348,33 @@ def main() -> None:
     command.upgrade(config, "head")
     command.upgrade(config, "head")
     with psycopg.connect(os.environ["CORE_DATABASE_URL"]) as db:
-        assert (
-            db.execute(
-                "SELECT to_jsonb(commitment) - 'delivery_window_id' - 'delivery_window_snapshot' - 'delivery_contact_snapshot' - 'captured_at' FROM commitment ORDER BY id"
+        # 0062 gives every order an order number: an order of the public
+        # form keeps its own, an internal order gets the one derived from
+        # its id. Nothing else of an existing order changes.
+        assert db.execute(
+            "SELECT to_jsonb(commitment) - 'delivery_window_id' - 'delivery_window_snapshot' - 'delivery_contact_snapshot' - 'captured_at' - 'public_reference' FROM commitment ORDER BY id"
+        ).fetchall() == [
+            (
+                {
+                    key: value
+                    for key, value in order[0].items()
+                    if key != "public_reference"
+                },
+            )
+            for order in baseline_order
+        ]
+        assert {
+            str(order_id): reference
+            for order_id, reference in db.execute(
+                "SELECT id, public_reference FROM commitment"
             ).fetchall()
-            == baseline_order
-        )
+        } == {
+            order[0]["id"]: order[0]["public_reference"]
+            or f"LA-{order[0]['id'].replace('-', '').upper()}"
+            for order in baseline_order
+        }
+        assert any(order[0]["public_reference"] is None for order in baseline_order)
+        assert any(order[0]["public_reference"] for order in baseline_order)
         # 0052 adds captured_at: no existing order was queued offline.
         assert db.execute(
             "SELECT count(*) FROM commitment WHERE captured_at IS NOT NULL"
