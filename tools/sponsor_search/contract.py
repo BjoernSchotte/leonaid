@@ -837,46 +837,28 @@ async def prove_delete(stack: Stack, company_id: UUID, name: str, token: str) ->
     await stack.index_matches_twenty()
 
 
-# A spent minute bucket must stay spent for at least this long, so that the
-# run that follows meets it at once.
-QUOTA_RESET_MARGIN_SECONDS = 10.0
-
-
-def seconds_to_reset(response: httpx.Response) -> float:
-    try:
-        return float(response.headers.get("X-RateLimit-Reset", "")) - time.time()
-    except ValueError:
-        return 0.0
-
-
 async def spend_twenty_quota(twenty: httpx.AsyncClient) -> None:
     """Send reads until Twenty's minute bucket (100 requests) is spent.
 
-    Twenty names the end of the window in ``X-RateLimit-Reset``. A bucket
-    that reopens within the margin is waited out and spent again in the new
-    window: the run that follows should not start in a fresh window.
+    Twenty frees the bucket again piece by piece, so a request sent right
+    after this may still pass; the caller must not rely on the opposite.
     """
 
-    for _ in range(60):
+    for _ in range(40):
         responses = await asyncio.gather(
             *(twenty.get("/rest/companies", params={"limit": 1}) for _ in range(10))
         )
         limited = [response for response in responses if response.status_code == 429]
         # Twenty also has a short burst bucket. Only a spent minute bucket
         # (remaining 0) still refuses the request the sync sends next.
-        spent = [
-            response
+        if any(
+            response.headers.get("X-RateLimit-Remaining", "").strip() == "0"
             for response in limited
-            if response.headers.get("X-RateLimit-Remaining", "").strip() == "0"
-        ]
-        if spent:
-            reset = max(seconds_to_reset(response) for response in spent)
-            if reset >= QUOTA_RESET_MARGIN_SECONDS:
-                return
-            await asyncio.sleep(max(reset, 0.0) + 0.5)
-        elif limited:
+        ):
+            return
+        if limited:
             await asyncio.sleep(float(limited[0].headers.get("Retry-After", "1")))
-    raise ContractFailure("Twenty's minute bucket was not spent by 600 requests")
+    raise ContractFailure("Twenty's minute bucket was not spent by 400 requests")
 
 
 async def wait_for_twenty_quota(twenty: httpx.AsyncClient) -> None:
