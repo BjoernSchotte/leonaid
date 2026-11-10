@@ -6,7 +6,7 @@ audience: [ops]
 diataxis: reference
 contentRevision: 22
 reviewedRevision: 22
-verifiedAgainst: a79fad7ae71ac203bf8843d0ab447f0d05e28325
+verifiedAgainst: 0614b284865f7f63579f511d0f431428e79b2991
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -97,9 +97,10 @@ mit `kind`, `host` (Name des Push-Dienstes, zum Beispiel
 und `deviceRemoved`. 401 oder 403 bei allen Geräten eines Dienstes deuten auf
 den VAPID-Schlüssel oder `LEONAID_VAPID_SUBJECT`. Ein Gerät, für das
 der Push-Dienst fünf Nachrichten in Folge an mindestens drei verschiedenen
-Tagen nicht angenommen hat, wird gelöscht. Dabei zählt nur eine Antwort des
-Push-Dienstes: Erreicht der Worker niemanden (kein Ausgang, DNS,
-Zeitüberschreitung), steht das im Log, zählt aber nicht gegen das Gerät.
+Tagen nicht angenommen hat, wird gelöscht. Dabei zählt nur eine Ablehnung
+des Push-Dienstes (400, 401, 403, 413): Erreicht der Worker niemanden (kein
+Ausgang, DNS, Zeitüberschreitung) oder antwortet der Dienst mit 429 oder
+5xx, steht das im Log, zählt aber nicht gegen das Gerät.
 Gelöscht werden ebenso Geräte, die mit einem früheren VAPID-Schlüssel angemeldet
 wurden.
 

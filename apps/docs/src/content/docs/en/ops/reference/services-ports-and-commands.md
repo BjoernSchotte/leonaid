@@ -6,7 +6,7 @@ audience: [ops]
 diataxis: reference
 contentRevision: 22
 reviewedRevision: 22
-verifiedAgainst: a79fad7ae71ac203bf8843d0ab447f0d05e28325
+verifiedAgainst: 0614b284865f7f63579f511d0f431428e79b2991
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -92,9 +92,10 @@ example `fcm.googleapis.com` or `notify.windows.com`; never the path),
 or `rejected`), `attempt` and `deviceRemoved`. 401 or 403 for all devices of
 one service point at the VAPID key or `LEONAID_VAPID_SUBJECT`. A device for
 which the push service did not take five messages in a row, on at least
-three different days, is deleted. Only an answer of the push service counts:
-when the worker reaches nobody (no egress, DNS, timeout), the log says so,
-but it does not count against the device. Devices registered with an
+three different days, is deleted. Only a refusal of the push service counts
+(400, 401, 403, 413): when the worker reaches nobody (no egress, DNS,
+timeout) or the service answers 429 or 5xx, the log says so, but it does
+not count against the device. Devices registered with an
 earlier VAPID key are deleted too.
 
 The `push_follow_ups` loop runs every five minutes. Between 08:00 and 20:00
