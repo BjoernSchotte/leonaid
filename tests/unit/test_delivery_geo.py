@@ -94,7 +94,7 @@ def test_accept_house_number_ranges_and_lists() -> None:
     assert accept("83646", "5;7", 30, single)
 
 
-def test_query_house_number_only_from_the_end_of_the_street_line() -> None:
+def test_query_house_number_is_found_anywhere_after_the_street_name() -> None:
     assert query_house_number(QUERY) == "1"
     assert (
         query_house_number(GeocodeQuery("Straße des 17. Juni 5", "1", "x", "DE")) == "5"
