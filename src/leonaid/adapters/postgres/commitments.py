@@ -420,6 +420,12 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                         AS cancellation_requested_by_user_id,
                     cancellation.requested_at AS cancellation_requested_at,
                     cancellation.invoice_cancellation_id,
+                    (
+                        SELECT invoice_cancellation.number
+                        FROM invoice_cancellation
+                        WHERE invoice_cancellation.id
+                            = cancellation.invoice_cancellation_id
+                    ) AS invoice_cancellation_number,
                     canceller.display_name AS cancellation_requested_by_name,
                     commitment_line.id AS line_id,
                     commitment_line.offering_id,
@@ -941,6 +947,11 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 requested_by_user_id=header["cancellation_requested_by_user_id"],
                 requested_at=header["cancellation_requested_at"],
                 invoice_cancellation_id=header["invoice_cancellation_id"],
+                invoice_cancellation_number=(
+                    str(header["invoice_cancellation_number"])
+                    if header["invoice_cancellation_number"] is not None
+                    else None
+                ),
                 invoice_number=(
                     invoice.number
                     if invoice is not None

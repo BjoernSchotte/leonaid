@@ -142,6 +142,10 @@ class OrderCancellation:
     invoice_cancellation_id: UUID | None = None
     invoice_number: str | None = None
     requested_by_display_name: str | None = None
+    # Number of the cancellation invoice issued with the order's cancellation.
+    # None when no invoice was cancelled, and for an order cancelled before
+    # cancellation invoices existed until someone issues the document.
+    invoice_cancellation_number: str | None = None
 
     def __post_init__(self) -> None:
         require_aware(self.requested_at, "requested_at")

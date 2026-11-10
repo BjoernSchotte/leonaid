@@ -169,10 +169,13 @@ export function OrderCancellationDialog({
     onSuccess(result) {
       forgetCommandKey(storageKey);
       const invoiceNumber = result.cancellation.invoiceNumber;
+      const cancellationNumber = result.cancellation.invoiceCancellationNumber;
       toast?.show({
         title: "Bestellung storniert.",
         description: invoiceNumber
-          ? `Rechnung ${invoiceNumber} ist ebenfalls storniert. Eine Stornorechnung wurde ausgestellt.`
+          ? cancellationNumber
+            ? `Rechnung ${invoiceNumber} ist ebenfalls storniert. Stornorechnung ${cancellationNumber} wurde ausgestellt.`
+            : `Rechnung ${invoiceNumber} ist ebenfalls storniert.`
           : undefined,
         tone: "success",
       });

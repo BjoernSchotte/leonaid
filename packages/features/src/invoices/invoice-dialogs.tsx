@@ -26,6 +26,7 @@ import {
 import {
   commandKey,
   forgetCommandKey,
+  refundCommandStorageKey,
   invoiceSettlement,
   paymentCommandStorageKey,
   settlementCommandStorageKey,
@@ -512,6 +513,7 @@ function RefundForm({
   const [note, setNote] = useState("");
   const [dateError, setDateError] = useState<string>();
   const [serverError, setServerError] = useState<string>();
+  const storageKey = refundCommandStorageKey(invoice.id);
   const received = formatMoney(
     cancellation.receivedMinor ?? 0,
     invoice.currency,
@@ -519,10 +521,16 @@ function RefundForm({
 
   const refund = useMutation({
     mutationFn: () =>
-      client.settleInvoiceCancellationRefund(invoice.actionId, invoice.id, {
-        settledOn,
-        note: note.trim() || null,
-      }),
+      client.settleInvoiceCancellationRefund(
+        invoice.actionId,
+        invoice.id,
+        { settledOn, note: note.trim() || null },
+        {
+          headers: {
+            "Idempotency-Key": commandKey(storageKey, "poc095:refund"),
+          },
+        },
+      ),
     onError(cause) {
       const message = actionErrorMessage(cause);
       const known = message.code ? refundErrors[message.code] : undefined;
@@ -535,6 +543,7 @@ function RefundForm({
       }
       if (message.code === "invoice_refund_already_settled") {
         // Someone else was faster: the list is behind, nothing to do here.
+        forgetCommandKey(storageKey);
         toast?.show({ title: known!, tone: "info" });
         onChanged();
         onClose();
@@ -544,6 +553,7 @@ function RefundForm({
       if (message.conflict) onChanged();
     },
     onSuccess() {
+      forgetCommandKey(storageKey);
       toast?.show({
         title: `Erstattung für ${invoice.number} als erledigt vermerkt.`,
         tone: "success",
@@ -608,6 +618,8 @@ function RefundForm({
             max={today}
             min={minDate}
             onChange={(event) => {
+              // Another body is another command: it gets its own key.
+              forgetCommandKey(storageKey);
               setSettledOn(event.target.value);
               setDateError(undefined);
             }}
@@ -619,7 +631,10 @@ function RefundForm({
           <Input
             data-testid="refund-note"
             maxLength={500}
-            onChange={(event) => setNote(event.target.value)}
+            onChange={(event) => {
+              forgetCommandKey(storageKey);
+              setNote(event.target.value);
+            }}
             placeholder="z. B. Rücküberweisung vom Vereinskonto"
             value={note}
           />

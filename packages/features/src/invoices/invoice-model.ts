@@ -288,6 +288,9 @@ export const cancellationDeliveryCommandStorageKey = (invoiceId: string) =>
 export const cancellationDocumentCommandStorageKey = (invoiceId: string) =>
   `leonaid.invoice-cancellation-document-command.${invoiceId}`;
 
+export const refundCommandStorageKey = (invoiceId: string) =>
+  `leonaid.invoice-refund-command.${invoiceId}`;
+
 export const settlementCommandStorageKey = (
   invoiceId: string,
   kind: "cancellation" | "payment",

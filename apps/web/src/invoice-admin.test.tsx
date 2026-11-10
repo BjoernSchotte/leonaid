@@ -78,6 +78,7 @@ function invoice(
   return {
     buyerDisplayName: overrides.buyer ?? "Bäckerei Kern",
     cancellation: overrides.cancellation ?? null,
+    cancellationDeliveries: [],
     deliveries: overrides.deliveries ?? [],
     openMinor:
       overrides.openMinor ??
@@ -148,6 +149,7 @@ function failedDelivery(invoiceId: string): InvoiceDeliveryResponse {
     generatedDocumentId: `d-${invoiceId}`,
     id: `delivery-${invoiceId}`,
     invoiceId,
+    kind: "invoice",
     lastErrorCode: "mailbox_full",
     lastErrorDetail: "Postfach voll",
     messageId: null,
@@ -192,7 +194,11 @@ function cancelledInvoice(
         originalStatus: "issued",
         reason: "Doppelt erfasst",
         receivedMinor: 0,
+        refundNote: null,
         refundOpen: false,
+        refundSettledAt: null,
+        refundSettledByDisplayName: null,
+        refundSettledOn: null,
         replayed: false,
         requestedAt: "2026-10-06T12:00:00Z",
         requestedByDisplayName: "Klara Kern",
@@ -226,6 +232,7 @@ function cancellationDocumentFor(
 function documentFor(invoiceId: string, number: string) {
   return {
     buyerDisplayName: "Bäckerei Kern",
+    documentNumber: null,
     invoiceNumber: number,
     document: {
       actionId,
@@ -280,8 +287,16 @@ const records: InvoiceRecordResponse[] = [
       actionId,
       id: "x1",
       invoiceId: "i-cancelled",
+      issuedOn: null,
+      number: null,
       originalStatus: "issued",
       reason: "Doppelt erfasst",
+      receivedMinor: 0,
+      refundNote: null,
+      refundOpen: false,
+      refundSettledAt: null,
+      refundSettledByDisplayName: null,
+      refundSettledOn: null,
       replayed: false,
       requestedAt: "2026-10-06T12:00:00Z",
       requestedByDisplayName: "Klara Kern",
@@ -947,6 +962,11 @@ describe("InvoiceAdminPage", () => {
       actionId,
       "i-r",
       { settledOn: "2026-10-08", note: "Rücküberweisung vom Vereinskonto" },
+      {
+        headers: {
+          "Idempotency-Key": expect.stringMatching(/^poc095:refund/),
+        },
+      },
     );
     expect(
       await screen.findByText(

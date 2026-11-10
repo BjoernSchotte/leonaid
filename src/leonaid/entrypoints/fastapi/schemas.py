@@ -1432,6 +1432,14 @@ class CommitmentCancellationResponse(TransportModel):
         description="The invoice cancellation (ADR-0009) this order cancellation caused.",
     )
     invoice_number: str | None = None
+    invoice_cancellation_number: str | None = Field(
+        description=(
+            "Number of the cancellation invoice issued for the invoice this "
+            "order cancellation cancelled. Null when no invoice was cancelled "
+            "with the order, and for orders cancelled before cancellation "
+            "invoices existed until the document is issued."
+        ),
+    )
 
 
 class CommitmentRecordResponse(TransportModel):
@@ -1600,7 +1608,6 @@ class InvoiceDeliveryResponse(TransportModel):
     sent_at: datetime | None
     can_retry: bool
     kind: Literal["invoice", "invoice_cancellation"] = Field(
-        default="invoice",
         description="Which document of the invoice this delivery carries.",
     )
 
@@ -1645,27 +1652,24 @@ class InvoiceCancellationResponse(TransportModel):
     requested_at: datetime
     replayed: bool
     number: str | None = Field(
-        default=None,
         description=(
             "Number of the cancellation invoice, from the invoice series. "
             "Null for a cancellation recorded before cancellation invoices "
             "existed, until `issueInvoiceCancellationDocument` issues it."
         ),
     )
-    issued_on: date | None = None
+    issued_on: date | None
     received_minor: int = Field(
-        default=0,
         ge=0,
         description="Active payments of the cancelled invoice; they stay recorded.",
     )
     refund_open: bool = Field(
-        default=False,
         description="Money was received and no refund is recorded as settled.",
     )
-    refund_settled_on: date | None = None
-    refund_note: str | None = None
-    refund_settled_by_display_name: str | None = None
-    refund_settled_at: datetime | None = None
+    refund_settled_on: date | None
+    refund_note: str | None
+    refund_settled_by_display_name: str | None
+    refund_settled_at: datetime | None
 
 
 class InvoiceRecordResponse(TransportModel):
@@ -1691,7 +1695,7 @@ class InvoiceRecordResponse(TransportModel):
     ] = "open"
     settlement_version: int = Field(default=0, ge=0)
     # Deliveries of the cancellation invoice; `deliveries` holds the invoice's.
-    cancellation_deliveries: list[InvoiceDeliveryResponse] = Field(default_factory=list)
+    cancellation_deliveries: list[InvoiceDeliveryResponse]
 
 
 class InvoiceCurrencyTotalResponse(TransportModel):
@@ -1847,7 +1851,6 @@ class GeneratedDocumentRecordResponse(TransportModel):
     invoice_number: str | None
     buyer_display_name: str
     document_number: str | None = Field(
-        default=None,
         description=(
             "The document's own number when it is not the invoice's: the "
             "number of a cancellation invoice."

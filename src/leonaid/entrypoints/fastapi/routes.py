@@ -1632,6 +1632,7 @@ def commitment_cancellation_response(
         requested_at=cancellation.requested_at,
         invoice_cancellation_id=cancellation.invoice_cancellation_id,
         invoice_number=cancellation.invoice_number,
+        invoice_cancellation_number=cancellation.invoice_cancellation_number,
     )
 
 
@@ -4374,15 +4375,19 @@ async def settle_invoice_cancellation_refund(
     """Record that the money received for a cancelled invoice went back.
 
     LeonAid books no refund; this closes the reminder "Erstattung offen".
-    It can be recorded once (409 ``invoice_refund_already_settled``).
+    A finance record like a payment reversal, with the same gate: fresh login
+    and ``Idempotency-Key``. The same key again returns the stored marker
+    (``replayed``); another command on a settled refund answers 409
+    ``invoice_refund_already_settled``.
     """
-    actor = await identity_service(request).authenticate(session_token(request))
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
     cancellation = await invoice_settlement_service(request).settle_refund(
         actor,
         action_id,
         invoice_id,
         settled_on=body.settled_on,
         note=body.note,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
         request_id=request_id(request),
     )
     response.headers["Cache-Control"] = "no-store"

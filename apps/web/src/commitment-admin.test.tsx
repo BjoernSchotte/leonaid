@@ -820,6 +820,7 @@ describe("order cancellation", () => {
         cancellation: {
           id: "cx1",
           invoiceNumber: commitmentId === "c3" ? "KT26-0001" : null,
+          invoiceCancellationNumber: commitmentId === "c3" ? "KT26-0005" : null,
           previousStatus: "review_ready",
           reason: "Sponsor hat die Bestellung zurückgezogen",
           requestedAt: "2026-11-05T10:15:00Z",
@@ -935,7 +936,7 @@ describe("order cancellation", () => {
     });
     fireEvent.click(within(dialog).getByTestId("cancel-order"));
     await screen.findByText(
-      "Rechnung KT26-0001 ist ebenfalls storniert. Eine Stornorechnung wurde ausgestellt.",
+      "Rechnung KT26-0001 ist ebenfalls storniert. Stornorechnung KT26-0005 wurde ausgestellt.",
     );
     expect(cancel).toHaveBeenCalledTimes(1);
   });
@@ -1042,6 +1043,7 @@ describe("order cancellation", () => {
       commitment: { ...rows[0]!.commitment, status: "cancelled" },
       cancellation: {
         id: "cx1",
+        invoiceCancellationNumber: null,
         invoiceNumber: null,
         note: "Rückruf am Montag.\nKunde informiert.",
         previousStatus: "review_ready",

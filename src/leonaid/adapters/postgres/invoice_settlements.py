@@ -48,6 +48,7 @@ PAYMENT_COMMAND = "record_invoice_payment_v1"
 REVERSAL_COMMAND = "reverse_invoice_payment_v1"
 CANCELLATION_COMMAND = "cancel_invoice_v1"
 CANCELLATION_DOCUMENT_COMMAND = "issue_invoice_cancellation_document_v1"
+REFUND_COMMAND = "settle_invoice_refund_v1"
 
 
 class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
@@ -222,12 +223,28 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
         settled_on: date,
         note: str | None,
         actor_user_id: UUID,
+        idempotency_key: str,
+        request_hash: str,
         request_id: str,
         occurred_at: datetime,
     ) -> InvoiceCancellation:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
                 await self._lock_invoice(connection, invoice_id)
+                replayed_id = await self._existing_command(
+                    connection,
+                    command_type=REFUND_COMMAND,
+                    idempotency_key=idempotency_key,
+                    request_hash=request_hash,
+                    result_key="cancellationId",
+                )
+                if replayed_id is not None:
+                    return await self._get_cancellation(
+                        connection,
+                        action_id=action_id,
+                        cancellation_id=replayed_id,
+                        replayed=True,
+                    )
                 row = await connection.fetchrow(
                     """
                     SELECT cancellation.id
@@ -302,6 +319,14 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
                         ),
                         "hasNote": refund.note is not None,
                     },
+                    occurred_at=occurred_at,
+                )
+                await self._complete_command(
+                    connection,
+                    command_type=REFUND_COMMAND,
+                    idempotency_key=idempotency_key,
+                    request_hash=request_hash,
+                    result={"cancellationId": str(cancellation.id)},
                     occurred_at=occurred_at,
                 )
                 return await self._get_cancellation(

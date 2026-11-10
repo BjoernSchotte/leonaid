@@ -794,28 +794,56 @@ class Proof:
 
         refund = self.invoice_path("paid", "/cancellation/refund")
         today = self.today.isoformat()
+        # The gate of a payment reversal: rights, fresh login, a key.
         self.error(
-            await self.sessions["finance"].post(refund, {"settledOn": today}),
+            await self.sessions["finance"].post(
+                refund, {"settledOn": today}, self.key()
+            ),
             403,
             "invoice_settlement_required",
         )
+        self.error(
+            await self.stale.post(refund, {"settledOn": today}, self.key()),
+            401,
+            "fresh_login_required",
+        )
+        keyless = await self.charity.post(refund, {"settledOn": today})
+        assert keyless.status_code == 422, keyless.text
+        assert keyless.json()["error"]["code"] == (
+            "invoice_settlement_idempotency_key_invalid"
+        )
         tomorrow = (self.today + timedelta(days=1)).isoformat()
-        future = await self.charity.post(refund, {"settledOn": tomorrow})
+        future = await self.charity.post(refund, {"settledOn": tomorrow}, self.key())
         assert future.status_code == 422, future.text
         assert future.json()["error"]["code"] == "invoice_refund_future_date"
         yesterday = (self.today - timedelta(days=1)).isoformat()
-        early = await self.charity.post(refund, {"settledOn": yesterday})
+        early = await self.charity.post(refund, {"settledOn": yesterday}, self.key())
         assert early.json()["error"]["code"] == "invoice_refund_before_cancellation"
-        settled = await self.charity.post(
-            refund, {"settledOn": today, "note": "  Überweisung vom Vereinskonto  "}
-        )
+        key = self.key()
+        note: dict[str, object] = {
+            "settledOn": today,
+            "note": "  Überweisung vom Vereinskonto  ",
+        }
+        settled = await self.charity.post(refund, note, key)
         assert settled.status_code == 201, settled.text
         assert settled.json()["refundOpen"] is False
+        assert settled.json()["replayed"] is False
         assert settled.json()["refundSettledOn"] == today
         assert settled.json()["refundNote"] == "Überweisung vom Vereinskonto"
         assert settled.json()["refundSettledByDisplayName"].startswith("Charity")
+        # The same key again: the stored marker, not an error.
+        replay = await self.charity.post(refund, note, key)
+        assert replay.status_code == 201, replay.text
+        assert replay.json()["replayed"] is True
+        assert replay.json()["refundSettledAt"] == settled.json()["refundSettledAt"]
+        # The same key for other data, and another command on a settled refund.
         self.error(
-            await self.charity.post(refund, {"settledOn": today}),
+            await self.charity.post(refund, {"settledOn": today}, key),
+            409,
+            "idempotency_conflict",
+        )
+        self.error(
+            await self.charity.post(refund, {"settledOn": today}, self.key()),
             409,
             "invoice_refund_already_settled",
         )
@@ -834,6 +862,7 @@ class Proof:
             await self.charity.post(
                 self.invoice_path("unpaid", "/cancellation/refund"),
                 {"settledOn": today},
+                self.key(),
             ),
             409,
             "invoice_refund_not_due",
@@ -867,6 +896,20 @@ class Proof:
         assert row["id"] == UUID(
             response.json()["cancellation"]["invoiceCancellationId"]
         )
+        # The order names the cancellation invoice, in the answer and the list.
+        assert (
+            response.json()["cancellation"]["invoiceCancellationNumber"]
+            == (row["number"])
+        )
+        listed = await self.charity.get(
+            f"/api/v1/actions/{self.data.alpha}/commitments"
+        )
+        by_order = next(
+            item
+            for item in listed.json()["items"]
+            if item["commitment"]["id"] == order_id
+        )
+        assert by_order["cancellation"]["invoiceCancellationNumber"] == row["number"]
         assert len(await self.documents("by_order")) == 1
         assert await self.next_number() == serial + 1
         # The order of an invoice that was cancelled with money on it: the
@@ -890,6 +933,7 @@ class Proof:
         )
         assert released.status_code == 201, released.text
         assert released.json()["cancellation"]["invoiceCancellationId"] is None
+        assert released.json()["cancellation"]["invoiceCancellationNumber"] is None
         assert await self.next_number() == serial + 1
         assert len(await self.documents("paid")) == 1
 
@@ -1027,15 +1071,26 @@ class Proof:
             404,
             "invoice_delivery_not_found",
         )
+        retry = self.invoice_path(
+            "unpaid", f"/cancellation/deliveries/{delivery['id']}/retry"
+        )
         self.error(
-            await self.charity.post(
-                self.invoice_path(
-                    "unpaid", f"/cancellation/deliveries/{delivery['id']}/retry"
-                ),
+            await self.charity.post(retry, None), 409, "invoice_delivery_not_retryable"
+        )
+        # The gate of the invoice's own retry: fresh login, action manager.
+        self.error(await self.stale.post(retry, None), 401, "fresh_login_required")
+        self.error(
+            await self.stale.post(
+                self.invoice_path("unpaid", f"/deliveries/{delivery['id']}/retry"),
                 None,
             ),
-            409,
-            "invoice_delivery_not_retryable",
+            401,
+            "fresh_login_required",
+        )
+        self.error(
+            await self.sessions["finance_manager"].post(retry, None),
+            403,
+            "invoice_delivery_retry_required",
         )
         # An invoice that is not cancelled has no cancellation invoice to send.
         self.error(

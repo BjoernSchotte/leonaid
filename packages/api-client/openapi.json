@@ -3202,6 +3202,18 @@
             "description": "The invoice cancellation (ADR-0009) this order cancellation caused.",
             "title": "Invoicecancellationid"
           },
+          "invoiceCancellationNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Number of the cancellation invoice issued for the invoice this order cancellation cancelled. Null when no invoice was cancelled with the order, and for orders cancelled before cancellation invoices existed until the document is issued.",
+            "title": "Invoicecancellationnumber"
+          },
           "invoiceNumber": {
             "anyOf": [
               {
@@ -3259,7 +3271,8 @@
           "id",
           "previousStatus",
           "reason",
-          "requestedAt"
+          "requestedAt",
+          "invoiceCancellationNumber"
         ],
         "title": "CommitmentCancellationResponse",
         "type": "object"
@@ -7656,7 +7669,8 @@
         "required": [
           "document",
           "invoiceNumber",
-          "buyerDisplayName"
+          "buyerDisplayName",
+          "documentNumber"
         ],
         "title": "GeneratedDocumentRecordResponse",
         "type": "object"
@@ -8385,7 +8399,6 @@
             "type": "string"
           },
           "receivedMinor": {
-            "default": 0,
             "description": "Active payments of the cancelled invoice; they stay recorded.",
             "minimum": 0.0,
             "title": "Receivedminor",
@@ -8403,7 +8416,6 @@
             "title": "Refundnote"
           },
           "refundOpen": {
-            "default": false,
             "description": "Money was received and no refund is recorded as settled.",
             "title": "Refundopen",
             "type": "boolean"
@@ -8478,7 +8490,15 @@
           "requestedByUserId",
           "requestedByDisplayName",
           "requestedAt",
-          "replayed"
+          "replayed",
+          "number",
+          "issuedOn",
+          "receivedMinor",
+          "refundOpen",
+          "refundSettledOn",
+          "refundNote",
+          "refundSettledByDisplayName",
+          "refundSettledAt"
         ],
         "title": "InvoiceCancellationResponse",
         "type": "object"
@@ -8595,7 +8615,6 @@
             "type": "string"
           },
           "kind": {
-            "default": "invoice",
             "description": "Which document of the invoice this delivery carries.",
             "enum": [
               "invoice",
@@ -8688,7 +8707,8 @@
           "lastErrorDetail",
           "requestedAt",
           "sentAt",
-          "canRetry"
+          "canRetry",
+          "kind"
         ],
         "title": "InvoiceDeliveryResponse",
         "type": "object"
@@ -9215,7 +9235,8 @@
           "openMinor",
           "payment",
           "cancellation",
-          "deliveries"
+          "deliveries",
+          "cancellationDeliveries"
         ],
         "title": "InvoiceRecordResponse",
         "type": "object"
@@ -25722,7 +25743,7 @@
     },
     "/api/v1/actions/{action_id}/invoices/{invoice_id}/cancellation/refund": {
       "post": {
-        "description": "Record that the money received for a cancelled invoice went back.\n\nLeonAid books no refund; this closes the reminder \"Erstattung offen\".\nIt can be recorded once (409 ``invoice_refund_already_settled``).",
+        "description": "Record that the money received for a cancelled invoice went back.\n\nLeonAid books no refund; this closes the reminder \"Erstattung offen\".\nA finance record like a payment reversal, with the same gate: fresh login\nand ``Idempotency-Key``. The same key again returns the stored marker\n(``replayed``); another command on a settled refund answers 409\n``invoice_refund_already_settled``.",
         "operationId": "settleInvoiceCancellationRefund",
         "parameters": [
           {

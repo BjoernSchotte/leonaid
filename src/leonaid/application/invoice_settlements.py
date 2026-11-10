@@ -91,6 +91,8 @@ class InvoiceSettlementRepository(Protocol):
         settled_on: date,
         note: str | None,
         actor_user_id: UUID,
+        idempotency_key: str,
+        request_hash: str,
         request_id: str,
         occurred_at: datetime,
     ) -> InvoiceCancellation: ...
@@ -318,18 +320,31 @@ class InvoiceSettlementService:
         *,
         settled_on: date,
         note: str | None,
+        idempotency_key: str,
         request_id: str,
         occurred_at: datetime | None = None,
     ) -> InvoiceCancellation:
         """Records that the money of a cancelled invoice went back."""
 
         self._require_manage(actor, action_id)
+        self._validate_idempotency_key(idempotency_key)
+        normalized_note = _normalized(note)
         return await self._repository.settle_refund(
             action_id=action_id,
             invoice_id=invoice_id,
             settled_on=settled_on,
-            note=_normalized(note),
+            note=normalized_note,
             actor_user_id=actor.account.id,
+            idempotency_key=idempotency_key,
+            request_hash=_request_hash(
+                {
+                    "actionId": str(action_id),
+                    "invoiceId": str(invoice_id),
+                    "command": "settleRefund",
+                    "settledOn": settled_on.isoformat(),
+                    "note": normalized_note,
+                }
+            ),
             request_id=request_id,
             occurred_at=occurred_at or datetime.now(timezone.utc),
         )
