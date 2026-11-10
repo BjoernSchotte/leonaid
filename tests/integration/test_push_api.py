@@ -34,11 +34,8 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
 from fastapi import FastAPI
 
-from leonaid.adapters.postgres.activity_projection import (
-    ActionProgressActivityHandler,
-)
 from leonaid.adapters.postgres.pool import create_pool
-from leonaid.adapters.postgres.push import AsyncpgPushRepository
+from leonaid.adapters.postgres.push import AsyncpgPushRepository, enqueue_push
 from leonaid.adapters.web_push import (
     VapidSigner,
     WebPushSender,
@@ -52,7 +49,12 @@ from leonaid.application.push import (
 )
 from leonaid.configuration import Settings
 from leonaid.domain.outbox import ClaimedOutboxEvent, json_payload
-from leonaid.domain.push import PUSH_EVENT_TYPE, PUSH_THROTTLE, PushEndpointPolicy
+from leonaid.domain.push import (
+    PUSH_EVENT_TYPE,
+    PUSH_THROTTLE,
+    PushEndpointPolicy,
+    PushKind,
+)
 from leonaid.domain.sessions import (
     SESSION_COOKIE_NAME,
     SESSION_LIFETIME,
@@ -654,11 +656,8 @@ class Proof:
         assert kinds(acquirer) == ["follow_ups", "feed", "tasks"]
         # Every kind is off until the member switches it on (D-P3).
         assert all(item["enabled"] is False for item in acquirer["kinds"])
-        assert kinds(await self.configuration("driver")) == [
-            "feed",
-            "tasks",
-            "delivery",
-        ]
+        assert kinds(await self.configuration("driver")) == ["tasks", "delivery"]
+        assert kinds(await self.configuration("admin")) == ["feed", "tasks"]
         assert kinds(await self.configuration("outsider")) == ["tasks"]
         refused = await self.prefer("outsider", delivery=True)
         assert refused.status_code == 409, refused.text
@@ -765,36 +764,27 @@ class Proof:
             {"kinds": {"feed": True, "follow_ups": True}}
         ]
 
-    async def progress(self, actor: str) -> None:
-        """A new entry in "Neues" for every member, through its real writer."""
+    async def order_arrives(self) -> None:
+        """A new public order in "Neues" for the acquirer and the admin.
 
-        event_id = uuid4()
-        await ActionProgressActivityHandler(self.pool).handle(
-            ClaimedOutboxEvent(
-                id=event_id,
-                aggregate_type="charity_action",
-                aggregate_id=self.data.action,
-                event_type="charity_action.progress.recorded.v1",
-                idempotency_key=f"push-proof:{event_id}",
-                payload={
-                    "actionId": str(self.data.action),
-                    "actorUserId": str(self.data.users[actor]),
-                    "actualValue": "10",
-                    "requestId": f"push-proof-{event_id}",
-                },
-                attempts=1,
-                claim_token=uuid4(),
-                claimed_by="push-proof",
+        The writer of the entry asks for the push in its transaction with
+        this call; ``tools/public_orders/contract.py`` proves that writer
+        with a real order.
+        """
+
+        async with self.pool.acquire() as connection, connection.transaction():
+            await enqueue_push(
+                connection,
+                user_ids=[self.data.users["acquirer"], self.data.users["admin"]],
+                kind=PushKind.FEED,
+                occurred_at=datetime.now(timezone.utc),
             )
-        )
 
     async def feed_and_the_15_minutes(self, phone: Device) -> None:
         key = self.signer.public_key
-        await self.progress("admin")
-        # Only the acquirer asked for "Neues"; the driver and the admin get
-        # no job at all.
+        await self.order_arrives()
+        # Only the acquirer asked for "Neues"; the admin gets no job at all.
         assert len(await self.jobs("acquirer")) == 1
-        assert await self.jobs("driver") == []
         assert await self.jobs("admin") == []
         assert await self.run_all("acquirer") == 1
         (first,) = self.receiver.take()
@@ -809,7 +799,7 @@ class Proof:
         # job is set for the end of the 15 minutes.
         for minutes in (1, 5, 9):
             self.clock.now = sent_at + timedelta(minutes=minutes)
-            await self.progress("admin")
+            await self.order_arrives()
             assert await self.run_all("acquirer") == 1
         assert self.receiver.take() == []
         (flush,) = await self.jobs("acquirer")
@@ -825,17 +815,6 @@ class Proof:
         }
         assert await self.jobs("acquirer") == []
 
-        # The member who recorded the progress is not told about it.
-        await self.prefer("admin", feed=True)
-        admin_phone = Device(self.receiver, "admin-phone")
-        await self.subscribe("admin", admin_phone)
-        self.clock.advance(PUSH_THROTTLE)
-        await self.progress("admin")
-        assert await self.jobs("admin") == []
-        assert len(await self.jobs("acquirer")) == 1
-        assert await self.run_all("acquirer") == 1
-        self.receiver.take()
-
     async def gone_and_failing_devices(self, phone: Device) -> None:
         key = self.signer.public_key
         tablet = Device(self.receiver, "acquirer-tablet")
@@ -846,7 +825,7 @@ class Proof:
         # knows the laptop's no longer (404).
         self.receiver.answers = {tablet.path: [410], laptop.path: [404]}
         self.clock.advance(PUSH_THROTTLE)
-        await self.progress("admin")
+        await self.order_arrives()
         assert await self.run_all("acquirer") == 1
         assert sorted(request.path for request in self.receiver.take()) == sorted(
             [phone.path, tablet.path, laptop.path]
@@ -859,7 +838,7 @@ class Proof:
         # second run sends the same count, not a doubled one.
         self.receiver.answers = {phone.path: [503]}
         self.clock.advance(PUSH_THROTTLE)
-        await self.progress("admin")
+        await self.order_arrives()
         (job,) = await self.jobs("acquirer")
         try:
             await self.run(job, done=False)
@@ -1023,11 +1002,11 @@ class Proof:
         # A kind switched off after its job was written: the job sends
         # nothing; later events write no job.
         self.clock.advance(PUSH_THROTTLE)
-        await self.progress("admin")
+        await self.order_arrives()
         (job,) = await self.jobs("acquirer")
         assert (await self.prefer("acquirer", feed=False)).status_code == 200
         await self.run(job)
-        await self.progress("admin")
+        await self.order_arrives()
         assert await self.jobs("acquirer") == []
         assert self.receiver.take() == []
         assert (await self.audits("push.preferences.changed", "acquirer"))[-1] == {
@@ -1037,11 +1016,11 @@ class Proof:
 
         # The flag switched off: no jobs, and a job in hand sends nothing.
         self.clock.advance(PUSH_THROTTLE)
-        await self.progress("admin")
+        await self.order_arrives()
         (job,) = await self.jobs("acquirer")
         await self.flag(False)
         await self.run(job)
-        await self.progress("admin")
+        await self.order_arrives()
         assert await self.jobs("acquirer") == []
         assert self.receiver.take() == []
         await self.flag(True)
@@ -1061,7 +1040,7 @@ class Proof:
             self.clock.now - timedelta(minutes=1),
         )
         self.clock.advance(PUSH_THROTTLE)
-        await self.progress("admin")
+        await self.order_arrives()
         assert await self.run_all("acquirer") == 1
         assert [request.path for request in self.receiver.take()] == [phone.path]
         assert await self.repository.purge_ended(now=self.clock.now) == 1
@@ -1105,7 +1084,7 @@ class Proof:
         assert await self.devices("driver") == []
         # A job still in the queue for a member without devices just ends.
         self.clock.advance(PUSH_THROTTLE)
-        await self.progress("admin")
+        await self.order_arrives()
         await self.run_all("acquirer")
         assert self.receiver.take() == []
 

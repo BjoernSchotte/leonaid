@@ -132,15 +132,16 @@ def available_kinds(
 ) -> tuple[PushKind, ...]:
     """The kinds that can ever reach this member.
 
-    Follow-ups belong to acquirers, deliveries to drivers, "Neues" to every
-    member of an action; tasks need the tasks module.
+    Follow-ups belong to acquirers and deliveries to drivers. "Neues" lists
+    public orders for the acquirers of the buyer, or for the action's
+    admins when nobody is assigned. Tasks need the tasks module.
     """
 
     roles = {membership.role for membership in actor.action_memberships}
     kinds: list[PushKind] = []
     if ActionRole.ACQUIRER in roles:
         kinds.append(PushKind.FOLLOW_UPS)
-    if roles:
+    if roles & {ActionRole.ACQUIRER, ActionRole.CHARITY_ADMIN}:
         kinds.append(PushKind.FEED)
     if tasks_enabled:
         kinds.append(PushKind.TASKS)

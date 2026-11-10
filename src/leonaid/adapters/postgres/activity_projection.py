@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid5
 
 import asyncpg
 
-from leonaid.adapters.postgres.push import enqueue_push
 from leonaid.domain.outbox import ClaimedOutboxEvent
-from leonaid.domain.push import PushKind
 
 ACTIVITY_NAMESPACE = UUID("9dad66c0-e325-410b-a9c3-1dfaf0f329d3")
 
@@ -50,7 +47,7 @@ class ActionProgressActivityHandler:
                     event.id,
                 )
                 if inserted:
-                    recipients = await connection.fetch(
+                    await connection.execute(
                         """
                         INSERT INTO activity_event_recipient (
                             activity_event_id, user_id
@@ -66,20 +63,9 @@ class ActionProgressActivityHandler:
                               OR membership.active_until > CURRENT_TIMESTAMP
                           )
                         ON CONFLICT DO NOTHING
-                        RETURNING user_id
                         """,
                         activity_id,
                         action_id,
-                    )
-                    # A push for the new entry in "Neues", for members who
-                    # asked; the member who recorded the progress knows it.
-                    actor = event.payload.get("actorUserId")
-                    await enqueue_push(
-                        connection,
-                        user_ids=[row["user_id"] for row in recipients],
-                        kind=PushKind.FEED,
-                        occurred_at=datetime.now(timezone.utc),
-                        except_user_id=UUID(actor) if isinstance(actor, str) else None,
                     )
 
     @staticmethod

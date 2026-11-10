@@ -544,7 +544,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
                 """,
                 [(activity_id, user_id) for user_id in recipient_ids],
             )
-            # A push for the new entry in "Neues", for members who asked.
+            # A push for the new order in "Neues", for members who asked.
             await enqueue_push(
                 connection,
                 user_ids=recipient_ids,

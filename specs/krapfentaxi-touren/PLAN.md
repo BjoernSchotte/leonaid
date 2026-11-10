@@ -61,7 +61,10 @@ boundary for Krapfentaxi.
 - **Algorithmic route optimization** with road distances, time windows or
   vehicle capacity. Section 6.3 has one simple sort helper. Nothing more.
 - **Live tracking** of drivers, or ETA messages to customers.
-- **Push notifications, SMS.**
+- **Push notifications, SMS.** (A push for assigned deliveries came later
+  with `specs/mails-documents-donations-push/PLAN.md` §10, ADR-0017, flag
+  `pwa.push`: it tells a driver that stops were assigned, with a count
+  only. ETA messages to customers and SMS stay out.)
 - **Several tours per driver per day.** A tour is driver × delivery day
   (§4): one pickup in the morning, then all stops.
 - **Drivers seeing other drivers' stops,** or amounts.

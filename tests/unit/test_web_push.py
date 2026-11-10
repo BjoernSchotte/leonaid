@@ -138,7 +138,7 @@ def test_vapid_token_is_signed_with_the_configured_key() -> None:
     signer = VapidSigner(encoded, SUBJECT)
 
     header = signer.authorization(
-        "https://fcm.googleapis.com/fcm/send/abc:def?x=1", now=NOW
+        "https://FCM.googleapis.com:443/fcm/send/abc:def?x=1", now=NOW
     )
 
     assert header.startswith("vapid t=")
@@ -149,7 +149,8 @@ def test_vapid_token_is_signed_with_the_configured_key() -> None:
     head, claims, signature = token.split(".")
     assert decode_segment(head) == {"typ": "JWT", "alg": "ES256"}
     assert decode_segment(claims) == {
-        # RFC 8292 section 2: the origin of the push resource, nothing more.
+        # RFC 8292 section 2: the origin of the push resource, nothing more,
+        # in the spelling the push service uses for itself.
         "aud": "https://fcm.googleapis.com",
         "exp": int((NOW + timedelta(hours=12)).timestamp()),
         "sub": SUBJECT,
@@ -223,6 +224,14 @@ def test_endpoints_of_the_known_push_services_pass(endpoint: str) -> None:
         "https://127.0.0.1/abc",
         "https://core-postgres:5432/",
         "https://fcm.googleapis.com/fcm/send/abc#fragment",
+        # Characters that URL parsers strip or rewrite.
+        "https://fcm.googleapis.com/fcm/send/a\tbc",
+        "https://fcm.googleapis.com/fcm/send/abc\n",
+        " https://fcm.googleapis.com/fcm/send/abc",
+        "https://fcm.googleapis.com/fcm/send/abc\x00",
+        "https://fcm。googleapis。com/fcm/send/abc",
+        "https://attacker.example\\@fcm.googleapis.com/fcm/send/abc",
+        "https://fcm.googleapis.com\\.attacker.example/fcm/send/abc",
         "https://fcm.googleapis.com/" + "a" * 2100,
         "ftp://fcm.googleapis.com/abc",
         "",
@@ -364,3 +373,12 @@ async def test_a_network_failure_is_a_temporary_outcome() -> None:
         )
 
     assert result is PushOutcome.UNAVAILABLE
+
+
+def test_the_vapid_audience_keeps_a_port_that_is_not_the_default() -> None:
+    signer = VapidSigner(generate_vapid_private_key(), SUBJECT)
+
+    header = signer.authorization("http://127.0.0.1:9911/push/a", now=NOW)
+
+    claims = header.removeprefix("vapid t=").split(".")[1]
+    assert decode_segment(claims)["aud"] == "http://127.0.0.1:9911"

@@ -1,4 +1,4 @@
-import { Download, RefreshCw } from "lucide-react";
+import { BellRing, Download, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
@@ -13,12 +13,16 @@ import {
   FEATURE_FLAGS,
   FeatureFlagProvider,
   driverStanding,
+  forgetPushDevice,
   ModuleSearch,
+  navigateInPage,
+  PushNotificationsPage,
   PwaDeliveryPage,
   PwaDriverStart,
   resolveModuleRoute,
   RoleDashboardPage,
   SponsorWorkspace,
+  syncPushDevice,
   useCurrentActionId,
   useLeonAidSettledFlag,
   useLocationHref,
@@ -72,7 +76,8 @@ type PwaRoute =
   | "commitment"
   | "follow-ups"
   | "news"
-  | "delivery";
+  | "delivery"
+  | "notifications";
 
 function currentRoute(): PwaRoute {
   const { pathname, search } = window.location;
@@ -84,6 +89,7 @@ function currentRoute(): PwaRoute {
   }
   if (pathname.startsWith(pwaHref("sponsors"))) return "sponsors";
   if (pathname.startsWith(pwaHref("delivery"))) return "delivery";
+  if (pathname.startsWith(pwaHref("notifications"))) return "notifications";
   return "overview";
 }
 
@@ -149,8 +155,21 @@ function usePwaLifecycle(): PwaLifecycle {
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
     window.addEventListener("leonaid:update-available", onUpdateAvailable);
+    // A tapped notification: the worker names the page (sw.js); only
+    // paths of this app are followed.
+    const onWorkerMessage = (event: MessageEvent) => {
+      const data = event.data as { type?: unknown; path?: unknown } | null;
+      if (
+        data?.type === "PUSH_NAVIGATE" &&
+        typeof data.path === "string" &&
+        data.path.startsWith(PWA_BASE)
+      ) {
+        navigateInPage(data.path);
+      }
+    };
 
     if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", onWorkerMessage);
       navigator.serviceWorker.addEventListener(
         "controllerchange",
         onControllerChange,
@@ -183,6 +202,7 @@ function usePwaLifecycle(): PwaLifecycle {
       observedWorker?.removeEventListener("statechange", onWorkerStateChange);
       observedRegistration?.removeEventListener("updatefound", onUpdateFound);
       if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.removeEventListener("message", onWorkerMessage);
         navigator.serviceWorker.removeEventListener(
           "controllerchange",
           onControllerChange,
@@ -284,12 +304,35 @@ function PwaShell({
   // A flag switched off mid-session takes the driver's tour copy along.
   useTourCachePurge();
   const deliveryTours = useLeonAidSettledFlag(FEATURE_FLAGS.deliveryTours);
-  const { active, menu, tabs } = mobileNavigation(
+  const push = useLeonAidSettledFlag(FEATURE_FLAGS.pwaPush);
+  // A device with push switched on tells Core where it is after every
+  // sign-in: its subscription belongs to the session (ADR-0017).
+  useEffect(() => {
+    if (push !== true || props.offline) return;
+    void syncPushDevice(client).catch(() => undefined);
+  }, [client, push, props.offline]);
+  const navigationState = mobileNavigation(
     navigation,
     implementedPwaNavigation,
     window.location,
     { deliveryTours, driver, driverOnly },
   );
+  const { active, tabs } = navigationState;
+  const notificationsHref = pwaHref("notifications");
+  // "Benachrichtigungen" joins the "Mehr" sheet while `pwa.push` is on.
+  const menu =
+    push === true
+      ? [
+          ...navigationState.menu,
+          {
+            current: window.location.pathname.startsWith(notificationsHref),
+            href: notificationsHref,
+            icon: BellRing,
+            key: "notifications",
+            label: "Benachrichtigungen",
+          },
+        ]
+      : navigationState.menu;
   const { sheet, ...queue } = useQueueShell(
     client,
     identity,
@@ -392,7 +435,11 @@ export function App({ client }: AppProps) {
   const [signOutCount, setSignOutCount] = useState<number | null>(0);
   function signOut() {
     // Sign-out deletes everything the PWA kept on this device (§8.5).
+    // The device's push subscription ends too; Core deletes its copy
+    // with the session.
     void forgetDevice(identity.data?.userId ?? null)
+      .catch(() => undefined)
+      .then(() => forgetPushDevice())
       .catch(() => undefined)
       .then(() => client.logout())
       .finally(() => {
@@ -581,6 +628,8 @@ export function App({ client }: AppProps) {
             <ActivityWorkspace client={client} identity={identity.data} />
           ) : route === "news" ? (
             <ActivityFeedPage client={client} surface="pwa" />
+          ) : route === "notifications" ? (
+            <PushNotificationsPage client={client} />
           ) : route === "delivery" ? (
             <PwaDeliveryPage
               actionId={driverActionId}

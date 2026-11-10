@@ -769,7 +769,11 @@
     },
     {
       "file": "packages/features/src/system-admin/legal-templates.ts",
-      "contains": ["## Speicherung auf deinem Gerät", "[["]
+      "contains": [
+        "## Speicherung auf deinem Gerät",
+        "## Benachrichtigungen auf deinem Gerät",
+        "[["
+      ]
     },
     {
       "file": "apps/public/src/components/LegalPrivacy.astro",

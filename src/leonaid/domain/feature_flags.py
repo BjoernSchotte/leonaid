@@ -106,7 +106,7 @@ FEATURE_FLAG_CATALOG = (
         description=(
             "Mitglieder können in der Akquise-App unter „Benachrichtigungen“ "
             "Hinweise auf ihr Gerät einschalten: fällige Wiedervorlagen, neue "
-            "Einträge unter „Neues“, zugewiesene Aufgaben und zugewiesene "
+            "Bestellungen unter „Neues“, zugewiesene Aufgaben und zugewiesene "
             "Lieferungen. Jede Art ist aus, bis das Mitglied sie einschaltet. "
             "Vor dem Einschalten muss der aktive Mitglieder-Datenschutzhinweis "
             "den Abschnitt zu Benachrichtigungen auf dem Gerät enthalten "

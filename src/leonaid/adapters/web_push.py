@@ -138,8 +138,15 @@ class VapidSigner:
         """The ``Authorization`` header for a push to ``endpoint`` (RFC 8292 §3)."""
 
         parts = urlsplit(endpoint)
+        # The origin as the push service names itself: lower case, without
+        # the default port.
+        port = parts.port
+        default = {"https": 443, "http": 80}.get(parts.scheme)
+        origin = f"{parts.scheme}://{(parts.hostname or '').lower()}" + (
+            f":{port}" if port is not None and port != default else ""
+        )
         claims = {
-            "aud": f"{parts.scheme}://{parts.netloc}",
+            "aud": origin,
             "exp": int((now + VAPID_LIFETIME).timestamp()),
             "sub": self._subject,
         }

@@ -1,6 +1,6 @@
 # Bekannte Grenzen des PoC
 
-Stand: 2026-11-06 (abgeglichen mit `main` bei `af276b7f`)
+Stand: 2026-11-10 (abgeglichen mit `main` bei `e8060e5f`)
 
 Diese Liste trennt bewusst verschobenen Scope von Defekten. Die
 Krapfentaxi-Golden-Journey ist technisch vollständig bewiesen; die folgenden
@@ -77,8 +77,43 @@ Punkte sind keine stillschweigenden Produktzusagen.
   - Das Flag darf erst eingeschaltet werden, wenn ein Mitglieder-
     Datenschutzhinweis mit dem Abschnitt zur Speicherung auf dem Gerät aktiv
     ist; LeonAid prüft das nicht selbst.
-- Push-Nachrichten, Etikettendruck, Druck-/Packliste, Herstellerabrechnung
-  und Materialbestand fehlen.
+- Etikettendruck, Druck-/Packliste, Herstellerabrechnung und Materialbestand
+  fehlen.
+- Push notifications of the acquisition app sit behind the feature flag
+  `pwa.push` (off by default; `specs/mails-documents-donations-push/PLAN.md`
+  §10, ADR-0017). Limits of the first version:
+  - Delivery through the push services of Google (FCM), Mozilla, Apple and
+    Microsoft is not proven by a test: the test stacks have no route to
+    them. Sending is proven against a local receiver that checks the VAPID
+    token and decrypts the message; the service worker is proven in a real
+    browser with a synthetic push. The check on a real Android phone and a
+    real iPhone is manual and open.
+  - iPhone and iPad receive pushes only for LeonAid on the home screen
+    (iOS/iPadOS 16.4 or later), not in a Safari tab.
+  - Four kinds: due follow-ups (once a day from 08:00 club time, not after
+    20:00), new public orders in "Neues", assigned tasks, assigned
+    deliveries. Each is off until the member switches it on. The switches
+    hold for all devices of the member; there are no quiet hours.
+  - A push carries a kind, a count and a target path. The text is fixed in
+    the service worker; an installed app shows the old text until it has
+    updated.
+  - At most one push per member and kind in 15 minutes; later events are
+    counted and sent together.
+  - A push is a hint without a delivery guarantee: a message is sent again
+    only when no device of the member could be reached, and a push service
+    drops what it could not deliver within 24 hours.
+  - A device ends with its session. After a new sign-in it gets pushes again
+    once the app was opened on it.
+  - A new `LEONAID_VAPID_PRIVATE_KEY` ends every subscription; without the
+    key the page says "noch nicht eingerichtet". The worker needs a route
+    to the push services (pilot: the `mail-egress` network).
+  - Only the push services named in ADR-0017 are accepted; another browser
+    vendor needs a release.
+  - Switching the flag off stops sending; stored device addresses stay until
+    the member removes the device or signs out.
+  - The flag may be switched on only once an active members' privacy notice
+    carries the section on notifications; LeonAid does not check this.
+  - No push in the web admin, no notification actions, no badges.
 - Dokumentverwaltung umfasst erzeugte und fachlich zugeordnete Belege sowie
   das Material-Modul (Upload mit Versionen). Ein allgemeines DMS mit
   Volltextsuche fehlt.

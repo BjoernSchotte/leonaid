@@ -129,7 +129,9 @@ class PushEndpointPolicy:
     def allows(self, endpoint: str) -> bool:
         if not endpoint or len(endpoint) > MAX_ENDPOINT_LENGTH:
             return False
-        if any(character.isspace() for character in endpoint):
+        # Printable ASCII only: URL parsers drop or rewrite the rest, each in
+        # its own way, and the check must see what the HTTP client sends.
+        if not all("!" <= character <= "~" for character in endpoint):
             return False
         try:
             parts = urlsplit(endpoint)
