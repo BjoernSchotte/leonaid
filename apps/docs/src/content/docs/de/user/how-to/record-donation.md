@@ -4,9 +4,9 @@ description: Eine Spende erfassen, die Spendenzusage senden, den Zahlungseingang
 docId: DOC-P059
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 8fe6057e8a6c717cdcd73671a2706289d748fb7c
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 1c7cedc2a1d2733b336d30a146b28874c28e8eb1
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -17,8 +17,9 @@ reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 
 Eine Spende hat keine Gegenleistung. Sie bekommt deshalb keine Rechnung,
 sondern eine **Spendenzusage**: ein PDF mit Betrag, Spendenkonto und der
-Nummer der Spende als Verwendungszweck. Die Zuwendungsbestätigung für die
-Steuererklärung stellt LeonAid in dieser Version noch nicht aus.
+Nummer der Spende als Verwendungszweck. Nach dem Zahlungseingang stellst du
+die Zuwendungsbestätigung für die Steuererklärung aus (siehe
+[Zuwendungsbestätigung ausstellen](/de/user/how-to/issue-donation-receipt/)).
 
 ## Voraussetzungen
 
@@ -97,6 +98,9 @@ Hast du eine Zahlung der falschen Spende zugeordnet, wähle im Abschnitt
 der Rücknahme** ein, mindestens acht Zeichen. Die Spende ist danach wieder
 **Offen**. Unter **Zurückgenommene Zahlungen** bleibt sichtbar, was erfasst
 war, wer es erfasst und wer es zurückgenommen hat.
+
+Gibt es zu der Zahlung eine gültige Zuwendungsbestätigung, erklärst du zuerst
+diese für ungültig.
 
 ## Spende stornieren
 

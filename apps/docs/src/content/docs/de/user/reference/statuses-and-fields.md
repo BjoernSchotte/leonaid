@@ -4,9 +4,9 @@ description: Nachschlagewerk für Aktions-, Akquise-, Bestell-, Rechnungs- und L
 docId: DOC-P017
 audience: [user]
 diataxis: reference
-contentRevision: 6
-reviewedRevision: 6
-verifiedAgainst: 8fe6057e8a6c717cdcd73671a2706289d748fb7c
+contentRevision: 7
+reviewedRevision: 7
+verifiedAgainst: 1c7cedc2a1d2733b336d30a146b28874c28e8eb1
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -84,6 +84,11 @@ ist sie mit dem Betrag, der eingegangen ist; er darf von der Zusage
 abweichen. Eine zurückgenommene Zahlung setzt sie wieder auf **Offen**. Nur
 eine Spende ohne Zahlung lässt sich stornieren; ein Storno ist endgültig
 (siehe [Spende erfassen](/de/user/how-to/record-donation/)).
+
+Eine bezahlte Spende mit gültiger Zuwendungsbestätigung steht in der Ansicht
+**Bestätigt**. Eine Zuwendungsbestätigung ist gültig oder **für ungültig
+erklärt**; geändert wird sie nie (siehe
+[Zuwendungsbestätigung ausstellen](/de/user/how-to/issue-donation-receipt/)).
 
 Die Herkunft ist `admin` (**Verwaltung**), `public_form` (**Öffentliches
 Formular**) oder `acquisition` (**Akquise**). In dieser Version entstehen

@@ -4,9 +4,9 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 14
-reviewedRevision: 14
-verifiedAgainst: a096029080650f1a73bb0a546e584066d64bbcc7
+contentRevision: 15
+reviewedRevision: 15
+verifiedAgainst: 1c7cedc2a1d2733b336d30a146b28874c28e8eb1
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -102,9 +102,14 @@ allgemeine Produktionsfreigabe.
   eine eigene Spende. Nur eine unbezahlte Spende lässt sich stornieren.
   Spenden entstehen nur in der Verwaltung, noch nicht im Bestellformular; den
   Spender trägst du von Hand ein, eine Suche im CRM gibt es dort noch nicht. Die
-  Zuwendungsbestätigung stellt LeonAid noch nicht aus. Die Textbausteine sind
-  Vorschläge und rechtlich noch nicht geprüft (siehe
-  [Spende erfassen](/de/user/how-to/record-donation/)).
+  Zuwendungsbestätigung gibt es nur als Einzelbestätigung für Geldspenden,
+  eine je Spende; sie wird nie geändert, nur für ungültig erklärt. Mit
+  eigenhändiger Unterschrift sendet LeonAid sie nicht per E-Mail. Ist der
+  Bescheid der empfangenden Körperschaft zu alt (§ 63 Abs. 5 AO), lässt sich
+  keine ausstellen. Textbausteine und Regeln sind Vorschläge und rechtlich
+  noch nicht geprüft (siehe
+  [Spende erfassen](/de/user/how-to/record-donation/) und
+  [Zuwendungsbestätigung ausstellen](/de/user/how-to/issue-donation-receipt/)).
 - Zahlungen einer stornierten Rechnung bleiben erfasst und lassen sich nicht
   zurückbuchen. LeonAid bucht keine Erstattung; „Erstattung erledigt“ ist nur
   ein Vermerk. Er lässt sich mit Grund zurücknehmen.

@@ -4,9 +4,9 @@ description: Record a donation, send the donation pledge, book or take back the 
 docId: DOC-P059
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 8fe6057e8a6c717cdcd73671a2706289d748fb7c
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 1c7cedc2a1d2733b336d30a146b28874c28e8eb1
 reviewer: Claude Code (review by Björn Schotte pending)
 ---
 
@@ -16,8 +16,9 @@ payments and donation pledges but cannot change anything.
 
 A donation has nothing given in return. It therefore gets no invoice but a
 **donation pledge** ("Spendenzusage"): a PDF with the amount, the donation
-account and the number of the donation as payment reference. This version
-of LeonAid does not issue the donation receipt for the tax return yet.
+account and the number of the donation as payment reference. After the
+payment arrived you issue the donation receipt for the tax return (see
+[Issue a donation receipt](/en/user/how-to/issue-donation-receipt/)).
 
 ## Before you start
 
@@ -92,6 +93,8 @@ zurücknehmen** in the section **Zahlung** and enter the **Grund der
 Rücknahme**, at least eight characters. The donation is **Offen** again.
 **Zurückgenommene Zahlungen** keeps what was recorded, who recorded it and
 who took it back.
+
+If the payment has a valid donation receipt, declare that receipt void first.
 
 ## Cancel a donation
 

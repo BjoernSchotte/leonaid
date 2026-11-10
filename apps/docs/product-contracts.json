@@ -1045,5 +1045,35 @@
       "file": "packages/features/src/dashboard/dashboard.tsx",
       "contains": ["Weitere Kennzahlen"]
     }
+  ],
+  "DOC-P060": [
+    {
+      "file": "packages/features/src/donations/donation-dialogs.tsx",
+      "contains": [
+        "Zuwendungsbestätigung ausstellen",
+        "Für ungültig erklären",
+        "Was ist mit dem Original beim Spender geschehen?"
+      ]
+    },
+    {
+      "file": "packages/features/src/donations/donation-receipt.tsx",
+      "contains": [
+        "Ungültige Zuwendungsbestätigungen",
+        "Ausdrucken und unterschreiben",
+        "Für ungültig erklären"
+      ]
+    },
+    {
+      "file": "packages/features/src/donations/donation-model.ts",
+      "contains": [
+        "Das Original liegt uns wieder vor",
+        "Das Finanzamt des Spenders ist informiert",
+        "Bestätigt"
+      ]
+    },
+    {
+      "file": "src/leonaid/adapters/typst/donation_receipt_renderer.py",
+      "contains": ["Bestätigung über Geldzuwendungen"]
+    }
   ]
 }
