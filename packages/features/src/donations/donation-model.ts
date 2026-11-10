@@ -173,11 +173,11 @@ const donationErrors: Readonly<Record<string, string>> = {
   donation_receiving_body_missing: RECEIVING_BODY_MISSING,
   donation_payment_already_recorded:
     "Für diese Spende ist bereits eine Zahlung erfasst.",
-  donation_payment_before_pledge:
-    "Das Eingangsdatum darf nicht vor dem Tag der Zusage liegen.",
   donation_payment_future_date:
     "Das Eingangsdatum darf nicht in der Zukunft liegen.",
   donation_cancelled: "Diese Spende ist storniert.",
+  donation_pledge_paid:
+    "Die Zahlung für diese Spende ist eingegangen. Die Spendenzusage wird nicht mehr versendet.",
   donation_paid:
     "Eine bezahlte Spende kann nicht storniert werden. Nehmen Sie zuerst die Zahlung zurück.",
   donation_donor_email_missing:

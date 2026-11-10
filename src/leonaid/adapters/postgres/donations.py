@@ -35,6 +35,12 @@ from leonaid.application.invoice_deliveries import (
     INVOICE_MAIL_SEND_REQUESTED,
     InvoiceDelivery,
 )
+from leonaid.application.order_mails import (
+    RECIPIENT_LIMIT,
+    RECIPIENT_WINDOW,
+    limit_digest,
+    mailbox_key,
+)
 from leonaid.domain.commitments import (
     BuyerSnapshot,
     InvoiceRecipientSnapshot,
@@ -360,6 +366,21 @@ async def pledge_order_donation(
         occurred_at=occurred_at,
     )
     if send_pledge and donation.donor.email:
+        if not await _automatic_pledge_allowed(
+            connection, donation.donor.email, occurred_at
+        ):
+            # The donation stands; a manager can send the pledge by hand.
+            await _audit(
+                connection,
+                action_id=action_id,
+                actor_user_id=actor_user_id,
+                event_type="donation_pledge_delivery_skipped",
+                donation_id=donation.id,
+                request_id=request_id,
+                payload={"number": donation.number, "reason": "recipient_limit"},
+                occurred_at=occurred_at,
+            )
+            return donation
         context = await AsyncpgDonationRepository.read_pledge_delivery_context(
             connection,
             action_id=action_id,
@@ -377,6 +398,41 @@ async def pledge_order_donation(
             request_id=request_id,
         )
     return donation
+
+
+async def _automatic_pledge_allowed(
+    connection: asyncpg.Connection[Any], address: str, occurred_at: datetime
+) -> bool:
+    """Whether one more pledge may go out by itself to the mailbox.
+
+    The public form reaches this without a login, and the address is the
+    sender's choice. The limit of the order mails applies: at most
+    ``RECIPIENT_LIMIT`` automatic pledges per mailbox and
+    ``RECIPIENT_WINDOW`` (``+tags`` and Gmail dots count as one mailbox).
+    The lock makes concurrent orders for one mailbox count one after the
+    other.
+    """
+
+    await connection.execute(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+        f"donation-pledge-mailbox:{limit_digest(address)}",
+    )
+    mailbox = mailbox_key(address)
+    rows = await connection.fetch(
+        """
+        SELECT recipient_email_snapshot FROM invoice_delivery
+        WHERE requested_by_user_id IS NULL
+          AND donation_id IS NOT NULL
+          AND requested_at >= $1
+        """,
+        occurred_at - RECIPIENT_WINDOW,
+    )
+    recent = sum(
+        1
+        for row in rows
+        if mailbox_key(str(row["recipient_email_snapshot"])) == mailbox
+    )
+    return recent < RECIPIENT_LIMIT
 
 
 async def cancel_order_donation(
@@ -429,6 +485,14 @@ async def cancel_order_donation(
         occurred_at=occurred_at,
     )
     return str(row["number"])
+
+
+def _pledge_paid() -> Conflict:
+    return Conflict(
+        "donation_pledge_paid",
+        "Die Zahlung für diese Spende ist eingegangen. Die Spendenzusage mit "
+        "der Zahlungsbitte wird nicht mehr versendet.",
+    )
 
 
 async def _audit(
@@ -525,9 +589,15 @@ class AsyncpgDonationRepository:
         self, donation_id: UUID
     ) -> DonationPledgeDocument | None:
         async with self._pool.acquire() as connection:
-            snapshot = await connection.fetchval(
-                "SELECT pledge_snapshot FROM donation WHERE id = $1", donation_id
-            )
+            return await self.donation_pledge_document_in(connection, donation_id)
+
+    @staticmethod
+    async def donation_pledge_document_in(
+        connection: asyncpg.Connection[Any], donation_id: UUID
+    ) -> DonationPledgeDocument | None:
+        snapshot = await connection.fetchval(
+            "SELECT pledge_snapshot FROM donation WHERE id = $1", donation_id
+        )
         if snapshot is None:
             return None
         return DonationPledgeDocument.from_payload(_json_object(snapshot))
@@ -1158,6 +1228,8 @@ class AsyncpgDonationRepository:
                 "donation_cancelled",
                 "Die Zusage einer stornierten Spende wird nicht versendet.",
             )
+        if str(row["status"]) == "paid":
+            raise _pledge_paid()
         if row["document_id"] is None:
             raise Conflict(
                 "donation_pledge_document_not_ready",
@@ -1264,6 +1336,8 @@ class AsyncpgDonationRepository:
                 "donation_cancelled",
                 "Die Zusage einer stornierten Spende wird nicht versendet.",
             )
+        if str(current["status"]) == "paid":
+            raise _pledge_paid()
         if str(current["donor_email"] or "").casefold() != draft.recipient_email:
             raise Conflict(
                 "donation_delivery_recipient_changed",
@@ -1349,8 +1423,10 @@ class AsyncpgDonationRepository:
                 row = await connection.fetchrow(
                     """
                     SELECT delivery.outbox_event_id, event.status, mail.sent_at,
-                           document.document_type
+                           document.document_type, document.version,
+                           donation.status AS donation_status
                     FROM invoice_delivery AS delivery
+                    JOIN donation ON donation.id = delivery.donation_id
                     JOIN generated_document AS document
                       ON document.id = delivery.generated_document_id
                     JOIN outbox_event AS event
@@ -1377,12 +1453,39 @@ class AsyncpgDonationRepository:
                         "Dieser Versand wurde bereits bestätigt und wird nicht "
                         "noch einmal zugestellt.",
                     )
+                if str(row["document_type"]) == "donation_receipt_pdf":
+                    # A receipt declared void is never mailed, whatever
+                    # state its job is in.
+                    if await connection.fetchval(
+                        """
+                        SELECT voided_at IS NOT NULL FROM donation_receipt
+                        WHERE donation_id = $1 AND document_version = $2
+                        FOR SHARE
+                        """,
+                        donation_id,
+                        int(row["version"]),
+                    ):
+                        raise Conflict(
+                            "donation_receipt_void",
+                            "Eine für ungültig erklärte Zuwendungsbestätigung "
+                            "wird nicht versendet.",
+                        )
                 if str(row["status"]) != "dead_letter":
                     raise Conflict(
                         "invoice_delivery_not_retryable",
                         "Nur ein endgültig fehlgeschlagener Versand kann "
                         "manuell neu gestartet werden.",
                     )
+                if str(row["document_type"]) == "donation_pledge_pdf":
+                    # A pledge asks for a payment: not for a donation that
+                    # is paid or cancelled by now.
+                    if str(row["donation_status"]) == "paid":
+                        raise _pledge_paid()
+                    if str(row["donation_status"]) == "cancelled":
+                        raise Conflict(
+                            "donation_cancelled",
+                            "Die Zusage einer stornierten Spende wird nicht versendet.",
+                        )
                 await connection.execute(
                     """
                     UPDATE outbox_event
@@ -1424,6 +1527,13 @@ class DonationPrivacyContributor:
     retention period. The erasure therefore changes nothing here; the report
     names the donations so the person handling the request sees what is kept
     and why.
+
+    The e-mail of a donor is optional. A donation without one is found
+    through the subject as a person: the donor is the CRM person that has an
+    order or a consent record under the subject's address, or the donation
+    came with such a person's own order. A company never links donations to
+    a person's request: its donations and those of its other contacts stay
+    out.
     """
 
     async def references(
@@ -1431,9 +1541,44 @@ class DonationPrivacyContributor:
     ) -> tuple[PrivacyReference, ...]:
         rows = await cast("asyncpg.Connection[Any]", connection).fetch(
             """
+            WITH subject_order AS (
+                SELECT id, twenty_person_id
+                FROM commitment
+                WHERE lower(COALESCE(customer_snapshot ->> 'email', '')) = $1
+                   OR lower(
+                       COALESCE(invoice_recipient_snapshot ->> 'email', '')
+                   ) = $1
+            ),
+            subject_person AS (
+                SELECT twenty_person_id AS twenty_id FROM subject_order
+                UNION SELECT twenty_person_id FROM consent_record
+                      WHERE normalized_recipient = $1
+            )
             SELECT id, action_id, status, number
             FROM donation
-            WHERE lower(donor_snapshot ->> 'email') = $1
+            WHERE lower(COALESCE(donor_snapshot ->> 'email', '')) = $1
+               -- Only a donation without an address of its own is looked up
+               -- through a link, and only through the subject as a person:
+               -- a company's donations, and those of its other contacts,
+               -- never belong to one person's request.
+               OR (
+                   NULLIF(btrim(COALESCE(donor_snapshot ->> 'email', '')), '')
+                       IS NULL
+                   AND (
+                       (
+                           commitment_id IN (SELECT id FROM subject_order)
+                           AND COALESCE(donor_snapshot ->> 'partyKind', 'person')
+                               = 'person'
+                       )
+                       OR (
+                           donor_snapshot ->> 'partyKind' = 'person'
+                           AND (donor_snapshot ->> 'twentyId') IN (
+                               SELECT twenty_id::text FROM subject_person
+                               WHERE twenty_id IS NOT NULL
+                           )
+                       )
+                   )
+               )
             ORDER BY pledged_at, id
             """,
             normalized_email,

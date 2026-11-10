@@ -46,6 +46,13 @@ class InvoiceSmtpHandler:
             )
         if await self._repository.was_sent(event.idempotency_key):
             return
+        # The document stays as it is until the mail is recorded. A receipt
+        # declared void before this point is not mailed: the job ends here.
+        async with self._repository.sending(delivery_id) as may_send:
+            if may_send:
+                await self._deliver(event, delivery_id)
+
+    async def _deliver(self, event: ClaimedOutboxEvent, delivery_id: UUID) -> None:
         job = await self._repository.job(delivery_id)
         if job is None:
             raise RuntimeError("Der Rechnungsversand wurde nicht gefunden.")

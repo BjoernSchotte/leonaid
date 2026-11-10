@@ -185,6 +185,22 @@ def test_an_invalid_receiving_body_is_rejected(
     assert code_of(error) == code
 
 
+def test_one_legal_entity_is_its_name_and_tax_number() -> None:
+    # A new notice, address, account, signatory or wording: the same entity.
+    renewed = body(
+        street_line_1="Neue Straße 9",
+        notice_date=date(2026, 2, 1),
+        assessment_period_from=2022,
+        assessment_period_to=2024,
+        iban="DE89370400440532013000",
+        signatory_name="Max Beispiel",
+        tax_number="123 456 78901",
+    )
+    assert body().same_entity(renewed)
+    assert not body().same_entity(body(legal_name="Lions Hilfswerk Musterstadt e. V."))
+    assert not body().same_entity(body(tax_number="123/456/78902"))
+
+
 def test_a_feststellung_and_a_signature_by_hand_are_valid() -> None:
     value = body(
         notice_kind=ExemptionNoticeKind.FESTSTELLUNG_60A,
@@ -328,8 +344,7 @@ def test_a_donation_takes_one_payment() -> None:
 @pytest.mark.parametrize(
     ("received_on", "amount", "code"),
     (
-        # The pledge was made on 10 November, the payment is recorded on 13.
-        (date(2026, 11, 9), Money(5000, "EUR"), "donation_payment_before_pledge"),
+        # The payment is recorded on 13 November.
         (date(2026, 11, 14), Money(5000, "EUR"), "donation_payment_future_date"),
         (date(2026, 11, 12), Money(5000, "CHF"), "donation_payment_currency_mismatch"),
         (date(2026, 11, 12), Money(0, "EUR"), "donation_payment_amount_invalid"),
@@ -349,8 +364,10 @@ def test_an_invalid_payment_is_rejected(
     assert code_of(error) == code
 
 
-def test_the_pledge_day_and_today_are_valid_payment_days() -> None:
-    for received_on in (date(2026, 11, 10), date(2026, 11, 13)):
+def test_the_payment_day_may_lie_before_the_pledge_never_in_the_future() -> None:
+    # Pledged on 10 November, recorded on 13 November. The money may have
+    # arrived before the donation was recorded: the receipt needs the real day.
+    for received_on in (date(2026, 10, 28), date(2026, 11, 10), date(2026, 11, 13)):
         donation = pledged().record_payment(
             amount=Money(5000, "EUR"),
             received_on=received_on,

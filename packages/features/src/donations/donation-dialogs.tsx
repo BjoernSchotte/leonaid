@@ -21,7 +21,6 @@ import {
   amountInput,
   formatDate,
   formatMoney,
-  isoDay,
   localIsoDate,
   parseAmountMinor,
 } from "../invoices/invoice-format";
@@ -400,9 +399,9 @@ function DonationPaymentForm({
   const [serverError, setServerError] = useState<string>();
   const storageKey = donationCommandStorageKey("payment", donation.id);
   const pledged = formatMoney(donation.pledgedMinor, donation.currency);
-  const minDate = isoDay(donation.pledgedAt);
   const today = localIsoDate();
-  const dateRule = `Das Eingangsdatum liegt zwischen dem Tag der Zusage (${formatDate(minDate)}) und heute.`;
+  // The money may have arrived before the donation was recorded.
+  const dateRule = "Das Eingangsdatum darf nicht in der Zukunft liegen.";
 
   const payment = useMutation({
     mutationFn: (amountMinor: number) =>
@@ -418,10 +417,7 @@ function DonationPaymentForm({
       ),
     onError(cause) {
       const message = donationErrorMessage(cause);
-      if (
-        message.code === "donation_payment_before_pledge" ||
-        message.code === "donation_payment_future_date"
-      ) {
+      if (message.code === "donation_payment_future_date") {
         setDateError(message.message);
         return;
       }
@@ -478,7 +474,7 @@ function DonationPaymentForm({
       );
       return;
     }
-    if (!receivedOn || receivedOn < minDate || receivedOn > today) {
+    if (!receivedOn || receivedOn > today) {
       setDateError(dateRule);
       return;
     }
@@ -546,14 +542,13 @@ function DonationPaymentForm({
         </Field>
         <Field
           error={dateError}
-          hint="Nicht vor dem Tag der Zusage und nicht in der Zukunft."
+          hint="Der Tag, an dem das Geld eingegangen ist; er steht später auf der Zuwendungsbestätigung. Er darf vor der Zusage liegen, aber nicht in der Zukunft."
           id={`donation-pay-date-${donation.id}`}
           label="Eingangsdatum"
         >
           <Input
             data-testid="donation-payment-date"
             max={today}
-            min={minDate}
             onChange={(event) => {
               forgetCommandKey(storageKey);
               setReceivedOn(event.target.value);

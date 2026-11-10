@@ -270,6 +270,8 @@ class OrderDonationFacts:
     amount: Money
     number: str
     receiving_body: str
+    # The pledge goes out by itself (public form) and its mail is queued.
+    pledge_mailed: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -560,10 +562,11 @@ def _donation(facts: OrderMailFacts) -> str:
 
     donation = facts.donation
     assert donation is not None
-    # A public order's pledge goes out by itself, right after this mail.
+    # A public order's pledge goes out by itself, right after this mail:
+    # promised only when that mail is queued.
     pledge = (
         "erhalten Sie in einer eigenen E-Mail"
-        if facts.commitment.source is CommitmentSource.PUBLIC_FORM
+        if donation.pledge_mailed
         else "erhalten Sie gesondert"
     )
     return (

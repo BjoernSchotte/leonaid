@@ -132,11 +132,12 @@ def test_keeping_the_donation_is_part_of_the_cancellation_command() -> None:
     )
 
 
-def donation_facts() -> OrderDonationFacts:
+def donation_facts(*, pledge_mailed: bool = True) -> OrderDonationFacts:
     return OrderDonationFacts(
         amount=Money(5000, "EUR"),
         number="SP26-0007",
         receiving_body="Förderverein Lions Club Musterstadt e. V.",
+        pledge_mailed=pledge_mailed,
     )
 
 
@@ -159,10 +160,21 @@ def test_the_confirmation_names_the_donation_in_its_own_paragraph() -> None:
     assert mail.replace(paragraph + "\n", "") == plain
     # An order a member recorded: the pledge is sent by a manager.
     internal = render_order_confirmation(
-        replace(facts(order(source=CommitmentSource.ADMIN)), donation=donation_facts()),
+        replace(
+            facts(order(source=CommitmentSource.ADMIN)),
+            donation=donation_facts(pledge_mailed=False),
+        ),
         legal(),
         LINKS,
     ).text
-    assert "Spendenzusage SP26-0007 mit der Bankverbindung erhalten Sie gesondert." in (
-        internal
+    separately = (
+        "Spendenzusage SP26-0007 mit der Bankverbindung erhalten Sie gesondert."
     )
+    assert separately in internal
+    # A public order whose pledge mail was not queued (no address, or the
+    # mailbox limit) promises no mail either.
+    unqueued = render_order_confirmation(
+        replace(facts(), donation=donation_facts(pledge_mailed=False)), legal(), LINKS
+    ).text
+    assert separately in unqueued
+    assert "eigenen E-Mail" not in unqueued

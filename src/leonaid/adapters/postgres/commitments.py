@@ -73,6 +73,14 @@ def _json_object(value: object, *, label: str) -> dict[str, object]:
     return {str(key): item for key, item in value.items()}
 
 
+def _donation_recipient_required() -> DomainInvariantError:
+    return DomainInvariantError(
+        "commitment_donation_recipient_required",
+        "Eine Bestellung mit Spende benötigt einen vollständigen "
+        "Rechnungsempfänger: Er ist der Spender.",
+    )
+
+
 class AsyncpgCommitmentRepository(CommitmentRepository):
     def __init__(self, pool: asyncpg.Pool[Any]) -> None:
         self._pool = pool
@@ -741,6 +749,10 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             full_window_booked=full_window_booked,
         )
         if draft.donation_amount_minor is not None:
+            if commitment.invoice_recipient is None:
+                # A draft too: completing it keeps the invoice recipient, so
+                # a draft without one could never become binding.
+                raise _donation_recipient_required()
             if await donation_offered(connection, action_id) is None:
                 raise Conflict(
                     "commitment_donation_not_offered",
@@ -785,16 +797,15 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         if amount is None:
             return
         if commitment.invoice_recipient is None:
-            raise DomainInvariantError(
-                "commitment_donation_recipient_required",
-                "Eine Bestellung mit Spende benötigt einen vollständigen "
-                "Rechnungsempfänger: Er ist der Spender.",
-            )
+            raise _donation_recipient_required()
         if await donation_offered(connection, commitment.action_id) is None:
+            # Only a draft saved while the donation was offered gets here.
             raise Conflict(
                 "commitment_donation_not_offered",
                 "Für diese Aktion kann mit einer Bestellung derzeit keine "
-                "Spende zugesagt werden.",
+                "Spende mehr zugesagt werden. Der Entwurf enthält eine Spende "
+                "und lässt sich deshalb nicht abschließen: Stornieren Sie ihn "
+                "und erfassen Sie die Bestellung ohne Spende neu.",
             )
         await pledge_order_donation(
             connection,

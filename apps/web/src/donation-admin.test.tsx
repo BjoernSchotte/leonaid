@@ -733,7 +733,8 @@ describe("DonationAdminPage", () => {
     ) as HTMLInputElement;
     expect(amount.value).toBe("50,00");
     expect(date.value).toBe(localIsoDate());
-    expect(date.min).toBe("2026-10-01");
+    // No lower bound: the money may have arrived before the pledge.
+    expect(date.min).toBe("");
     expect(date.max).toBe(localIsoDate());
     expect(
       dialog.getByText(
@@ -765,7 +766,7 @@ describe("DonationAdminPage", () => {
     expect(options.headers["Idempotency-Key"]).toMatch(/^donation:payment:/);
   });
 
-  it("keeps the payment day between the pledge and today", async () => {
+  it("takes a payment day before the pledge and refuses one in the future", async () => {
     const client = await renderPage();
     const pane = await openRow("SP26-0001");
     fireEvent.click(pane.getByTestId("open-donation-payment-form"));
@@ -775,44 +776,35 @@ describe("DonationAdminPage", () => {
       }),
     );
     const date = dialog.getByTestId("donation-payment-date");
-    for (const day of ["2026-09-30", "2099-01-01", ""]) {
+    for (const day of ["2099-01-01", ""]) {
       fireEvent.change(date, { target: { value: day } });
       fireEvent.click(dialog.getByTestId("record-donation-payment"));
       expect(
-        dialog.getByText(
-          /Das Eingangsdatum liegt zwischen dem Tag der Zusage \(01\.10\.2026\) und heute\./,
-        ),
+        dialog.getByText("Das Eingangsdatum darf nicht in der Zukunft liegen."),
       ).toBeTruthy();
     }
+    expect(client.recordDonationPayment).not.toHaveBeenCalled();
     fireEvent.change(dialog.getByTestId("donation-payment-amount"), {
       target: { value: "0" },
     });
+    fireEvent.change(date, { target: { value: "2026-09-20" } });
     fireEvent.click(dialog.getByTestId("record-donation-payment"));
     expect(
       dialog.getByText("Der eingegangene Betrag muss größer als 0,00 € sein."),
     ).toBeTruthy();
     expect(client.recordDonationPayment).not.toHaveBeenCalled();
 
-    // The server's own date refusal lands at the date field, in German.
-    client.recordDonationPayment.mockRejectedValueOnce(
-      new ApiError(409, {
-        code: "donation_payment_before_pledge",
-        message: "payment before pledge",
-        requestId: "req-1",
-      }),
-    );
+    // The donation was pledged on 1 October; the money arrived on
+    // 20 September. That day is recorded as it is.
     fireEvent.change(dialog.getByTestId("donation-payment-amount"), {
       target: { value: "50,00" },
     });
-    fireEvent.change(date, { target: { value: "2026-10-01" } });
     await act(async () => {
       fireEvent.click(dialog.getByTestId("record-donation-payment"));
     });
-    expect(
-      await dialog.findByText(
-        "Das Eingangsdatum darf nicht vor dem Tag der Zusage liegen.",
-      ),
-    ).toBeTruthy();
+    const [, , body] = client.recordDonationPayment.mock
+      .calls[0] as unknown as [string, string, { receivedOn: string }];
+    expect(body.receivedOn).toBe("2026-09-20");
   });
 
   it("takes a recorded payment back with a reason", async () => {
@@ -986,6 +978,33 @@ describe("DonationAdminPage", () => {
     expect(
       client.retryDonationPledgeDelivery.mock.calls[0]?.slice(0, 3),
     ).toEqual([actionId, "d-failed", "delivery-d-failed"]);
+  });
+
+  it("sends no pledge for a paid donation: it asks for money that arrived", async () => {
+    await renderPage({
+      list: {
+        items: [
+          {
+            ...paid,
+            pledgeDeliveries: [
+              delivery("d-paid", "sent"),
+              // The server says a failed pledge mail of a paid donation
+              // cannot be started again.
+              { ...delivery("d-paid", "failed"), canRetry: false },
+            ],
+          },
+        ],
+      },
+      view: "paid",
+    });
+    const pane = await openRow("SP26-0002");
+    // What was sent stays visible; nothing can be sent or sent again.
+    expect(
+      pane.getAllByTestId("donation-pledge-delivery-attempt").length,
+    ).toBeGreaterThan(0);
+    expect(pane.queryByTestId("send-donation-pledge")).toBeNull();
+    expect(pane.queryByTestId("resend-donation-pledge")).toBeNull();
+    expect(pane.queryByTestId("retry-donation-pledge-delivery")).toBeNull();
   });
 
   it("offers no send button without a donor e-mail or while the PDF renders", async () => {

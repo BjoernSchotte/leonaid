@@ -135,6 +135,7 @@ from leonaid.application.donations import (
 )
 from leonaid.domain.donation_receipts import ReceiptVoidEvidence
 from leonaid.domain.donations import (
+    DonationStatus,
     DonorPartyKind,
     DonorSnapshot,
     ExemptionNoticeKind,
@@ -667,7 +668,12 @@ def donation_service(request: Request) -> DonationService:
     return cast(DonationService, request.app.state.donation_service)
 
 
-def donation_delivery_response(delivery: InvoiceDelivery) -> DonationDeliveryResponse:
+def donation_delivery_response(
+    delivery: InvoiceDelivery, *, document_current: bool = True
+) -> DonationDeliveryResponse:
+    """``document_current``: the document may still go out (an unpaid pledge,
+    a valid receipt). A failed mail of any other cannot be started again."""
+
     if delivery.donation_id is None:
         raise RuntimeError("Ein Rechnungsversand ist kein Spendenversand.")
     return DonationDeliveryResponse(
@@ -682,7 +688,7 @@ def donation_delivery_response(delivery: InvoiceDelivery) -> DonationDeliveryRes
         last_error_detail=delivery.last_error_detail,
         requested_at=delivery.requested_at,
         sent_at=delivery.sent_at,
-        can_retry=delivery.can_retry,
+        can_retry=delivery.can_retry and document_current,
     )
 
 
@@ -721,7 +727,10 @@ def donation_receipt_response(item: DonationReceiptRecord) -> DonationReceiptRes
             created_at=document.created_at,
             available_at=document.available_at,
         ),
-        deliveries=[donation_delivery_response(entry) for entry in item.deliveries],
+        deliveries=[
+            donation_delivery_response(entry, document_current=receipt.valid)
+            for entry in item.deliveries
+        ],
     )
 
 
@@ -797,7 +806,10 @@ def donation_response(record: DonationRecord) -> DonationResponse:
             available_at=document.available_at,
         ),
         pledge_deliveries=[
-            donation_delivery_response(item) for item in record.pledge_deliveries
+            donation_delivery_response(
+                item, document_current=donation.status is DonationStatus.PLEDGED
+            )
+            for item in record.pledge_deliveries
         ],
         receipts=[donation_receipt_response(item) for item in record.receipts],
         replayed=donation.replayed,

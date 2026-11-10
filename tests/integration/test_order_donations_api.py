@@ -37,6 +37,7 @@ from leonaid.adapters.postgres.public_orders import AsyncpgPublicOrderRepository
 from leonaid.application.commitments import CommitmentLineDraft
 from leonaid.application.errors import Conflict
 from leonaid.application.order_mails import (
+    RECIPIENT_LIMIT,
     OrderMailKind,
     OrderMailLinks,
     render_order_confirmation,
@@ -446,6 +447,7 @@ class Proof:
         await self.a_draft_keeps_the_amount_until_it_is_completed()
         await self.a_public_order_pledges_and_mails_by_itself()
         await self.cancelling_the_order_cancels_an_unpaid_donation()
+        await self.the_automatic_pledge_is_limited_per_mailbox()
         await self.the_capability_stays_while_the_switch_is_on()
 
     async def the_switch_needs_form_and_capability(self) -> None:
@@ -629,24 +631,23 @@ class Proof:
         assert donation["number"] == self.data.number(2)
         assert donation["pledged_minor"] == 1500
         # Without an invoice recipient the order cannot become binding: the
-        # recipient is the donor. Neither the order nor a number changes.
-        incomplete = await self.send(
-            "POST",
-            self.orders(),
-            self.order("incomplete", donation=1500, ready=False, recipient=False),
-            self.key(),
-        )
-        assert incomplete.status_code == 201, incomplete.text
-        incomplete_id = str(incomplete.json()["id"])
+        # recipient is the donor. A draft is refused too, because completing
+        # it could not add the recipient. Neither an order nor a number
+        # changes.
+        orders_before = await self.db.fetchval("SELECT count(*) FROM commitment")
         self.error(
             await self.send(
-                "POST", f"{self.orders()}/{incomplete_id}/complete", {}, self.key()
+                "POST",
+                self.orders(),
+                self.order("incomplete", donation=1500, ready=False, recipient=False),
+                self.key(),
             ),
             422,
             "commitment_donation_recipient_required",
         )
-        assert (await self.record(incomplete_id))["commitment"]["status"] == "draft"
-        assert await self.donation_of(incomplete_id) is None
+        assert await self.db.fetchval("SELECT count(*) FROM commitment") == (
+            orders_before
+        )
         self.error(
             await self.send(
                 "POST",
@@ -666,8 +667,10 @@ class Proof:
             == 3
         )
 
-    def public_draft(self, donation: int | None) -> PublicOrderDraft:
-        email = f"public.{self.data.tag.lower()}@buyer.leonaid.invalid"
+    def public_draft(
+        self, donation: int | None, *, mailbox: str = "public"
+    ) -> PublicOrderDraft:
+        email = f"{mailbox}.{self.data.tag.lower()}@buyer.leonaid.invalid"
         return PublicOrderDraft(
             party=PublicOrderPartyDraft(
                 company_name=None,
@@ -839,6 +842,67 @@ class Proof:
                 self.data.action,
             )
 
+    async def the_automatic_pledge_is_limited_per_mailbox(self) -> None:
+        """The public form needs no login and the address is the sender's
+        choice: one mailbox gets at most RECIPIENT_LIMIT pledges by itself
+        per hour, however the address is written."""
+
+        async def pledge_mails(order_id: str) -> int:
+            return int(
+                await self.db.fetchval(
+                    """
+                    SELECT count(*) FROM invoice_delivery AS delivery
+                    JOIN donation ON donation.id = delivery.donation_id
+                    WHERE donation.commitment_id = $1
+                    """,
+                    UUID(order_id),
+                )
+            )
+
+        for attempt in range(RECIPIENT_LIMIT):
+            order_id = await self.record_public(
+                self.public_draft(1000, mailbox=f"victim+{attempt}")
+            )
+            assert await pledge_mails(order_id) == 1
+        over = await self.record_public(self.public_draft(1000, mailbox="victim+x"))
+        # The order and its donation stand; only the mail stays out.
+        donation = await self.donation_of(over)
+        assert donation is not None and donation["status"] == "pledged"
+        assert await pledge_mails(over) == 0
+        assert (
+            await self.db.fetchval(
+                "SELECT payload ->> 'reason' FROM audit_event "
+                "WHERE entity_id = $1 "
+                "AND event_type = 'donation_pledge_delivery_skipped'",
+                donation["id"],
+            )
+            == "recipient_limit"
+        )
+        # The confirmation then does not promise a mail of its own.
+        facts = await AsyncpgOrderMailReader(self.pool).facts(
+            UUID(over), OrderMailKind.CONFIRMATION
+        )
+        assert facts is not None and facts.donation is not None
+        assert facts.donation.pledge_mailed is False
+        legal = await AsyncpgLegalConfigurationRepository(
+            self.pool
+        ).active_configuration()
+        assert legal is not None
+        mail = render_order_confirmation(
+            facts,
+            legal,
+            OrderMailLinks(
+                campaign_url=None,
+                privacy_url=BASE_URL + "/datenschutz",
+                imprint_url=BASE_URL + "/impressum",
+            ),
+        )
+        assert "erhalten Sie gesondert" in mail.text.replace("\n", " ")
+        assert "in einer eigenen E-Mail" not in mail.text.replace("\n", " ")
+        # Another mailbox is not affected.
+        other = await self.record_public(self.public_draft(1000, mailbox="other"))
+        assert await pledge_mails(other) == 1
+
     async def cancel(self, commitment_id: str, **extra: object) -> httpx.Response:
         record = await self.record(commitment_id)
         return await self.send(
@@ -950,8 +1014,8 @@ async def main() -> None:
         await connection.close()
     print(
         "order-donations-api: OK: form switch, donation with internal and "
-        "public orders, pledge mail by itself, confirmation paragraph and "
-        "cancellation proven against PostgreSQL"
+        "public orders, pledge mail by itself and its mailbox limit, "
+        "confirmation paragraph and cancellation proven against PostgreSQL"
     )
 
 

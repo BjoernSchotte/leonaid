@@ -288,6 +288,22 @@ class AsyncpgDonationReceiptRepository:
                         "ihn zuerst aktivieren.",
                     )
                 version_id, body = configured
+                # The receipt states the notice in force today, of the body
+                # that received the money. Another legal entity cannot
+                # confirm a donation that went to the first one's account.
+                pledge = await self._donations.donation_pledge_document_in(
+                    connection, donation_id
+                )
+                if pledge is None or not body.same_entity(pledge.body):
+                    pledged_to = pledge.body.legal_name if pledge else "unbekannt"
+                    raise Conflict(
+                        "donation_receipt_body_changed",
+                        f"Diese Spende ging an „{pledged_to}“. Die aktive "
+                        "Rechtskonfiguration nennt als empfangende Körperschaft "
+                        f"„{body.legal_name}“. Eine andere Körperschaft kann die "
+                        "Spende nicht bestätigen: Die Zuwendungsbestätigung "
+                        "stellt die Körperschaft aus, die das Geld erhalten hat.",
+                    )
                 # Before a number is taken: a notice that is too old carries
                 # no receipt (§ 63 Abs. 5 AO, D-D9).
                 if local_day(occurred_at) > notice_valid_until(body):
@@ -469,6 +485,35 @@ class AsyncpgDonationReceiptRepository:
                     voided.void.evidence.value,
                     actor_user_id,
                 )
+                # A void receipt is never mailed: every job of its PDF that
+                # rests (queued, waiting for a retry or failed for good) ends
+                # here, with the void. A job the worker holds right now ends
+                # in the worker, which checks the receipt before it sends.
+                ended = await connection.fetch(
+                    """
+                    UPDATE outbox_event AS event
+                    SET status = 'completed', completed_at = $2,
+                        dead_lettered_at = NULL, claim_token = NULL,
+                        claimed_by = NULL, last_error_code = NULL,
+                        last_error_detail = NULL
+                    FROM invoice_delivery AS delivery
+                    JOIN generated_document AS document
+                      ON document.id = delivery.generated_document_id
+                    WHERE delivery.outbox_event_id = event.id
+                      AND delivery.donation_id = $1
+                      AND document.document_type = 'donation_receipt_pdf'
+                      AND document.version = $3
+                      AND event.status IN ('pending', 'dead_letter')
+                      AND NOT EXISTS (
+                          SELECT 1 FROM mail_delivery AS mail
+                          WHERE mail.outbox_event_id = event.id
+                      )
+                    RETURNING delivery.id
+                    """,
+                    donation_id,
+                    occurred_at,
+                    current.document_version,
+                )
                 await _audit(
                     connection,
                     action_id=action_id,
@@ -480,6 +525,7 @@ class AsyncpgDonationReceiptRepository:
                         "number": current.number,
                         "receiptId": str(receipt_id),
                         "evidence": voided.void.evidence.value,
+                        "endedDeliveries": len(ended),
                     },
                     occurred_at=occurred_at,
                 )

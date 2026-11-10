@@ -4,9 +4,9 @@ description: Record a donation, send the donation pledge, book or take back the 
 docId: DOC-P059
 audience: [user]
 diataxis: how-to
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: 1236a5c74b40ce3254ab273018c8c6c3d18c6c6d
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: 72207916006de2ceab6bafc415460a2b6acb0879
 reviewer: Claude Code (review by Björn Schotte pending)
 ---
 
@@ -106,8 +106,9 @@ download the PDF and pass it on another way.
 1. Open the donation and choose **Zahlung erfassen**.
 2. Check the amount received (**Eingegangener Betrag in €**). The pledged
    amount is filled in. If more or less arrived, enter what arrived.
-3. Enter the **Eingangsdatum**. It is not before the day of the pledge and
-   not in the future.
+3. Enter the **Eingangsdatum**: the day the money arrived. The donation
+   receipt shows it later. It may lie before the day of the pledge if the
+   money was there earlier, but not in the future.
 4. Confirm with **Zahlung erfassen**.
 
 The donation is then **Bezahlt**. The amount received counts, not the pledge.

@@ -101,7 +101,12 @@ class AsyncpgOrderMailReader:
                     donation.currency AS donation_currency,
                     donation.number AS donation_number,
                     donation.pledge_snapshot -> 'body' ->> 'legalName'
-                        AS donation_body
+                        AS donation_body,
+                    EXISTS (
+                        SELECT 1 FROM invoice_delivery AS pledge_mail
+                        WHERE pledge_mail.donation_id = donation.id
+                          AND pledge_mail.requested_by_user_id IS NULL
+                    ) AS donation_pledge_mailed
                 FROM commitment
                 JOIN charity_action AS action ON action.id = commitment.action_id
                 LEFT JOIN action_buyer_mail_configuration AS mails
@@ -161,6 +166,7 @@ class AsyncpgOrderMailReader:
                     ),
                     number=str(row["donation_number"]),
                     receiving_body=str(row["donation_body"]),
+                    pledge_mailed=bool(row["donation_pledge_mailed"]),
                 )
                 if row["donation_number"] is not None
                 else None

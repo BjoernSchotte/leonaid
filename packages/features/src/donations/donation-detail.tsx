@@ -445,7 +445,8 @@ export function DonationDetail({
       ) : null}
 
       <DonationDelivery
-        blocked={donation.status === "cancelled"}
+        // A pledge asks for a payment: only an open donation sends it.
+        blocked={donation.status !== "pledged"}
         deliveries={donation.pledgeDeliveries}
         documentAvailable={donation.pledgeDocument.status === "available"}
         donorEmail={donor.email}
