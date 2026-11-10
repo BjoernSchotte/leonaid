@@ -1,7 +1,9 @@
 """HTTP adapter for push notifications of the PWA (spec §10, ADR-0017).
 
 Every member manages only their own devices and switches. While the flag
-``pwa.push`` is off the calls answer 404, except removing a device.
+``pwa.push`` is off the calls answer 404, except removing a device and
+switching kinds off. The limits of registering and testing count per member
+(application layer), not per browser.
 """
 
 from __future__ import annotations
@@ -52,6 +54,9 @@ class SavePushSubscriptionRequest(TransportModel):
 
     endpoint: str = Field(min_length=1, max_length=2048)
     keys: PushSubscriptionKeys
+    # The key the browser subscribed with (its options.applicationServerKey,
+    # base64url). Core refuses a subscription of an earlier key.
+    application_server_key: str = Field(min_length=1, max_length=200)
 
 
 class PushSubscriptionResponse(TransportModel):
@@ -123,7 +128,7 @@ async def save_push_subscription(
         endpoint=body.endpoint,
         p256dh=body.keys.p256dh,
         auth=body.keys.auth,
-        user_agent=request.headers.get("user-agent", ""),
+        application_server_key=body.application_server_key,
         request_id=cast(str, request.state.request_id),
     )
     return PushSubscriptionResponse(id=subscription_id)

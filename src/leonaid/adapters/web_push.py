@@ -7,6 +7,7 @@ One record per message, a fresh sender key and salt per message.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
 import hashlib
@@ -25,7 +26,12 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-from leonaid.domain.push import PushEndpointPolicy, PushOutcome, PushTarget
+from leonaid.domain.push import (
+    PushEndpointPolicy,
+    PushOutcome,
+    PushResult,
+    PushTarget,
+)
 
 # RFC 8291 section 4: a push service need not carry more than 4096 octets;
 # less the header (86), the padding delimiter (1) and the tag (16).
@@ -90,7 +96,8 @@ def encrypt_push_message(
         raise ValueError("plaintext is longer than one push record")
     if len(auth_secret) != 16:
         raise ValueError("auth secret must be 16 octets")
-    # Rejects anything that is not an uncompressed point on P-256.
+    # Rejects anything that is no point on P-256. (Compressed points would
+    # pass here; require_push_keys and the table accept 65 octets only.)
     receiver = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), ua_public)
     sender = as_private or ec.generate_private_key(ec.SECP256R1())
     salt = salt if salt is not None else os.urandom(16)
@@ -174,9 +181,12 @@ class WebPushSender:
         vapid: VapidSigner,
         client: httpx.AsyncClient,
         endpoints: PushEndpointPolicy,
+        *,
+        request_seconds: float = 10.0,
     ) -> None:
         if client.follow_redirects:
             raise ValueError("The push client must not follow redirects.")
+        self._request_seconds = request_seconds
         self._vapid = vapid
         self._client = client
         self._endpoints = endpoints
@@ -188,42 +198,56 @@ class WebPushSender:
         *,
         topic: str,
         now: datetime,
-    ) -> PushOutcome:
+    ) -> PushResult:
+        """One request, ended after ``request_seconds`` whatever it waits for.
+
+        Never raises for what a push service or the network does: the
+        answer is an outcome.
+        """
+
         if not _TOPIC.fullmatch(topic):
             raise ValueError("A push topic is 1 to 32 base64url characters.")
+        host = (urlsplit(target.endpoint).hostname or "").lower()
         # Checked again here: a stored row is no proof of where it points.
         if not self._endpoints.allows(target.endpoint):
-            return PushOutcome.GONE
+            return PushResult(PushOutcome.GONE, host="")
         try:
             body = encrypt_push_message(
                 payload, ua_public=target.p256dh, auth_secret=target.auth
             )
         except ValueError:
-            return PushOutcome.GONE
+            return PushResult(PushOutcome.GONE, host=host)
         try:
-            response = await self._client.post(
-                target.endpoint,
-                content=body,
-                headers={
-                    "Authorization": self._vapid.authorization(
-                        target.endpoint, now=now
-                    ),
-                    "Content-Encoding": "aes128gcm",
-                    "Content-Type": "application/octet-stream",
-                    "TTL": str(PUSH_TTL_SECONDS),
-                    # A newer message of the same kind replaces one the
-                    # service still holds for a device that is off.
-                    "Topic": topic,
-                    "Urgency": "normal",
-                },
-            )
-        except httpx.HTTPError:
-            return PushOutcome.UNAVAILABLE
+            # httpx counts its timeout per phase (connect, write, read); the
+            # request as a whole gets one deadline.
+            async with asyncio.timeout(self._request_seconds):
+                response = await self._client.post(
+                    target.endpoint,
+                    content=body,
+                    headers={
+                        "Authorization": self._vapid.authorization(
+                            target.endpoint, now=now
+                        ),
+                        "Content-Encoding": "aes128gcm",
+                        "Content-Type": "application/octet-stream",
+                        "TTL": str(PUSH_TTL_SECONDS),
+                        # A newer message of the same kind replaces one the
+                        # service still holds for a device that is off.
+                        "Topic": topic,
+                        "Urgency": "normal",
+                    },
+                )
+        except (httpx.HTTPError, httpx.InvalidURL, TimeoutError):
+            return PushResult(PushOutcome.UNAVAILABLE, host=host)
         status = response.status_code
         if 200 <= status < 300:
-            return PushOutcome.DELIVERED
-        if status in (404, 410):
-            return PushOutcome.GONE
-        if status == 429 or status >= 500:
-            return PushOutcome.UNAVAILABLE
-        return PushOutcome.REJECTED
+            outcome = PushOutcome.DELIVERED
+        elif status in (404, 410):
+            outcome = PushOutcome.GONE
+        elif status == 429 or status >= 500:
+            outcome = PushOutcome.UNAVAILABLE
+        else:
+            # 400, 401, 403, 413 and redirects: the service refuses this
+            # message (a wrong VAPID key or subject, a malformed request).
+            outcome = PushOutcome.REJECTED
+        return PushResult(outcome, host=host, status=status)

@@ -18,6 +18,7 @@ import {
 
 import {
   browserPushDevice,
+  liveSubscription,
   type PushDevice,
   type PushPermission,
 } from "./push-device";
@@ -101,7 +102,7 @@ export function PushNotificationsPage({
   // A device that is subscribed already says so to Core again: the row
   // belongs to the session, and a new sign-in is a new session.
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || publicKey === null) return;
     let live = true;
     if (permission !== "granted") {
       setDeviceState({ status: "off" });
@@ -109,7 +110,9 @@ export function PushNotificationsPage({
     }
     void (async () => {
       try {
-        const subscription = await device.subscription();
+        // Also replaces a subscription of an earlier key of the installation,
+        // so "eingeschaltet" is never shown for a device no push can reach.
+        const subscription = await liveSubscription(device, publicKey);
         const id = subscription
           ? (await client.savePushSubscription(subscription)).id
           : null;
@@ -121,7 +124,7 @@ export function PushNotificationsPage({
     return () => {
       live = false;
     };
-  }, [client, device, permission, ready]);
+  }, [client, device, permission, publicKey, ready]);
 
   const switchOn = useMutation({
     mutationFn: async () => {
@@ -135,9 +138,14 @@ export function PushNotificationsPage({
       const subscription = await device.subscribe(publicKey);
       return (await client.savePushSubscription(subscription)).id;
     },
-    onError: () =>
+    onError: (error) =>
       setNotice({
-        text: "Dieses Gerät konnte nicht angemeldet werden. Prüfe die Verbindung und versuche es erneut.",
+        text:
+          errorCode(error) === "push_device_limit"
+            ? "Du hast schon zehn Geräte angemeldet. Schalte Benachrichtigungen zuerst auf einem anderen Gerät aus."
+            : error instanceof ApiError && error.status === 429
+              ? "Das waren viele Versuche in kurzer Zeit. Versuche es in einer Stunde wieder."
+              : "Dieses Gerät konnte nicht angemeldet werden. Prüfe die Verbindung und versuche es erneut.",
         tone: "error",
       }),
     onMutate: () => setNotice(null),

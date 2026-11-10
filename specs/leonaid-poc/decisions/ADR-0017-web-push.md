@@ -99,23 +99,38 @@ half; the worker signs. Both get the same values (deployment contract and
 pilot doctor). Without the key the feature is "not configured": the API
 says so, and the worker sends nothing.
 
-A subscription is bound to the public key it was made with. Replacing the
-key ends every subscription; members switch notifications on again.
+A subscription is bound to the public key it was made with, and each row
+stores that key. After the key was replaced, the old subscriptions are dead:
+the worker sends only to rows of the current key and deletes the others;
+the API refuses a subscription whose browser names another key; the app
+compares the key at start and on the page, ends the old subscription and
+subscribes again with the current key (the permission is still granted, so
+the browser does not ask). The page never shows a dead subscription as
+switched on.
 
 ### A device ends with its session
 
 `push_subscription` holds, per device, the endpoint, the two keys of the
-subscription and the browser identifier, and the session that registered
-it. The row is deleted:
+subscription, the VAPID key it was made with and the session that
+registered it. Nothing about the browser is stored (no user agent). A member
+has at most 10 devices. The row is deleted:
 
 - when the member switches the device off;
 - at once when the session is revoked (sign-out, revoked sessions, a
   suspended or erased account), by a database trigger, so no code path can
   forget it;
 - within minutes after the session expired;
-- when the push service answers 404 or 410.
+- when the push service answers 404 or 410;
+- when 5 messages in a row did not reach it and the first of them is at
+  least 3 days ago (`failure_count`, `failing_since`; a delivery resets
+  both);
+- when it was made with another VAPID key than the current one.
 
-After a new sign-in the app registers the device's subscription again.
+After a sign-out the browser's subscription is gone too: the member
+switches the device on again after the next sign-in. A session that ended
+without a sign-out leaves the browser's subscription; the app registers it
+again at its next start. A session lasts 90 days, so a device whose app was
+not opened for that long gets no push until it is opened again.
 
 ### Kinds, consent and frequency
 
@@ -128,9 +143,36 @@ At most one push per member and kind in 15 minutes. Events within that time
 are counted and sent together by one later job. `follow_ups` is asked for
 once a day from 08:00 club time (not after 20:00) by a worker loop.
 
-A push is a hint, not a delivery guarantee. A job is run again only when no
-device of the member could be reached; it then sends the same count. A
-device that was reached is not sent to twice on purpose.
+### A push never fails a job and never pages an operator
+
+A push is a hint, not a delivery guarantee. The job sends to all devices of
+the member at once and ends by itself after 15 seconds; one request ends
+after 10 seconds as a whole. Mail and document jobs wait behind it for
+seconds.
+
+The job does not fail because a device or a push service was not reached
+(timeout, 429, 5xx). It ends, and one later job tries the devices not
+reached yet, after 1 minute and again after 10 minutes. After the third try
+the message is given up and counted as a failure on the device. So an
+outage of a push service or of the network produces no dead letter and no
+alert, and a member's own subscription plus "Test senden" cannot produce
+one either. A device that got the message is marked with the job's id: the
+same job run again by the outbox skips it, so nobody gets a message twice.
+
+An answer of 400, 401, 403 or 413 means the push service refuses the
+message (a wrong VAPID key or subject, a malformed request). It is not
+tried again and counts as a failure on the device.
+
+Every message that did not reach a device is one log line
+`worker.push.undelivered` with the kind, the push service's host, the HTTP
+status, the try and whether the device was removed. The path of an endpoint
+is the device's token and is never logged, nor is the member.
+
+### Limits per member
+
+Registering a device (30 per hour) and the test push (5 per 10 minutes) are
+counted per member, not per address, User-Agent or session: each is a
+request that costs the installation something at a browser vendor.
 
 ## Consequences
 
@@ -143,8 +185,8 @@ device that was reached is not sent to twice on purpose.
 - Notification texts are fixed in the service worker. A text change ships
   with a PWA release, and an installed app shows the old text until it has
   updated.
-- The members' privacy notice must describe the stored address, the keys,
-  the browser identifier and the push services before the flag `pwa.push` is
+- The members' privacy notice must describe the stored address, the keys
+  and the push services before the flag `pwa.push` is
   switched on (spec §13, P4).
 - Not part of this decision: push in the web admin, notification actions,
   badges, per-device preferences, quiet hours chosen by the member.

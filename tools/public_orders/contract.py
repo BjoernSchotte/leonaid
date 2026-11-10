@@ -970,10 +970,11 @@ async def expect_feed_push(connection: asyncpg.Connection[Any]) -> None:
     await connection.execute(
         """
         INSERT INTO push_subscription (
-            id, user_id, session_id, endpoint, p256dh, auth
+            id, user_id, session_id, endpoint, p256dh, auth, vapid_public_key
         )
         VALUES ($1, $2, $3, 'https://fcm.googleapis.com/fcm/send/poc072',
-                decode(repeat('04', 65), 'hex'), decode(repeat('00', 16), 'hex'))
+                decode(repeat('04', 65), 'hex'), decode(repeat('00', 16), 'hex'),
+                repeat('A', 87))
         ON CONFLICT DO NOTHING
         """,
         PUSH_PROOF_DEVICE,

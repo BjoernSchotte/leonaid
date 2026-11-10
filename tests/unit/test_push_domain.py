@@ -12,9 +12,12 @@ from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.push import (
     PUSH_THROTTLE,
     TEST_KIND,
+    DEVICE_FAILURE_LIMIT,
+    DEVICE_FAILURE_PERIOD,
     DispatchState,
     PushKind,
     PushMessage,
+    device_is_dead,
     follow_up_push_due,
     plan_dispatch,
 )
@@ -159,3 +162,16 @@ def test_a_flush_that_comes_early_keeps_the_count() -> None:
 )
 def test_follow_ups_are_announced_from_8_club_time(moment: datetime, due: bool) -> None:
     assert follow_up_push_due(moment) is due
+
+
+def test_a_device_is_removed_after_many_failures_over_days_only() -> None:
+    """Five messages in a row that did not arrive, the first three days ago."""
+    since = NOW - DEVICE_FAILURE_PERIOD
+    assert (DEVICE_FAILURE_LIMIT, DEVICE_FAILURE_PERIOD) == (5, timedelta(days=3))
+    assert device_is_dead(5, since, now=NOW) is True
+    assert device_is_dead(50, since, now=NOW) is True
+    # A phone that was off for a weekend: failures, but not for long enough.
+    assert device_is_dead(50, NOW - timedelta(days=2, hours=23), now=NOW) is False
+    # One old failure and little traffic since: not often enough.
+    assert device_is_dead(4, NOW - timedelta(days=30), now=NOW) is False
+    assert device_is_dead(0, None, now=NOW) is False

@@ -5,7 +5,8 @@ Revises: 0061_delivery_geo_regeocode
 
 specs/mails-documents-donations-push §10, ADR-0017. `push_subscription` holds
 one row per device and session: the endpoint of the browser vendor's push
-service and the device's two keys. A subscription ends with its session: the
+service, the device's two keys and the VAPID key it subscribed with. Nothing
+about the browser itself is stored. A subscription ends with its session: the
 trigger deletes it the moment the session is revoked (sign-out, a revoked
 account, erasure), and the foreign key deletes it with the session row.
 `push_preference` holds what a member switched on. `push_dispatch` holds, per
@@ -63,14 +64,25 @@ def upgrade() -> None:
             auth bytea NOT NULL
                 CONSTRAINT ck_push_subscription_auth
                 CHECK (octet_length(auth) = 16),
-            user_agent text NOT NULL DEFAULT ''
-                CONSTRAINT ck_push_subscription_user_agent
-                CHECK (char_length(user_agent) <= 320),
+            -- The public VAPID key the browser subscribed with (base64url).
+            -- A subscription made with another key than the installation's
+            -- current one can never be reached again.
+            vapid_public_key text NOT NULL
+                CONSTRAINT ck_push_subscription_vapid_public_key
+                CHECK (char_length(vapid_public_key) = 87),
             created_at timestamptz NOT NULL DEFAULT now(),
             last_success_at timestamptz,
+            -- Messages in a row that did not reach the device, and since
+            -- when; both reset with the next delivery.
             failure_count integer NOT NULL DEFAULT 0
                 CONSTRAINT ck_push_subscription_failure_count
-                CHECK (failure_count >= 0)
+                CHECK (failure_count >= 0),
+            failing_since timestamptz,
+            CONSTRAINT ck_push_subscription_failing
+                CHECK ((failure_count = 0) = (failing_since IS NULL)),
+            -- The job whose message this device got last: the same job run
+            -- again does not send to it twice.
+            last_event_id uuid
         )
         """
     )

@@ -19,7 +19,10 @@ from leonaid.application.delivery_tours import DeliveryTourService
 from leonaid.application.feature_flags import FeatureFlagService
 from leonaid.application.order_cancellation import OrderCancellationService
 from leonaid.application.push import PushService
-from leonaid.adapters.postgres.push import AsyncpgPushRepository
+from leonaid.adapters.postgres.push import (
+    AsyncpgPushRateLimiter,
+    AsyncpgPushRepository,
+)
 from leonaid.domain.push import PushEndpointPolicy
 from leonaid.modules.surveys.adapters.postgres.survey_checkpoint_publisher import (
     AsyncpgErasureCheckpointPublisher,
@@ -203,6 +206,7 @@ def build_push_service(
         flags,
         public_key=signer.public_key if signer is not None else None,
         endpoints=PushEndpointPolicy(),
+        limiter=AsyncpgPushRateLimiter(pool),
         tasks_enabled=any(
             module.id == "tasks" for module in enabled_api_modules(disabled)
         ),

@@ -66,8 +66,8 @@ Sie haben nach der Datenschutz-Grundverordnung das Recht auf Auskunft (Art. 15),
  *
  * The section "Benachrichtigungen auf deinem Gerät" is the proposal of
  * specs/mails-documents-donations-push/PLAN.md, Appendix A.4 (P4), in the
- * "Du" of this notice, with the browser identifier that Core stores beside
- * the address and the keys. LEGAL REVIEW PENDING: the flag `pwa.push` may
+ * "Du" of this notice. Core stores the address and the two keys, nothing
+ * about the browser. LEGAL REVIEW PENDING: the flag `pwa.push` may
  * be switched on only once the active notice carries this section.
  */
 export const MEMBER_PRIVACY_NOTICE_TEMPLATE = `## Mitgliederbereich und Akquise-App
@@ -98,4 +98,4 @@ Wenn du dich abmeldest, in der Akquise-App oder im Verwaltungsbereich, löscht d
 
 [[Diesen Abschnitt nur behalten, wenn Benachrichtigungen in der Akquise-App aktiv sind; sonst den ganzen Abschnitt löschen. Danach diese Zeile löschen.]]
 
-Schaltest du in der App Benachrichtigungen ein, speichert LeonAid für dein Gerät eine Adresse des Benachrichtigungsdienstes deines Browsers oder Betriebssystems (Google, Apple, Mozilla oder Microsoft), zwei Schlüssel und die Kennung deines Browsers. Über diesen Dienst senden wir verschlüsselte Hinweise, zum Beispiel „3 Wiedervorlagen sind fällig“. Die Hinweise enthalten keine Namen, Adressen oder Beträge. Der Dienst erfährt, dass und wann dein Gerät einen Hinweis von LeonAid erhält, aber nicht dessen Inhalt. Rechtsgrundlage ist deine Einwilligung (Art. 6 Abs. 1 Buchst. a DSGVO). Du kannst sie jederzeit in der App unter „Benachrichtigungen“ widerrufen; LeonAid löscht die Adresse dann sofort. Sie wird auch gelöscht, wenn du dich auf dem Gerät abmeldest oder der Dienst sie als ungültig meldet.`;
+Schaltest du in der App Benachrichtigungen ein, speichert LeonAid für dein Gerät eine Adresse des Benachrichtigungsdienstes deines Browsers oder Betriebssystems (Google, Apple, Mozilla oder Microsoft) und zwei Schlüssel. Über diesen Dienst senden wir verschlüsselte Hinweise, zum Beispiel „3 Wiedervorlagen sind fällig“. Die Hinweise enthalten keine Namen, Adressen oder Beträge. Der Dienst erfährt, dass und wann dein Gerät einen Hinweis von LeonAid erhält, aber nicht dessen Inhalt. Rechtsgrundlage ist deine Einwilligung (Art. 6 Abs. 1 Buchst. a DSGVO). Du kannst sie jederzeit in der App unter „Benachrichtigungen“ widerrufen; LeonAid löscht die Adresse dann sofort. Sie wird auch gelöscht, wenn du dich auf dem Gerät abmeldest oder der Dienst sie als ungültig meldet.`;

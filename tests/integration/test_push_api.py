@@ -19,6 +19,7 @@ import os
 import sys
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -35,22 +36,32 @@ from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
 from fastapi import FastAPI
 
 from leonaid.adapters.postgres.pool import create_pool
-from leonaid.adapters.postgres.push import AsyncpgPushRepository, enqueue_push
+from leonaid.adapters.postgres.push import (
+    AsyncpgPushRateLimiter,
+    AsyncpgPushRepository,
+    enqueue_push,
+)
 from leonaid.adapters.web_push import (
+    VAPID_LIFETIME,
     VapidSigner,
     WebPushSender,
     generate_vapid_private_key,
 )
 from leonaid.application.push import (
+    SUBSCRIBE_LIMIT,
+    TEST_PUSH_LIMIT,
     FollowUpPushJob,
     PushNotificationHandler,
     PushService,
-    PushServiceUnavailable,
 )
 from leonaid.configuration import Settings
 from leonaid.domain.outbox import ClaimedOutboxEvent, json_payload
 from leonaid.domain.push import (
+    DEVICE_FAILURE_LIMIT,
+    DEVICE_FAILURE_PERIOD,
+    MAX_DEVICES_PER_MEMBER,
     PUSH_EVENT_TYPE,
+    PUSH_RETRY_DELAYS,
     PUSH_THROTTLE,
     PushEndpointPolicy,
     PushKind,
@@ -114,6 +125,10 @@ class Receiver:
         self.requests: list[Received] = []
         # Path → statuses to answer with, in order; then 201.
         self.answers: dict[str, list[int]] = {}
+        # Path → seconds the service takes before it answers.
+        self.delays: dict[str, float] = {}
+        # The worker's clock of the proof; set by the proof.
+        self.clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc)
         receiver = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -126,6 +141,7 @@ class Receiver:
                         self.rfile.read(length),
                     )
                 )
+                time.sleep(receiver.delays.get(self.path, 0))
                 queue = receiver.answers.get(self.path, [])
                 self.send_response(queue.pop(0) if queue else 201)
                 self.send_header("Content-Length", "0")
@@ -167,8 +183,9 @@ class Device:
     def endpoint(self) -> str:
         return self.receiver.origin + self.path
 
-    def subscription(self) -> dict[str, object]:
+    def subscription(self, application_server_key: str) -> dict[str, object]:
         return {
+            "applicationServerKey": application_server_key,
             "endpoint": self.endpoint,
             "keys": {
                 "p256dh": b64url(public_point(self.private_key)),
@@ -202,7 +219,8 @@ class Device:
         claim = json.loads(b64url_decode(claims))
         assert claim["aud"] == self.receiver.origin
         assert claim["sub"] == SUBJECT
-        assert 0 < claim["exp"] - time.time() <= 24 * 3600
+        # Twelve hours from the moment the job ran (the proof's clock).
+        assert claim["exp"] == int((self.receiver.clock() + VAPID_LIFETIME).timestamp())
         payload = json.loads(
             decrypt_push_message(
                 request.body, ua_private=self.private_key, auth_secret=self.auth
@@ -306,6 +324,50 @@ class Fixture:
                 self.users["acquirer"],
                 status,
                 due_at,
+            )
+        # Last year's actions are over: their overdue assignments count for
+        # nobody, although the membership and the capability are still there.
+        for status in ("completed", "archived"):
+            ended = uuid4()
+            await connection.execute(
+                """
+                INSERT INTO charity_action (
+                    id, carrier_name, name, purpose, status, starts_on, ends_on,
+                    archive_slug
+                )
+                VALUES ($1, 'Push proof', $2, 'Proof', $3,
+                        '2025-01-01', '2025-12-31', $4)
+                """,
+                ended,
+                f"Aktion {self.tag} {status}",
+                status,
+                f"push-proof-{ended}",
+            )
+            await connection.execute(
+                "INSERT INTO charity_action_capability (action_id, capability) "
+                "VALUES ($1, 'acquisition')",
+                ended,
+            )
+            await connection.execute(
+                "INSERT INTO action_membership "
+                "(id, action_id, user_id, role, active_from) "
+                "VALUES ($1, $2, $3, 'acquirer', now() - interval '400 days')",
+                uuid4(),
+                ended,
+                self.users["acquirer"],
+            )
+            await connection.execute(
+                """
+                INSERT INTO acquisition_assignment (
+                    id, action_id, twenty_company_id, acquirer_user_id,
+                    status, next_action, due_at
+                )
+                VALUES ($1, $2, $3, $4, 'open', 'Anrufen', now() - interval '300 days')
+                """,
+                uuid4(),
+                ended,
+                uuid4(),
+                self.users["acquirer"],
             )
         await self._deliveries(connection)
 
@@ -474,15 +536,26 @@ class Proof:
         self.receiver = receiver
         self.signer = signer
         self.clock = Clock()
+        receiver.clock = self.clock
         self.driver_phone = Device(receiver, "driver-phone")
         self.policy = PushEndpointPolicy(extra_origins=frozenset({receiver.origin}))
         self.repository = AsyncpgPushRepository(pool)
         self.flags = app.state.feature_flag_service
-        self.handler = PushNotificationHandler(
+        self.limiter = AsyncpgPushRateLimiter(pool)
+        # What the worker logs for a message that did not reach a device.
+        self.undelivered: list[dict[str, Any]] = []
+        self.sender = WebPushSender(signer, push_client, self.policy)
+        self.handler = self.worker_handler()
+
+    def worker_handler(self, *, job_seconds: float = 15.0) -> PushNotificationHandler:
+        return PushNotificationHandler(
             self.repository,
-            WebPushSender(signer, push_client, self.policy),
+            self.sender,
             self.flags,
+            vapid_public_key=self.signer.public_key,
+            observer=lambda **fields: self.undelivered.append(fields),
             clock=self.clock,
+            job_seconds=job_seconds,
         )
 
     def headers(self, name: str, token: str | None = None) -> dict[str, str]:
@@ -507,6 +580,7 @@ class Proof:
             public_key=public_key,
             endpoints=policy,
             tasks_enabled=True,
+            limiter=self.limiter,
         )
 
     async def configuration(self, name: str) -> dict[str, Any]:
@@ -522,8 +596,8 @@ class Proof:
     ) -> str:
         response = await self.client.put(
             "/api/v1/push/subscriptions",
-            headers={**self.headers(name, token), "User-Agent": "Push proof browser"},
-            json=device.subscription(),
+            headers=self.headers(name, token),
+            json=device.subscription(self.signer.public_key),
         )
         assert response.status_code == 200, response.text
         return str(response.json()["id"])
@@ -554,25 +628,30 @@ class Proof:
     async def run(self, job: asyncpg.Record, *, done: bool = True) -> None:
         """Run one job as the worker does, then mark it completed."""
 
-        await self.handler.handle(
-            ClaimedOutboxEvent(
-                id=job["id"],
-                aggregate_type="user_account",
-                aggregate_id=UUID(str(json_payload(job["payload"])["userId"])),
-                event_type=PUSH_EVENT_TYPE,
-                idempotency_key=str(job["idempotency_key"]),
-                payload=json_payload(job["payload"]),
-                attempts=1,
-                claim_token=uuid4(),
-                claimed_by="push-proof",
-            )
-        )
+        await self.handler.handle(self.claimed(job))
         if done:
-            await self.connection.execute(
-                "UPDATE outbox_event SET status = 'completed', completed_at = now() "
-                "WHERE id = $1",
-                job["id"],
-            )
+            await self.done(job)
+
+    @staticmethod
+    def claimed(job: asyncpg.Record) -> ClaimedOutboxEvent:
+        return ClaimedOutboxEvent(
+            id=job["id"],
+            aggregate_type="user_account",
+            aggregate_id=UUID(str(json_payload(job["payload"])["userId"])),
+            event_type=PUSH_EVENT_TYPE,
+            idempotency_key=str(job["idempotency_key"]),
+            payload=json_payload(job["payload"]),
+            attempts=1,
+            claim_token=uuid4(),
+            claimed_by="push-proof",
+        )
+
+    async def done(self, job: asyncpg.Record) -> None:
+        await self.connection.execute(
+            "UPDATE outbox_event SET status = 'completed', completed_at = now() "
+            "WHERE id = $1",
+            job["id"],
+        )
 
     async def run_all(self, name: str) -> int:
         """Run every job that is due at the proof's clock."""
@@ -590,8 +669,9 @@ class Proof:
     async def devices(self, name: str) -> list[asyncpg.Record]:
         return list(
             await self.connection.fetch(
-                "SELECT id, endpoint, session_id, user_agent, last_success_at, "
-                "failure_count FROM push_subscription WHERE user_id = $1 "
+                "SELECT id, endpoint, session_id, vapid_public_key, "
+                "last_success_at, failure_count, failing_since "
+                "FROM push_subscription WHERE user_id = $1 "
                 "ORDER BY created_at, id",
                 self.data.users[name],
             )
@@ -620,7 +700,7 @@ class Proof:
                 path,
                 headers=self.headers("acquirer"),
                 json=(
-                    body.subscription()
+                    body.subscription(self.signer.public_key)
                     if isinstance(body, Device)
                     else {"subscriptionId": str(uuid4())}
                     if method == "POST"
@@ -640,7 +720,7 @@ class Proof:
         refused = await self.client.put(
             "/api/v1/push/subscriptions",
             headers=self.headers("acquirer"),
-            json=Device(self.receiver, "x").subscription(),
+            json=Device(self.receiver, "x").subscription(self.signer.public_key),
         )
         assert refused.status_code == 409, refused.text
         assert refused.json()["error"]["code"] == "push_not_configured"
@@ -676,9 +756,15 @@ class Proof:
             public_key=self.signer.public_key, policy=PushEndpointPolicy()
         )
         for subscription in (
-            phone.subscription(),
-            {**phone.subscription(), "endpoint": "https://core-postgres:5432/x"},
-            {**phone.subscription(), "endpoint": "https://attacker.example/push"},
+            phone.subscription(self.signer.public_key),
+            {
+                **phone.subscription(self.signer.public_key),
+                "endpoint": "https://core-postgres:5432/x",
+            },
+            {
+                **phone.subscription(self.signer.public_key),
+                "endpoint": "https://attacker.example/push",
+            },
         ):
             refused = await self.client.put(
                 "/api/v1/push/subscriptions",
@@ -698,7 +784,11 @@ class Proof:
             refused = await self.client.put(
                 "/api/v1/push/subscriptions",
                 headers=self.headers("acquirer"),
-                json={"endpoint": phone.endpoint, "keys": keys},
+                json={
+                    "applicationServerKey": self.signer.public_key,
+                    "endpoint": phone.endpoint,
+                    "keys": keys,
+                },
             )
             assert refused.status_code == 409, refused.text
             assert refused.json()["error"]["code"] == "push_subscription_keys_invalid"
@@ -712,7 +802,13 @@ class Proof:
         (row,) = await self.devices("acquirer")
         assert str(row["id"]) == subscription_id
         assert row["session_id"] == self.data.sessions["acquirer"]
-        assert row["user_agent"] == "Push proof browser"
+        assert row["vapid_public_key"] == self.signer.public_key
+        # Nothing about the browser is stored.
+        columns = await self.connection.fetch(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'push_subscription'"
+        )
+        assert "user_agent" not in {column["column_name"] for column in columns}
         assert await self.audits("push.subscription.created", "acquirer") == [{}]
 
         # Another member cannot push to or remove this device.
@@ -816,7 +912,6 @@ class Proof:
         assert await self.jobs("acquirer") == []
 
     async def gone_and_failing_devices(self, phone: Device) -> None:
-        key = self.signer.public_key
         tablet = Device(self.receiver, "acquirer-tablet")
         laptop = Device(self.receiver, "acquirer-laptop")
         await self.subscribe("acquirer", tablet)
@@ -834,28 +929,348 @@ class Proof:
             phone.endpoint
         ]
 
-        # The push service is down: the job fails and is run again; the
-        # second run sends the same count, not a doubled one.
-        self.receiver.answers = {phone.path: [503]}
+    async def unreachable_devices(self, phone: Device) -> None:
+        """Push is a hint: a job never fails because a device is away."""
+
+        key = self.signer.public_key
+        tablet = Device(self.receiver, "acquirer-tablet-b")
+        tablet_id = await self.subscribe("acquirer", tablet)
+
+        # One device reached, one not: the job ends, and one later job is
+        # asked for the tablet alone, a minute later.
+        self.undelivered.clear()
+        self.receiver.answers = {tablet.path: [503]}
         self.clock.advance(PUSH_THROTTLE)
         await self.order_arrives()
         (job,) = await self.jobs("acquirer")
-        try:
-            await self.run(job, done=False)
-        except PushServiceUnavailable as error:
-            assert error.code == "push_service_unavailable"
-            assert error.retryable is True
-        else:
-            raise AssertionError("an unreachable push service must fail the job")
-        (row,) = await self.devices("acquirer")
-        assert row["failure_count"] == 1
-        self.receiver.take()
-        self.clock.advance(timedelta(seconds=5))
+        await self.run(job, done=False)
+        assert sorted(item.path for item in self.receiver.take()) == sorted(
+            [phone.path, tablet.path]
+        )
+        assert self.undelivered == [
+            {
+                "kind": "feed",
+                # Host and status, never the path (the device's token).
+                "host": "127.0.0.1",
+                "status": 503,
+                "outcome": "unavailable",
+                "attempt": 0,
+                "device_removed": False,
+            }
+        ]
+        # The outbox runs the same job again (a crash after sending): the
+        # phone, reached before, is not sent to twice; the tablet is tried.
+        self.receiver.answers = {tablet.path: [503]}
         await self.run(job)
-        (again,) = self.receiver.take()
-        assert phone.read(again, public_key=key)["count"] == 1
-        (row,) = await self.devices("acquirer")
-        assert row["failure_count"] == 0
+        assert [item.path for item in self.receiver.take()] == [tablet.path]
+        (retry,) = await self.jobs("acquirer")
+        assert retry["available_at"] == self.clock.now + PUSH_RETRY_DELAYS[0]
+        assert json_payload(retry["payload"]) == {
+            "userId": str(self.data.users["acquirer"]),
+            "kind": "feed",
+            "count": 1,
+            "attempt": 1,
+            "deviceIds": [tablet_id],
+        }
+        assert await self.run_all("acquirer") == 0
+        self.clock.advance(PUSH_RETRY_DELAYS[0])
+        assert await self.run_all("acquirer") == 1
+        (late,) = self.receiver.take()
+        assert tablet.read(late, public_key=key) == {
+            "kind": "feed",
+            "count": 1,
+            "path": "/app/activities",
+        }
+        assert await self.jobs("acquirer") == []
+        assert all(row["failure_count"] == 0 for row in await self.devices("acquirer"))
+
+        # The push service stays down: three tries, then the job ends for
+        # good. Nothing fails, nothing waits; the failure is on the devices.
+        self.undelivered.clear()
+        self.receiver.answers = {
+            phone.path: [503, 503, 503],
+            tablet.path: [500, 429, 503],
+        }
+        self.clock.advance(PUSH_THROTTLE)
+        await self.order_arrives()
+        for delay in (timedelta(0), *PUSH_RETRY_DELAYS):
+            self.clock.advance(delay)
+            assert await self.run_all("acquirer") == 1
+        assert len(self.receiver.take()) == 6
+        assert await self.jobs("acquirer") == []
+        assert (
+            await self.connection.fetchval(
+                "SELECT count(*) FROM outbox_event WHERE event_type = $1 "
+                "AND aggregate_id = $2 AND status IN ('dead_letter', 'processing')",
+                PUSH_EVENT_TYPE,
+                self.data.users["acquirer"],
+            )
+            == 0
+        )
+        rows = await self.devices("acquirer")
+        assert [row["failure_count"] for row in rows] == [1, 1]
+        assert all(row["failing_since"] == self.clock.now for row in rows)
+        assert [item["attempt"] for item in self.undelivered] == [0, 0, 1, 1, 2, 2]
+        assert {item["status"] for item in self.undelivered} == {500, 503, 429}
+        assert not any(item["device_removed"] for item in self.undelivered)
+
+        # A slow push service: the job ends by itself after its budget. The
+        # device that answered in time is done, the other is tried later.
+        self.undelivered.clear()
+        self.receiver.delays = {tablet.path: 1.5}
+        self.clock.advance(PUSH_THROTTLE)
+        await self.order_arrives()
+        (job,) = await self.jobs("acquirer")
+        self.handler = self.worker_handler(job_seconds=0.4)
+        started = time.monotonic()
+        await self.run(job)
+        assert time.monotonic() - started < 1.4
+        self.handler = self.worker_handler()
+        self.receiver.delays = {}
+        time.sleep(1.5)
+        self.receiver.take()
+        assert self.undelivered == [
+            {
+                "kind": "feed",
+                "host": "timeout",
+                "status": None,
+                "outcome": "unavailable",
+                "attempt": 0,
+                "device_removed": False,
+            }
+        ]
+        (retry,) = await self.jobs("acquirer")
+        assert json_payload(retry["payload"])["deviceIds"] == [tablet_id]
+        self.clock.advance(PUSH_RETRY_DELAYS[0])
+        assert await self.run_all("acquirer") == 1
+        assert [item.path for item in self.receiver.take()] == [tablet.path]
+        # A delivery ends the device's row of failures.
+        assert all(row["failure_count"] == 0 for row in await self.devices("acquirer"))
+
+        # The push service refuses the message (a wrong key or subject):
+        # logged with host and status, counted, not tried again.
+        self.undelivered.clear()
+        self.receiver.answers = {tablet.path: [403]}
+        self.clock.advance(PUSH_THROTTLE)
+        await self.order_arrives()
+        assert await self.run_all("acquirer") == 1
+        self.receiver.take()
+        assert await self.jobs("acquirer") == []
+        assert self.undelivered == [
+            {
+                "kind": "feed",
+                "host": "127.0.0.1",
+                "status": 403,
+                "outcome": "rejected",
+                "attempt": 0,
+                "device_removed": False,
+            }
+        ]
+        # After five such messages over three days the device is removed.
+        await self.connection.execute(
+            "UPDATE push_subscription SET failure_count = $2, failing_since = $3 "
+            "WHERE id = $1",
+            UUID(tablet_id),
+            DEVICE_FAILURE_LIMIT - 1,
+            self.clock.now - DEVICE_FAILURE_PERIOD,
+        )
+        self.receiver.answers = {tablet.path: [401]}
+        self.clock.advance(PUSH_THROTTLE)
+        await self.order_arrives()
+        assert await self.run_all("acquirer") == 1
+        self.receiver.take()
+        assert self.undelivered[-1]["status"] == 401
+        assert self.undelivered[-1]["device_removed"] is True
+        assert [row["endpoint"] for row in await self.devices("acquirer")] == [
+            phone.endpoint
+        ]
+
+        # The test button on a device nobody can reach: tries, then an end;
+        # never a failed job an operator would be called for.
+        ghost = Device(self.receiver, "acquirer-ghost")
+        ghost_id = await self.subscribe("acquirer", ghost)
+        self.receiver.answers = {ghost.path: [503, 503, 503]}
+        queued = await self.client.post(
+            "/api/v1/push/test",
+            headers=self.headers("acquirer"),
+            json={"subscriptionId": ghost_id},
+        )
+        assert queued.status_code == 202, queued.text
+        for delay in (timedelta(0), *PUSH_RETRY_DELAYS):
+            self.clock.advance(delay)
+            assert await self.run_all("acquirer") == 1
+        assert [item.path for item in self.receiver.take()] == [ghost.path] * 3
+        assert await self.jobs("acquirer") == []
+        removed = await self.client.delete(
+            f"/api/v1/push/subscriptions/{ghost_id}",
+            headers=self.headers("acquirer"),
+        )
+        assert removed.status_code == 204
+
+    async def two_jobs_at_once(self, phone: Device) -> None:
+        """Two events of one member and kind, handled at the same moment."""
+
+        self.clock.advance(PUSH_THROTTLE)
+        await self.order_arrives()
+        await self.order_arrives()
+        first, second = await self.jobs("acquirer")
+        await asyncio.gather(
+            self.handler.handle(self.claimed(first)),
+            self.handler.handle(self.claimed(second)),
+        )
+        for job in (first, second):
+            await self.done(job)
+        # One push now; the other event waits for the end of the 15 minutes.
+        (request,) = self.receiver.take()
+        assert phone.read(request, public_key=self.signer.public_key)["count"] == 1
+        (flush,) = await self.jobs("acquirer")
+        assert json_payload(flush["payload"])["count"] == 0
+        self.clock.advance(PUSH_THROTTLE)
+        assert await self.run_all("acquirer") == 1
+        (merged,) = self.receiver.take()
+        assert phone.read(merged, public_key=self.signer.public_key)["count"] == 1
+
+    async def limits_per_member(self, phone: Device) -> None:
+        # Ten devices per member; the eleventh is refused, a known one not.
+        devices = [Device(self.receiver, f"acquirer-extra-{n}") for n in range(9)]
+        ids = [await self.subscribe("acquirer", device) for device in devices]
+        assert len(await self.devices("acquirer")) == MAX_DEVICES_PER_MEMBER
+        refused = await self.client.put(
+            "/api/v1/push/subscriptions",
+            headers=self.headers("acquirer"),
+            json=Device(self.receiver, "acquirer-eleventh").subscription(
+                self.signer.public_key
+            ),
+        )
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["error"]["code"] == "push_device_limit"
+        await self.subscribe("acquirer", phone)
+        # All ten are sent to at once, within one job.
+        self.clock.advance(PUSH_THROTTLE)
+        await self.order_arrives()
+        assert await self.run_all("acquirer") == 1
+        assert len(self.receiver.take()) == MAX_DEVICES_PER_MEMBER
+        for device_id in ids:
+            removed = await self.client.delete(
+                f"/api/v1/push/subscriptions/{device_id}",
+                headers=self.headers("acquirer"),
+            )
+            assert removed.status_code == 204
+        assert len(await self.devices("acquirer")) == 1
+
+        # The test push counts per member: a new User-Agent, address or
+        # session opens no new bucket. The outsider has one device.
+        device = Device(self.receiver, "outsider-phone")
+        device_id = await self.subscribe("outsider", device)
+        second_token = uuid4().hex + uuid4().hex
+        await self.data.session(self.connection, "outsider", uuid4(), second_token)
+        answers = []
+        for attempt in range(TEST_PUSH_LIMIT + 2):
+            response = await self.client.post(
+                "/api/v1/push/test",
+                headers={
+                    **self.headers("outsider", second_token if attempt % 2 else None),
+                    "User-Agent": f"Browser {attempt}",
+                    "X-Forwarded-For": f"203.0.113.{attempt}",
+                },
+                json={"subscriptionId": device_id},
+            )
+            answers.append(response.status_code)
+        assert answers == [202] * TEST_PUSH_LIMIT + [429, 429]
+        assert response.json()["error"]["code"] == "push_rate_limited"
+        assert len(await self.jobs("outsider")) == TEST_PUSH_LIMIT
+        # Another member is not held up by it.
+        other = await self.client.post(
+            "/api/v1/push/test",
+            headers=self.headers("acquirer"),
+            json={"subscriptionId": str((await self.devices("acquirer"))[0]["id"])},
+        )
+        assert other.status_code == 202, other.text
+        await self.run_all("outsider")
+        await self.run_all("acquirer")
+        self.receiver.take()
+
+        # Registering counts per member too.
+        answers = []
+        for attempt in range(SUBSCRIBE_LIMIT):
+            response = await self.client.put(
+                "/api/v1/push/subscriptions",
+                headers={
+                    **self.headers("outsider"),
+                    "User-Agent": f"Browser {attempt}",
+                },
+                json=device.subscription(self.signer.public_key),
+            )
+            answers.append(response.status_code)
+        # One registration was used above.
+        assert answers == [200] * (SUBSCRIBE_LIMIT - 1) + [429]
+
+    async def replaced_key(self, phone: Device) -> None:
+        """A subscription made with an earlier VAPID key is dead."""
+
+        other_key = VapidSigner(generate_vapid_private_key(), SUBJECT).public_key
+        # The browser still holds a subscription of the earlier key: Core
+        # refuses it, so the page never shows it as switched on.
+        refused = await self.client.put(
+            "/api/v1/push/subscriptions",
+            headers=self.headers("acquirer"),
+            json=phone.subscription(other_key),
+        )
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["error"]["code"] == "push_key_replaced"
+        # A row of the earlier key (the key was replaced after it was
+        # stored): no push goes to it, and the loop removes it.
+        old = Device(self.receiver, "acquirer-old-key")
+        old_id = await self.subscribe("acquirer", old)
+        await self.connection.execute(
+            "UPDATE push_subscription SET vapid_public_key = $2 WHERE id = $1",
+            UUID(old_id),
+            other_key,
+        )
+        self.clock.advance(PUSH_THROTTLE)
+        await self.order_arrives()
+        assert await self.run_all("acquirer") == 1
+        assert [item.path for item in self.receiver.take()] == [phone.path]
+        # Without a key the worker cannot tell and removes nothing.
+        assert (
+            await self.repository.purge_ended(now=self.clock.now, vapid_public_key=None)
+            == 0
+        )
+        assert (
+            await self.repository.purge_ended(
+                now=self.clock.now, vapid_public_key=self.signer.public_key
+            )
+            == 1
+        )
+        assert [row["endpoint"] for row in await self.devices("acquirer")] == [
+            phone.endpoint
+        ]
+
+    async def held_back_and_flag_off(self, phone: Device) -> None:
+        """What was held back while the flag went off is not sent later."""
+
+        self.clock.advance(PUSH_THROTTLE)
+        await self.order_arrives()
+        assert await self.run_all("acquirer") == 1
+        for _ in range(3):
+            self.clock.advance(timedelta(minutes=1))
+            await self.order_arrives()
+            assert await self.run_all("acquirer") == 1
+        self.receiver.take()
+        pending = "SELECT pending_count FROM push_dispatch WHERE user_id = $1 AND kind = 'feed'"
+        assert await self.connection.fetchval(pending, self.data.users["acquirer"]) == 3
+        await self.flag(False)
+        self.clock.advance(PUSH_THROTTLE)
+        assert await self.run_all("acquirer") == 1
+        assert self.receiver.take() == []
+        assert await self.connection.fetchval(pending, self.data.users["acquirer"]) == 0
+        await self.flag(True)
+        # Later: the next order is one order, not four.
+        self.clock.advance(timedelta(hours=1))
+        await self.order_arrives()
+        assert await self.run_all("acquirer") == 1
+        (request,) = self.receiver.take()
+        assert phone.read(request, public_key=self.signer.public_key)["count"] == 1
 
     async def tasks(self) -> None:
         key = self.signer.public_key
@@ -963,7 +1378,9 @@ class Proof:
 
     async def follow_ups(self, phone: Device) -> None:
         key = self.signer.public_key
-        job = FollowUpPushJob(self.repository, self.flags, configured=True)
+        job = FollowUpPushJob(
+            self.repository, self.flags, vapid_public_key=self.signer.public_key
+        )
         today = datetime.now(BERLIN)
         early = today.replace(hour=7, minute=59, second=0, microsecond=0)
         morning = today.replace(hour=8, minute=0, second=0, microsecond=0)
@@ -972,7 +1389,7 @@ class Proof:
         assert await job.run_once(now=night) == 0
         assert (
             await FollowUpPushJob(
-                self.repository, self.flags, configured=False
+                self.repository, self.flags, vapid_public_key=None
             ).run_once(now=morning)
             == 0
         )
@@ -985,8 +1402,9 @@ class Proof:
         assert json_payload(queued["payload"]) == {
             "userId": str(self.data.users["acquirer"]),
             "kind": "follow_ups",
-            # Overdue and due today; not the later one, the handed-over one
-            # or the one without a date.
+            # Overdue and due today; not the later one, the handed-over one,
+            # the one without a date or those of completed and archived
+            # actions.
             "count": 2,
         }
         self.clock.now = max(self.clock.now, morning.astimezone(timezone.utc))
@@ -1020,6 +1438,9 @@ class Proof:
         (job,) = await self.jobs("acquirer")
         await self.flag(False)
         await self.run(job)
+        # Taking a consent back never needs the flag; giving one does.
+        assert (await self.prefer("acquirer", tasks=False)).status_code == 200
+        assert (await self.prefer("acquirer", tasks=True)).status_code == 404
         await self.order_arrives()
         assert await self.jobs("acquirer") == []
         assert self.receiver.take() == []
@@ -1043,7 +1464,12 @@ class Proof:
         await self.order_arrives()
         assert await self.run_all("acquirer") == 1
         assert [request.path for request in self.receiver.take()] == [phone.path]
-        assert await self.repository.purge_ended(now=self.clock.now) == 1
+        assert (
+            await self.repository.purge_ended(
+                now=self.clock.now, vapid_public_key=self.signer.public_key
+            )
+            == 1
+        )
         assert tablet_id not in {
             str(row["id"]) for row in await self.devices("acquirer")
         }
@@ -1100,6 +1526,11 @@ class Proof:
         await self.preferences_are_recorded()
         await self.feed_and_the_15_minutes(phone)
         await self.gone_and_failing_devices(phone)
+        await self.unreachable_devices(phone)
+        await self.two_jobs_at_once(phone)
+        await self.limits_per_member(phone)
+        await self.replaced_key(phone)
+        await self.held_back_and_flag_off(phone)
         await self.tasks()
         await self.deliveries()
         await self.follow_ups(phone)

@@ -58,7 +58,15 @@ function describe(
   const p256dh = bytesBase64Url(subscription.getKey("p256dh"));
   const auth = bytesBase64Url(subscription.getKey("auth"));
   if (!p256dh || !auth) return null;
-  return { endpoint: subscription.endpoint, keys: { auth, p256dh } };
+  return {
+    // The key this subscription was made with. Empty when the browser does
+    // not say: Core then refuses it, and the device subscribes again.
+    applicationServerKey: bytesBase64Url(
+      subscription.options?.applicationServerKey ?? null,
+    ),
+    endpoint: subscription.endpoint,
+    keys: { auth, p256dh },
+  };
 }
 
 /** iPhone and iPad; an iPad names itself a Mac but has a touch screen. */
@@ -148,9 +156,33 @@ export const browserPushDevice: PushDevice = {
 };
 
 /**
+ * The device's subscription for the installation's current key, or null.
+ *
+ * A subscription made with an earlier key is dead: no push signed with the
+ * current key reaches it. It is ended, and the device subscribes again
+ * with the current key (the permission is still granted, so the browser
+ * does not ask). Without permission nothing is asked of the browser.
+ */
+export async function liveSubscription(
+  device: PushDevice,
+  publicKey: string,
+): Promise<SavePushSubscriptionRequest | null> {
+  if (device.support() !== "supported" || device.permission() !== "granted") {
+    return null;
+  }
+  const subscription = await device.subscription();
+  if (!subscription || subscription.applicationServerKey === publicKey) {
+    return subscription;
+  }
+  await device.unsubscribe();
+  return device.subscribe(publicKey);
+}
+
+/**
  * Keeps Core's copy of this device current: a subscription belongs to the
  * session that registered it, so after a new sign-in the device says again
- * where it is. Does nothing without permission or without a subscription.
+ * where it is; and after the installation's key was replaced it subscribes
+ * again. Does nothing without permission or without a subscription.
  * Returns Core's id of the device, or null.
  */
 export async function syncPushDevice(
@@ -160,7 +192,11 @@ export async function syncPushDevice(
   if (device.support() !== "supported" || device.permission() !== "granted") {
     return null;
   }
-  const subscription = await device.subscription();
+  // Without a subscription Core is not asked at all.
+  if (!(await device.subscription())) return null;
+  const { publicKey } = await client.getPushConfiguration();
+  if (!publicKey) return null;
+  const subscription = await liveSubscription(device, publicKey);
   if (!subscription) return null;
   return (await client.savePushSubscription(subscription)).id;
 }

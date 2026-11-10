@@ -15609,6 +15609,12 @@
         "additionalProperties": false,
         "description": "A browser's PushSubscription, as its toJSON() gives it.",
         "properties": {
+          "applicationServerKey": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Applicationserverkey",
+            "type": "string"
+          },
           "endpoint": {
             "maxLength": 2048,
             "minLength": 1,
@@ -15621,7 +15627,8 @@
         },
         "required": [
           "endpoint",
-          "keys"
+          "keys",
+          "applicationServerKey"
         ],
         "title": "SavePushSubscriptionRequest",
         "type": "object"

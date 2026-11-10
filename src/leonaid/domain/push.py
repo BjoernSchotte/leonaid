@@ -30,6 +30,17 @@ PUSH_THROTTLE: Final = timedelta(minutes=15)
 # was down at 08:00 catches up until the evening, never at night.
 FOLLOW_UP_PUSH_FROM: Final = time(8, 0)
 FOLLOW_UP_PUSH_UNTIL: Final = time(20, 0)
+# Devices one member can register. A member has a phone, a tablet, a laptop;
+# more only costs requests to the push services.
+MAX_DEVICES_PER_MEMBER: Final = 10
+# A message that reached no device is tried again after these delays, then
+# given up. Push is a hint: a job never fails because a device is away.
+PUSH_RETRY_DELAYS: Final = (timedelta(minutes=1), timedelta(minutes=10))
+# A device is removed when this many messages in a row did not reach it and
+# the first of them is at least this long ago: a phone that is off for a
+# weekend stays, a dead subscription goes.
+DEVICE_FAILURE_LIMIT: Final = 5
+DEVICE_FAILURE_PERIOD: Final = timedelta(days=3)
 MAX_ENDPOINT_LENGTH: Final = 2048
 MAX_PUSH_COUNT: Final = 9999
 
@@ -210,6 +221,31 @@ class PushOutcome(StrEnum):
     REJECTED = "rejected"
     # The push service or the network failed; a later attempt may work.
     UNAVAILABLE = "unavailable"
+
+
+@dataclass(frozen=True, slots=True)
+class PushResult:
+    """How one request to a push service ended.
+
+    ``host`` and ``status`` are for the operator's log. The path of an
+    endpoint is the device's token and never leaves the sender.
+    """
+
+    outcome: PushOutcome
+    host: str
+    status: int | None = None
+
+
+def device_is_dead(
+    failure_count: int, failing_since: datetime | None, *, now: datetime
+) -> bool:
+    """Whether a device failed often enough and long enough to be removed."""
+
+    return (
+        failure_count >= DEVICE_FAILURE_LIMIT
+        and failing_since is not None
+        and now - failing_since >= DEVICE_FAILURE_PERIOD
+    )
 
 
 @dataclass(frozen=True, slots=True)

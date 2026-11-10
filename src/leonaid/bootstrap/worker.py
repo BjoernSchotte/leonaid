@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -122,6 +122,7 @@ class HandlerDependencies:
     crm: CrmGateway | None = None
     # The HTTP client and keys for Web Push; None without a VAPID key.
     push: WebPushSender | None = None
+    push_public_key: str | None = None
 
 
 def worker_modules(
@@ -244,11 +245,13 @@ def _mail_handlers(
     }
 
 
-# One push request ends after PUSH_REQUEST_SECONDS; a member with several
-# devices still fits. A second run sends the same count again (the device
-# shows one notification per kind).
+# One request to a push service ends after PUSH_REQUEST_SECONDS as a whole.
+# The job sends to all devices of a member at once and ends by itself after
+# PUSH_JOB_SECONDS (application/push.py); the handler timeout is only the
+# backstop behind that. Mail and document jobs wait behind a push job for
+# seconds, not minutes.
 PUSH_REQUEST_SECONDS = 10.0
-PUSH_HANDLER_TIMEOUTS = {PUSH_EVENT_TYPE: 120.0}
+PUSH_HANDLER_TIMEOUTS = {PUSH_EVENT_TYPE: 45.0}
 PUSH_FOLLOW_UP_LOOP = "push_follow_ups"
 PUSH_FOLLOW_UP_INTERVAL_SECONDS = 300.0
 
@@ -268,8 +271,40 @@ def _push_handlers(
             AsyncpgPushRepository(dependencies.pool),
             dependencies.push,
             _flags(dependencies.pool),
+            vapid_public_key=dependencies.push_public_key,
+            observer=observe_push_failure,
         )
     }
+
+
+def observe_push_failure(
+    *,
+    kind: str,
+    host: str,
+    status: int | None,
+    outcome: str,
+    attempt: int,
+    device_removed: bool,
+) -> None:
+    """One log line per message that did not reach a device.
+
+    What an operator needs to see why pushes do not arrive: the push
+    service's host and its HTTP status (401 and 403 point at the VAPID key
+    or subject). Never the endpoint's path, which is the device's token,
+    and never the member.
+    """
+    print(
+        structured_event(
+            "worker.push.undelivered",
+            kind=kind,
+            host=host,
+            status=status,
+            outcome=outcome,
+            attempt=attempt,
+            deviceRemoved=device_removed,
+        ),
+        flush=True,
+    )
 
 
 def push_sender(
@@ -286,7 +321,28 @@ def push_sender(
     client = httpx.AsyncClient(
         timeout=PUSH_REQUEST_SECONDS, follow_redirects=False, trust_env=False
     )
-    return WebPushSender(signer, client, PushEndpointPolicy()), client
+    sender = WebPushSender(
+        signer, client, PushEndpointPolicy(), request_seconds=PUSH_REQUEST_SECONDS
+    )
+    return sender, client
+
+
+def _public_key(settings: PushSettings) -> str | None:
+    signer = settings.signer()
+    return signer.public_key if signer is not None else None
+
+
+async def close_all(closers: Sequence[Callable[[], Awaitable[None]]]) -> None:
+    """Run every closer, also after one of them failed; then raise the
+    first failure. One client that cannot close keeps no other one open."""
+    failures: list[Exception] = []
+    for closer in closers:
+        try:
+            await closer()
+        except Exception as error:
+            failures.append(error)
+    if failures:
+        raise failures[0]
 
 
 def push_follow_up_loop(database_url: str) -> BackgroundLoop:
@@ -301,7 +357,7 @@ def push_follow_up_loop(database_url: str) -> BackgroundLoop:
                 job = FollowUpPushJob(
                     AsyncpgPushRepository(pool),
                     _flags(pool),
-                    configured=load_push_settings().configured,
+                    vapid_public_key=_public_key(load_push_settings()),
                 )
                 while True:
                     asked = await job.run_once(now=datetime.now(timezone.utc))
@@ -416,54 +472,60 @@ async def build_worker(
         load_module_settings().disabled_modules if disabled is None else disabled
     )
     pool = await create_pool(database_url, maximum_size=5)
-    crm = crm_gateway_from_environment()
-    push = push_sender(load_push_settings())
+    # What this function opened so far. If a later step fails, the caller
+    # gets no worker to close, so everything is closed here.
     closers: list[Callable[[], Awaitable[None]]] = []
-    if crm is not None:
-        closers.append(crm.close)
-    if push is not None:
-        closers.append(push[1].aclose)
-
-    async def close() -> None:
-        for closer in closers:
-            await closer()
-
-    all_modules = worker_modules(
-        database_url,
-        HandlerDependencies(
-            pool=pool,
-            storage=object_storage_from_environment(),
-            mail_transport=mail_transport_from_environment(),
-            payload_secret=os.environ["LEONAID_SESSION_ENCRYPTION_KEY"],
-            crm=crm,
-            push=push[0] if push is not None else None,
-        ),
-    )
-    modules, parked = split_enabled(all_modules, switched_off)
-    # Jobs of switched-off modules stay pending until the module is back on;
-    # they are neither claimed nor dead-lettered as unhandled.
-    queue = AsyncpgOutboxQueue(
-        pool,
-        claim_lease=timedelta(seconds=claim_lease_seconds),
-        excluded_event_types=frozenset(
-            event_type for module in parked for event_type in module.handlers
-        ),
-    )
-    worker = OutboxWorker(
-        worker_id=worker_id,
-        queue=queue,
-        handlers=collect_handlers(modules),
-        handler_timeouts=effective_timeouts(
-            collect_handler_timeouts(modules), claim_lease_seconds
-        ),
-        retry_policy=RetryPolicy(
-            max_attempts=max_attempts,
-            base_delay=timedelta(seconds=base_backoff_seconds),
-            maximum_delay=timedelta(minutes=15),
-        ),
-        observer=observe_job,
-        on_close=close if closers else None,
-    )
+    try:
+        crm = crm_gateway_from_environment()
+        if crm is not None:
+            closers.append(crm.close)
+        push_settings = load_push_settings()
+        push = push_sender(push_settings)
+        if push is not None:
+            closers.append(push[1].aclose)
+        all_modules = worker_modules(
+            database_url,
+            HandlerDependencies(
+                pool=pool,
+                storage=object_storage_from_environment(),
+                mail_transport=mail_transport_from_environment(),
+                payload_secret=os.environ["LEONAID_SESSION_ENCRYPTION_KEY"],
+                crm=crm,
+                push=push[0] if push is not None else None,
+                push_public_key=_public_key(push_settings),
+            ),
+        )
+        modules, parked = split_enabled(all_modules, switched_off)
+        # Jobs of switched-off modules stay pending until the module is back
+        # on; they are neither claimed nor dead-lettered as unhandled.
+        queue = AsyncpgOutboxQueue(
+            pool,
+            claim_lease=timedelta(seconds=claim_lease_seconds),
+            excluded_event_types=frozenset(
+                event_type for module in parked for event_type in module.handlers
+            ),
+        )
+        handler_clients = tuple(closers)
+        worker = OutboxWorker(
+            worker_id=worker_id,
+            queue=queue,
+            handlers=collect_handlers(modules),
+            handler_timeouts=effective_timeouts(
+                collect_handler_timeouts(modules), claim_lease_seconds
+            ),
+            retry_policy=RetryPolicy(
+                max_attempts=max_attempts,
+                base_delay=timedelta(seconds=base_backoff_seconds),
+                maximum_delay=timedelta(minutes=15),
+            ),
+            observer=observe_job,
+            on_close=(
+                (lambda: close_all(handler_clients)) if handler_clients else None
+            ),
+        )
+    except BaseException:
+        await close_all([*closers, pool.close])
+        raise
     return pool, queue, worker
 
 

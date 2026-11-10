@@ -8,23 +8,25 @@ kind and a count, nothing about the record that caused it.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Mapping, Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
 import asyncpg
 
+from leonaid.adapters.postgres.security import AsyncpgSecurityRateLimitRepository
 from leonaid.domain.calendar import local_day, local_day_bounds
 from leonaid.domain.push import (
     PUSH_EVENT_TYPE,
     TEST_KIND,
     DispatchState,
     PushKind,
-    PushOutcome,
     PushSubscription,
     PushTarget,
+    device_is_dead,
     plan_dispatch,
 )
 
@@ -122,6 +124,33 @@ async def _audit(
     )
 
 
+class AsyncpgPushRateLimiter:
+    """Limits per member: the bucket is the user id, not the address, the
+    User-Agent or the session, so a new header opens no new bucket."""
+
+    def __init__(self, pool: asyncpg.Pool[Any]) -> None:
+        self._attempts = AsyncpgSecurityRateLimitRepository(pool)
+
+    async def allow(
+        self,
+        *,
+        scope: str,
+        user_id: UUID,
+        limit: int,
+        window: timedelta,
+        now: datetime,
+    ) -> bool:
+        return await self._attempts.consume(
+            scope=scope,
+            fingerprint_hash=hashlib.sha256(
+                f"leonaid-push-user:{user_id}".encode()
+            ).hexdigest(),
+            attempted_at=now,
+            window=window,
+            limit=limit,
+        )
+
+
 class AsyncpgPushRepository:
     def __init__(self, pool: asyncpg.Pool[Any]) -> None:
         self._pool = pool
@@ -192,19 +221,38 @@ class AsyncpgPushRepository:
         user_id: UUID,
         session_id: UUID,
         target: PushTarget,
-        user_agent: str,
+        vapid_public_key: str,
+        device_limit: int,
         request_id: str,
         occurred_at: datetime,
-    ) -> UUID:
+    ) -> UUID | None:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
+                # One member's registrations run one after the other, so the
+                # device limit holds for concurrent requests too.
+                await connection.execute(
+                    "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+                    f"push.devices:{user_id}",
+                )
+                existing = await connection.fetchrow(
+                    "SELECT id, user_id FROM push_subscription "
+                    "WHERE endpoint = $1 FOR UPDATE",
+                    target.endpoint,
+                )
+                if existing is None or existing["user_id"] != user_id:
+                    others = await connection.fetchval(
+                        "SELECT count(*) FROM push_subscription WHERE user_id = $1",
+                        user_id,
+                    )
+                    if int(others) >= device_limit:
+                        return None
                 # One row per endpoint: a device that signs in again, also
                 # as another member, moves its row to the new session.
-                row = await connection.fetchrow(
+                subscription_id = await connection.fetchval(
                     """
                     INSERT INTO push_subscription (
                         id, user_id, session_id, endpoint, p256dh, auth,
-                        user_agent, created_at
+                        vapid_public_key, created_at
                     )
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                     ON CONFLICT (endpoint) DO UPDATE
@@ -212,9 +260,10 @@ class AsyncpgPushRepository:
                         session_id = EXCLUDED.session_id,
                         p256dh = EXCLUDED.p256dh,
                         auth = EXCLUDED.auth,
-                        user_agent = EXCLUDED.user_agent,
-                        failure_count = 0
-                    RETURNING id, (xmax = 0) AS created
+                        vapid_public_key = EXCLUDED.vapid_public_key,
+                        failure_count = 0,
+                        failing_since = NULL
+                    RETURNING id
                     """,
                     uuid4(),
                     user_id,
@@ -222,22 +271,27 @@ class AsyncpgPushRepository:
                     target.endpoint,
                     target.p256dh,
                     target.auth,
-                    user_agent,
+                    vapid_public_key,
                     occurred_at,
                 )
-                assert row is not None
-                if row["created"]:
+                if existing is None or existing["user_id"] != user_id:
+                    # New for this member: the record of the consent, also
+                    # when the device was another member's before.
                     await _audit(
                         connection,
                         user_id=user_id,
                         event_type="push.subscription.created",
                         entity_type="push_subscription",
-                        entity_id=row["id"],
+                        entity_id=subscription_id,
                         request_id=request_id,
-                        payload={},
+                        payload=(
+                            {"movedFromAnotherMember": True}
+                            if existing is not None
+                            else {}
+                        ),
                         occurred_at=occurred_at,
                     )
-                return UUID(str(row["id"]))
+                return UUID(str(subscription_id))
 
     async def delete_subscription(
         self,
@@ -406,12 +460,32 @@ class AsyncpgPushRepository:
                     )
                 return plan.send_count
 
+    async def drop_pending(self, *, user_id: UUID, kind: PushKind) -> None:
+        await self._pool.execute(
+            "UPDATE push_dispatch SET pending_count = 0 "
+            "WHERE user_id = $1 AND kind = $2",
+            user_id,
+            kind.value,
+        )
+
+    async def kind_enabled(self, *, user_id: UUID, kind: PushKind) -> bool:
+        return (
+            await self._pool.fetchval(
+                "SELECT enabled FROM push_preference WHERE user_id = $1 AND kind = $2",
+                user_id,
+                kind.value,
+            )
+            is True
+        )
+
     async def subscriptions(
         self,
         *,
         user_id: UUID,
         now: datetime,
-        subscription_id: UUID | None = None,
+        vapid_public_key: str,
+        except_event_id: UUID,
+        device_ids: Sequence[UUID] | None = None,
     ) -> tuple[PushSubscription, ...]:
         rows = await self._pool.fetch(
             """
@@ -424,12 +498,16 @@ class AsyncpgPushRepository:
             WHERE device.user_id = $1
               AND session.revoked_at IS NULL
               AND session.expires_at > $2
-              AND ($3::uuid IS NULL OR device.id = $3)
+              AND device.vapid_public_key = $3
+              AND device.last_event_id IS DISTINCT FROM $4
+              AND ($5::uuid[] IS NULL OR device.id = ANY($5::uuid[]))
             ORDER BY device.created_at, device.id
             """,
             user_id,
             now,
-            subscription_id,
+            vapid_public_key,
+            except_event_id,
+            list(device_ids) if device_ids is not None else None,
         )
         return tuple(
             PushSubscription(
@@ -444,33 +522,94 @@ class AsyncpgPushRepository:
             for row in rows
         )
 
-    async def record_outcome(
-        self, *, subscription_id: UUID, outcome: PushOutcome, now: datetime
+    async def record_delivered(
+        self, *, subscription_id: UUID, event_id: UUID, now: datetime
     ) -> None:
-        if outcome is PushOutcome.GONE:
-            await self._pool.execute(
-                "DELETE FROM push_subscription WHERE id = $1", subscription_id
+        await self._pool.execute(
+            "UPDATE push_subscription "
+            "SET last_success_at = $2, last_event_id = $3, "
+            "    failure_count = 0, failing_since = NULL WHERE id = $1",
+            subscription_id,
+            now,
+            event_id,
+        )
+
+    async def record_failure(self, *, subscription_id: UUID, now: datetime) -> bool:
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                row = await connection.fetchrow(
+                    """
+                    UPDATE push_subscription
+                    SET failure_count = failure_count + 1,
+                        failing_since = COALESCE(failing_since, $2)
+                    WHERE id = $1
+                    RETURNING failure_count, failing_since
+                    """,
+                    subscription_id,
+                    now,
+                )
+                if row is None or not device_is_dead(
+                    int(row["failure_count"]), row["failing_since"], now=now
+                ):
+                    return False
+                await connection.execute(
+                    "DELETE FROM push_subscription WHERE id = $1", subscription_id
+                )
+                return True
+
+    async def delete_device(self, *, subscription_id: UUID) -> None:
+        await self._pool.execute(
+            "DELETE FROM push_subscription WHERE id = $1", subscription_id
+        )
+
+    async def enqueue_retry(
+        self,
+        *,
+        source_event_id: UUID,
+        user_id: UUID,
+        kind: str,
+        count: int,
+        device_ids: Sequence[UUID],
+        attempt: int,
+        available_at: datetime,
+        now: datetime,
+    ) -> None:
+        # The key names the job it continues: that job run again asks for
+        # the same later try, not for a second one.
+        await self._pool.execute(
+            """
+            INSERT INTO outbox_event (
+                id, aggregate_type, aggregate_id, event_type,
+                idempotency_key, payload, available_at, created_at
             )
-        elif outcome is PushOutcome.DELIVERED:
-            await self._pool.execute(
-                "UPDATE push_subscription "
-                "SET last_success_at = $2, failure_count = 0 WHERE id = $1",
-                subscription_id,
-                now,
-            )
-        else:
-            await self._pool.execute(
-                "UPDATE push_subscription "
-                "SET failure_count = failure_count + 1 WHERE id = $1",
-                subscription_id,
-            )
+            VALUES ($1, 'user_account', $2, $3, $4, $5::jsonb, $6, $7)
+            ON CONFLICT (idempotency_key) DO NOTHING
+            """,
+            uuid4(),
+            user_id,
+            PUSH_EVENT_TYPE,
+            f"push-retry:{source_event_id}",
+            json.dumps(
+                {
+                    "userId": str(user_id),
+                    "kind": kind,
+                    "count": count,
+                    "attempt": attempt,
+                    "deviceIds": [str(device) for device in device_ids],
+                },
+                separators=(",", ":"),
+            ),
+            available_at,
+            now,
+        )
 
     async def enqueue_due_follow_ups(self, *, now: datetime) -> int:
         """One job per member with follow-ups due or overdue, once a day.
 
         The same rows as the "Wiedervorlagen" tab counts as overdue or due
         today: the member's own assignments that are not handed over, in
-        actions where they are an active acquirer.
+        actions where they are an active acquirer. Completed and archived
+        actions are over: their open assignments nag nobody.
         """
 
         day = local_day(now)
@@ -509,6 +648,9 @@ class AsyncpgPushRepository:
                 JOIN charity_action_capability AS capability
                   ON capability.action_id = assignment.action_id
                  AND capability.capability = 'acquisition'
+                JOIN charity_action AS action
+                  ON action.id = assignment.action_id
+                 AND action.status NOT IN ('completed', 'archived')
                 WHERE assignment.status <> 'handed_over'
                   AND assignment.due_at < $4
                 GROUP BY assignment.acquirer_user_id
@@ -528,16 +670,22 @@ class AsyncpgPushRepository:
         )
         return int(status.rsplit(" ", 1)[-1])
 
-    async def purge_ended(self, *, now: datetime) -> int:
-        """Delete devices whose session expired (revoked ones go at once)."""
+    async def purge_ended(self, *, now: datetime, vapid_public_key: str | None) -> int:
+        """Delete devices whose session expired (revoked ones go at once)
+        and, with a key given, devices that subscribed with another key."""
 
         status = await self._pool.execute(
             """
             DELETE FROM push_subscription AS device
             USING user_session AS session
             WHERE session.id = device.session_id
-              AND (session.revoked_at IS NOT NULL OR session.expires_at <= $1)
+              AND (
+                  session.revoked_at IS NOT NULL
+                  OR session.expires_at <= $1
+                  OR ($2::text IS NOT NULL AND device.vapid_public_key <> $2)
+              )
             """,
             now,
+            vapid_public_key,
         )
         return int(status.rsplit(" ", 1)[-1])

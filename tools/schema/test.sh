@@ -388,7 +388,7 @@ push_parent=$(sed -n 's/^down_revision: str | None = "\(.*\)"$/\1/p' \
 printf '%s\n' \
   "INSERT INTO user_account (id, email, display_name, status) VALUES ('95620000-0000-4000-8000-000000000001', 'push-0065@leonaid.invalid', 'Push 0065', 'active');" \
   "INSERT INTO user_session (id, user_id, token_digest, expires_at, last_seen_at, fresh_login_at, device_hint, created_at, updated_at) VALUES ('95620000-0000-4000-8000-000000000002', '95620000-0000-4000-8000-000000000001', repeat('a', 64), now() + interval '1 day', now(), now(), 'Push 0065', now(), now());" \
-  "INSERT INTO push_subscription (id, user_id, session_id, endpoint, p256dh, auth) VALUES ('95620000-0000-4000-8000-000000000003', '95620000-0000-4000-8000-000000000001', '95620000-0000-4000-8000-000000000002', 'https://fcm.googleapis.com/fcm/send/0065', decode(repeat('04', 65), 'hex'), decode(repeat('00', 16), 'hex'));" \
+  "INSERT INTO push_subscription (id, user_id, session_id, endpoint, p256dh, auth, vapid_public_key) VALUES ('95620000-0000-4000-8000-000000000003', '95620000-0000-4000-8000-000000000001', '95620000-0000-4000-8000-000000000002', 'https://fcm.googleapis.com/fcm/send/0065', decode(repeat('04', 65), 'hex'), decode(repeat('00', 16), 'hex'), repeat('A', 87));" \
   "UPDATE user_session SET last_seen_at = now() WHERE id = '95620000-0000-4000-8000-000000000002';" |
   preference_sql
 [ "$(printf '%s\n' "SELECT count(*) FROM push_subscription WHERE id = '95620000-0000-4000-8000-000000000003';" | preference_sql)" = "1" ] || {

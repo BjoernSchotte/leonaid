@@ -99,12 +99,18 @@ Punkte sind keine stillschweigenden Produktzusagen.
     updated.
   - At most one push per member and kind in 15 minutes; later events are
     counted and sent together.
-  - A push is a hint without a delivery guarantee: a message is sent again
-    only when no device of the member could be reached, and a push service
-    drops what it could not deliver within 24 hours.
-  - A device ends with its session. After a new sign-in it gets pushes again
-    once the app was opened on it.
-  - A new `LEONAID_VAPID_PRIVATE_KEY` ends every subscription; without the
+  - A push is a hint without a delivery guarantee: a device that was not
+    reached is tried again after 1 and after 10 minutes, then the message is
+    given up; a push service drops what it could not deliver within 24
+    hours. Undelivered messages are log lines (`worker.push.undelivered`),
+    never failed jobs.
+  - A device ends with its session. After a sign-out the member switches it
+    on again; after 90 days without opening the app it gets no push until
+    the app is opened.
+  - At most 10 devices per member. A device that 5 messages in a row did not
+    reach over at least 3 days is removed.
+  - A new `LEONAID_VAPID_PRIVATE_KEY` ends every subscription: each device
+    subscribes again by itself when its app is next opened; without the
     key the page says "noch nicht eingerichtet". The worker needs a route
     to the push services (pilot: the `mail-egress` network).
   - Only the push services named in ADR-0017 are accepted; another browser

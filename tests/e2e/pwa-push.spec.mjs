@@ -191,7 +191,8 @@ test("a subscribed device gets its switches, and they are saved", async ({
   });
   // The test stack reaches no push service of a browser vendor, so the
   // browser cannot make a subscription. This test hands the page a
-  // subscription as PushManager would (an endpoint and a fresh P-256 key).
+  // subscription as PushManager would (an endpoint, a fresh P-256 key and
+  // the application server key it was asked for).
   // Everything behind it is real: Core checks the endpoint and the keys,
   // stores the device and the switches.
   await context.addInitScript(() => {
@@ -209,6 +210,7 @@ test("a subscribed device gets its switches, and they are saved", async ({
       return {
         endpoint: value.endpoint,
         getKey: (name) => decode(value[name]),
+        options: { applicationServerKey: decode(value.applicationServerKey) },
         unsubscribe: async () => {
           localStorage.removeItem(KEY);
           return true;
@@ -216,7 +218,7 @@ test("a subscribed device gets its switches, and they are saved", async ({
       };
     };
     PushManager.prototype.getSubscription = async () => load();
-    PushManager.prototype.subscribe = async () => {
+    PushManager.prototype.subscribe = async (options) => {
       const pair = await crypto.subtle.generateKey(
         { name: "ECDH", namedCurve: "P-256" },
         true,
@@ -228,6 +230,7 @@ test("a subscribed device gets its switches, and they are saved", async ({
       localStorage.setItem(
         KEY,
         JSON.stringify({
+          applicationServerKey: encode(options.applicationServerKey),
           auth: encode(auth),
           endpoint: `https://fcm.googleapis.com/fcm/send/e2e-${name}`,
           p256dh: encode(p256dh),

@@ -7,6 +7,7 @@ intermediate values of its Appendix A, copied from the RFC text
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 from datetime import datetime, timedelta, timezone
@@ -326,7 +327,10 @@ async def test_the_push_service_answer_decides_the_outcome(
             now=NOW,
         )
 
-    assert result is outcome
+    assert result.outcome is outcome
+    # For the operator's log: the host and the status, never the path.
+    assert result.host == "fcm.googleapis.com"
+    assert result.status == status
     assert len(seen) == 1
     request = seen[0]
     assert request.method == "POST"
@@ -354,7 +358,8 @@ async def test_the_sender_never_calls_a_host_outside_the_allowlist() -> None:
             target("https://core-postgres:5432/"), b"{}", topic="feed", now=NOW
         )
 
-    assert result is PushOutcome.GONE
+    assert result.outcome is PushOutcome.GONE
+    assert result.status is None
 
 
 @pytest.mark.asyncio
@@ -372,7 +377,8 @@ async def test_a_network_failure_is_a_temporary_outcome() -> None:
             target("https://web.push.apple.com/abc"), b"{}", topic="feed", now=NOW
         )
 
-    assert result is PushOutcome.UNAVAILABLE
+    assert result.outcome is PushOutcome.UNAVAILABLE
+    assert (result.host, result.status) == ("web.push.apple.com", None)
 
 
 def test_the_vapid_audience_keeps_a_port_that_is_not_the_default() -> None:
@@ -382,3 +388,28 @@ def test_the_vapid_audience_keeps_a_port_that_is_not_the_default() -> None:
 
     claims = header.removeprefix("vapid t=").split(".")[1]
     assert decode_segment(claims)["aud"] == "http://127.0.0.1:9911"
+
+
+@pytest.mark.asyncio
+async def test_a_request_ends_after_its_deadline_as_a_whole() -> None:
+    async def never(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(3600)
+        raise AssertionError("unreachable")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(never)) as client:
+        sender = WebPushSender(
+            VapidSigner(generate_vapid_private_key(), SUBJECT),
+            client,
+            PushEndpointPolicy(),
+            request_seconds=0.05,
+        )
+        started = asyncio.get_running_loop().time()
+        result = await sender.send(
+            target("https://fcm.googleapis.com/fcm/send/abc"),
+            b"{}",
+            topic="feed",
+            now=NOW,
+        )
+
+    assert result.outcome is PushOutcome.UNAVAILABLE
+    assert asyncio.get_running_loop().time() - started < 2

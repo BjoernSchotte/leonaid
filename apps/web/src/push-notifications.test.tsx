@@ -28,7 +28,10 @@ import { PushNotificationsPage } from "../../../packages/features/src/push/push-
 
 const PUBLIC_KEY =
   "BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8";
+const OLD_KEY =
+  "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4";
 const SUBSCRIPTION: SavePushSubscriptionRequest = {
+  applicationServerKey: PUBLIC_KEY,
   endpoint: "https://fcm.googleapis.com/fcm/send/device-1",
   keys: { auth: "BTBZMqHH6r4Tts7J_aSIgg", p256dh: PUBLIC_KEY },
 };
@@ -57,6 +60,8 @@ function failure(status: number, code: string): Response {
 interface CoreOptions {
   readonly configuration?: PushConfigurationResponse | Response;
   readonly test?: Response;
+  /** Core's answer to a registration, instead of the device's id. */
+  readonly subscribe?: Response;
 }
 
 const CONFIGURED: PushConfigurationResponse = {
@@ -82,7 +87,9 @@ function core(sent: SentRequest[], options: CoreOptions = {}) {
         ? configuration.clone()
         : json(configuration);
     }
-    if (path === "/api/v1/push/subscriptions") return json({ id: DEVICE_ID });
+    if (path === "/api/v1/push/subscriptions") {
+      return options.subscribe?.clone() ?? json({ id: DEVICE_ID });
+    }
     if (path === `/api/v1/push/subscriptions/${DEVICE_ID}`) {
       return new Response(null, { status: 204 });
     }
@@ -114,6 +121,8 @@ interface DeviceOptions {
   /** What the browser's prompt answers. */
   readonly answer?: PushPermission;
   readonly subscribed?: boolean;
+  /** The key the existing subscription was made with. */
+  readonly subscribedKey?: string;
   readonly subscribeFails?: boolean;
 }
 
@@ -122,6 +131,7 @@ function browser(options: DeviceOptions = {}) {
   const calls: string[] = [];
   let permission = options.permission ?? "default";
   let subscribed = options.subscribed ?? false;
+  let key = options.subscribedKey ?? PUBLIC_KEY;
   const device: PushDevice = {
     permission: () => permission,
     requestPermission: async () => {
@@ -133,9 +143,11 @@ function browser(options: DeviceOptions = {}) {
       calls.push(`subscribe:${publicKey}`);
       if (options.subscribeFails) throw new DOMException("no push service");
       subscribed = true;
-      return SUBSCRIPTION;
+      key = publicKey;
+      return { ...SUBSCRIPTION, applicationServerKey: key };
     },
-    subscription: async () => (subscribed ? SUBSCRIPTION : null),
+    subscription: async () =>
+      subscribed ? { ...SUBSCRIPTION, applicationServerKey: key } : null,
     support: () => options.support ?? "supported",
     unsubscribe: async () => {
       calls.push("unsubscribe");
@@ -316,6 +328,48 @@ describe("Benachrichtigungen", () => {
     ]);
   });
 
+  it("replaces a subscription of an earlier key instead of showing it as on", async () => {
+    const sent: SentRequest[] = [];
+    const { calls, device } = browser({
+      permission: "granted",
+      subscribed: true,
+      subscribedKey: OLD_KEY,
+    });
+    show(core(sent), device);
+    await screen.findByTestId("push-on");
+    expect(calls).toEqual(["unsubscribe", `subscribe:${PUBLIC_KEY}`]);
+    // Core never hears of the old key.
+    expect(
+      sent
+        .filter((request) => request.method === "PUT")
+        .map((request) => request.body),
+    ).toEqual([SUBSCRIPTION]);
+  });
+
+  it("shows the device as off when the old subscription cannot be replaced", async () => {
+    const sent: SentRequest[] = [];
+    const { device } = browser({
+      permission: "granted",
+      subscribeFails: true,
+      subscribed: true,
+      subscribedKey: OLD_KEY,
+    });
+    show(core(sent), device);
+    await screen.findByTestId("push-off");
+    expect(screen.queryByTestId("push-on")).toBeNull();
+    expect(sent.some((request) => request.method === "PUT")).toBe(false);
+  });
+
+  it("says so when the member has ten devices already", async () => {
+    const { device } = browser();
+    show(core([], { subscribe: failure(409, "push_device_limit") }), device);
+    fireEvent.click(await screen.findByTestId("push-switch-on"));
+    expect((await screen.findByTestId("push-notice")).textContent).toContain(
+      "schon zehn Geräte",
+    );
+    expect(screen.getByTestId("push-off")).toBeTruthy();
+  });
+
   it("sends a test push to this device", async () => {
     const sent: SentRequest[] = [];
     const { device } = browser({ permission: "granted", subscribed: true });
@@ -364,12 +418,14 @@ describe("the device outside the page", () => {
     const subscribed = browser({ permission: "granted", subscribed: true });
     expect(await syncPushDevice(core(sent), subscribed.device)).toBe(DEVICE_ID);
     expect(sent).toEqual([
+      { body: null, method: "GET", path: "/api/v1/push/configuration" },
       {
         body: SUBSCRIPTION,
         method: "PUT",
         path: "/api/v1/push/subscriptions",
       },
     ]);
+    expect(subscribed.calls).toEqual([]);
     // No permission, no subscription or no support: Core hears nothing.
     for (const options of [
       { subscribed: true },
@@ -382,6 +438,38 @@ describe("the device outside the page", () => {
       );
       expect(quiet).toEqual([]);
     }
+  });
+
+  it("subscribes again at start after the installation's key was replaced", async () => {
+    const sent: SentRequest[] = [];
+    const stale = browser({
+      permission: "granted",
+      subscribed: true,
+      subscribedKey: OLD_KEY,
+    });
+    expect(await syncPushDevice(core(sent), stale.device)).toBe(DEVICE_ID);
+    // The dead subscription is ended; the new one carries the current key.
+    expect(stale.calls).toEqual(["unsubscribe", `subscribe:${PUBLIC_KEY}`]);
+    expect(sent.at(-1)).toEqual({
+      body: SUBSCRIPTION,
+      method: "PUT",
+      path: "/api/v1/push/subscriptions",
+    });
+    // Without a key at Core nothing is touched.
+    const untouched = browser({
+      permission: "granted",
+      subscribed: true,
+      subscribedKey: OLD_KEY,
+    });
+    expect(
+      await syncPushDevice(
+        core([], {
+          configuration: { configured: false, kinds: [], publicKey: null },
+        }),
+        untouched.device,
+      ),
+    ).toBe(null);
+    expect(untouched.calls).toEqual([]);
   });
 
   it("ends the browser's subscription at sign-out", async () => {
