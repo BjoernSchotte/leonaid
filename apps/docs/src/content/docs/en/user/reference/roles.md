@@ -15,9 +15,9 @@ reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 | `system_admin`    | global                            | manage users, global roles, integrations, privacy, and operations functions |
 | `finance_reader`  | global or campaign                | read invoices, PDFs, delivery, payments, and open amounts                   |
 | `finance_manager` | global                            | record and reverse payments, cancel invoices in a controlled way            |
-| `charity_admin`   | one campaign                      | manage that campaign, members, orders, invoices, and finance actions        |
+| `charity_admin`   | one campaign                      | manage that campaign, members, orders, invoices, and finance actions. With flag `delivery.tours`: **Touren planen** (plan tours) |
 | `acquirer`        | one campaign                      | work with assigned sponsors, activities, and orders                         |
-| `driver` (UI: **Ausfahrer**) | campaign with delivery capability | in the app's **Auslieferung**, see only their own assigned deliveries with address and contact, without amounts, and tick them off while the window is open |
+| `driver` (UI: **Ausfahrer**) | campaign with delivery capability | in the app's **Auslieferung**, see only their own assigned deliveries with address and contact, without amounts, and tick them off while the window is open. With flag `delivery.tours`: **Meine Tour** (tab **Tour**) |
 
 One person can hold several roles. Campaign roles apply only to the named
 charity campaign. A charity administrator gains neither access to other
@@ -39,7 +39,7 @@ host (`app.<domain>`) this also applies when you only type the address:
 | ----------------------------------------- | ---------------------------------- |
 | an acquisition role (also next to others) | acquisition app                    |
 | `system_admin`                            | administration, page **System**    |
-| `charity_admin`                           | administration, overview           |
+| `charity_admin`                           | administration, overview. With flag `delivery.tours`: **Touren planen** (plan tours) |
 | finance roles                             | administration, **Rechnungen**     |
 | driver only, or no administration role    | acquisition app                    |
 

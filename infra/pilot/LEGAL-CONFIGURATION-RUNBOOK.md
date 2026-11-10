@@ -123,3 +123,40 @@ approval, the following are still required:
 - export and erasure respect the activated retention periods and the
   Twenty/RustFS references;
 - the responsible functional owner accepts a real staging record.
+
+## Delivery tours: privacy paragraphs (before the flag goes on)
+
+**Entwurf – Freigabe durch Björn erforderlich.** The two paragraphs below are
+drafts for legal review. Both must be approved and activated (four-eyes path
+of this runbook) before the feature flag `delivery.tours` is switched on.
+
+### Member privacy notice: map tiles
+
+Draft text for `member_privacy_notice_text`:
+
+> Für die Karte in „Meine Tour“ und in der Tourenplanung laden wir Kartenkacheln
+> von OpenStreetMap (Standard: tile.openstreetmap.org). Dabei erfährt der
+> Anbieter Ihre IP-Adresse und den angezeigten Kartenausschnitt. Adressen
+> oder Namen werden nicht übertragen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f
+> DSGVO (Darstellung der Lieferstopps). Mit einem selbst betriebenen
+> Kartenserver entfällt diese Übermittlung.
+
+### Customer privacy notice: geocoding
+
+Draft text for the privacy notice shown at the public order form and in the
+order confirmation:
+
+> Zur Planung der Lieferung wandelt LeonAid Ihre Lieferadresse (Straße,
+> Postleitzahl, Ort, Land) über den Dienst Nominatim in Koordinaten um.
+> Namen, Kontaktdaten und Bestelldaten werden nicht übermittelt. Rechtsgrundlage
+> ist Art. 6 Abs. 1 lit. b DSGVO (Durchführung der Bestellung). Die Koordinaten
+> werden mit der Lieferadresse gespeichert und gelöscht.
+
+Notes:
+
+- With the default public Nominatim, sending the address is a transfer to a
+  third party. With a self-hosted geocoder it is not a transfer, and the
+  paragraph can be shortened.
+- The driver note (`Hinweis für den Fahrer`) is covered by access and erasure
+  like the delivery contact.
+- Check the retention wording against the active retention periods.

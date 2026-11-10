@@ -19,8 +19,13 @@ allgemeine Produktionsfreigabe.
 - Eine Installation bildet einen Club beziehungsweise einen getrennten
   Mandanten ab. Gemeinsamer Mehrmandantenbetrieb ist nicht vorgesehen.
 - Ausfahrer haken ihre zugewiesenen Lieferungen in der App ab (siehe
-  [Auslieferung abhaken](/de/user/how-to/work-delivery-board/)). Routen- und
-  Tourenplanung gehört nicht zum aktuellen Funktionsumfang.
+  [Auslieferung abhaken](/de/user/how-to/work-delivery-board/)). Die Tourenplanung
+  (Feature-Flag `delivery.tours`, siehe
+  [Lieferrouten planen](/de/user/how-to/plan-delivery-tours/)) hat Grenzen:
+  keine Straßenrouten (nur Luftlinie), keine Live-Ortung der Fahrer, eine Tour
+  je Fahrer und Liefertag. Der öffentliche Nominatim-Dienst und die
+  OSM-Kacheln unterliegen deren Nutzungsbedingungen; bei hohem Aufkommen ist
+  ein eigener Anbieter zu konfigurieren.
 - `finance_reader` darf Belege nur lesen. Der gepflegte Demo-Benutzer Finn
   Finanzen beweist genau diesen Lesezugriff. Zahlungen und Storno benötigen
   `finance_manager` oder den Charity-Admin der betroffenen Aktion.

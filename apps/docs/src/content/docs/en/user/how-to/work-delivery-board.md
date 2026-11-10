@@ -76,6 +76,9 @@ the board with the **Nachliefern** note.
   tasks. When you close again, LeonAid reopens the same tasks and assigns them
   to you, without duplicates.
 
+With the flag `delivery.tours` you plan tours and orders (see
+[Plan delivery tours](/en/user/how-to/plan-delivery-tours/)).
+
 ## In the app (drivers)
 
 1. Open **Auslieferung** in the app. You see only your deliveries with address

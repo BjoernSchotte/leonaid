@@ -71,7 +71,10 @@ Enthalten:
 
 Nicht enthalten:
 
-- Tourenplanung, Fahrerdisposition, Offline-Sync oder Push-Nachrichten;
+- Push-Nachrichten; Tourenplanung und Fahrerdisposition sind in
+  `specs/krapfentaxi-touren/PLAN.md` spezifiziert (Feature-Flag
+  `delivery.tours`, standardmäßig aus); Offline-Sync nur nach
+  `specs/pwa-offline-queue`;
 - Lions Open oder Weihnachtsmarkt;
 - allgemeiner Formular-, Workflow- oder CMS-Builder;
 - listmonk-Kampagnenbetrieb;
