@@ -240,9 +240,10 @@ pilot-create-system-admin` an (Anmeldemail, kein Passwort).
   afterwards, and a switch set outside the application raise no failure. A
   delivery-day job over the mailbox limit completes too (no dead letter on
   the delivery morning for a buyer with more than ten orders that day); the
-  order shows failed with `recipient_limit` and a manager sends it later.
-  That status is derived from "job completed, no mail, still due", so a
-  switch or a tick taken back after the job ran reads the same. Switching
+  order shows failed with `recipient_limit` while the mailbox is over the
+  limit, afterwards "not sent", and a manager sends it later. A job that
+  ended without a mail for another reason while the mail is due again (a
+  switch or a tick taken back after it ran) reads "not sent" too. Switching
   the mail on during the delivery day, or a worker that starts late, mails
   every window of today that is still open, also orders delivered but not
   ticked off yet. The sweep has its own advisory lock; a run that the lock

@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 10
 reviewedRevision: 10
-verifiedAgainst: d2c26f1238c117dce276f490cb508561ace7ff13
+verifiedAgainst: 62502ee563a1d1e95e675e8040a6e6fcb6cea887
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -154,7 +154,8 @@ any more. Each order gets the e-mail for its window once.
 At most ten order e-mails go to one mailbox per hour. If a buyer has more
 orders under the same address on the delivery day (for example a member who
 ordered for colleagues), the first ten e-mails go out. The other orders show
-the row as **Fehlgeschlagen** (failed) with the note about the mailbox; send
+the row as **Fehlgeschlagen** (failed) with the note about the mailbox while
+the mailbox is full, and as **Nicht gesendet** (not sent) after that. Send
 them later in the order with **Senden**. This raises no alert.
 
 If LeonAid could not send an e-mail before its window ended (e-mail delivery

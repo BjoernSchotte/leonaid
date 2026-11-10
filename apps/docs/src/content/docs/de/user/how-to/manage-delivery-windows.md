@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 10
 reviewedRevision: 10
-verifiedAgainst: d2c26f1238c117dce276f490cb508561ace7ff13
+verifiedAgainst: 62502ee563a1d1e95e675e8040a6e6fcb6cea887
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -158,8 +158,9 @@ An dasselbe Postfach gehen höchstens zehn Bestell-E-Mails pro Stunde. Hat ein
 Käufer am Liefertag mehr Bestellungen unter derselben Adresse (zum Beispiel
 ein Mitglied, das für Kollegen bestellt hat), gehen die ersten zehn E-Mails
 hinaus. Die übrigen Bestellungen zeigen die Zeile als **Fehlgeschlagen** mit
-dem Hinweis auf das Postfach; sende sie später in der Bestellung mit
-**Senden**. Ein Alarm entsteht dadurch nicht.
+dem Hinweis auf das Postfach, solange das Postfach voll ist, danach als
+**Nicht gesendet**. Sende sie später in der Bestellung mit **Senden**. Ein
+Alarm entsteht dadurch nicht.
 
 Konnte LeonAid eine E-Mail nicht senden, bevor ihr Fenster endete (Versand
 gestört, LeonAid lief nicht), geht sie nicht mehr hinaus. Die Bestellung
