@@ -307,6 +307,19 @@ describe("ListView rendering", () => {
     expect(root?.getAttribute("data-page-layout")).toBe("full-bleed");
   });
 
+  it("names the list region once: an ungrouped list adds no second landmark", () => {
+    const { container } = render(<Harness />);
+    // The region around the rows carries the title. Without grouping the
+    // one section inside has no name, so it is no landmark that repeats it
+    // (axe: landmark-unique).
+    expect(
+      screen.getAllByRole("region", { name: "Bestellungen" }),
+    ).toHaveLength(1);
+    const sections = container.querySelectorAll("section.group");
+    expect(sections).toHaveLength(1);
+    expect(sections[0]?.hasAttribute("aria-label")).toBe(false);
+  });
+
   it("renders only the given rows with a live count", () => {
     render(<Harness />);
     expect(rowLinks()).toHaveLength(4);

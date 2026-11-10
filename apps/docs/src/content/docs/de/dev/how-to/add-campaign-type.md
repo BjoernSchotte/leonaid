@@ -4,15 +4,15 @@ description: Eine neue Aktionsvorlage als Daten veröffentlichen, ihr Erscheinun
 docId: DOC-P040
 audience: [dev]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 3ffbc7ebf669d360fb6ec7352034e4067d7eb8a4
-reviewer: Björn Schotte
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 8fe6057e8a6c717cdcd73671a2706289d748fb7c
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 Core verzweigt nie nach einem Aktionsnamen. Das Verhalten folgt den
 **Capabilities** einer Aktion (`acquisition`, `offerings`, `ordering`,
-`invoicing`, `delivery`), das öffentliche Erscheinungsbild ihrem
+`invoicing`, `delivery`, `donations`), das öffentliche Erscheinungsbild ihrem
 **Presentation Theme**. Eine Vorlage sind die Daten, die beides setzen, wenn ein
 Charity-Admin eine Aktion anlegt.
 

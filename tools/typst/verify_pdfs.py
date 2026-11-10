@@ -1,5 +1,5 @@
-"""Verify Typst invoices and cancellation invoices with two independent real
-PDF engines."""
+"""Verify Typst invoices, cancellation invoices and donation pledges with two
+independent real PDF engines."""
 
 from __future__ import annotations
 
@@ -19,11 +19,14 @@ from pypdf.generic import ArrayObject, DictionaryObject, IndirectObject
 
 from leonaid.adapters.typst import (
     CANCELLATION_RENDER_VERSION,
+    PLEDGE_RENDER_VERSION,
     RENDER_VERSION,
     cancellation_render_payload,
+    pledge_render_payload,
     render_payload,
 )
 from leonaid.application.invoice_documents import InvoiceDocumentSnapshot
+from leonaid.domain.donations import DonationPledgeDocument
 from leonaid.domain.invoice_cancellation_documents import InvoiceCancellationDocument
 
 A4_WIDTH_POINTS = 595.28
@@ -74,6 +77,10 @@ class Subject:
     expected_text: tuple[str, ...]
     # The multi-page edge cases must break the page.
     needs_page_break: bool
+    # Words the document must not show: a pledge is no invoice.
+    forbidden_text: tuple[str, ...] = ()
+    # A letter that must stay on one page.
+    single_page: bool = False
 
 
 def _invoice_subject(snapshot: InvoiceDocumentSnapshot) -> Subject:
@@ -148,6 +155,53 @@ def _cancellation_subject(document: InvoiceCancellationDocument) -> Subject:
     )
 
 
+def _pledge_subject(document: DonationPledgeDocument) -> Subject:
+    presentation = pledge_render_payload(document)
+    bank = cast(dict[str, object], presentation["bank"])
+    expected = [
+        "Spendenzusage",
+        document.number,
+        presentation["issuedOn"],
+        presentation["amount"],
+        presentation["thanks"],
+        presentation["purpose"],
+        presentation["request"],
+        presentation["notice"],
+        document.donor.name,
+        document.donor.street_line_1,
+        # The receiving body, never the invoice issuer.
+        document.body.legal_name,
+        document.body.street_line_1,
+        document.body.tax_office,
+        document.body.tax_number,
+        document.body.bank_account_holder,
+        bank["iban"],
+        "Verwendungszweck",
+    ]
+    if document.body.bic is not None:
+        expected.append(document.body.bic)
+    return Subject(
+        number=document.number,
+        title=f"Spendenzusage {document.number}",
+        author=document.body.legal_name,
+        render_version=PLEDGE_RENDER_VERSION,
+        created_at=document.issued_at,
+        expected_text=tuple(str(value) for value in expected),
+        # The longest values need a second page; a usual pledge is one letter.
+        needs_page_break=document.number == "SP26-LAYOUT-0001",
+        # "Rechnung" appears only in the body's own sentence "keine Rechnung".
+        forbidden_text=(
+            "Rechnungsnummer",
+            "Rechnungsdatum",
+            "Umsatzsteuer",
+            "Netto",
+            "Brutto",
+            "Zahlbar bis",
+        ),
+        single_page=document.number != "SP26-LAYOUT-0001",
+    )
+
+
 def _assert_expected_text(
     *,
     subject: Subject,
@@ -164,6 +218,11 @@ def _assert_expected_text(
         raise PdfVerificationError(
             f"{engine} is missing in {subject.number}: {missing[:4]}"
         )
+    shown = [value for value in subject.forbidden_text if value in normalized]
+    if shown:
+        raise PdfVerificationError(
+            f"{engine} finds invoice wording in {subject.number}: {shown}"
+        )
 
 
 def _subject_from_manifest(item: dict[str, object]) -> Subject:
@@ -177,6 +236,8 @@ def _subject_from_manifest(item: dict[str, object]) -> Subject:
         return _invoice_subject(InvoiceDocumentSnapshot.from_payload(snapshot))
     if kind == "invoice_cancellation":
         return _cancellation_subject(InvoiceCancellationDocument.from_payload(snapshot))
+    if kind == "donation_pledge":
+        return _pledge_subject(DonationPledgeDocument.from_payload(snapshot))
     raise PdfVerificationError(f"Renderer manifest names an unknown kind: {kind}")
 
 
@@ -291,6 +352,10 @@ def _verify_one(
     if snapshot.needs_page_break and len(images) < 2:
         raise PdfVerificationError(
             f"The layout edge case produces no page break: {snapshot.number}"
+        )
+    if snapshot.single_page and len(images) != 1:
+        raise PdfVerificationError(
+            f"The letter does not fit on one page: {snapshot.number}"
         )
     # Every rendered document has approved reference images.
     if golden_directory is not None:

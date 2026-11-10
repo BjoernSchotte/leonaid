@@ -9,6 +9,8 @@ import hashlib
 import json
 import os
 from datetime import datetime, timezone
+from email import policy
+from email.parser import BytesParser
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid5
@@ -19,12 +21,15 @@ import httpx
 from leonaid.adapters.storage import S3ObjectStorage
 from leonaid.adapters.typst import (
     CANCELLATION_RENDER_VERSION,
+    PLEDGE_RENDER_VERSION,
+    TypstDonationPledgeRenderer,
     TypstInvoiceCancellationRenderer,
 )
 from leonaid.application.object_storage import (
     ObjectDeletionAuthorization,
     ObjectLocation,
 )
+from leonaid.domain.donations import DonationPledgeDocument
 from leonaid.domain.invoice_cancellation_documents import InvoiceCancellationDocument
 from leonaid.domain.sessions import (
     SESSION_COOKIE_NAME,
@@ -139,6 +144,7 @@ def assert_document_payload(
         "actionId": str(row["action_id"]),
         "commitmentId": str(row["commitment_id"]),
         "invoiceId": str(row["invoice_id"]),
+        "donationId": None,
         "twentyCompanyId": (
             str(row["twenty_company_id"])
             if row["twenty_company_id"] is not None
@@ -561,6 +567,202 @@ async def cancellation_invoice(connection: asyncpg.Connection[Any]) -> None:
     )
 
 
+DONOR_EMAIL = "spenderin.poc093@donor.leonaid.invalid"
+
+
+async def donation_pledge(connection: asyncpg.Connection[Any]) -> None:
+    """The real worker renders, stores and mails a donation pledge.
+
+    A manager records a donation in the golden action. It takes the first
+    number of the donation series; the worker renders the frozen pledge with
+    the `donation-pledge-v1` template; the API serves exactly those bytes and
+    the mail to the donor carries them.
+    """
+
+    token = token_for("admin", ADMIN_ID)
+    headers = session_headers(token)
+    path = f"/api/v1/actions/{ACTION_ID}/donations"
+    async with (
+        httpx.AsyncClient(
+            base_url=require_env("API_BASE_URL").rstrip("/"), timeout=60
+        ) as api,
+        httpx.AsyncClient(
+            base_url=require_env("MAIL_TEST_API_URL").rstrip("/"), timeout=10
+        ) as mailpit,
+    ):
+        created = await api.post(
+            path,
+            headers={**headers, "Idempotency-Key": "poc093:donation"},
+            json={
+                "donor": {
+                    "name": "Spenderin POC-093",
+                    "streetLine1": "Gartenweg 4",
+                    "postalCode": "12345",
+                    "city": "Musterstadt",
+                    "email": DONOR_EMAIL,
+                },
+                "pledgedMinor": 5000,
+            },
+        )
+        if created.status_code != 201:
+            raise ContractFailure(
+                f"Donation was not recorded: {created.status_code} {created.text}"
+            )
+        donation = created.json()
+        number = str(donation["number"])
+        if number != "SP26-0001" or donation["status"] != "pledged":
+            raise ContractFailure(f"Unexpected donation: {number}")
+        record: dict[str, Any] = donation
+        for _attempt in range(90):
+            listing = await api.get(path, headers=headers)
+            listing.raise_for_status()
+            record = next(
+                item for item in listing.json()["items"] if item["id"] == donation["id"]
+            )
+            if record["pledgeDocument"]["status"] == "available":
+                break
+            await asyncio.sleep(1)
+        else:
+            raise ContractFailure("The worker did not render the donation pledge")
+        if listing.json()["receivingBodyName"] != (
+            "Förderverein Lions Club Musterstadt e. V."
+        ):
+            raise ContractFailure("The donation list names the wrong receiving body")
+        document_id = record["pledgeDocument"]["id"]
+        if record["pledgeDocument"]["filename"] != f"Spendenzusage-{number}.pdf":
+            raise ContractFailure("The pledge PDF has the wrong filename")
+        download = await api.get(
+            f"/api/v1/actions/{ACTION_ID}/documents/{document_id}/download",
+            headers=headers,
+        )
+        acquirer = await api.get(
+            f"/api/v1/actions/{ACTION_ID}/documents/{document_id}/download",
+            headers=session_headers(token_for("acquirer", ACQUIRER_ID)),
+        )
+        foreign = await api.get(
+            f"/api/v1/actions/{FOREIGN_ACTION_ID}/documents/{document_id}/download",
+            headers=session_headers(token_for("foreign_admin", FOREIGN_ADMIN_ID)),
+        )
+        cleared = await mailpit.delete("/api/v1/messages")
+        cleared.raise_for_status()
+        sent = await api.post(
+            f"{path}/{donation['id']}/pledge/deliveries",
+            headers={**headers, "Idempotency-Key": "poc093:donation-pledge-mail"},
+        )
+        if sent.status_code != 201:
+            raise ContractFailure(
+                f"The pledge mail was not queued: {sent.status_code} {sent.text}"
+            )
+        delivery: dict[str, Any] = sent.json()
+        for _attempt in range(90):
+            listing = await api.get(path, headers=headers)
+            listing.raise_for_status()
+            record = next(
+                item for item in listing.json()["items"] if item["id"] == donation["id"]
+            )
+            delivery = record["pledgeDeliveries"][0]
+            if delivery["status"] == "sent":
+                break
+            await asyncio.sleep(1)
+        else:
+            raise ContractFailure(f"The pledge mail was not sent: {delivery}")
+        messages = await mailpit.get("/api/v1/messages")
+        messages.raise_for_status()
+        summaries = messages.json()["messages"]
+        if len(summaries) != 1:
+            raise ContractFailure(f"Mailpit holds {len(summaries)} mails, not one")
+        raw = await mailpit.get(f"/api/v1/message/{summaries[0]['ID']}/raw")
+        raw.raise_for_status()
+
+    row = await connection.fetchrow(
+        """
+        SELECT document.*, donation.pledge_snapshot
+        FROM generated_document AS document
+        JOIN donation ON donation.id = document.donation_id
+        WHERE document.id = $1
+        """,
+        UUID(document_id),
+    )
+    if row is None:
+        raise ContractFailure("The pledge document row is missing")
+    snapshot = DonationPledgeDocument.from_payload(json.loads(row["pledge_snapshot"]))
+    # Deterministic: rendering the stored snapshot again gives the same bytes.
+    expected = TypstDonationPledgeRenderer().render(snapshot)
+    retrieved = await storage().get(
+        ObjectLocation(
+            bucket=str(row["storage_bucket"]),
+            key=str(row["object_key"]),
+            version_id=str(row["storage_version_id"]),
+        )
+    )
+    expected_key = (
+        f"actions/{ACTION_ID}/donations/{donation['id']}/pledge/v1/"
+        f"{expected.sha256}.pdf"
+    )
+    filename = f"filename*=UTF-8''Spendenzusage-{number}.pdf"
+    if (
+        download.status_code != 200
+        or download.content != expected.content
+        or retrieved.content != expected.content
+        or str(row["object_key"]) != expected_key
+        or str(row["sha256"]) != expected.sha256
+        or str(row["render_version"]) != PLEDGE_RENDER_VERSION
+        or row["invoice_id"] is not None
+        or row["commitment_id"] is not None
+        or download.headers.get("content-type") != "application/pdf"
+        or download.headers.get("content-disposition") != f"attachment; {filename}"
+    ):
+        raise ContractFailure(
+            "Snapshot, renderer, RustFS and API disagree on the donation pledge"
+        )
+    if (
+        snapshot.body.legal_name != "Förderverein Lions Club Musterstadt e. V."
+        or snapshot.body.iban != "DE02120300000000202051"
+        or snapshot.number != number
+    ):
+        raise ContractFailure("The pledge does not show the receiving body")
+    if (
+        acquirer.status_code != 403
+        or error_code(acquirer) != "document_download_required"
+    ):
+        raise ContractFailure("An acquirer could download the donation pledge")
+    if foreign.status_code not in (403, 404):
+        raise ContractFailure("Another action could download the donation pledge")
+    message = BytesParser(policy=policy.default).parsebytes(raw.content)
+    plain = message.get_body(preferencelist=("plain",))
+    attachments = list(message.iter_attachments())
+    attachment = attachments[0].get_payload(decode=True) if attachments else None
+    if (
+        str(message["To"]).casefold() != DONOR_EMAIL
+        or str(message["Subject"]) != f"Spendenzusage {number} · Krapfentaxi 2026"
+        or plain is None
+        or "Dieses Schreiben ist keine Rechnung." not in plain.get_content()
+        or f"Verwendungszweck {number}" not in " ".join(plain.get_content().split())
+        or "50,00 €" not in plain.get_content()
+        or len(attachments) != 1
+        or attachments[0].get_content_type() != "application/pdf"
+        or attachments[0].get_filename() != f"Spendenzusage-{number}.pdf"
+        or not isinstance(attachment, bytes)
+        or hashlib.sha256(attachment).hexdigest() != expected.sha256
+    ):
+        raise ContractFailure("The pledge mail or its PDF attachment is wrong")
+    audit = await connection.fetch(
+        """
+        SELECT event_type FROM audit_event
+        WHERE action_id = $1 AND event_type LIKE 'donation%'
+        ORDER BY occurred_at, id
+        """,
+        ACTION_ID,
+    )
+    events = [str(item["event_type"]) for item in audit]
+    if events[:2] != ["donation_pledged", "donation_pledge_delivery_requested"]:
+        raise ContractFailure(f"The donation audit trail is wrong: {events}")
+    print(
+        f"document-contract: OK: donation pledge {number} rendered by the "
+        "worker, stored, served byte-identical and mailed with its PDF"
+    )
+
+
 async def assert_missing_object(connection: asyncpg.Connection[Any]) -> None:
     # The invoice PDF; the invoice also has its cancellation invoice by now.
     row = await connection.fetchrow(
@@ -630,6 +832,8 @@ async def main(arguments: argparse.Namespace) -> None:
             )
         elif arguments.command == "cancellation-invoice":
             await cancellation_invoice(connection)
+        elif arguments.command == "donation-pledge":
+            await donation_pledge(connection)
         else:
             await assert_missing_object(connection)
     finally:
@@ -643,6 +847,7 @@ def parser() -> argparse.ArgumentParser:
     exercise_command.add_argument("sessions_output", type=Path)
     exercise_command.add_argument("golden_pdf_directory", type=Path)
     commands.add_parser("cancellation-invoice")
+    commands.add_parser("donation-pledge")
     commands.add_parser("assert-missing")
     return value
 

@@ -56,6 +56,14 @@ export function parseAmountMinor(value: string): number | null {
   return Number.isSafeInteger(minor) ? minor : null;
 }
 
+/** "360,00": an amount in the German format the amount fields accept. */
+export function amountInput(minor: number) {
+  return new Intl.NumberFormat("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(minor / 100);
+}
+
 /** An IBAN in groups of four. */
 export function formatIban(iban: string) {
   return iban.match(/.{1,4}/g)?.join(" ") ?? iban;

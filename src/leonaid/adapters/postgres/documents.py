@@ -252,9 +252,13 @@ class AsyncpgGeneratedDocumentRepository(GeneratedDocumentRepository):
                     CASE
                         WHEN document.document_type = 'invoice_cancellation_pdf'
                         THEN cancellation.number
+                        WHEN document.donation_id IS NOT NULL
+                        THEN donation.number
                     END AS document_number,
+                    donation.donor_snapshot ->> 'name' AS donor_name,
                     commitment.customer_snapshot
                 FROM generated_document AS document
+                LEFT JOIN donation ON donation.id = document.donation_id
                 LEFT JOIN invoice ON invoice.id = document.invoice_id
                 LEFT JOIN invoice_cancellation AS cancellation
                   ON cancellation.invoice_id = document.invoice_id
@@ -275,7 +279,8 @@ class AsyncpgGeneratedDocumentRepository(GeneratedDocumentRepository):
             label="Dokument-Kundensnapshot",
         )
         buyer_display_name = str(
-            customer.get("displayName")
+            row["donor_name"]
+            or customer.get("displayName")
             or row["invoice_number"]
             or "Unbekannter Empfänger"
         )
@@ -334,6 +339,7 @@ class AsyncpgGeneratedDocumentRepository(GeneratedDocumentRepository):
             available_at=row["available_at"],
             sent_at=row["sent_at"],
             deleted_at=row["deleted_at"],
+            donation_id=row["donation_id"],
         )
 
     @staticmethod

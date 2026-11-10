@@ -20,6 +20,7 @@ describe("navigation zones", () => {
       b: "orders",
       l: "delivery",
       r: "invoices",
+      n: "donations",
       t: "tasks",
       u: "surveys",
       e: "inbox",

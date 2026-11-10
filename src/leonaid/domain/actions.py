@@ -69,6 +69,9 @@ class ActionCapability(StrEnum):
     # Physical hand-over of ordered goods: delivery windows, delivery
     # recipients and the driver role. Requires ORDERING.
     DELIVERY = "delivery"
+    # Money given without anything in return, with its own documents
+    # (ADR-0016). Depends on no other capability.
+    DONATIONS = "donations"
 
 
 def capability_dependency_problem(

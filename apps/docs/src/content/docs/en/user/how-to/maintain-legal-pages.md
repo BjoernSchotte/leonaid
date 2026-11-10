@@ -4,9 +4,9 @@ description: Create, approve and activate the § 5 DDG details and the texts of 
 docId: DOC-P048
 audience: [user]
 diataxis: how-to
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: 6d17bcfaca798bedf39427163d35a7ccd859a66e
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: 8fe6057e8a6c717cdcd73671a2706289d748fb7c
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -87,6 +87,36 @@ The `/datenschutz` page also shows the controller and the privacy contact, the
 order form's privacy notice with its legal basis (section "Bestellungen über
 Aktionsseiten") and the members' notice (section "Für Mitglieder"). The short
 notice on the order form stays and links to the full page.
+
+## Receiving body for donations
+
+The area **Spenden** describes the body that receives donations. It may be
+another legal entity than the invoice issuer, often the Förderverein. The
+donation pledge and the donation receipt show its data. The area is optional:
+a club without donations leaves **Der Club nimmt Spenden entgegen** switched
+off. Without this area no donation can be recorded in any action.
+
+1. Switch on **Der Club nimmt Spenden entgegen**.
+2. **Empfangende Körperschaft:** name, legal form and address.
+3. **Finanzamt und Bescheid:** tax office, tax number, kind and date of the
+   notice. **Freistellungsbescheid** and **Anlage zum
+   Körperschaftsteuerbescheid** need the assessment period,
+   **Feststellungsbescheid nach § 60a AO** does not.
+4. **Begünstigte Zwecke:** word for word as in the notice.
+5. **Spendenkonto:** account holder, IBAN and BIC. It may be another account
+   than the one for invoices.
+6. **Unterschrift:** name and function of the signatory and how receipts are
+   signed. **maschinell** is valid only if the body has notified its tax
+   office of the procedure; enter the date of that notice.
+7. **Nummernkreise:** one prefix for donation pledges and one for donation
+   receipts. Both must differ from each other and from the invoice prefix.
+8. **Textbausteine:** the text of the donation pledge and the liability note
+   of the donation receipt. **Vorschlag einsetzen** fills in a proposal. It
+   has had no legal review: have your tax adviser read it and compare the
+   liability note with the current official sample.
+
+Donations already recorded keep the data of the version that was active when
+they were recorded.
 
 ## Approve and activate
 

@@ -28,6 +28,9 @@ class InvoiceDeliveryKind(StrEnum):
 
     INVOICE = "invoice"
     INVOICE_CANCELLATION = "invoice_cancellation"
+    # A delivery of a donation's pledge; it belongs to a donation, not to
+    # an invoice (application/donations.py).
+    DONATION_PLEDGE = "donation_pledge"
 
 
 class InvoiceDeliveryStatus(StrEnum):
@@ -42,7 +45,7 @@ class InvoiceDeliveryStatus(StrEnum):
 class InvoiceDelivery:
     id: UUID
     action_id: UUID
-    invoice_id: UUID
+    invoice_id: UUID | None
     generated_document_id: UUID
     recipient_email: str
     subject: str
@@ -55,6 +58,7 @@ class InvoiceDelivery:
     sent_at: datetime | None
     can_retry: bool
     kind: InvoiceDeliveryKind = InvoiceDeliveryKind.INVOICE
+    donation_id: UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,7 +117,7 @@ class InvoiceDeliveryDraft:
 class InvoiceDeliveryJob:
     delivery_id: UUID
     action_id: UUID
-    invoice_id: UUID
+    invoice_id: UUID | None
     document_id: UUID
     recipient_email: str
     subject: str

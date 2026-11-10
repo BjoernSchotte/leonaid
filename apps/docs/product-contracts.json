@@ -761,7 +761,17 @@
         "Neuen Entwurf beginnen",
         "Als Entwurf speichern",
         "Entwurf freigeben",
-        "Jetzt aktivieren"
+        "Jetzt aktivieren",
+        "Der Club nimmt Spenden entgegen",
+        "Empfangende Körperschaft",
+        "Finanzamt und Bescheid",
+        "Begünstigte Zwecke",
+        "Spendenkonto",
+        "Unterschrift",
+        "Nummernkreise",
+        "Textbausteine",
+        "Vorschlag einsetzen",
+        "Feststellungsbescheid nach § 60a AO"
       ]
     },
     {
@@ -994,6 +1004,46 @@
         "entry.city ILIKE $1",
         "assignment.status <> 'handed_over'"
       ]
+    }
+  ],
+  "DOC-P059": [
+    {
+      "file": "packages/features/src/donations/donation-dialogs.tsx",
+      "contains": [
+        "Spende erfassen",
+        "Name des Spenders",
+        "Straße und Hausnummer",
+        "Postleitzahl",
+        "Betrag in €",
+        "Eingegangener Betrag in €",
+        "Eingangsdatum",
+        "Zahlung zurücknehmen",
+        "Grund der Rücknahme",
+        "Spende stornieren",
+        "Grund der Stornierung"
+      ]
+    },
+    {
+      "file": "packages/features/src/donations/donation-detail.tsx",
+      "contains": [
+        "Zahlung erfassen",
+        "Spendenzusage senden",
+        "Versand der Spendenzusage",
+        "Erneut senden",
+        "Zurückgenommene Zahlungen"
+      ]
+    },
+    {
+      "file": "packages/features/src/donations/donation-admin.tsx",
+      "contains": ["Eingegangen", "Zugesagt, noch offen"]
+    },
+    {
+      "file": "packages/features/src/navigation/zones.ts",
+      "contains": ["Spenden"]
+    },
+    {
+      "file": "packages/features/src/dashboard/dashboard.tsx",
+      "contains": ["Weitere Kennzahlen"]
     }
   ]
 }

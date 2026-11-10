@@ -36,6 +36,7 @@ export * from "./delivery/tour-map";
 export * from "./delivery/tour-map-slot";
 export * from "./delivery/tour-model";
 export * from "./delivery/tour-planner";
+export * from "./donations/donation-admin";
 export * from "./invoices/invoice-admin";
 export * from "./modules";
 export * from "./push/push-device";
