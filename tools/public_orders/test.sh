@@ -128,6 +128,24 @@ internal_order_mails() {
     api tools/public_orders/internal_order_mails.py "$1" /proof/internal-order-mails.json
 }
 
+delivery_day_mails() {
+  compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+    --env-from-file "$env_file" \
+    --env API_BASE_URL=http://api:8000 \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --volume "$proof:/proof" \
+    --workdir /repo \
+    --entrypoint python \
+    api tools/public_orders/delivery_day_mails.py "$1" /proof/delivery-day-mails.json
+}
+
+# One run of the sweep that the worker's loop runs every five minutes.
+delivery_day_sweep() {
+  compose run --rm --no-deps \
+    worker python -m leonaid.entrypoints.worker.outbox delivery-day-mail-sweep
+}
+
 run_worker() {
   compose run --rm --no-deps \
     worker python -m leonaid.entrypoints.worker.outbox \
@@ -250,6 +268,18 @@ run_worker internal-resend
 internal_order_mails resent
 run_worker internal-cancellation
 internal_order_mails final
+
+# The mail on the delivery day (§6.3): the worker's own sweep queues it for
+# an order whose window is today, the worker sends it through SMTP, a second
+# sweep queues nothing, "send again" sends once more.
+delivery_day_mails prepare
+delivery_day_sweep
+delivery_day_mails queued
+run_worker delivery-day
+delivery_day_mails sent
+delivery_day_sweep
+run_worker delivery-day-resend
+delivery_day_mails final
 
 for artifact in \
   public-order-form-mobile.png \

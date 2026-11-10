@@ -6,12 +6,14 @@ import json
 from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 import asyncpg
 
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.delivery import has_delivery_capability
 from leonaid.adapters.postgres.order_mail_jobs import insert_order_mail_event
+from leonaid.adapters.postgres.order_mails import count_recent_order_mails
 from leonaid.application.buyer_mails import (
     BuyerMailJob,
     BuyerMailLedger,
@@ -25,9 +27,15 @@ from leonaid.application.order_mails import (
     KEY_PREFIXES,
     OrderMailKind,
     OrderMailLinks,
+    mailbox_key,
     order_mail_event,
+    recipient_sha256,
 )
-from leonaid.domain.buyer_mails import BuyerMailConfiguration
+from leonaid.domain.buyer_mails import (
+    DEFAULT_DELIVERY_DAY_SEND_TIME,
+    BuyerMailConfiguration,
+)
+from leonaid.domain.calendar import INSTALLATION_TIME_ZONE
 from leonaid.domain.commitments import CommitmentStatus
 
 RESEND_COMMAND_TYPE = "resend_buyer_mail_v1"
@@ -159,6 +167,15 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
             )
             return await self._configuration(connection, action_id)
 
+    async def recent_order_mails(self, *, address: str, since: datetime) -> int:
+        async with self._pool.acquire() as connection:
+            return await count_recent_order_mails(
+                connection,
+                recipient_sha256=recipient_sha256(address),
+                mailbox=mailbox_key(address),
+                since=since,
+            )
+
     async def ledger(self, *, action_id: UUID, commitment_id: UUID) -> BuyerMailLedger:
         async with self._pool.acquire() as connection:
             # One snapshot for the order, its jobs and the ledger rows.
@@ -179,13 +196,52 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
             """
             SELECT COALESCE(mails.internal_order_mails, false)
                     AS internal_order_mails,
+                COALESCE(mails.delivery_day_mail, false) AND EXISTS (
+                    SELECT 1 FROM charity_action_capability AS capability
+                    WHERE capability.action_id = commitment.action_id
+                      AND capability.capability = 'delivery'
+                ) AS delivery_day_mail,
+                mails.delivery_day_send_time,
+                delivery_settings.timezone AS delivery_zone,
                 action.status AS action_status,
                 delivery.state AS drop_state,
-                cancellation.previous_status
+                cancellation.previous_status,
+                -- When the action last switched the delivery-day mail on
+                -- (the settings keep no timestamp; the audit trail does).
+                (
+                    SELECT max(switched.occurred_at) FROM audit_event AS switched
+                    -- Entity first: ``ix_audit_event_entity`` serves it.
+                    WHERE switched.entity_type = 'charity_action'
+                      AND switched.entity_id = commitment.action_id
+                      AND switched.action_id = commitment.action_id
+                      AND switched.event_type = 'buyer_mail_configuration_changed'
+                      AND (switched.payload -> 'current' ->> 'deliveryDayMail')
+                          = 'true'
+                      AND COALESCE(
+                          switched.payload -> 'previous' ->> 'deliveryDayMail',
+                          'false'
+                      ) = 'false'
+                ) AS delivery_day_switched_on_at,
+                -- When the order became ready for review, or was last
+                -- completed.
+                COALESCE(
+                    (
+                        SELECT max(ready.occurred_at) FROM audit_event AS ready
+                        WHERE ready.entity_type = 'commitment'
+                          AND ready.entity_id = commitment.id
+                          AND ready.event_type IN (
+                              'commitment_completed',
+                              'commitment_delivery_completed'
+                          )
+                    ),
+                    commitment.created_at
+                ) AS ready_at
             FROM commitment
             JOIN charity_action AS action ON action.id = commitment.action_id
             LEFT JOIN action_buyer_mail_configuration AS mails
               ON mails.action_id = commitment.action_id
+            LEFT JOIN action_delivery_configuration AS delivery_settings
+              ON delivery_settings.action_id = commitment.action_id
             LEFT JOIN commitment_delivery AS delivery
               ON delivery.commitment_id = commitment.id
             LEFT JOIN commitment_cancellation AS cancellation
@@ -220,10 +276,11 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
             + ")",
             *(f"{prefix}{commitment_id}" for prefix in KEY_PREFIXES.values()),
         )
+        commitment = await AsyncpgCommitmentRepository._get(
+            connection, commitment_id, replayed=False
+        )
         return BuyerMailLedger(
-            commitment=await AsyncpgCommitmentRepository._get(
-                connection, commitment_id, replayed=False
-            ),
+            commitment=commitment,
             internal_order_mails=bool(row["internal_order_mails"]),
             previous_status=(
                 CommitmentStatus(str(row["previous_status"]))
@@ -248,6 +305,20 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
             action_status=str(row["action_status"]),
             drop_state=(
                 str(row["drop_state"]) if row["drop_state"] is not None else None
+            ),
+            delivery_day_mail=bool(row["delivery_day_mail"]),
+            delivery_day_send_time=(
+                row["delivery_day_send_time"] or DEFAULT_DELIVERY_DAY_SEND_TIME
+            ),
+            delivery_zone=(
+                ZoneInfo(str(row["delivery_zone"]))
+                if row["delivery_zone"] is not None
+                else INSTALLATION_TIME_ZONE
+            ),
+            delivery_day_eligible_since=(
+                max(row["delivery_day_switched_on_at"], row["ready_at"])
+                if row["delivery_day_switched_on_at"] is not None
+                else None
             ),
         )
 
@@ -299,6 +370,12 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
                 commitment_id=commitment_id,
                 links=links,
                 resend=number or None,
+                # The delivery-day mail is keyed by the order's window now.
+                window_id=(
+                    ledger.commitment.delivery_window_id
+                    if kind is OrderMailKind.DELIVERY_DAY
+                    else None
+                ),
             )
             await insert_order_mail_event(connection, event, occurred_at)
             # Older failed jobs of this mail are settled by this send: an

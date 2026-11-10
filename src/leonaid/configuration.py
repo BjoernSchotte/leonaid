@@ -980,6 +980,57 @@ def load_retention_settings() -> RetentionSettings:
         ) from None
 
 
+class LinkSettings(BaseSettings):
+    """Base URLs for links in mails that the worker builds itself.
+
+    The same two variables as in ``Settings``: the admin host, and the public
+    host when the installation has its own (``LEONAID_SITE_BASE_URL``). The
+    delivery-day mail links the legal pages of the public host.
+    """
+
+    model_config = SettingsConfigDict(
+        case_sensitive=True,
+        extra="ignore",
+        populate_by_name=True,
+    )
+
+    public_base_url: HttpUrl = Field(alias="LEONAID_PUBLIC_BASE_URL")
+    site_base_url_value: HttpUrl | None = Field(
+        default=None, alias="LEONAID_SITE_BASE_URL"
+    )
+
+    @field_validator("site_base_url_value", mode="before")
+    @classmethod
+    def empty_site_base_url_is_unset(cls, value: object) -> object:
+        # Compose passes unset variables as empty strings.
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @property
+    def links(self) -> LinkBuilder:
+        return LinkBuilder(
+            admin_base_url=str(self.public_base_url),
+            site_base_url=str(self.site_base_url_value or self.public_base_url),
+        )
+
+
+def load_link_settings() -> LinkSettings:
+    try:
+        # BaseSettings resolves the required alias from the environment.
+        return LinkSettings()  # type: ignore[call-arg]
+    except ValidationError as error:
+        diagnostics = sorted(
+            {
+                f"{_alias_of(item['loc'])}:{item['type']}"
+                for item in error.errors(include_url=False, include_input=False)
+            }
+        )
+        raise ConfigurationError(
+            "LeonAid link configuration is invalid: " + ", ".join(diagnostics)
+        ) from None
+
+
 def load_map_settings() -> MapSettings:
     try:
         return MapSettings()
