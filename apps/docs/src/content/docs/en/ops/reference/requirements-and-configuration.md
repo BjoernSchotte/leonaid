@@ -4,9 +4,9 @@ description: Reference for local and pilot prerequisites, environment files, and
 docId: DOC-P026
 audience: [ops]
 diataxis: reference
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 6d17bcfaca798bedf39427163d35a7ccd859a66e
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: 428f51fa79a89c432e294c6688f5e2059f8e9d0d
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -32,7 +32,11 @@ injected only into Core processes. Check the effective configuration with
 
 The acquisition app sends notifications through the push services of the
 browser vendors (Web Push with VAPID, ADR-0017). The installation needs two
-values for this; the API and the worker get the same ones.
+values for this in its environment file. `infra/compose/compose.yml` passes
+both to the API and the worker; the pilot file `infra/pilot/compose.yml` is an
+overlay on top and does not change that. `pilot-doctor` reports
+`web_push_not_passed` when a value that is set does not reach one of the two
+services.
 
 | Variable                    | Meaning                                                                                                                                                                                              |
 | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

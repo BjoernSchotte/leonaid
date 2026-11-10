@@ -62,6 +62,8 @@ interface CoreOptions {
   readonly test?: Response;
   /** Core's answer to a registration, instead of the device's id. */
   readonly subscribe?: Response;
+  /** Core's answers to the first registrations, in order; then the id. */
+  readonly subscribeAnswers?: Response[];
 }
 
 const CONFIGURED: PushConfigurationResponse = {
@@ -88,7 +90,11 @@ function core(sent: SentRequest[], options: CoreOptions = {}) {
         : json(configuration);
     }
     if (path === "/api/v1/push/subscriptions") {
-      return options.subscribe?.clone() ?? json({ id: DEVICE_ID });
+      return (
+        options.subscribeAnswers?.shift() ??
+        options.subscribe?.clone() ??
+        json({ id: DEVICE_ID })
+      );
     }
     if (path === `/api/v1/push/subscriptions/${DEVICE_ID}`) {
       return new Response(null, { status: 204 });
@@ -124,6 +130,8 @@ interface DeviceOptions {
   /** The key the existing subscription was made with. */
   readonly subscribedKey?: string;
   readonly subscribeFails?: boolean;
+  /** Each subscribe after the first state gets a new endpoint. */
+  readonly freshEndpoints?: boolean;
 }
 
 /** A browser as the page sees it, with a record of what it was asked. */
@@ -132,6 +140,7 @@ function browser(options: DeviceOptions = {}) {
   let permission = options.permission ?? "default";
   let subscribed = options.subscribed ?? false;
   let key = options.subscribedKey ?? PUBLIC_KEY;
+  let endpoint = SUBSCRIPTION.endpoint;
   const device: PushDevice = {
     permission: () => permission,
     requestPermission: async () => {
@@ -144,10 +153,14 @@ function browser(options: DeviceOptions = {}) {
       if (options.subscribeFails) throw new DOMException("no push service");
       subscribed = true;
       key = publicKey;
-      return { ...SUBSCRIPTION, applicationServerKey: key };
+      // A browser gives every new subscription a new endpoint.
+      if (options.freshEndpoints) endpoint += "-again";
+      return { ...SUBSCRIPTION, applicationServerKey: key, endpoint };
     },
     subscription: async () =>
-      subscribed ? { ...SUBSCRIPTION, applicationServerKey: key } : null,
+      subscribed
+        ? { ...SUBSCRIPTION, applicationServerKey: key, endpoint }
+        : null,
     support: () => options.support ?? "supported",
     unsubscribe: async () => {
       calls.push("unsubscribe");
@@ -398,6 +411,81 @@ describe("Benachrichtigungen", () => {
     expect((await screen.findByTestId("push-notice")).textContent).toContain(
       "Versuche es in einer Stunde wieder",
     );
+  });
+
+  it("subscribes again when its endpoint is bound to another account", async () => {
+    // The owner's row was gone and someone registered the endpoint first:
+    // Core refuses the owner's own device. The app start gets a new
+    // endpoint from the browser and registers that, without a message.
+    const sent: SentRequest[] = [];
+    const { calls, device } = browser({
+      freshEndpoints: true,
+      permission: "granted",
+      subscribed: true,
+    });
+    show(
+      core(sent, { subscribeAnswers: [failure(409, "push_device_bound")] }),
+      device,
+    );
+    await screen.findByTestId("push-on");
+    expect(calls).toEqual(["unsubscribe", `subscribe:${PUBLIC_KEY}`]);
+    expect(
+      sent
+        .filter((request) => request.method === "PUT")
+        .map((request) => (request.body as { endpoint: string }).endpoint),
+    ).toEqual([SUBSCRIPTION.endpoint, `${SUBSCRIPTION.endpoint}-again`]);
+    expect(screen.queryByTestId("push-notice")).toBeNull();
+    expect(screen.getByTestId("push-test")).toBeTruthy();
+  });
+
+  it("does the same at app start and when switching on", async () => {
+    const sent: SentRequest[] = [];
+    const started = browser({
+      freshEndpoints: true,
+      permission: "granted",
+      subscribed: true,
+    });
+    expect(
+      await syncPushDevice(
+        core(sent, { subscribeAnswers: [failure(409, "push_device_bound")] }),
+        started.device,
+      ),
+    ).toBe(DEVICE_ID);
+    expect(started.calls).toEqual(["unsubscribe", `subscribe:${PUBLIC_KEY}`]);
+
+    const fresh = browser({ freshEndpoints: true });
+    show(
+      core([], { subscribeAnswers: [failure(409, "push_device_bound")] }),
+      fresh.device,
+    );
+    fireEvent.click(await screen.findByTestId("push-switch-on"));
+    await screen.findByTestId("push-on");
+    expect(fresh.calls).toEqual([
+      "requestPermission",
+      `subscribe:${PUBLIC_KEY}`,
+      "unsubscribe",
+      `subscribe:${PUBLIC_KEY}`,
+    ]);
+  });
+
+  it("says to try later only when the new subscription is refused too", async () => {
+    const { calls, device } = browser({ freshEndpoints: true });
+    show(core([], { subscribe: failure(409, "push_device_bound") }), device);
+    fireEvent.click(await screen.findByTestId("push-switch-on"));
+    expect((await screen.findByTestId("push-notice")).textContent).toBe(
+      "Benachrichtigungen ließen sich auf diesem Gerät nicht einschalten. Bitte später erneut versuchen.",
+    );
+    // One new subscription per attempt (the button, and the page's own
+    // check once the permission is granted), never a loop.
+    const subscribes = () =>
+      calls.filter((call) => call.startsWith("subscribe:")).length;
+    await waitFor(() => expect(screen.getByTestId("push-off")).toBeTruthy());
+    const settled = subscribes();
+    expect(settled).toBeGreaterThanOrEqual(2);
+    expect(settled).toBeLessThanOrEqual(3);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(subscribes()).toBe(settled);
+    expect(screen.getByTestId("push-off")).toBeTruthy();
   });
 
   it("says so when the member has ten devices already", async () => {

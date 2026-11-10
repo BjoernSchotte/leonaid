@@ -4,9 +4,9 @@ description: In der Akquise-App Benachrichtigungen für Wiedervorlagen, neue Bes
 docId: DOC-P058
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: b1c08d3c04dbf7a46d1bb477753e36ad369a6fec
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: 987e6a1964c6f231d02ec0df045dff3716d0af22
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -83,19 +83,20 @@ Benachrichtigung. Für etwas, das du selbst ausgelöst hast, bekommst du keine.
 
 ## Wenn es nicht klappt
 
-| Was du siehst                                                 | Was es bedeutet und was hilft                                                                                                                                                           |
-| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Im Menü **Mehr** fehlt **Benachrichtigungen**                 | Dein Club hat die Funktion nicht eingeschaltet.                                                                                                                                         |
-| **Benachrichtigungen sind noch nicht eingerichtet.**          | Der Betreiber hat keinen Schlüssel hinterlegt. Wende dich an die System-Administration.                                                                                                 |
-| **Lege LeonAid zuerst auf den Home-Bildschirm.**              | iPhone oder iPad im Safari-Tab. Folge den drei Schritten auf der Seite.                                                                                                                 |
-| **Dieser Browser kann keine Benachrichtigungen empfangen.**   | Nutze einen aktuellen Chrome, Edge, Firefox oder Safari.                                                                                                                                |
-| **Benachrichtigungen sind im Browser blockiert.**             | Du hast die Frage des Browsers abgelehnt. Erlaube Benachrichtigungen für die Seite in den Einstellungen des Browsers (Schloss- oder Einstellungssymbol neben der Adresse) und lade neu. |
-| **Dieses Gerät konnte nicht angemeldet werden.**              | Der Browser hat den Benachrichtigungsdienst nicht erreicht. Prüfe die Verbindung und versuche es erneut.                                                                                |
-| **Das waren viele Tests in kurzer Zeit.**                     | Mehr als fünf Tests in zehn Minuten, egal von welchem Gerät. Warte ein paar Minuten.                                                                                                    |
-| Der Test kommt nicht an                                       | Prüfe in den Einstellungen des Geräts, ob Benachrichtigungen für LeonAid (oder den Browser) erlaubt sind und kein „Nicht stören“ aktiv ist. Schalte das Gerät dann aus und wieder ein.  |
-| Nach dem Abmelden oder nach langer Pause kommt nichts mehr    | Melde dich an, öffne **Benachrichtigungen** und schalte sie auf dem Gerät wieder ein. Nach 90 Tagen ohne Öffnen der App endet die Anmeldung auf dem Gerät.                              |
-| LeonAid konnte die Anmeldung des Geräts gerade nicht erneuern | Die App wurde in der letzten Stunde sehr oft geöffnet. Das Gerät bleibt eingeschaltet; **Test senden** und **Auf diesem Gerät ausschalten** sind in etwa einer Stunde wieder da.        |
-| **Du hast schon zehn Geräte angemeldet.**                     | Schalte Benachrichtigungen auf einem Gerät aus, das du nicht mehr nutzt.                                                                                                                |
+| Was du siehst                                                          | Was es bedeutet und was hilft                                                                                                                                                           |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Im Menü **Mehr** fehlt **Benachrichtigungen**                          | Dein Club hat die Funktion nicht eingeschaltet.                                                                                                                                         |
+| **Benachrichtigungen sind noch nicht eingerichtet.**                   | Der Betreiber hat keinen Schlüssel hinterlegt. Wende dich an die System-Administration.                                                                                                 |
+| **Lege LeonAid zuerst auf den Home-Bildschirm.**                       | iPhone oder iPad im Safari-Tab. Folge den drei Schritten auf der Seite.                                                                                                                 |
+| **Dieser Browser kann keine Benachrichtigungen empfangen.**            | Nutze einen aktuellen Chrome, Edge, Firefox oder Safari.                                                                                                                                |
+| **Benachrichtigungen sind im Browser blockiert.**                      | Du hast die Frage des Browsers abgelehnt. Erlaube Benachrichtigungen für die Seite in den Einstellungen des Browsers (Schloss- oder Einstellungssymbol neben der Adresse) und lade neu. |
+| **Dieses Gerät konnte nicht angemeldet werden.**                       | Der Browser hat den Benachrichtigungsdienst nicht erreicht. Prüfe die Verbindung und versuche es erneut.                                                                                |
+| **Das waren viele Tests in kurzer Zeit.**                              | Mehr als fünf Tests in zehn Minuten, egal von welchem Gerät. Warte ein paar Minuten.                                                                                                    |
+| Der Test kommt nicht an                                                | Prüfe in den Einstellungen des Geräts, ob Benachrichtigungen für LeonAid (oder den Browser) erlaubt sind und kein „Nicht stören“ aktiv ist. Schalte das Gerät dann aus und wieder ein.  |
+| Nach dem Abmelden oder nach langer Pause kommt nichts mehr             | Melde dich an, öffne **Benachrichtigungen** und schalte sie auf dem Gerät wieder ein. Nach 90 Tagen ohne Öffnen der App endet die Anmeldung auf dem Gerät.                              |
+| LeonAid konnte die Anmeldung des Geräts gerade nicht erneuern          | Die App wurde in der letzten Stunde sehr oft geöffnet. Das Gerät bleibt eingeschaltet; **Test senden** und **Auf diesem Gerät ausschalten** sind in etwa einer Stunde wieder da.        |
+| **Benachrichtigungen ließen sich auf diesem Gerät nicht einschalten.** | LeonAid konnte das Gerät auch mit einer neuen Anmeldung des Browsers nicht eintragen. Versuche es später wieder.                                                                        |
+| **Du hast schon zehn Geräte angemeldet.**                              | Schalte Benachrichtigungen auf einem Gerät aus, das du nicht mehr nutzt.                                                                                                                |
 
 ## Grenzen
 

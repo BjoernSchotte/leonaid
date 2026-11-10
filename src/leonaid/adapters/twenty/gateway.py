@@ -133,6 +133,9 @@ class TwentyCrmGateway:
         self._rate_limiter = _SlidingWindowRateLimiter(settings.requests_per_minute)
         # HTTP requests sent since construction, retries included.
         self.requests_sent = 0
+        # Status of the last answer, and how many answers were a 429.
+        self.last_status_code: int | None = None
+        self.rate_limited_responses = 0
 
     async def __aenter__(self) -> Self:
         return self
@@ -1030,7 +1033,9 @@ class TwentyCrmGateway:
                     "twentyId": str(twenty_id) if twenty_id else None,
                 },
             )
+            self.last_status_code = response.status_code
             if response.status_code == 429:
+                self.rate_limited_responses += 1
                 if attempt >= self._settings.max_rate_limit_retries:
                     raise CrmGatewayError(
                         "crm_rate_limited",

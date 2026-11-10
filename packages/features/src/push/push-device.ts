@@ -5,9 +5,10 @@
  * service. Core keeps the subscription's endpoint and keys; the device
  * keeps nothing else.
  */
-import type {
-  LeonAidApiClient,
-  SavePushSubscriptionRequest,
+import {
+  ApiError,
+  type LeonAidApiClient,
+  type SavePushSubscriptionRequest,
 } from "@leonaid/api-client";
 import { PWA_BASE } from "@leonaid/ui/base-paths";
 
@@ -179,6 +180,37 @@ export async function liveSubscription(
 }
 
 /**
+ * Registers the device's subscription at Core; returns Core's id of it.
+ *
+ * Core answers `push_device_bound` when the endpoint is registered for
+ * another account with other keys. A browser always sends the keys of its
+ * own subscription, so for this browser that means: someone else holds the
+ * row of this endpoint. The device ends its subscription, subscribes again
+ * (a new endpoint) and registers that. Only if that fails too the caller
+ * sees the error.
+ */
+export async function registerPushDevice(
+  client: LeonAidApiClient,
+  device: PushDevice,
+  publicKey: string,
+  subscription: SavePushSubscriptionRequest,
+): Promise<string> {
+  try {
+    return (await client.savePushSubscription(subscription)).id;
+  } catch (error) {
+    if (
+      !(error instanceof ApiError) ||
+      error.detail.code !== "push_device_bound"
+    ) {
+      throw error;
+    }
+  }
+  await device.unsubscribe();
+  const fresh = await device.subscribe(publicKey);
+  return (await client.savePushSubscription(fresh)).id;
+}
+
+/**
  * Keeps Core's copy of this device current: a subscription belongs to the
  * session that registered it, so after a new sign-in the device says again
  * where it is; and after the installation's key was replaced it subscribes
@@ -198,7 +230,7 @@ export async function syncPushDevice(
   if (!publicKey) return null;
   const subscription = await liveSubscription(device, publicKey);
   if (!subscription) return null;
-  return (await client.savePushSubscription(subscription)).id;
+  return registerPushDevice(client, device, publicKey, subscription);
 }
 
 /** Sign-out never waits longer than this for the browser's push side. */

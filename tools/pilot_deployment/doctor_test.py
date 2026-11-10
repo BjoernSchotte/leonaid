@@ -137,6 +137,24 @@ def main() -> None:
                     expected_release_commit=expected_commit,
                 ),
             )
+        # The key in the env file must reach the API and the worker.
+        for service, key in (
+            ("api", "LEONAID_VAPID_PRIVATE_KEY"),
+            ("worker", "LEONAID_VAPID_PRIVATE_KEY"),
+            ("worker", "LEONAID_VAPID_SUBJECT"),
+        ):
+            not_passed = copy.deepcopy(compose_config)
+            del not_passed["services"][service]["environment"][key]
+            rejected(
+                f"{key} not passed to {service}",
+                lambda: validate_environment(
+                    values,
+                    root=root,
+                    env_file=environment_path,
+                    compose_config=not_passed,
+                    expected_release_commit=expected_commit,
+                ),
+            )
         without_push = dict(values)
         without_push["LEONAID_VAPID_PRIVATE_KEY"] = ""
         without_push["LEONAID_VAPID_SUBJECT"] = ""
