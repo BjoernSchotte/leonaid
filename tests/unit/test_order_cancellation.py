@@ -180,6 +180,21 @@ def test_any_booked_payment_blocks_even_before_the_invoice_is_paid() -> None:
     assert block is not None
 
 
+def test_payment_on_an_already_cancelled_invoice_does_not_block() -> None:
+    """Such a payment cannot be reversed any more; the order must not be
+    stuck. The refund is tracked on the invoice's cancellation."""
+
+    closed = invoice(InvoiceStatus.CANCELLED, payment_recorded=True)
+
+    assert (
+        cancellation_block(
+            status=CommitmentStatus.INVOICED, delivered=False, invoice=closed
+        )
+        is None
+    )
+    assert not closed.needs_cancellation
+
+
 def test_only_issued_and_sent_invoices_need_a_cancellation() -> None:
     assert invoice(InvoiceStatus.ISSUED).needs_cancellation
     assert invoice(InvoiceStatus.SENT).needs_cancellation

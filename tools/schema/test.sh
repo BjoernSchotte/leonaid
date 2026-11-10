@@ -101,6 +101,7 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
     /repo/tools/inbox/material_contract.py \
     /repo/tests/integration/test_search_api.py \
     /repo/tests/integration/test_order_cancellation_api.py \
+    /repo/tests/integration/test_cancellation_invoice_api.py \
     /repo/tests/integration/test_offline_capture_api.py \
     /repo/tests/integration/test_buyer_mails_api.py \
     /repo/tests/integration/test_public_origins_api.py \
@@ -373,11 +374,11 @@ compose run --rm --no-deps --entrypoint alembic api downgrade "$flag_parent"
 }
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 
-echo "poc021-test: 0063 gives every order a number and every action its mail switches"
+echo "poc021-test: 0064 gives every order a number and every action its mail switches"
 mails_parent=$(sed -n 's/^down_revision: str | None = "\(.*\)"$/\1/p' \
-  "$root/migrations/versions/0063_buyer_mails.py")
+  "$root/migrations/versions/0064_buyer_mails.py")
 [ -n "$mails_parent" ] || {
-  echo "poc021-test: ERROR: 0063 names no down_revision" >&2
+  echo "poc021-test: ERROR: 0064 names no down_revision" >&2
   exit 1
 }
 # The legacy order is an admin order from before order numbers for all.
@@ -387,21 +388,21 @@ buyer_mail_state() {
 }
 state=$(buyer_mail_state)
 [ "$state" = "LA-3DKFX85Y 0 0 " ] || {
-  echo "poc021-test: ERROR: 0063 left an order without a number or an action without switched-off mail settings: $state" >&2
+  echo "poc021-test: ERROR: 0064 left an order without a number or an action without switched-off mail settings: $state" >&2
   exit 1
 }
 if printf '%s\n' "UPDATE commitment SET public_reference = NULL WHERE id = '80000000-0000-4000-8000-000000000001';" | preference_sql 2>/dev/null; then
-  echo "poc021-test: ERROR: 0063 accepted an order without a number" >&2
+  echo "poc021-test: ERROR: 0064 accepted an order without a number" >&2
   exit 1
 fi
 if printf '%s\n' "UPDATE action_buyer_mail_configuration SET delivery_day_send_time = '12:30';" | preference_sql 2>/dev/null; then
-  echo "poc021-test: ERROR: 0063 accepted a send time after noon" >&2
+  echo "poc021-test: ERROR: 0064 accepted a send time after noon" >&2
   exit 1
 fi
 compose run --rm --no-deps --entrypoint alembic api downgrade "$mails_parent"
 state=$(printf '%s\n' "SELECT count(*) FROM commitment WHERE source <> 'public_form' AND public_reference IS NOT NULL; SELECT count(*) FROM pg_constraint WHERE conname = 'ck_commitment_public_reference'; SELECT count(*) FROM information_schema.tables WHERE table_name = 'action_buyer_mail_configuration';" | preference_sql | tr '\n' ' ')
 [ "$state" = "0 1 0 " ] || {
-  echo "poc021-test: ERROR: 0063 downgrade did not restore the old order-number rule: $state" >&2
+  echo "poc021-test: ERROR: 0064 downgrade did not restore the old order-number rule: $state" >&2
   exit 1
 }
 # Before the next upgrade: a public order that already holds the number the
@@ -412,7 +413,7 @@ printf '%s\n' "CREATE TEMP TABLE numbered AS SELECT * FROM commitment WHERE id =
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 state=$(printf '%s\n' "SELECT string_agg(public_reference, ' ' ORDER BY id) FROM commitment WHERE id IN ('80000000-0000-4000-8000-000000000001', '80000000-0000-4000-8000-0000000000b1', '80000000-0000-4000-8000-0000000000b2'); SELECT count(*) FROM commitment WHERE public_reference IS NULL;" | preference_sql | tr '\n' ' ')
 [ "$state" = "LA-NG8RY6CW LA-3DKFX85Y LA-JCJUN4BF 0 " ] || {
-  echo "poc021-test: ERROR: 0063 did not number the orders as the application does: $state" >&2
+  echo "poc021-test: ERROR: 0064 did not number the orders as the application does: $state" >&2
   exit 1
 }
 printf '%s\n' "DELETE FROM commitment WHERE id IN ('80000000-0000-4000-8000-0000000000b1', '80000000-0000-4000-8000-0000000000b2');" | preference_sql
@@ -444,5 +445,121 @@ payment_guard seed exact
 compose run --rm --no-deps --entrypoint alembic api downgrade 0049_window_fully_booked
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 payment_guard verify-exact
+
+echo "poc021-test: 0063 gives every prefix one series, never below the highest issued number"
+series_parent=$(sed -n 's/^down_revision: str | None = "\(.*\)"$/\1/p' \
+  "$root/migrations/versions/0063_document_series.py")
+[ -n "$series_parent" ] || {
+  echo "poc021-test: ERROR: 0063 names no down_revision" >&2
+  exit 1
+}
+series_sql() {
+  compose exec -T core-postgres sh -ec \
+    'psql -v ON_ERROR_STOP=1 -q -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+}
+compose run --rm --no-deps --entrypoint alembic api downgrade "$series_parent"
+# The state before ADR-0015: three actions, each with its own counter. Two
+# share the prefix LEGACY- (counters 2 and 3) although LEGACY-0007 is issued;
+# the third has the prefix ZZ- (counter 5) and no invoice.
+series_sql <<'SQL'
+INSERT INTO charity_action (
+    id, carrier_name, name, purpose, status, starts_on, ends_on, archive_slug
+)
+VALUES
+    ('97620000-0000-4000-8000-000000000002', 'Schema-Nachweis', 'Serie B',
+     'Nachweis', 'active', '2026-01-01', '2099-12-31', 'schema-series-b'),
+    ('97620000-0000-4000-8000-000000000003', 'Schema-Nachweis', 'Serie C',
+     'Nachweis', 'active', '2026-01-01', '2099-12-31', 'schema-series-c');
+DELETE FROM invoice_profile;
+INSERT INTO invoice_profile (
+    id, action_id, legal_name, street_line_1, postal_code, city, country_code,
+    tax_identifier, email, tax_treatment, tax_rate_basis_points, tax_note,
+    number_prefix, next_number, number_width, payment_terms_days
+)
+SELECT profile.id::uuid, profile.action_id::uuid, 'Schema-Nachweis e. V.',
+    'Testweg 62', '86150', 'Augsburg', 'DE', '103/062/00000',
+    'schema@leonaid.invalid', 'small_business', 0,
+    'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
+    profile.prefix, profile.next_number, 4, 14
+FROM (VALUES
+    ('97620000-0000-4000-8000-0000000000a1',
+     '20000000-0000-4000-8000-000000000001', 'LEGACY-', 2),
+    ('97620000-0000-4000-8000-0000000000a2',
+     '97620000-0000-4000-8000-000000000002', 'LEGACY-', 3),
+    ('97620000-0000-4000-8000-0000000000a3',
+     '97620000-0000-4000-8000-000000000003', 'ZZ-', 5)
+) AS profile(id, action_id, prefix, next_number);
+
+CREATE TEMP TABLE series_commitment AS
+SELECT * FROM commitment WHERE id = '80000000-0000-4000-8000-000000000001';
+UPDATE series_commitment
+SET id = '80000000-0000-4000-8000-0000000000e2',
+    idempotency_key = 'schema:series-commitment',
+    public_reference = CASE
+        WHEN public_reference IS NULL THEN NULL
+        ELSE public_reference || 'S'
+    END;
+INSERT INTO commitment SELECT * FROM series_commitment;
+CREATE TEMP TABLE series_invoice AS
+SELECT * FROM invoice WHERE number = 'LEGACY-0001';
+UPDATE series_invoice
+SET id = '99000000-0000-4000-8000-0000000000e2',
+    commitment_id = '80000000-0000-4000-8000-0000000000e2',
+    number = 'LEGACY-0007',
+    payment_reference = 'LEGACY-0007',
+    idempotency_key = 'schema:series-invoice';
+INSERT INTO invoice SELECT * FROM series_invoice;
+SQL
+compose run --rm --no-deps --entrypoint alembic api upgrade head
+series=$(printf '%s\n' "SELECT string_agg(prefix || '=' || next_number || '/' || width, ',' ORDER BY prefix) FROM document_series WHERE kind = 'invoice';" | series_sql)
+if [ "$series" != "LEGACY-=8/4,ZZ-=5/4" ]; then
+  echo "poc021-test: ERROR: 0063 migrated the counters wrongly: $series" >&2
+  exit 1
+fi
+registered=$(printf '%s\n' "SELECT count(*) FROM invoice WHERE NOT EXISTS (SELECT 1 FROM document_number WHERE document_number.number = invoice.number AND kind = 'invoice');" | series_sql)
+if [ "$registered" != "0" ]; then
+  echo "poc021-test: ERROR: 0063 left $registered invoice numbers unregistered" >&2
+  exit 1
+fi
+# The downgrade refuses to drop an issued cancellation invoice and gives the
+# profiles the counter of their series back.
+series_sql <<'SQL'
+INSERT INTO invoice_cancellation (
+    id, action_id, invoice_id, original_status, reason_snapshot,
+    requested_by_user_id, idempotency_key, number, issued_on, issued_at,
+    issued_by_user_id, snapshot, document_version
+)
+SELECT '97620000-0000-4000-8000-0000000000c1', action_id, id, 'issued',
+    'Schema-Nachweis: Stornorechnung bleibt erhalten', approved_by_user_id,
+    'schema:series-cancellation', 'LEGACY-0008', issued_on, issued_at,
+    approved_by_user_id, '{}'::jsonb, 1
+FROM invoice WHERE number = 'LEGACY-0007';
+SQL
+if output=$(compose run --rm --no-deps --entrypoint alembic api \
+  downgrade "$series_parent" 2>&1); then
+  echo "poc021-test: ERROR: downgrade dropped an issued cancellation invoice" >&2
+  exit 1
+fi
+case "$output" in
+  *"0063 downgrade refused"*) ;;
+  *)
+    printf '%s\n' "$output" >&2
+    echo "poc021-test: ERROR: 0063 downgrade failed for another reason" >&2
+    exit 1
+    ;;
+esac
+printf '%s\n' "DELETE FROM invoice_cancellation WHERE id = '97620000-0000-4000-8000-0000000000c1';" | series_sql
+compose run --rm --no-deps --entrypoint alembic api downgrade "$series_parent"
+counters=$(printf '%s\n' "SELECT string_agg(number_prefix || '=' || next_number, ',' ORDER BY id) FROM invoice_profile;" | series_sql)
+if [ "$counters" != "LEGACY-=8,LEGACY-=8,ZZ-=5" ]; then
+  echo "poc021-test: ERROR: 0063 downgrade lost the counters: $counters" >&2
+  exit 1
+fi
+compose run --rm --no-deps --entrypoint alembic api upgrade head
+series=$(printf '%s\n' "SELECT string_agg(prefix || '=' || next_number, ',' ORDER BY prefix) FROM document_series WHERE kind = 'invoice';" | series_sql)
+if [ "$series" != "LEGACY-=8,ZZ-=5" ]; then
+  echo "poc021-test: ERROR: 0063 did not survive downgrade and upgrade: $series" >&2
+  exit 1
+fi
 
 echo "poc021-test: OK: build from empty, upgrade, constraints and data retention proven"

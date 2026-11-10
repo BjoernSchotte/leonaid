@@ -4,8 +4,8 @@ description: Cancel an order that is not delivered yet, with a reason, including
 docId: DOC-P047
 audience: [user]
 diataxis: how-to
-contentRevision: 6
-reviewedRevision: 6
+contentRevision: 7
+reviewedRevision: 7
 verifiedAgainst: 885cb6908275ffec7e1906482804f59f5d1296be
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -41,9 +41,16 @@ finds all cancelled orders. Quantity and amount totals no longer count them.
 - **Invoice:** without an invoice, nothing else happens. If the invoice is
   issued or sent and unpaid, the dialog names it by number. It is cancelled
   together with the order: number, data and PDF stay unchanged, its status
-  becomes **Storniert**. Because this changes a financial record, you may have
-  to confirm your sign-in again. Reason and note are kept; after the sign-in
-  the dialog opens again and you confirm once more.
+  becomes **Storniert**. LeonAid issues a **cancellation invoice**
+  ("Stornorechnung") with its own number for it. You find it under
+  **Rechnungen** with the invoice and can download it and send it by e-mail
+  there (see [Cancel an invoice](/en/user/how-to/cancel-invoice/)). If the
+  invoice was sent by e-mail, the dialog offers **Stornorechnung gleich
+  senden**; the box is ticked. The cancellation invoice then goes to the same
+  address as soon as it is rendered. Without the tick you send it later from
+  the invoice. Because this creates a financial
+  document, you may have to confirm your sign-in again. Reason and note are
+  kept; after the sign-in the dialog opens again and you confirm once more.
 - **Buyer:** before you cancel, the dialog says whether the buyer gets an
   e-mail. If the order came in through the public order form, the buyer soon
   gets the e-mail **Stornierung Ihrer Bestellung bei …** (your order was
@@ -58,6 +65,11 @@ finds all cancelled orders. Quantity and amount totals no longer count them.
   buyer. A cancelled draft sends nothing. When the dialog says that LeonAid
   does not notify the buyer, tell the buyer yourself.
 
+  If you send the cancellation invoice at once, the dialog names it too: it
+  goes to the invoice recipient in an e-mail of its own. The e-mail about the
+  cancellation names the cancelled invoice but does not contain the
+  cancellation invoice.
+
 ## When it does not work
 
 - **Already delivered:** an order ticked off as delivered cannot be cancelled.
@@ -67,7 +79,11 @@ finds all cancelled orders. Quantity and amount totals no longer count them.
 - **Payment recorded:** if a payment is booked on the invoice, a partial one
   included, the dialog asks you to reverse it first. Open the invoice under
   **Rechnungen** and select **Zurückbuchen** on the payment. Once every payment
-  is reversed, you can cancel the order. LeonAid books no refunds.
+  is reversed, you can cancel the order. LeonAid books no refunds. If the
+  sponsor really paid and the payment shall stay recorded, cancel the invoice
+  first: that works with a payment too, and LeonAid keeps the open refund in
+  view (see [Cancel an invoice](/en/user/how-to/cancel-invoice/)). After that
+  the order can be cancelled as well.
 - **Changed in the meantime:** if someone changed the order at the same time,
   the server refuses and the list reloads. Check the current state and cancel
   again; your reason stays in the dialog.

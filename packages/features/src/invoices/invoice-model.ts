@@ -121,8 +121,45 @@ export interface InvoiceRow {
   readonly record: InvoiceRecordResponse;
   /** The invoice PDF, when the server returned one. */
   readonly document?: GeneratedDocumentRecordResponse;
+  /** The PDF of the cancellation invoice, when the server returned one. */
+  readonly cancellationDocument?: GeneratedDocumentRecordResponse;
   readonly status: InvoiceListStatus;
   readonly dispatch: InvoiceDispatch;
+  readonly refund: InvoiceRefund;
+}
+
+/**
+ * Refund of a cancelled invoice that had received money: "open" until a
+ * manager records that the money went back, "none" for every other invoice.
+ */
+export type InvoiceRefund = "open" | "settled" | "none";
+
+export const invoiceRefundLabels: Readonly<Record<InvoiceRefund, string>> = {
+  open: "Erstattung offen",
+  settled: "Erstattung erledigt",
+  none: "Keine Erstattung",
+};
+
+export const INVOICE_REFUNDS: readonly InvoiceRefund[] = [
+  "open",
+  "settled",
+  "none",
+];
+
+export function invoiceRefund(record: InvoiceRecordResponse): InvoiceRefund {
+  const { cancellation } = record;
+  if (!cancellation || (cancellation.receivedMinor ?? 0) <= 0) return "none";
+  if (cancellation.refundOpen) return "open";
+  return cancellation.refundSettledOn ? "settled" : "none";
+}
+
+/** In-flight states of an e-mail delivery; the list polls while one is open. */
+export function deliveryInProgress(delivery: InvoiceDeliveryResponse) {
+  return (
+    delivery.status === "queued" ||
+    delivery.status === "sending" ||
+    delivery.status === "retrying"
+  );
 }
 
 export function invoiceListStatus(
@@ -146,25 +183,42 @@ export function invoiceDispatch(
   return "in_progress";
 }
 
-/** One row per invoice; the newest document of each invoice is attached. */
+/**
+ * One row per invoice. The newest invoice PDF and the newest PDF of the
+ * cancellation invoice are attached, each by its own document type.
+ */
 export function invoiceRows(
   records: readonly InvoiceRecordResponse[],
   documents: readonly GeneratedDocumentRecordResponse[],
   today: string = localIsoDate(),
 ): InvoiceRow[] {
-  const documentsByInvoice = new Map<string, GeneratedDocumentRecordResponse>();
+  type ByInvoice = Map<string, GeneratedDocumentRecordResponse>;
+  const invoicePdfs: ByInvoice = new Map();
+  const cancellationPdfs: ByInvoice = new Map();
   for (const record of documents) {
     const invoiceId = record.document.invoiceId;
-    if (invoiceId && !documentsByInvoice.has(invoiceId)) {
-      documentsByInvoice.set(invoiceId, record);
-    }
+    if (!invoiceId) continue;
+    const target =
+      record.document.documentType === "invoice_cancellation_pdf"
+        ? cancellationPdfs
+        : invoicePdfs;
+    if (!target.has(invoiceId)) target.set(invoiceId, record);
   }
   return records.map((record) => ({
     id: record.invoice.id,
     record,
-    document: documentsByInvoice.get(record.invoice.id),
+    document: invoicePdfs.get(record.invoice.id),
+    cancellationDocument: cancellationPdfs.get(record.invoice.id),
     status: invoiceListStatus(record, today),
-    dispatch: invoiceDispatch(record.deliveries[0]),
+    // What still has to reach the buyer: the invoice while it is live, its
+    // cancellation invoice once it is cancelled. A failed mail of either
+    // shows in the list and in the dashboard count.
+    dispatch: invoiceDispatch(
+      record.cancellation
+        ? record.cancellationDeliveries[0]
+        : record.deliveries[0],
+    ),
+    refund: invoiceRefund(record),
   }));
 }
 
@@ -234,6 +288,18 @@ function rememberFallback(storageKey: string, prefix: string) {
 
 export const deliveryCommandStorageKey = (invoiceId: string) =>
   `leonaid.invoice-delivery-command.${invoiceId}`;
+
+export const cancellationDeliveryCommandStorageKey = (invoiceId: string) =>
+  `leonaid.invoice-cancellation-delivery-command.${invoiceId}`;
+
+export const cancellationDocumentCommandStorageKey = (invoiceId: string) =>
+  `leonaid.invoice-cancellation-document-command.${invoiceId}`;
+
+export const refundCommandStorageKey = (invoiceId: string) =>
+  `leonaid.invoice-refund-command.${invoiceId}`;
+
+export const refundWithdrawalCommandStorageKey = (invoiceId: string) =>
+  `leonaid.invoice-refund-withdrawal-command.${invoiceId}`;
 
 export const settlementCommandStorageKey = (
   invoiceId: string,

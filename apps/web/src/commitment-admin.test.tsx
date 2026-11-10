@@ -820,6 +820,7 @@ describe("order cancellation", () => {
     number,
     paidMinor: paymentRecorded ? 3000 : 0,
     paymentRecorded,
+    recipientEmail: null as string | null,
     // A partial payment leaves the invoice open (ADR-0014).
     status: "issued" as const,
   });
@@ -840,6 +841,7 @@ describe("order cancellation", () => {
         cancellation: {
           id: "cx1",
           invoiceNumber: commitmentId === "c3" ? "KT26-0001" : null,
+          invoiceCancellationNumber: commitmentId === "c3" ? "KT26-0005" : null,
           previousStatus: "review_ready",
           reason: "Sponsor hat die Bestellung zurückgezogen",
           requestedAt: "2026-11-05T10:15:00Z",
@@ -971,12 +973,92 @@ describe("order cancellation", () => {
       "Rechnung KT26-0001 wird mitstorniert.",
     );
     expect(dialog.textContent).toContain("Nummer, Daten und PDF");
+    expect(dialog.textContent).toContain(
+      "LeonAid stellt dazu eine Stornorechnung aus.",
+    );
     fireEvent.change(reasonField(dialog), {
       target: { value: "Sponsor hat die Bestellung zurückgezogen" },
     });
     fireEvent.click(within(dialog).getByTestId("cancel-order"));
-    await screen.findByText("Rechnung KT26-0001 ist ebenfalls storniert.");
+    await screen.findByText(
+      "Rechnung KT26-0001 ist ebenfalls storniert. Stornorechnung KT26-0005 wurde ausgestellt.",
+    );
     expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers to send the cancellation invoice when the invoice was mailed", async () => {
+    // The address is the one frozen on the invoice: the order's own
+    // recipient has none here, and the server sends to the invoice's.
+    const mailed = {
+      ...rows[2]!,
+      invoice: {
+        ...issuedInvoice("KT26-0001"),
+        recipientEmail: "einkauf@example.org",
+        status: "sent" as const,
+      },
+    };
+    const { client, cancel } = clientWith([mailed]);
+    await renderPage("?view=all&open=c3", client);
+    fireEvent.click(await screen.findByTestId("open-order-cancellation"));
+    const dialog = await screen.findByRole("alertdialog");
+    const box = within(dialog).getByTestId(
+      "send-invoice-cancellation-with-order",
+    ) as HTMLInputElement;
+    // On by default: the buyer who got the invoice gets its cancellation.
+    expect(box.checked).toBe(true);
+    expect(dialog.textContent).toContain("einkauf@example.org");
+    // The note about mails is true next to the option, ticked or not.
+    expect(dialog.textContent).toContain(
+      "Der Rechnungsempfänger erhält die Stornorechnung per E-Mail.",
+    );
+    expect(dialog.textContent).not.toContain(
+      "LeonAid benachrichtigt den Besteller nicht automatisch.",
+    );
+    fireEvent.click(box);
+    expect(dialog.textContent).toContain(
+      "LeonAid benachrichtigt den Besteller nicht automatisch.",
+    );
+    fireEvent.click(box);
+    fireEvent.change(reasonField(dialog), {
+      target: { value: "Sponsor hat die Bestellung zurückgezogen" },
+    });
+    fireEvent.click(within(dialog).getByTestId("cancel-order"));
+    await screen.findByText("Bestellung storniert.");
+    expect(cancel.mock.calls[0]![2]).toMatchObject({
+      sendInvoiceCancellation: true,
+    });
+  });
+
+  it("does not offer to send when the invoice itself has no address", async () => {
+    // The order got an address later; the sent invoice has none. Offering
+    // the send would make the server refuse the whole cancellation.
+    const { client, cancel } = clientWith([
+      {
+        ...rows[2]!,
+        commitment: {
+          ...rows[2]!.commitment,
+          invoiceRecipient: {
+            ...rows[2]!.commitment.invoiceRecipient!,
+            email: "neu@example.org",
+          },
+        },
+        invoice: { ...issuedInvoice("KT26-0001"), status: "sent" as const },
+      },
+    ]);
+    await renderPage("?view=all&open=c3", client);
+    fireEvent.click(await screen.findByTestId("open-order-cancellation"));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(
+      within(dialog).queryByTestId("send-invoice-cancellation-with-order"),
+    ).toBeNull();
+    fireEvent.change(reasonField(dialog), {
+      target: { value: "Sponsor hat die Bestellung zurückgezogen" },
+    });
+    fireEvent.click(within(dialog).getByTestId("cancel-order"));
+    await screen.findByText("Bestellung storniert.");
+    expect(cancel.mock.calls[0]![2]).not.toHaveProperty(
+      "sendInvoiceCancellation",
+    );
   });
 
   it("explains why a delivered order cannot be cancelled", async () => {
@@ -1081,6 +1163,7 @@ describe("order cancellation", () => {
       commitment: { ...rows[0]!.commitment, status: "cancelled" },
       cancellation: {
         id: "cx1",
+        invoiceCancellationNumber: null,
         invoiceNumber: null,
         note: "Rückruf am Montag.\nKunde informiert.",
         previousStatus: "review_ready",

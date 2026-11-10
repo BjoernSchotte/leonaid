@@ -194,11 +194,7 @@
   "DOC-P021": [
     {
       "file": "leonaid",
-      "contains": [
-        "  bootstrap)",
-        "doctor) doctor ;;",
-        "test-handoff)"
-      ]
+      "contains": ["  bootstrap)", "doctor) doctor ;;", "test-handoff)"]
     },
     {
       "file": "infra/compose/README.md",
@@ -733,6 +729,7 @@
         "Notiz",
         "Stornieren",
         "wird mitstorniert.",
+        "Stornorechnung gleich senden",
         "LeonAid benachrichtigt den Besteller nicht automatisch.",
         "Der Besteller erhält eine E-Mail über die Stornierung",
         "bereits geliefert",
@@ -879,53 +876,69 @@
     },
     {
       "file": "packages/features/src/offline/sign-out.tsx",
-      "contains": [
-        "Erst senden",
-        "Trotzdem abmelden",
-        "Abbrechen"
-      ]
+      "contains": ["Erst senden", "Trotzdem abmelden", "Abbrechen"]
     },
     {
       "file": "packages/features/src/offline/queue-sheet.tsx",
-      "contains": [
-        "Warteschlange",
-        "Jetzt senden",
-        "wartet auf deine Prüfung"
-      ]
+      "contains": ["Warteschlange", "Jetzt senden", "wartet auf deine Prüfung"]
     },
     {
       "file": "packages/features/src/offline/entry-choices.tsx",
-      "contains": [
-        "Jetzt prüfen"
-      ]
+      "contains": ["Jetzt prüfen"]
     },
     {
       "file": "packages/features/src/offline/read-cache.ts",
-      "contains": [
-        "READ_CACHE_SHOW_DAYS = 7",
-        "READ_CACHE_KEEP_DAYS = 14"
-      ]
+      "contains": ["READ_CACHE_SHOW_DAYS = 7", "READ_CACHE_KEEP_DAYS = 14"]
     },
     {
       "file": "packages/features/src/offline/queue.ts",
-      "contains": [
-        "QUEUE_KEEP_DAYS = 14",
-        "SETTLED_KEEP_DAYS = 2"
-      ]
+      "contains": ["QUEUE_KEEP_DAYS = 14", "SETTLED_KEEP_DAYS = 2"]
     },
     {
       "file": "src/leonaid/domain/feature_flags.py",
+      "contains": ["Offline-Erfassung in der Akquise-App"]
+    }
+  ],
+  "DOC-P054": [
+    {
+      "file": "packages/features/src/invoices/invoice-dialogs.tsx",
       "contains": [
-        "Offline-Erfassung in der Akquise-App"
+        "Grund der Stornierung",
+        "Stornieren",
+        "Stornorechnung gleich senden",
+        "LeonAid stellt dazu eine Stornorechnung aus",
+        "Erstattung erledigt",
+        "Erstattung zurücknehmen",
+        "Grund der Rücknahme",
+        "Erstattet am",
+        "Notiz"
       ]
+    },
+    {
+      "file": "packages/features/src/invoices/invoice-detail.tsx",
+      "contains": [
+        "Stornorechnung",
+        "Stornorechnung ausstellen",
+        "Stornorechnung senden",
+        "Versand der Stornorechnung",
+        "Erneut senden",
+        "Erstattung offen",
+        "Erstattung erledigt am"
+      ]
+    },
+    {
+      "file": "packages/features/src/invoices/invoice-admin.tsx",
+      "contains": ["storniert · Stornorechnung", "Erstattung"]
+    },
+    {
+      "file": "src/leonaid/adapters/typst/invoice_cancellation_renderer.py",
+      "contains": ["Die Erstattung erfolgt gesondert."]
     }
   ],
   "DOC-P053": [
     {
       "file": "packages/ui/src/components/rail-shell.tsx",
-      "contains": [
-        "Suchen und Befehle"
-      ]
+      "contains": ["Suchen und Befehle"]
     },
     {
       "file": "packages/features/src/command-palette/sources.ts",
@@ -940,9 +953,7 @@
     },
     {
       "file": "packages/features/src/command-palette/command-palette.tsx",
-      "contains": [
-        "Die Suche ist gerade nicht erreichbar."
-      ]
+      "contains": ["Die Suche ist gerade nicht erreichbar."]
     },
     {
       "file": "packages/features/src/acquisition/acquisition-admin.tsx",
@@ -963,9 +974,7 @@
     },
     {
       "file": "src/leonaid/application/activities.py",
-      "contains": [
-        "Im CRM nicht mehr vorhanden"
-      ]
+      "contains": ["Im CRM nicht mehr vorhanden"]
     },
     {
       "file": "src/leonaid/application/sponsor_search.py",

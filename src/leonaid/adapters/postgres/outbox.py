@@ -231,6 +231,34 @@ class AsyncpgOutboxQueue:
             )
         self._require_fenced_update(status, "als fehlgeschlagen markieren")
 
+    async def defer(
+        self,
+        *,
+        event_id: UUID,
+        claim_token: UUID,
+        available_at: datetime,
+    ) -> None:
+        """Back to pending without counting the attempt (``OutboxDeferred``)."""
+
+        async with self._pool.acquire() as connection:
+            status = await connection.execute(
+                """
+                UPDATE outbox_event
+                SET status = 'pending',
+                    available_at = $3,
+                    attempts = greatest(attempts - 1, 0),
+                    claim_token = NULL,
+                    claimed_by = NULL
+                WHERE id = $1
+                  AND status = 'processing'
+                  AND claim_token = $2
+                """,
+                event_id,
+                claim_token,
+                available_at,
+            )
+        self._require_fenced_update(status, "zurückstellen")
+
     async def purge_completed(
         self,
         *,

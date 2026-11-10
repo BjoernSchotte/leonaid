@@ -165,7 +165,12 @@ for screenshot in \
   invoice-open-and-paid.png \
   invoice-partial-payment.png \
   invoice-payment-recorded.png \
+  invoice-cancellation-dialog.png \
   invoice-cancellation.png \
+  invoice-cancellation-older.png \
+  invoice-refund-dialog.png \
+  invoice-refund-settled.png \
+  invoice-refund-withdrawn.png \
   invoice-finance-readonly-mobile.png \
   invoice-keyboard-filter.png; do
   if [ ! -s "$proof/$screenshot" ]; then

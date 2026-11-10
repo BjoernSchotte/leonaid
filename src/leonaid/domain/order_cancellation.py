@@ -82,6 +82,9 @@ class OrderInvoiceState:
     payment_recorded: bool
     # Sum of the active (not reversed) payment entries, ADR-0014.
     paid_minor: int = 0
+    # The e-mail address frozen on the invoice: where its cancellation
+    # invoice would be sent. It can differ from the order's current one.
+    recipient_email: str | None = None
 
     @property
     def needs_cancellation(self) -> bool:
@@ -112,8 +115,13 @@ def cancellation_block(
             "Die Bestellung ist bereits geliefert und kann nicht mehr storniert "
             "werden.",
         )
-    if invoice is not None and (
-        invoice.payment_recorded or invoice.status is InvoiceStatus.PAID
+    # A cancelled invoice is closed: its payments can no longer be reversed
+    # and its refund is tracked on its own cancellation (ADR-0015). Only a
+    # live invoice with money on it blocks the order.
+    if (
+        invoice is not None
+        and invoice.status is not InvoiceStatus.CANCELLED
+        and (invoice.payment_recorded or invoice.status is InvoiceStatus.PAID)
     ):
         return CancellationBlock(
             "commitment_cancellation_payment_recorded",
@@ -137,6 +145,10 @@ class OrderCancellation:
     invoice_cancellation_id: UUID | None = None
     invoice_number: str | None = None
     requested_by_display_name: str | None = None
+    # Number of the cancellation invoice issued with the order's cancellation.
+    # None when no invoice was cancelled, and for an order cancelled before
+    # cancellation invoices existed until someone issues the document.
+    invoice_cancellation_number: str | None = None
 
     def __post_init__(self) -> None:
         require_aware(self.requested_at, "requested_at")

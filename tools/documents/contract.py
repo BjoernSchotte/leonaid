@@ -17,10 +17,15 @@ import asyncpg
 import httpx
 
 from leonaid.adapters.storage import S3ObjectStorage
+from leonaid.adapters.typst import (
+    CANCELLATION_RENDER_VERSION,
+    TypstInvoiceCancellationRenderer,
+)
 from leonaid.application.object_storage import (
     ObjectDeletionAuthorization,
     ObjectLocation,
 )
+from leonaid.domain.invoice_cancellation_documents import InvoiceCancellationDocument
 from leonaid.domain.sessions import (
     SESSION_COOKIE_NAME,
     SESSION_LIFETIME,
@@ -428,9 +433,141 @@ async def exercise(
     )
 
 
-async def assert_missing_object(connection: asyncpg.Connection[Any]) -> None:
+async def cancellation_invoice(connection: asyncpg.Connection[Any]) -> None:
+    """The real worker renders and stores a cancellation invoice.
+
+    The golden invoice KT26-0003 was cancelled before cancellation invoices
+    existed. A manager issues the document; the worker renders the stored
+    snapshot with the `invoice-cancellation-v1` template, stores it and the
+    API serves exactly those bytes.
+    """
+
+    token = token_for("admin", ADMIN_ID)
+    path = f"/api/v1/actions/{ACTION_ID}/invoices/{INVOICE_THREE_ID}"
+    async with httpx.AsyncClient(
+        base_url=require_env("API_BASE_URL").rstrip("/"),
+        timeout=60,
+    ) as api:
+        issued = await api.post(
+            f"{path}/cancellation/document",
+            headers={
+                **session_headers(token),
+                "Idempotency-Key": "poc093:cancellation-document",
+            },
+        )
+        if issued.status_code != 201:
+            raise ContractFailure(
+                f"Cancellation invoice was not issued: {issued.status_code} "
+                f"{issued.text}"
+            )
+        number = str(issued.json()["number"])
+        # The next number of the invoice series after KT26-0001 to -0003.
+        if number != "KT26-0004" or issued.json()["issuedOn"] is None:
+            raise ContractFailure(f"Unexpected cancellation number: {number}")
+        document: dict[str, Any] | None = None
+        for _attempt in range(90):
+            listing = await api.get(f"{path}/documents", headers=session_headers(token))
+            listing.raise_for_status()
+            document = next(
+                (
+                    item
+                    for item in listing.json()["items"]
+                    if item["document"]["documentType"] == "invoice_cancellation_pdf"
+                ),
+                None,
+            )
+            if document is not None and document["document"]["status"] == "available":
+                break
+            await asyncio.sleep(1)
+        else:
+            raise ContractFailure("The worker did not render the cancellation invoice")
+        if (
+            document is None
+            or document["documentNumber"] != number
+            or document["invoiceNumber"] != "KT26-0003"
+            or document["document"]["filename"] != f"Stornorechnung-{number}.pdf"
+            or document["document"]["renderVersion"] != CANCELLATION_RENDER_VERSION
+        ):
+            raise ContractFailure("Cancellation document metadata is wrong")
+        document_id = document["document"]["id"]
+        download = await api.get(
+            f"/api/v1/actions/{ACTION_ID}/documents/{document_id}/download",
+            headers=session_headers(token),
+        )
+        acquirer = await api.get(
+            f"/api/v1/actions/{ACTION_ID}/documents/{document_id}/download",
+            headers=session_headers(token_for("acquirer", ACQUIRER_ID)),
+        )
+
     row = await connection.fetchrow(
-        "SELECT * FROM generated_document WHERE invoice_id = $1",
+        """
+        SELECT document.*, cancellation.id AS cancellation_id,
+               cancellation.snapshot
+        FROM generated_document AS document
+        JOIN invoice_cancellation AS cancellation
+          ON cancellation.invoice_id = document.invoice_id
+        WHERE document.id = $1
+        """,
+        UUID(document_id),
+    )
+    if row is None:
+        raise ContractFailure("The cancellation document row is missing")
+    snapshot = InvoiceCancellationDocument.from_payload(json.loads(row["snapshot"]))
+    # Deterministic: rendering the stored snapshot again gives the same bytes.
+    expected = TypstInvoiceCancellationRenderer().render(snapshot)
+    retrieved = await storage().get(
+        ObjectLocation(
+            bucket=str(row["storage_bucket"]),
+            key=str(row["object_key"]),
+            version_id=str(row["storage_version_id"]),
+        )
+    )
+    expected_key = (
+        f"actions/{ACTION_ID}/invoices/{INVOICE_THREE_ID}/cancellations/"
+        f"{row['cancellation_id']}/v1/{expected.sha256}.pdf"
+    )
+    filename = f"filename*=UTF-8''Stornorechnung-{number}.pdf"
+    if (
+        download.status_code != 200
+        or download.content != expected.content
+        or retrieved.content != expected.content
+        or str(row["object_key"]) != expected_key
+        or str(row["sha256"]) != expected.sha256
+        or download.headers.get("content-type") != "application/pdf"
+        or download.headers.get("x-document-sha256") != expected.sha256
+        or download.headers.get("content-disposition") != f"attachment; {filename}"
+    ):
+        raise ContractFailure(
+            "Snapshot, renderer, RustFS and API disagree on the cancellation invoice"
+        )
+    if snapshot.original_number != "KT26-0003" or snapshot.number != number:
+        raise ContractFailure("The cancellation invoice names the wrong invoice")
+    if (
+        acquirer.status_code != 403
+        or error_code(acquirer) != "document_download_required"
+    ):
+        raise ContractFailure("An acquirer could download the cancellation invoice")
+    untouched = await connection.fetchrow(
+        "SELECT number, status FROM invoice WHERE id = $1", INVOICE_THREE_ID
+    )
+    if untouched is None or (untouched["number"], untouched["status"]) != (
+        "KT26-0003",
+        "cancelled",
+    ):
+        raise ContractFailure("Issuing the cancellation invoice changed the invoice")
+    print(
+        f"document-contract: OK: cancellation invoice {number} issued, rendered "
+        "by the worker, stored and served byte-identical"
+    )
+
+
+async def assert_missing_object(connection: asyncpg.Connection[Any]) -> None:
+    # The invoice PDF; the invoice also has its cancellation invoice by now.
+    row = await connection.fetchrow(
+        """
+        SELECT * FROM generated_document
+        WHERE invoice_id = $1 AND document_type = 'invoice_pdf'
+        """,
         INVOICE_THREE_ID,
     )
     if row is None:
@@ -462,8 +599,11 @@ async def assert_missing_object(connection: asyncpg.Connection[Any]) -> None:
             f"/api/v1/actions/{ACTION_ID}/documents/{row['id']}/download",
             headers=session_headers(token),
         )
+    listed_types = sorted(
+        str(item["document"]["documentType"]) for item in listed.json().get("items", [])
+    )
     if (
-        len(listed.json().get("items", [])) != 1
+        listed_types != ["invoice_cancellation_pdf", "invoice_pdf"]
         or response.status_code != 503
         or error_code(response) != "generated_document_storage_missing"
         or response.headers.get("content-type") != "application/json"
@@ -488,6 +628,8 @@ async def main(arguments: argparse.Namespace) -> None:
                 arguments.sessions_output,
                 arguments.golden_pdf_directory,
             )
+        elif arguments.command == "cancellation-invoice":
+            await cancellation_invoice(connection)
         else:
             await assert_missing_object(connection)
     finally:
@@ -500,6 +642,7 @@ def parser() -> argparse.ArgumentParser:
     exercise_command = commands.add_parser("exercise")
     exercise_command.add_argument("sessions_output", type=Path)
     exercise_command.add_argument("golden_pdf_directory", type=Path)
+    commands.add_parser("cancellation-invoice")
     commands.add_parser("assert-missing")
     return value
 

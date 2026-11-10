@@ -11,7 +11,13 @@ from uuid import UUID
 from leonaid.domain.errors import DomainInvariantError
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
+# The render job of an invoice PDF keeps its first name; every later document
+# kind uses the neutral one. Both reach the same handler.
 INVOICE_DOCUMENT_RENDER_REQUESTED = "invoice.document.render.requested.v1"
+DOCUMENT_RENDER_REQUESTED = "document.render.requested.v1"
+DOCUMENT_RENDER_EVENTS = frozenset(
+    {INVOICE_DOCUMENT_RENDER_REQUESTED, DOCUMENT_RENDER_REQUESTED}
+)
 
 
 class GeneratedDocumentStatus(StrEnum):
@@ -22,6 +28,7 @@ class GeneratedDocumentStatus(StrEnum):
 
 class GeneratedDocumentType(StrEnum):
     INVOICE_PDF = "invoice_pdf"
+    INVOICE_CANCELLATION_PDF = "invoice_cancellation_pdf"
 
 
 @dataclass(frozen=True, slots=True)

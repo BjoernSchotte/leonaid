@@ -22,7 +22,7 @@ COUNTRY_CODE = re.compile(r"^[A-Z]{2}$")
 ORDER_NUMBER_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
 ORDER_NUMBER_LENGTH = 8
 # The short number of every new order, or the long one (``LA-`` plus the
-# order id in hex) that public orders got before migration 0063. Buyers hold
+# order id in hex) that public orders got before migration 0064. Buyers hold
 # the long ones in their mails, so they stay valid.
 PUBLIC_REFERENCE = re.compile(
     rf"^LA-(?:[{ORDER_NUMBER_ALPHABET}]{{{ORDER_NUMBER_LENGTH}}}|[A-F0-9]{{32}})$"
@@ -32,7 +32,7 @@ PUBLIC_REFERENCE = re.compile(
 def order_number(commitment_id: UUID, attempt: int = 0) -> str:
     """The order number of an order: ``LA-`` plus eight readable characters.
 
-    Derived from the order id, so that the application, migration 0063 (the
+    Derived from the order id, so that the application, migration 0064 (the
     same rule in SQL, for older internal orders) and fixtures agree. The
     number is unique in the database; a writer that meets a taken number
     asks again with the next ``attempt``.

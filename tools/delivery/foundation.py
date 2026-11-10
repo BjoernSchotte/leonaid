@@ -349,7 +349,7 @@ def main() -> None:
     command.upgrade(config, "head")
     command.upgrade(config, "head")
     with psycopg.connect(os.environ["CORE_DATABASE_URL"]) as db:
-        # 0063 gives every order an order number: an order of the public
+        # 0064 gives every order an order number: an order of the public
         # form keeps its own, an internal order gets the one derived from
         # its id. Nothing else of an existing order changes.
         assert db.execute(

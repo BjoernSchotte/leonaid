@@ -26,6 +26,8 @@ import {
 import {
   commandKey,
   forgetCommandKey,
+  refundCommandStorageKey,
+  refundWithdrawalCommandStorageKey,
   invoiceSettlement,
   paymentCommandStorageKey,
   settlementCommandStorageKey,
@@ -278,11 +280,17 @@ function amountHint(minor: number | null, openMinor: number, currency: string) {
 
 const MIN_REASON = 8;
 
+interface CancellationDialogProps extends SettlementDialogProps {
+  /** Server right `mayIssue`: may send the cancellation invoice by e-mail. */
+  readonly canManageDelivery: boolean;
+}
+
 /**
  * Explicit command: cancels an issued invoice for good. The record and its
- * PDF stay; a correction is a new, separately numbered invoice.
+ * PDF stay, and the server issues the cancellation invoice in the same step;
+ * a correction is a new, separately numbered invoice.
  */
-export function CancellationDialog(props: SettlementDialogProps) {
+export function CancellationDialog(props: CancellationDialogProps) {
   return props.record ? (
     <CancellationForm
       key={props.record.invoice.id}
@@ -293,24 +301,38 @@ export function CancellationDialog(props: SettlementDialogProps) {
 }
 
 function CancellationForm({
+  canManageDelivery,
   client,
   onChanged,
   onClose,
   record,
-}: SettlementDialogProps & { readonly record: InvoiceRecordResponse }) {
+}: CancellationDialogProps & { readonly record: InvoiceRecordResponse }) {
   const { invoice } = record;
   const toast = useOptionalToast();
   const [reason, setReason] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [serverError, setServerError] = useState<string>();
   const storageKey = settlementCommandStorageKey(invoice.id, "cancellation");
+  const receivedMinor = invoiceSettlement(record).paidMinor;
+  // The cancellation invoice goes where the invoice went: offered only when
+  // the invoice itself reached the recipient by e-mail and this person may
+  // send. Without a stored address the server would refuse the whole step.
+  const recipientEmail = invoice.recipient.email;
+  const offerSend =
+    canManageDelivery &&
+    Boolean(recipientEmail) &&
+    record.deliveries.some((delivery) => delivery.status === "sent");
+  const [send, setSend] = useState(true);
+  const sendCancellation = offerSend && send;
 
   const cancellation = useMutation({
     mutationFn: () =>
       client.cancelInvoice(
         invoice.actionId,
         invoice.id,
-        { reason: reason.trim() },
+        offerSend
+          ? { reason: reason.trim(), sendCancellation }
+          : { reason: reason.trim() },
         {
           headers: {
             "Idempotency-Key": commandKey(storageKey, "poc095:cancellation"),
@@ -320,9 +342,17 @@ function CancellationForm({
     onError(cause) {
       setServerError(actionErrorMessage(cause).message);
     },
-    onSuccess() {
+    onSuccess(result) {
       forgetCommandKey(storageKey);
-      toast?.show({ title: `${invoice.number} storniert.`, tone: "success" });
+      toast?.show({
+        title: result.number
+          ? `${invoice.number} storniert. Stornorechnung ${result.number} ausgestellt.`
+          : `${invoice.number} storniert.`,
+        description: sendCancellation
+          ? `Die Stornorechnung geht per E-Mail an ${recipientEmail}.`
+          : undefined,
+        tone: "success",
+      });
       onChanged();
       onClose();
     },
@@ -345,7 +375,7 @@ function CancellationForm({
   return (
     <Modal
       className="inv-dialog"
-      description="Die Rechnung bleibt mit Nummer, Daten und PDF erhalten und wird als storniert markiert. Eine Korrektur erhält eine neue Rechnungsnummer."
+      description="Die Rechnung bleibt mit Nummer, Daten und PDF erhalten und wird als storniert markiert. LeonAid stellt dazu eine Stornorechnung aus: Sie erhält eine eigene Nummer aus dem Nummernkreis der Rechnungen und nennt diese Rechnung. Für eine Korrektur erfassen Sie danach eine neue Bestellung und stellen deren Rechnung aus."
       footer={
         <>
           <Button
@@ -394,6 +424,361 @@ function CancellationForm({
             maxLength={500}
             onChange={(event) => setReason(event.target.value)}
             placeholder="z. B. Sponsor hat doppelt bestellt"
+            value={reason}
+          />
+        </Field>
+        {receivedMinor > 0 ? (
+          <StatusMessage tone="warning">
+            <span data-testid="cancellation-received">
+              Auf diese Rechnung sind{" "}
+              {formatMoney(receivedMinor, invoice.currency)} eingegangen. Die
+              Zahlung bleibt erfasst, und die Stornorechnung nennt den
+              erhaltenen Betrag. Die Erstattung überweisen Sie außerhalb von
+              LeonAid und vermerken sie danach mit „Erstattung erledigt“.
+            </span>
+          </StatusMessage>
+        ) : null}
+        {offerSend ? (
+          <div className="field">
+            <label className="checkbox">
+              <input
+                checked={send}
+                data-testid="send-cancellation-with-cancel"
+                disabled={cancellation.isPending}
+                onChange={(event) => {
+                  // Another body is another command: it gets its own key.
+                  forgetCommandKey(storageKey);
+                  setSend(event.target.checked);
+                }}
+                type="checkbox"
+              />
+              Stornorechnung gleich senden
+            </label>
+            <p className="field-hint">
+              Die Stornorechnung geht als PDF per E-Mail an {recipientEmail},
+              sobald sie erzeugt ist.
+            </p>
+          </div>
+        ) : null}
+        {serverError ? (
+          <StatusMessage tone="error">{serverError}</StatusMessage>
+        ) : null}
+      </form>
+    </Modal>
+  );
+}
+
+const refundErrors: Readonly<Record<string, string>> = {
+  invoice_refund_already_settled:
+    "Die Erstattung ist bereits als erledigt vermerkt.",
+  invoice_refund_not_due:
+    "Für diese Rechnung ist kein Zahlungseingang erfasst. Es gibt nichts zu erstatten.",
+  invoice_refund_future_date:
+    "Das Datum der Erstattung darf nicht in der Zukunft liegen.",
+  invoice_refund_before_invoice:
+    "Das Datum der Erstattung darf nicht vor dem Rechnungsdatum liegen.",
+};
+
+/**
+ * Explicit command: records that the money of a cancelled invoice went back.
+ * LeonAid books no refund; the entry only closes the "Erstattung offen"
+ * reminder.
+ */
+export function RefundDialog(props: SettlementDialogProps) {
+  const cancellation = props.record?.cancellation;
+  return props.record && cancellation?.refundOpen ? (
+    <RefundForm
+      key={props.record.invoice.id}
+      {...props}
+      cancellation={cancellation}
+      record={props.record}
+    />
+  ) : null;
+}
+
+function RefundForm({
+  cancellation,
+  client,
+  onChanged,
+  onClose,
+  record,
+}: SettlementDialogProps & {
+  readonly cancellation: NonNullable<InvoiceRecordResponse["cancellation"]>;
+  readonly record: InvoiceRecordResponse;
+}) {
+  const { invoice } = record;
+  const toast = useOptionalToast();
+  const today = localIsoDate();
+  // Money can have gone back before the cancellation was recorded here,
+  // but not before the invoice existed.
+  const minDate = isoDay(invoice.issuedAt);
+  const [settledOn, setSettledOn] = useState(today);
+  const [note, setNote] = useState("");
+  const [dateError, setDateError] = useState<string>();
+  const [serverError, setServerError] = useState<string>();
+  const storageKey = refundCommandStorageKey(invoice.id);
+  const received = formatMoney(
+    cancellation.receivedMinor ?? 0,
+    invoice.currency,
+  );
+
+  const refund = useMutation({
+    mutationFn: () =>
+      client.settleInvoiceCancellationRefund(
+        invoice.actionId,
+        invoice.id,
+        { settledOn, note: note.trim() || null },
+        {
+          headers: {
+            "Idempotency-Key": commandKey(storageKey, "poc095:refund"),
+          },
+        },
+      ),
+    onError(cause) {
+      const message = actionErrorMessage(cause);
+      const known = message.code ? refundErrors[message.code] : undefined;
+      if (
+        message.code === "invoice_refund_future_date" ||
+        message.code === "invoice_refund_before_invoice"
+      ) {
+        setDateError(known);
+        return;
+      }
+      if (message.code === "invoice_refund_already_settled") {
+        // Someone else was faster: the list is behind, nothing to do here.
+        forgetCommandKey(storageKey);
+        toast?.show({ title: known!, tone: "info" });
+        onChanged();
+        onClose();
+        return;
+      }
+      setServerError(known ?? message.message);
+      if (message.conflict) onChanged();
+    },
+    onSuccess() {
+      forgetCommandKey(storageKey);
+      toast?.show({
+        title: `Erstattung für ${invoice.number} als erledigt vermerkt.`,
+        tone: "success",
+      });
+      onChanged();
+      onClose();
+    },
+  });
+
+  function submit() {
+    if (refund.isPending) return;
+    setServerError(undefined);
+    if (!settledOn || settledOn < minDate || settledOn > today) {
+      setDateError("Das Datum liegt zwischen dem Rechnungsdatum und heute.");
+      return;
+    }
+    refund.mutate();
+  }
+
+  return (
+    <Modal
+      className="inv-dialog"
+      description={`Erhalten: ${received} von ${record.buyerDisplayName}. LeonAid bucht keine Erstattung: Sie überweisen den Betrag außerhalb von LeonAid zurück. Dieser Vermerk schließt nur die Erinnerung „Erstattung offen“.`}
+      footer={
+        <>
+          <Button disabled={refund.isPending} onClick={onClose} variant="ghost">
+            Abbrechen
+          </Button>
+          <Button
+            data-testid="settle-refund"
+            loading={refund.isPending}
+            onClick={submit}
+            variant="primary"
+          >
+            Erstattung erledigt
+          </Button>
+        </>
+      }
+      onClose={() => {
+        if (!refund.isPending) onClose();
+      }}
+      open
+      title={`Erstattung für ${invoice.number} erledigt?`}
+    >
+      <form
+        className="stack"
+        data-testid="refund-form"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
+        <Field
+          error={dateError}
+          id={`refund-date-${invoice.id}`}
+          label="Erstattet am"
+        >
+          <Input
+            autoFocus
+            data-testid="refund-date"
+            max={today}
+            min={minDate}
+            onChange={(event) => {
+              // Another body is another command: it gets its own key.
+              forgetCommandKey(storageKey);
+              setSettledOn(event.target.value);
+              setDateError(undefined);
+            }}
+            type="date"
+            value={settledOn}
+          />
+        </Field>
+        <Field id={`refund-note-${invoice.id}`} label="Notiz" optional>
+          <Input
+            data-testid="refund-note"
+            maxLength={500}
+            onChange={(event) => {
+              forgetCommandKey(storageKey);
+              setNote(event.target.value);
+            }}
+            placeholder="z. B. Rücküberweisung vom Vereinskonto"
+            value={note}
+          />
+        </Field>
+        {serverError ? (
+          <StatusMessage tone="error">{serverError}</StatusMessage>
+        ) : null}
+        <button hidden type="submit" />
+      </form>
+    </Modal>
+  );
+}
+
+/**
+ * Explicit command: takes "Erstattung erledigt" back, with a reason. The
+ * refund is open again; the record keeps who set the marker and who withdrew
+ * it.
+ */
+export function RefundWithdrawalDialog(props: SettlementDialogProps) {
+  const cancellation = props.record?.cancellation;
+  return props.record && cancellation?.refundSettledOn ? (
+    <RefundWithdrawalForm
+      key={props.record.invoice.id}
+      {...props}
+      record={props.record}
+    />
+  ) : null;
+}
+
+function RefundWithdrawalForm({
+  client,
+  onChanged,
+  onClose,
+  record,
+}: SettlementDialogProps & { readonly record: InvoiceRecordResponse }) {
+  const { invoice } = record;
+  const toast = useOptionalToast();
+  const [reason, setReason] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [serverError, setServerError] = useState<string>();
+  const storageKey = refundWithdrawalCommandStorageKey(invoice.id);
+  const tooShort = reason.trim().length < MIN_REASON;
+
+  const withdrawal = useMutation({
+    mutationFn: () =>
+      client.withdrawInvoiceCancellationRefund(
+        invoice.actionId,
+        invoice.id,
+        { reason: reason.trim() },
+        {
+          headers: {
+            "Idempotency-Key": commandKey(
+              storageKey,
+              "poc095:refund-withdrawal",
+            ),
+          },
+        },
+      ),
+    onError(cause) {
+      const message = actionErrorMessage(cause);
+      setServerError(message.message);
+      if (message.conflict) onChanged();
+    },
+    onSuccess() {
+      forgetCommandKey(storageKey);
+      toast?.show({
+        title: `Erstattung für ${invoice.number} ist wieder offen.`,
+        tone: "success",
+      });
+      onChanged();
+      onClose();
+    },
+  });
+
+  function submit() {
+    if (withdrawal.isPending) return;
+    setSubmitted(true);
+    setServerError(undefined);
+    if (tooShort) return;
+    withdrawal.mutate();
+  }
+
+  return (
+    <Modal
+      className="inv-dialog"
+      description="Der Vermerk „Erstattung erledigt“ wird zurückgenommen und die Rechnung zeigt wieder „Erstattung offen“. Wer den Vermerk gesetzt und wer ihn zurückgenommen hat, bleibt bei der Rechnung sichtbar."
+      footer={
+        <>
+          <Button
+            disabled={withdrawal.isPending}
+            onClick={onClose}
+            variant="ghost"
+          >
+            Abbrechen
+          </Button>
+          <Button
+            data-testid="withdraw-refund"
+            loading={withdrawal.isPending}
+            onClick={submit}
+            variant="danger"
+          >
+            Erstattung zurücknehmen
+          </Button>
+        </>
+      }
+      onClose={() => {
+        if (!withdrawal.isPending) onClose();
+      }}
+      open
+      role="alertdialog"
+      title={`Erstattung für ${invoice.number} zurücknehmen?`}
+    >
+      <form
+        className="stack"
+        data-testid="refund-withdrawal-form"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
+        <Field
+          error={
+            submitted && tooShort
+              ? "Bitte nennen Sie den Grund mit mindestens acht Zeichen."
+              : undefined
+          }
+          id={`refund-withdrawal-reason-${invoice.id}`}
+          label="Grund der Rücknahme"
+          required
+        >
+          <Textarea
+            autoFocus
+            data-testid="refund-withdrawal-reason"
+            maxLength={500}
+            onChange={(event) => {
+              // Another body is another command: it gets its own key.
+              forgetCommandKey(storageKey);
+              setReason(event.target.value);
+            }}
+            rows={3}
             value={reason}
           />
         </Field>

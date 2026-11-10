@@ -71,6 +71,36 @@ entrypoint alone as proof of migration: both commands must exit with code 0,
 the expected target schema must exist and the business contract must still
 pass unchanged.
 
+## Release note: document series (migration `0063_document_series`)
+
+The migration moves the invoice counter from every action's profile to one
+series per prefix (ADR-0015). Deploy order, as `./leonaid pilot-release` does
+it:
+
+1. Maintenance mode on: no API or worker of the previous release writes an
+   invoice any more.
+2. Backup, then the migration (`alembic upgrade` to the manifest's head). It
+   also locks `invoice` and `invoice_cancellation` while it copies the issued
+   numbers into the registry.
+3. API and worker of the new release start; maintenance mode off.
+
+Do not migrate while processes of the previous release still serve writes:
+they would count from the old per-action counter. If that happened anyway,
+the new release does not get stuck: the next allocation moves the series on to
+the next number that no document holds. Before the release, list invoices in actions
+without a profile (they still cancel; the query shows what to expect):
+
+```sql
+SELECT invoice.number FROM invoice
+WHERE NOT EXISTS (
+    SELECT 1 FROM invoice_profile
+    WHERE invoice_profile.action_id = invoice.action_id
+);
+```
+
+The downgrade refuses when a cancellation invoice, a refund marker or a
+withdrawn refund marker exists.
+
 ## Rollback boundaries
 
 - **Twenty:** After the first instance or workspace migration step, no older
@@ -82,7 +112,7 @@ pass unchanged.
 - **LeonAid Core:** After `alembic upgrade head`, no older core is claimed to
   work against the new schema. Core PostgreSQL is restored from the recovery
   point.
-- **Core migration `0063_buyer_mails` (order number for every order):** an
+- **Core migration `0064_buyer_mails` (order number for every order):** an
   application from before this migration fails for certain against the
   migrated database, not only possibly. It refuses every order that a member
   entered, because such an order now has an order number
@@ -92,7 +122,7 @@ pass unchanged.
   Never start the older image against the migrated database. Roll back in
   this order: stop API and worker, restore Core PostgreSQL from the recovery
   point (or, when no order was written since the upgrade, run
-  `alembic downgrade 0062_sponsor_search_entry` with the new image, which
+  `alembic downgrade 0063_document_series` with the new image, which
   removes the numbers of internal orders and the buyer-mail settings), then
   start the older image. Order numbers that buyers already received in a
   mail are lost by the downgrade for orders that members entered.
