@@ -328,8 +328,7 @@ def test_a_donation_takes_one_payment() -> None:
 @pytest.mark.parametrize(
     ("received_on", "amount", "code"),
     (
-        # The pledge was made on 10 November, the payment is recorded on 13.
-        (date(2026, 11, 9), Money(5000, "EUR"), "donation_payment_before_pledge"),
+        # The payment is recorded on 13 November.
         (date(2026, 11, 14), Money(5000, "EUR"), "donation_payment_future_date"),
         (date(2026, 11, 12), Money(5000, "CHF"), "donation_payment_currency_mismatch"),
         (date(2026, 11, 12), Money(0, "EUR"), "donation_payment_amount_invalid"),
@@ -349,8 +348,10 @@ def test_an_invalid_payment_is_rejected(
     assert code_of(error) == code
 
 
-def test_the_pledge_day_and_today_are_valid_payment_days() -> None:
-    for received_on in (date(2026, 11, 10), date(2026, 11, 13)):
+def test_the_payment_day_may_lie_before_the_pledge_never_in_the_future() -> None:
+    # Pledged on 10 November, recorded on 13 November. The money may have
+    # arrived before the donation was recorded: the receipt needs the real day.
+    for received_on in (date(2026, 10, 28), date(2026, 11, 10), date(2026, 11, 13)):
         donation = pledged().record_payment(
             amount=Money(5000, "EUR"),
             received_on=received_on,

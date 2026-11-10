@@ -4,9 +4,9 @@ description: Eine Spende erfassen, die Spendenzusage senden, den Zahlungseingang
 docId: DOC-P059
 audience: [user]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 1c7cedc2a1d2733b336d30a146b28874c28e8eb1
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: __SHA__
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -81,8 +81,10 @@ senden: Lade das PDF herunter und gib es auf anderem Weg weiter.
 1. Öffne die Spende und wähle **Zahlung erfassen**.
 2. Prüfe den **eingegangenen Betrag**. Vorbelegt ist der zugesagte Betrag.
    Ist mehr oder weniger angekommen, trage ein, was angekommen ist.
-3. Trage das **Eingangsdatum** ein. Es liegt nicht vor dem Tag der Zusage und
-   nicht in der Zukunft.
+3. Trage das **Eingangsdatum** ein: den Tag, an dem das Geld eingegangen ist.
+   Er steht später auf der Zuwendungsbestätigung. Er darf vor dem Tag der
+   Zusage liegen, wenn das Geld schon vorher da war, aber nicht in der
+   Zukunft.
 4. Bestätige mit **Zahlung erfassen**.
 
 Die Spende ist danach **Bezahlt**. Es zählt der eingegangene Betrag, nicht

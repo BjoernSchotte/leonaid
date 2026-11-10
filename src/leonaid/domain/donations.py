@@ -634,11 +634,9 @@ class Donation:
                 "donation_payment_currency_mismatch",
                 "Die Zahlungswährung muss der Währung der Spende entsprechen.",
             )
-        if received_on < local_day(self.pledged_at):
-            raise DomainInvariantError(
-                "donation_payment_before_pledge",
-                "Der Zahlungseingang darf nicht vor der Spendenzusage liegen.",
-            )
+        # The day may lie before the pledge: money can arrive before the
+        # donation is recorded, and the receipt prints this day as the day of
+        # the donation. It must be the real one.
         if received_on > local_day(recorded_at):
             raise DomainInvariantError(
                 "donation_payment_future_date",

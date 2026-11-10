@@ -740,11 +740,6 @@ class Proof:
             "donation_payment_future_date",
         )
         self.error(
-            await self.pay("first", 5000, self.today - timedelta(days=1)),
-            422,
-            "donation_payment_before_pledge",
-        )
-        self.error(
             await self.charity.post(
                 self.path(self.data.alpha, "first", "/payment/withdrawal"),
                 {"reason": REASON},
@@ -800,11 +795,14 @@ class Proof:
         assert history["reason"] == REASON
         assert history["note"] == "Überweisung vom Geschäftskonto"
         assert history["withdrawnByDisplayName"] == f"Charity {self.data.tag}"
-        # Less than pledged, after the withdrawal.
-        less = await self.pay("first", 4000)
+        # Less than pledged, after the withdrawal, and on a day before the
+        # donation was recorded: the money arrived first.
+        earlier = self.today - timedelta(days=12)
+        less = await self.pay("first", 4000, earlier)
         assert less.status_code == 201, less.text
         assert less.json()["status"] == "paid"
         assert less.json()["payment"]["amountMinor"] == 4000
+        assert less.json()["payment"]["receivedOn"] == earlier.isoformat()
         assert len(less.json()["paymentWithdrawals"]) == 1
         events = await self.db.fetch(
             "SELECT event_type FROM audit_event "

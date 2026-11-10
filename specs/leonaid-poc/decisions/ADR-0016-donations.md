@@ -109,7 +109,9 @@ Zustellnachweis.
 (D-D7). Der Betrag darf von der Zusage abweichen, nach oben und nach unten.
 Die Spende ist dann `paid` mit dem eingegangenen Betrag; die
 Zuwendungsbestätigung bestätigt später diesen Betrag, nicht die Zusage. Der
-Tag liegt nicht vor der Zusage und nicht in der Zukunft.
+Tag liegt nicht in der Zukunft. Er darf vor der Zusage liegen: Geld kann
+eingehen, bevor die Spende erfasst ist, und die Zuwendungsbestätigung nennt
+diesen Tag als Tag der Zuwendung.
 
 Eine zweite Teilzahlung wird als eigene Spende erfasst. Eine Bestätigung für
 Teil- oder Sammelzahlungen bräuchte das Sammelformular und eine Regel für den
