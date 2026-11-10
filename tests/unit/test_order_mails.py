@@ -1472,7 +1472,8 @@ def test_the_delivery_day_is_counted_in_the_zone_of_the_action() -> None:
     assert day_reason(night, now=after_midnight, send_time=None) is None
     # With the send time the mail could only go out after the window: never,
     # and the status says so on every day.
-    for moment in (late_evening, after_midnight, at(2026, 2, 14, 9, 0)):
+    midday = datetime(2026, 2, 14, 12, 0, tzinfo=BERLIN)
+    for moment in (late_evening, after_midnight, midday):
         assert day_reason(night, now=moment) is (
             MailNotDueReason.WINDOW_BEFORE_SEND_TIME
         )

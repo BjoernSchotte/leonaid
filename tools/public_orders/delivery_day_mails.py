@@ -234,7 +234,13 @@ async def prepare(connection: asyncpg.Connection[Any], state: Path) -> None:
             expected=201,
         )
         announced = await day_status(klara, str(action_id), with_address["id"])
-    if announced["state"] != "not_due" or announced["reason"] != "scheduled":
+    # Due (today, after the send time) and not queued yet: the sweep sends
+    # it, and a manager could send it at once.
+    if (
+        announced["state"] != "not_due"
+        or announced["reason"] != "not_requested"
+        or not announced["canResend"]
+    ):
         raise ContractFailure(f"Status before the sweep: {announced}")
     if await day_jobs(connection, str(action_id)):
         raise ContractFailure("A delivery-day job exists before the sweep")

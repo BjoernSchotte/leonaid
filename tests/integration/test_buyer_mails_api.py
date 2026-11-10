@@ -1464,19 +1464,6 @@ class Proof:
             f"order-delivery-day-mail:{order['id']}:{self.data.day_windows[window][0]}"
         )
 
-    async def record_drop(self, order_id: str, state: str) -> None:
-        """What the delivery board writes when a driver ticks an order off."""
-
-        await self.db.execute(
-            "INSERT INTO commitment_delivery (commitment_id, action_id, state, "
-            "state_changed_at, state_changed_by_user_id) "
-            "VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4)",
-            UUID(order_id),
-            self.data.action,
-            state,
-            self.data.users["charity"],
-        )
-
     async def delivery_day(self) -> None:
         at = self.data.at
         await self.day_mail(True)
