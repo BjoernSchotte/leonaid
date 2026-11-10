@@ -211,7 +211,7 @@ const zones: {
   },
   {
     zone: "rechnungen",
-    keys: ["invoices"],
+    keys: ["invoices", "donations"],
     light: 7.11,
     dark: 9.08,
     surface: 5.21,

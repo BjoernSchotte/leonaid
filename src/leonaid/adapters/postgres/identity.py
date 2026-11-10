@@ -396,6 +396,48 @@ class AsyncpgIdentityRepository:
                 )
             )
 
+    async def donation_actions(
+        self, principal: IdentityPrincipal
+    ) -> tuple[tuple[UUID, str], ...]:
+        """The actions with the ``donations`` capability whose finances the
+        principal reads or manages, newest first: id and name.
+
+        Gates the "Spenden" navigation entry and fills its action picker.
+        The rule is the one of the "Rechnungen" entry: the global finance
+        roles see every action, charity admins and finance readers their own.
+        A system admin without a finance role gets no entry, as for invoices.
+        Archived actions are left out.
+        """
+        if not principal.account.can_authenticate:
+            return ()
+        everything = (
+            GlobalRole.FINANCE_READER in principal.global_roles
+            or GlobalRole.FINANCE_MANAGER in principal.global_roles
+        )
+        own = [
+            membership.action_id
+            for membership in principal.action_memberships
+            if membership.role in (ActionRole.CHARITY_ADMIN, ActionRole.FINANCE_READER)
+        ]
+        if not everything and not own:
+            return ()
+        async with self._pool.acquire() as connection:
+            rows = await connection.fetch(
+                """
+                SELECT action.id, action.name
+                FROM charity_action_capability AS capability
+                JOIN charity_action AS action
+                  ON action.id = capability.action_id
+                WHERE capability.capability = 'donations'
+                  AND action.status <> 'archived'
+                  AND ($1::uuid[] IS NULL
+                       OR capability.action_id = ANY($1::uuid[]))
+                ORDER BY action.starts_on DESC, action.name, action.id
+                """,
+                None if everything else own,
+            )
+        return tuple((row["id"], str(row["name"])) for row in rows)
+
     async def principal_for_session(
         self,
         token_digest: str,

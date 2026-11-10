@@ -18,6 +18,7 @@ import {
 
 import { actionErrorMessage } from "../action-admin/errors";
 import {
+  amountInput,
   formatMoney,
   isoDay,
   localIsoDate,
@@ -254,14 +255,6 @@ function PaymentForm({
       </form>
     </Modal>
   );
-}
-
-/** "360,00": an amount in the German format the field accepts. */
-function amountInput(minor: number) {
-  return new Intl.NumberFormat("de-DE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(minor / 100);
 }
 
 /** What the typed amount does to the remainder, before it is booked. */

@@ -11,6 +11,7 @@ import asyncpg
 
 from leonaid.adapters.postgres.invoice_profiles import ensure_invoice_profiles
 from leonaid.application.errors import Conflict, ResourceNotFound
+from leonaid.domain.donations import ReceivingBody
 from leonaid.domain.invoices import InvoiceIssuerSnapshot, TaxTreatment
 from leonaid.domain.legal_configuration import (
     EInvoiceDecision,
@@ -23,6 +24,16 @@ from leonaid.domain.legal_configuration import (
 )
 
 SINGLETON_ID = UUID("00000000-0000-4000-8000-000000000044")
+
+
+def _receiving_body(value: object) -> ReceivingBody | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = json.loads(value)
+    if not isinstance(value, dict):
+        raise RuntimeError("Die gespeicherten Spendenangaben sind ungültig.")
+    return ReceivingBody.from_payload({str(key): item for key, item in value.items()})
 
 
 def _optional(row: asyncpg.Record, column: str) -> str | None:
@@ -90,13 +101,14 @@ class AsyncpgLegalConfigurationRepository:
                         imprint_vat_id, imprint_content_responsible_name,
                         imprint_content_responsible_address,
                         privacy_policy_text, member_privacy_notice_text,
-                        legal_form
+                        legal_form, donations
                     )
                     VALUES (
                         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
                         $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
                         $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33,
-                        $34, $35, $36, $37, $38, $39, $40, $41, $42, $43
+                        $34, $35, $36, $37, $38, $39, $40, $41, $42, $43,
+                        $44::jsonb
                     )
                     """,
                     version_id,
@@ -144,6 +156,15 @@ class AsyncpgLegalConfigurationRepository:
                     (
                         configuration.legal_form.value
                         if configuration.legal_form is not None
+                        else None
+                    ),
+                    (
+                        json.dumps(
+                            configuration.donations.payload(),
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                        )
+                        if configuration.donations is not None
                         else None
                     ),
                 )
@@ -453,6 +474,7 @@ class AsyncpgLegalConfigurationRepository:
             ),
             privacy_policy_text=_optional(row, "privacy_policy_text"),
             member_privacy_notice_text=_optional(row, "member_privacy_notice_text"),
+            donations=_receiving_body(row["donations"]),
         )
         return LegalConfigurationVersion(
             id=row["id"],

@@ -29,6 +29,7 @@ class GeneratedDocumentStatus(StrEnum):
 class GeneratedDocumentType(StrEnum):
     INVOICE_PDF = "invoice_pdf"
     INVOICE_CANCELLATION_PDF = "invoice_cancellation_pdf"
+    DONATION_PLEDGE_PDF = "donation_pledge_pdf"
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,9 +55,15 @@ class GeneratedDocument:
     available_at: datetime | None = None
     sent_at: datetime | None = None
     deleted_at: datetime | None = None
+    # The donation a pledge or receipt belongs to.
+    donation_id: UUID | None = None
 
     def __post_init__(self) -> None:
-        if self.commitment_id is None and self.invoice_id is None:
+        if (
+            self.commitment_id is None
+            and self.invoice_id is None
+            and self.donation_id is None
+        ):
             raise DomainInvariantError(
                 "generated_document_owner_required",
                 "Ein erzeugtes Dokument benötigt einen fachlichen Bezug.",

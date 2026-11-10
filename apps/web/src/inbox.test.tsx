@@ -91,6 +91,7 @@ function identity(
   return {
     actionMemberships: [],
     displayName: "Klara Admin",
+    donationActions: [],
     email: "klara@example.org",
     freshLoginAt: "2026-11-03T08:00:00Z",
     freshUntil: "2026-11-03T09:00:00Z",

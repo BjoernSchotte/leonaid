@@ -191,6 +191,24 @@
         "property-type-changed:FeatureFlagEvaluationResponse.key"
       ],
       "rationale": "Bundle stage 8 (specs/mails-documents-donations-push §10, ADR-0017): the feature flag pwa.push joins the flag keys, so the key enum of FeatureFlagAdminResponse and FeatureFlagEvaluationResponse gains one value, which the checker reports as a type change. The push operations and their schemas are new (not breaking). No field is removed or narrowed and no request field becomes required on an existing operation. The only clients are the generated client and the apps of this repository, regenerated in the same change. Ratified by the lead under Björn's standing delegation on 2026-11-10 (E-047). Approval is bound to these exact contract hashes and changes."
+    },
+    {
+      "oldSha256": "fb4b86058c7ce0f64e671facab07a4564ba0ea9334fe0e0d6635cf69b16cd31f",
+      "newSha256": "d3559e866d590fbd484cfc968e400597002301bfed86a69cb92c6d3085613833",
+      "changes": [
+        "property-newly-required:CharityAdminDashboardResponse.donations",
+        "property-newly-required:CurrentIdentityResponse.donationActions",
+        "property-newly-required:GeneratedDocumentResponse.donationId",
+        "property-newly-required:LegalConfigurationValuesResponse.donations",
+        "property-type-changed:ActionTemplateSummaryResponse.capabilities",
+        "property-type-changed:CharityActionResponse.capabilities",
+        "property-type-changed:CreateCharityActionRequest.capabilities",
+        "property-type-changed:GeneratedDocumentResponse.documentType",
+        "property-type-changed:PrivacyReferenceResponse.referenceType",
+        "property-type-changed:PublicCharityActionResponse.capabilities",
+        "property-type-changed:SetActionCapabilitiesRequest.capabilities"
+      ],
+      "rationale": "Bundle stage 4 (specs/mails-documents-donations-push §8.1 to §8.4, ADR-0016): donations as a capability. Four response fields are new and always present (null, empty or an object): the receiving body in the legal configuration, the donation of a generated document, the donation sums of the dashboard and the identity's list of actions that take donations. Three enums gain a value: the capability donations (five schemas, two of them requests, where a wider enum refuses nothing that was accepted), the document type donation_pledge_pdf and the privacy reference type donation. No field is removed or narrowed and no request field becomes required on an existing operation. The only clients are the generated client and the apps of this repository, regenerated in the same change. Ratified by the lead under Björn's standing delegation on 2026-11-10 (E-048). Approval is bound to these exact contract hashes and changes."
     }
   ]
 }

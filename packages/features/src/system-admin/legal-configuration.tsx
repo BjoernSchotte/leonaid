@@ -11,6 +11,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import {
+  Fragment,
   useCallback,
   useId,
   useMemo,
@@ -25,6 +26,8 @@ import {
   type LegalConfigurationStateResponse,
   type LegalConfigurationValuesResponse,
   type LeonAidApiClient,
+  type ReceivingBodyRequest,
+  type ReceivingBodyResponse,
   type SaveLegalConfigurationDraftRequest,
 } from "@leonaid/api-client";
 import {
@@ -56,14 +59,16 @@ import {
 import { useActionErrorMessage } from "../action-admin/use-action-error";
 import { useContextCommands } from "../command-palette/store";
 import { navigateInPage, useLocationHref } from "../shared/location";
-import { formatDateTime } from "../shared/dates";
+import { formatDate, formatDateTime } from "../shared/dates";
 import { ADMIN_BASE, adminHref } from "@leonaid/ui/base-paths";
 import {
+  DONATION_PLEDGE_TEXT_TEMPLATE,
+  DONATION_RECEIPT_LIABILITY_TEMPLATE,
   MEMBER_PRIVACY_NOTICE_TEMPLATE,
   PRIVACY_POLICY_TEMPLATE,
 } from "./legal-templates";
 
-interface LegalForm {
+interface LegalBaseForm {
   legalName: string;
   legalForm: string;
   streetLine1: string;
@@ -105,9 +110,217 @@ interface LegalForm {
   memberPrivacyNoticeText: string;
 }
 
+/**
+ * The part "Spenden": the receiving body of donations. `donationsEnabled`
+ * is "true" or "false"; "false" sends `donations: null` and keeps the other
+ * fields out of the request.
+ */
+interface DonationsForm {
+  donationsEnabled: string;
+  donationLegalName: string;
+  donationStreetLine1: string;
+  donationPostalCode: string;
+  donationCity: string;
+  donationCountryCode: string;
+  donationLegalForm: string;
+  donationTaxOffice: string;
+  donationTaxNumber: string;
+  donationNoticeKind: string;
+  donationNoticeDate: string;
+  donationAssessmentFrom: string;
+  donationAssessmentTo: string;
+  donationPurposes: string;
+  donationBankAccountHolder: string;
+  donationIban: string;
+  donationBic: string;
+  donationSignatoryName: string;
+  donationSignatoryFunction: string;
+  donationSigning: string;
+  donationMachineNotifiedOn: string;
+  donationPledgePrefix: string;
+  donationReceiptPrefix: string;
+  donationNumberWidth: string;
+  donationPledgeText: string;
+  donationReceiptLiabilityText: string;
+}
+
+interface LegalForm extends LegalBaseForm, DonationsForm {}
+
 type FieldKey = keyof LegalForm;
 
+const emptyDonations: DonationsForm = {
+  donationsEnabled: "false",
+  donationAssessmentFrom: "",
+  donationAssessmentTo: "",
+  donationBankAccountHolder: "",
+  donationBic: "",
+  donationCity: "",
+  donationCountryCode: "DE",
+  donationIban: "",
+  donationLegalForm: "",
+  donationLegalName: "",
+  donationMachineNotifiedOn: "",
+  donationNoticeDate: "",
+  donationNoticeKind: "freistellungsbescheid",
+  donationNumberWidth: "4",
+  donationPledgePrefix: "",
+  donationPledgeText: "",
+  donationPostalCode: "",
+  donationPurposes: "",
+  donationReceiptLiabilityText: "",
+  donationReceiptPrefix: "",
+  donationSignatoryFunction: "",
+  donationSignatoryName: "",
+  donationSigning: "by_hand",
+  donationStreetLine1: "",
+  donationTaxNumber: "",
+  donationTaxOffice: "",
+};
+
+function donationsFormFromValues(
+  body: ReceivingBodyResponse | null,
+): DonationsForm {
+  if (!body) return emptyDonations;
+  return {
+    donationsEnabled: "true",
+    donationAssessmentFrom:
+      body.assessmentPeriodFrom === null
+        ? ""
+        : String(body.assessmentPeriodFrom),
+    donationAssessmentTo:
+      body.assessmentPeriodTo === null ? "" : String(body.assessmentPeriodTo),
+    donationBankAccountHolder: body.bankAccountHolder,
+    donationBic: body.bic ?? "",
+    donationCity: body.city,
+    donationCountryCode: body.countryCode,
+    donationIban: body.iban,
+    donationLegalForm: body.legalForm,
+    donationLegalName: body.legalName,
+    donationMachineNotifiedOn: body.machineNotifiedOn ?? "",
+    donationNoticeDate: body.noticeDate,
+    donationNoticeKind: body.noticeKind,
+    donationNumberWidth: String(body.numberWidth),
+    donationPledgePrefix: body.pledgePrefix,
+    donationPledgeText: body.pledgeText,
+    donationPostalCode: body.postalCode,
+    donationPurposes: body.purposes,
+    donationReceiptLiabilityText: body.receiptLiabilityText,
+    donationReceiptPrefix: body.receiptPrefix,
+    donationSignatoryFunction: body.signatoryFunction,
+    donationSignatoryName: body.signatoryName,
+    donationSigning: body.signing,
+    donationStreetLine1: body.streetLine1,
+    donationTaxNumber: body.taxNumber,
+    donationTaxOffice: body.taxOffice,
+  };
+}
+
+const donationsOn = (form: LegalForm) => form.donationsEnabled === "true";
+/** § 60a AO notices carry no assessment period. */
+const donationsWithAssessment = (form: LegalForm) =>
+  donationsOn(form) && form.donationNoticeKind !== "feststellung_60a";
+const donationsMachineSigned = (form: LegalForm) =>
+  donationsOn(form) && form.donationSigning === "machine";
+
+/**
+ * The wire value of the part "Spenden": null when the club takes no
+ * donations. Always sent, because an omitted field keeps the stored value.
+ */
+function donationsRequest(form: LegalForm): ReceivingBodyRequest | null {
+  if (!donationsOn(form)) return null;
+  const assessed = donationsWithAssessment(form);
+  return {
+    assessmentPeriodFrom: assessed
+      ? toInteger(form.donationAssessmentFrom)
+      : null,
+    assessmentPeriodTo: assessed ? toInteger(form.donationAssessmentTo) : null,
+    bankAccountHolder: form.donationBankAccountHolder.trim(),
+    bic: optionalText(form.donationBic.toUpperCase()),
+    city: form.donationCity.trim(),
+    countryCode: form.donationCountryCode.trim().toUpperCase(),
+    iban: form.donationIban.trim(),
+    legalForm: form.donationLegalForm as ReceivingBodyRequest["legalForm"],
+    legalName: form.donationLegalName.trim(),
+    machineNotifiedOn: donationsMachineSigned(form)
+      ? form.donationMachineNotifiedOn
+      : null,
+    noticeDate: form.donationNoticeDate,
+    noticeKind: form.donationNoticeKind as ReceivingBodyRequest["noticeKind"],
+    numberWidth: toInteger(form.donationNumberWidth),
+    pledgePrefix: form.donationPledgePrefix.trim().toUpperCase(),
+    pledgeText: form.donationPledgeText.trim(),
+    postalCode: form.donationPostalCode.trim(),
+    purposes: form.donationPurposes.trim(),
+    receiptLiabilityText: form.donationReceiptLiabilityText.trim(),
+    receiptPrefix: form.donationReceiptPrefix.trim().toUpperCase(),
+    signatoryFunction: form.donationSignatoryFunction.trim(),
+    signatoryName: form.donationSignatoryName.trim(),
+    signing: form.donationSigning as ReceivingBodyRequest["signing"],
+    streetLine1: form.donationStreetLine1.trim(),
+    taxNumber: form.donationTaxNumber.trim(),
+    taxOffice: form.donationTaxOffice.trim(),
+  };
+}
+
+/**
+ * What the browser can say before the server does: rules of the part
+ * "Spenden" that span fields. Null when the part is off or in order.
+ */
+export function donationsProblem(
+  form: LegalForm,
+): { readonly key: FieldKey; readonly message: string } | null {
+  if (!donationsOn(form)) return null;
+  if (donationsWithAssessment(form)) {
+    const from = toInteger(form.donationAssessmentFrom);
+    const to = toInteger(form.donationAssessmentTo);
+    const year = (value: number) => value >= 1990 && value <= 2200;
+    if (!year(from)) {
+      return {
+        key: "donationAssessmentFrom",
+        message:
+          "Bitte geben Sie das erste Jahr des Veranlagungszeitraums vierstellig an.",
+      };
+    }
+    if (!year(to) || to < from) {
+      return {
+        key: "donationAssessmentTo",
+        message:
+          "Das letzte Jahr des Veranlagungszeitraums liegt nicht vor dem ersten.",
+      };
+    }
+  }
+  const prefixes = [
+    form.numberPrefix,
+    form.donationPledgePrefix,
+    form.donationReceiptPrefix,
+  ].map((prefix) => prefix.trim().toUpperCase());
+  if (new Set(prefixes).size !== prefixes.length) {
+    return {
+      key:
+        prefixes[1] === prefixes[0]
+          ? "donationPledgePrefix"
+          : "donationReceiptPrefix",
+      message:
+        "Die Präfixe für Rechnungen, Spendenzusagen und Zuwendungsbestätigungen müssen sich unterscheiden.",
+    };
+  }
+  for (const key of [
+    "donationPledgeText",
+    "donationReceiptLiabilityText",
+  ] as const) {
+    if (form[key].trim().length < 40) {
+      return {
+        key,
+        message:
+          "Die Textbausteine für Spenden brauchen mindestens 40 Zeichen.",
+      };
+    }
+  }
+  return null;
+}
+
 const emptyForm: LegalForm = {
+  ...emptyDonations,
   auditRetentionDays: "3650",
   bankAccountHolder: "",
   bic: "",
@@ -173,6 +386,7 @@ const blockerLabels: Record<string, string> = {
 
 function formFromValues(values: LegalConfigurationValuesResponse): LegalForm {
   return {
+    ...donationsFormFromValues(values.donations),
     auditRetentionDays: String(values.retention.auditDays),
     bankAccountHolder: values.bankAccountHolder,
     bic: values.bic ?? "",
@@ -254,6 +468,7 @@ function requestFromForm(
     bankAccountHolder: form.bankAccountHolder,
     bic: form.bic || null,
     consentTextVersion: form.consentTextVersion,
+    donations: donationsRequest(form),
     eInvoiceDecision: form.eInvoiceDecision,
     eInvoiceEvidenceId: evidenceId(form.eInvoiceEvidenceId) || null,
     expectedRevision: revision,
@@ -309,7 +524,14 @@ interface FieldSpec {
   readonly key: FieldKey;
   readonly label: string;
   readonly hint: string;
-  readonly kind?: "email" | "number" | "select" | "tel" | "textarea";
+  readonly kind?:
+    | "checkbox"
+    | "date"
+    | "email"
+    | "number"
+    | "select"
+    | "tel"
+    | "textarea";
   readonly options?: readonly (readonly [string, string])[];
   readonly placeholder?: string;
   readonly min?: number;
@@ -319,7 +541,229 @@ interface FieldSpec {
   readonly wide?: boolean;
   readonly unit?: string;
   readonly optional?: boolean;
+  /** Heading above the first field of a run with the same group. */
+  readonly group?: string;
+  /** The field belongs to the form only while this holds (default always). */
+  readonly visible?: (form: LegalForm) => boolean;
+  /** A proposed text; the editor offers a button that inserts it. */
+  readonly template?: string;
 }
+
+const LEGAL_FORM_OPTIONS = [
+  ["", "Bitte wählen"],
+  ["registered_association", "Eingetragener Verein (e. V.)"],
+  ["unregistered_association", "Nicht eingetragener Verein"],
+  ["ggmbh", "Gemeinnützige GmbH (gGmbH)"],
+  ["gmbh", "GmbH"],
+  ["cooperative", "Eingetragene Genossenschaft (eG)"],
+  ["foundation", "Stiftung"],
+  ["other", "Sonstige"],
+] as const;
+
+/** A field of the part "Spenden": shown while the club takes donations. */
+const donationField = (
+  group: string,
+  spec: Omit<FieldSpec, "group">,
+): FieldSpec => ({ visible: donationsOn, ...spec, group });
+
+const DONATION_FIELDS: readonly FieldSpec[] = [
+  {
+    key: "donationsEnabled",
+    label: "Der Club nimmt Spenden entgegen",
+    hint: "Ohne diesen Teil kann in keiner Aktion eine Spende erfasst werden, und die Bestellformulare zeigen keinen Spendenblock.",
+    kind: "checkbox",
+    wide: true,
+  },
+  donationField("Empfangende Körperschaft", {
+    key: "donationLegalName",
+    label: "Name der Körperschaft",
+    hint: "Der vollständige Name der steuerbegünstigten Körperschaft, die Spenden empfängt und Zuwendungsbestätigungen unterschreibt.",
+    placeholder: "z. B. Förderverein Lions Club Musterstadt e. V.",
+    wide: true,
+  }),
+  donationField("Empfangende Körperschaft", {
+    key: "donationLegalForm",
+    label: "Rechtsform",
+    hint: "Rechtsform der empfangenden Körperschaft.",
+    kind: "select",
+    options: LEGAL_FORM_OPTIONS,
+  }),
+  donationField("Empfangende Körperschaft", {
+    key: "donationStreetLine1",
+    label: "Anschrift",
+    hint: "Straße und Hausnummer der Körperschaft.",
+    placeholder: "Marktplatz 1",
+  }),
+  donationField("Empfangende Körperschaft", {
+    key: "donationPostalCode",
+    label: "Postleitzahl",
+    hint: "Postleitzahl der Körperschaft.",
+    placeholder: "12345",
+  }),
+  donationField("Empfangende Körperschaft", {
+    key: "donationCity",
+    label: "Ort",
+    hint: "Ort der Körperschaft; er steht auch neben dem Datum der Zuwendungsbestätigung.",
+    placeholder: "Musterstadt",
+  }),
+  donationField("Empfangende Körperschaft", {
+    key: "donationCountryCode",
+    label: "Land",
+    hint: "Zweistelliger Ländercode; für Deutschland DE.",
+    placeholder: "DE",
+  }),
+  donationField("Finanzamt und Bescheid", {
+    key: "donationTaxOffice",
+    label: "Finanzamt",
+    hint: "Das Finanzamt, das den Bescheid erlassen hat.",
+    placeholder: "Finanzamt Musterstadt",
+  }),
+  donationField("Finanzamt und Bescheid", {
+    key: "donationTaxNumber",
+    label: "Steuernummer",
+    hint: "Steuernummer der Körperschaft, wie sie im Bescheid steht.",
+    placeholder: "123/456/78901",
+  }),
+  donationField("Finanzamt und Bescheid", {
+    key: "donationNoticeKind",
+    label: "Art des Bescheids",
+    hint: "Der Bescheid, auf den sich die Zuwendungsbestätigung stützt.",
+    kind: "select",
+    options: [
+      ["freistellungsbescheid", "Freistellungsbescheid"],
+      ["koerperschaftsteuer_anlage", "Anlage zum Körperschaftsteuerbescheid"],
+      ["feststellung_60a", "Feststellungsbescheid nach § 60a AO"],
+    ],
+  }),
+  donationField("Finanzamt und Bescheid", {
+    key: "donationNoticeDate",
+    label: "Datum des Bescheids",
+    hint: "Ist der Bescheid zu alt (§ 63 Abs. 5 AO), stellt LeonAid keine Zuwendungsbestätigung aus.",
+    kind: "date",
+  }),
+  {
+    key: "donationAssessmentFrom",
+    label: "Veranlagungszeitraum von",
+    hint: "Erstes Jahr des letzten Veranlagungszeitraums laut Bescheid.",
+    kind: "number",
+    min: 1990,
+    max: 2200,
+    placeholder: "2021",
+    group: "Finanzamt und Bescheid",
+    visible: donationsWithAssessment,
+  },
+  {
+    key: "donationAssessmentTo",
+    label: "Veranlagungszeitraum bis",
+    hint: "Letztes Jahr des letzten Veranlagungszeitraums laut Bescheid.",
+    kind: "number",
+    min: 1990,
+    max: 2200,
+    placeholder: "2023",
+    group: "Finanzamt und Bescheid",
+    visible: donationsWithAssessment,
+  },
+  donationField("Begünstigte Zwecke", {
+    key: "donationPurposes",
+    label: "Begünstigte Zwecke",
+    hint: "Die steuerbegünstigten Zwecke, wörtlich wie im Bescheid.",
+    kind: "textarea",
+    rows: 2,
+    wide: true,
+    placeholder:
+      "z. B. Förderung der Jugendhilfe, der Bildung und mildtätiger Zwecke",
+  }),
+  donationField("Spendenkonto", {
+    key: "donationBankAccountHolder",
+    label: "Kontoinhaber",
+    hint: "Name, unter dem das Spendenkonto geführt wird. Es darf ein anderes Konto sein als das der Rechnungen.",
+    wide: true,
+  }),
+  donationField("Spendenkonto", {
+    key: "donationIban",
+    label: "IBAN",
+    hint: "Leerzeichen sind erlaubt; LeonAid speichert die IBAN normalisiert.",
+    placeholder: "DE02 1203 0000 0000 2020 51",
+  }),
+  donationField("Spendenkonto", {
+    key: "donationBic",
+    label: "BIC",
+    hint: "Optional bei inländischen Zahlungen; acht oder elf Zeichen.",
+    placeholder: "BYLADEM1001",
+    optional: true,
+  }),
+  donationField("Unterschrift", {
+    key: "donationSignatoryName",
+    label: "Name der unterzeichnenden Person",
+    hint: "Wer die Zuwendungsbestätigung unterschreibt.",
+    placeholder: "Erika Mustermann",
+  }),
+  donationField("Unterschrift", {
+    key: "donationSignatoryFunction",
+    label: "Funktion",
+    hint: "Funktion der unterzeichnenden Person in der Körperschaft.",
+    placeholder: "Schatzmeisterin",
+  }),
+  donationField("Unterschrift", {
+    key: "donationSigning",
+    label: "Art der Unterschrift",
+    hint: "Maschinell erstellte Zuwendungsbestätigungen sind nur zulässig, wenn die Körperschaft das Verfahren ihrem Finanzamt angezeigt hat.",
+    kind: "select",
+    options: [
+      ["by_hand", "eigenhändig"],
+      [
+        "machine",
+        "maschinell (dem Finanzamt angezeigtes Verfahren, R 10b.1 Abs. 4 EStR)",
+      ],
+    ],
+  }),
+  {
+    key: "donationMachineNotifiedOn",
+    label: "Dem Finanzamt angezeigt am",
+    hint: "Datum, an dem die Körperschaft das maschinelle Verfahren ihrem Finanzamt angezeigt hat.",
+    kind: "date",
+    group: "Unterschrift",
+    visible: donationsMachineSigned,
+  },
+  donationField("Nummernkreise", {
+    key: "donationPledgePrefix",
+    label: "Präfix der Spendenzusagen",
+    hint: "Kürzel am Anfang jeder Spendennummer. Es muss sich vom Rechnungspräfix und vom Präfix der Zuwendungsbestätigungen unterscheiden.",
+    placeholder: "SP26-",
+  }),
+  donationField("Nummernkreise", {
+    key: "donationReceiptPrefix",
+    label: "Präfix der Zuwendungsbestätigungen",
+    hint: "Kürzel am Anfang jeder Nummer einer Zuwendungsbestätigung.",
+    placeholder: "ZB26-",
+  }),
+  donationField("Nummernkreise", {
+    key: "donationNumberWidth",
+    label: "Nummernlänge",
+    hint: "Anzahl der Ziffern nach dem Präfix, zum Beispiel 0001.",
+    kind: "number",
+    min: 3,
+    max: 8,
+  }),
+  donationField("Textbausteine", {
+    key: "donationPledgeText",
+    label: "Text der Spendenzusage",
+    hint: "Steht auf jeder Spendenzusage unter Betrag und Kontoverbindung. 40 bis 2000 Zeichen.",
+    kind: "textarea",
+    rows: 5,
+    wide: true,
+    template: DONATION_PLEDGE_TEXT_TEMPLATE,
+  }),
+  donationField("Textbausteine", {
+    key: "donationReceiptLiabilityText",
+    label: "Haftungshinweis der Zuwendungsbestätigung",
+    hint: "Der Hinweis am Ende jeder Zuwendungsbestätigung. 40 bis 3000 Zeichen. Vor dem ersten echten Einsatz mit dem aktuellen amtlichen Muster vergleichen.",
+    kind: "textarea",
+    rows: 8,
+    wide: true,
+    template: DONATION_RECEIPT_LIABILITY_TEMPLATE,
+  }),
+];
 
 const retentionField = (
   key: FieldKey,
@@ -354,16 +798,7 @@ const PARTS = [
         label: "Rechtsform",
         hint: "Bestimmt, welcher Registereintrag ins Impressum gehört. LeonAid liest die Rechtsform nicht aus dem Namen.",
         kind: "select",
-        options: [
-          ["", "Bitte wählen"],
-          ["registered_association", "Eingetragener Verein (e. V.)"],
-          ["unregistered_association", "Nicht eingetragener Verein"],
-          ["ggmbh", "Gemeinnützige GmbH (gGmbH)"],
-          ["gmbh", "GmbH"],
-          ["cooperative", "Eingetragene Genossenschaft (eG)"],
-          ["foundation", "Stiftung"],
-          ["other", "Sonstige"],
-        ],
+        options: LEGAL_FORM_OPTIONS,
       },
       {
         key: "issuerEmail",
@@ -560,6 +995,13 @@ const PARTS = [
     ],
   },
   {
+    id: "donations",
+    name: "Spenden",
+    intro:
+      "Die Körperschaft, die Spenden empfängt. Sie darf eine andere juristische Person sein als der Rechnungssteller, oft der Förderverein; Spendenzusage und Zuwendungsbestätigung zeigen ihre Angaben.",
+    fields: DONATION_FIELDS,
+  },
+  {
     id: "privacy",
     name: "Datenschutz",
     intro:
@@ -709,9 +1151,31 @@ function earlierVersions(newest: number): string {
   return newest === 2 ? "Version 1" : `Version 1 bis ${newest - 1}`;
 }
 
+const isVisible = (spec: FieldSpec, form: LegalForm) =>
+  spec.visible?.(form) ?? true;
+
+/** The fields of a part that belong to this form, in list order. */
+function visibleFields(part: Part, form: LegalForm): readonly FieldSpec[] {
+  return part.fields.filter((spec: FieldSpec) => isVisible(spec, form));
+}
+
+/** Runs of fields under the same group heading. */
+function fieldGroups(fields: readonly FieldSpec[]) {
+  const groups: { group: string | undefined; fields: FieldSpec[] }[] = [];
+  for (const spec of fields) {
+    const last = groups.at(-1);
+    if (last && last.group === spec.group) last.fields.push(spec);
+    else groups.push({ group: spec.group, fields: [spec] });
+  }
+  return groups;
+}
+
 function shown(spec: FieldSpec, form: LegalForm): string {
+  if (!isVisible(spec, form)) return "–";
   const raw = form[spec.key];
+  if (spec.kind === "checkbox") return raw === "true" ? "Ja" : "Nein";
   if (raw === "") return "–";
+  if (spec.kind === "date") return formatDate(raw);
   const option = spec.options?.find(([value]) => value === raw);
   if (option) return option[1];
   return spec.unit ? `${raw} ${spec.unit}` : raw;
@@ -723,8 +1187,11 @@ function changedFields(
   after: LegalForm | null,
 ): readonly FieldSpec[] {
   if (!after) return [];
+  // A field hidden in both versions is not part of either.
   return part.fields.filter(
-    (spec: FieldSpec) => !before || before[spec.key] !== after[spec.key],
+    (spec: FieldSpec) =>
+      (isVisible(spec, after) || (before && isVisible(spec, before))) &&
+      (!before || shown(spec, before) !== shown(spec, after)),
   );
 }
 
@@ -734,7 +1201,13 @@ export function firstMissingField(
 ): { readonly part: Part; readonly spec: FieldSpec } | null {
   for (const part of PARTS) {
     for (const spec of part.fields as readonly FieldSpec[]) {
-      if (!spec.optional && form[spec.key].trim() === "") return { part, spec };
+      if (
+        !spec.optional &&
+        isVisible(spec, form) &&
+        form[spec.key].trim() === ""
+      ) {
+        return { part, spec };
+      }
     }
   }
   return null;
@@ -945,6 +1418,20 @@ export function LegalConfigurationPage({
       );
       return;
     }
+    const problem = donationsProblem(form);
+    if (problem) {
+      setError({
+        code: null,
+        conflict: false,
+        message: problem.message,
+        requestId: null,
+      });
+      go("donations");
+      window.requestAnimationFrame(() =>
+        document.getElementById(fieldId(problem.key))?.focus(),
+      );
+      return;
+    }
     save.mutate(form);
   }
 
@@ -1109,21 +1596,30 @@ export function LegalConfigurationPage({
                 {dirty ? <Badge tone="warn">Nicht gespeichert</Badge> : null}
               </header>
               <div className="panel-pad legal-fields">
-                {part.fields.map((spec: FieldSpec) => (
-                  <LegalField
-                    disabled={
-                      spec.key === "taxRatePercent" &&
-                      form.taxTreatment !== "standard_vat"
-                    }
-                    key={spec.key}
-                    onChange={(value) =>
-                      setForm((prev) =>
-                        prev ? { ...prev, [spec.key]: value } : prev,
-                      )
-                    }
-                    spec={spec}
-                    value={form[spec.key]}
-                  />
+                {fieldGroups(visibleFields(part, form)).map((run) => (
+                  <Fragment key={run.group ?? run.fields[0]!.key}>
+                    {run.group ? (
+                      <h4 className="legal-sub legal-field is-wide">
+                        {run.group}
+                      </h4>
+                    ) : null}
+                    {run.fields.map((spec) => (
+                      <LegalField
+                        disabled={
+                          spec.key === "taxRatePercent" &&
+                          form.taxTreatment !== "standard_vat"
+                        }
+                        key={spec.key}
+                        onChange={(value) =>
+                          setForm((prev) =>
+                            prev ? { ...prev, [spec.key]: value } : prev,
+                          )
+                        }
+                        spec={spec}
+                        value={form[spec.key]}
+                      />
+                    ))}
+                  </Fragment>
                 ))}
               </div>
               <footer className="panel-pad legal-edit-footer">
@@ -1391,12 +1887,21 @@ export function LegalConfigurationPage({
               </header>
               <div className="panel-pad">
                 {active ? (
-                  <DetailProps
-                    items={part.fields.map((spec: FieldSpec) => ({
-                      label: spec.label,
-                      value: shown(spec, current),
-                    }))}
-                  />
+                  <div className="stack" data-testid="legal-current">
+                    {fieldGroups(visibleFields(part, current)).map((run) => (
+                      <div key={run.group ?? run.fields[0]!.key}>
+                        {run.group ? (
+                          <h4 className="legal-sub">{run.group}</h4>
+                        ) : null}
+                        <DetailProps
+                          items={run.fields.map((spec) => ({
+                            label: spec.label,
+                            value: shown(spec, current),
+                          }))}
+                        />
+                      </div>
+                    ))}
+                  </div>
                 ) : (
                   <p className="small muted">Noch keine Version aktiv.</p>
                 )}
@@ -1505,9 +2010,28 @@ function LegalField({
     ) => onChange(event.target.value),
     value,
   };
-  return (
+  if (spec.kind === "checkbox") {
+    return (
+      <div className="field legal-field is-wide">
+        <label className="checkbox">
+          <input
+            checked={value === "true"}
+            data-testid={fieldId(spec.key)}
+            disabled={disabled}
+            id={fieldId(spec.key)}
+            onChange={(event) => onChange(String(event.target.checked))}
+            type="checkbox"
+          />
+          {spec.label}
+        </label>
+        <p className="field-hint">{spec.hint}</p>
+      </div>
+    );
+  }
+  const className = spec.wide ? "legal-field is-wide" : "legal-field";
+  const field = (
     <Field
-      className={spec.wide ? "legal-field is-wide" : "legal-field"}
+      className={spec.template ? undefined : className}
       hint={spec.hint}
       id={fieldId(spec.key)}
       label={spec.unit ? `${spec.label} (${spec.unit})` : spec.label}
@@ -1536,5 +2060,28 @@ function LegalField({
         />
       )}
     </Field>
+  );
+  if (!spec.template) return field;
+  const template = spec.template;
+  return (
+    <div className={`${className} stack`}>
+      {field}
+      <div className="cluster">
+        <Button
+          data-testid={`legal-template-${spec.key}`}
+          disabled={disabled || value === template}
+          icon={FilePen}
+          onClick={() => onChange(template)}
+          size="sm"
+          variant="secondary"
+        >
+          Vorschlag einsetzen
+        </Button>
+        <span className="small muted">
+          Der Vorschlag ist rechtlich noch nicht geprüft und ersetzt den Text im
+          Feld.
+        </span>
+      </div>
+    </div>
   );
 }

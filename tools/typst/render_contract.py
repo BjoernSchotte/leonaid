@@ -1,5 +1,5 @@
 """Exercise deterministic normal and multi-page rendering of invoices and
-cancellation invoices."""
+cancellation invoices, and of donation pledges."""
 
 from __future__ import annotations
 
@@ -10,11 +10,13 @@ from pathlib import Path
 from typing import Any
 
 from leonaid.adapters.typst import (
+    TypstDonationPledgeRenderer,
     TypstInvoiceCancellationRenderer,
     TypstInvoiceRenderer,
     TypstRenderError,
 )
 from leonaid.application.invoice_documents import InvoiceDocumentSnapshot
+from leonaid.domain.donations import DonationPledgeDocument
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.invoice_cancellation_documents import InvoiceCancellationDocument
 
@@ -101,10 +103,71 @@ def _stress_cancellation(
     return InvoiceCancellationDocument.from_payload(payload)
 
 
+def _stress_pledge(base: dict[str, object]) -> DonationPledgeDocument:
+    """The longest values a pledge can carry: the letter breaks the page."""
+
+    payload = json.loads(json.dumps(base))
+    payload["donationId"] = "d0000000-0000-4000-8000-000000000091"
+    payload["number"] = "SP26-LAYOUT-0001"
+    payload["amountMinor"] = 100_000_000
+    payload["donor"] = {
+        **payload["donor"],
+        "name": (
+            "Arbeitsgemeinschaft für besonders nachhaltige "
+            "Unternehmenspartnerschaften Süddeutschland mbH & Co. KG"
+        ),
+        "streetLine1": (
+            "Dr.-Elisabeth-von-der-Wirkungsgemeinschaft-Promenade 127, "
+            "Gebäudeabschnitt Nord"
+        ),
+        "postalCode": "86199",
+        "city": "Augsburg-Haunstetten-Siebenbrunn",
+    }
+    payload["actionName"] = (
+        "Gemeinsame Weihnachtsaktion der Serviceclubs im Landkreis mit "
+        "Krapfentaxi, Glühweinstand und Benefizkonzert 2026"
+    )
+    payload["actionPurpose"] = (
+        "Der Erlös geht je zur Hälfte an die offene Jugendarbeit der "
+        "Gemeinde und an die Tafel im Ort; über die Verwendung berichtet "
+        "der Club nach Abschluss der Aktion auf seiner Internetseite."
+    )
+    sentence = (
+        "Ihre Spende ist freiwillig; Sie erhalten dafür keine Gegenleistung, "
+        "und dieses Schreiben ist keine Rechnung. "
+    )
+    payload["body"] = {
+        **payload["body"],
+        "legalName": (
+            "Förderverein der Freunde und Förderer des Lions Clubs "
+            "Musterstadt an der Beispielach und Umgebung e. V."
+        ),
+        "bankAccountHolder": (
+            "Förderverein der Freunde und Förderer des Lions Clubs "
+            "Musterstadt an der Beispielach und Umgebung e. V."
+        ),
+        "pledgeText": (sentence * 17).strip(),
+    }
+    return DonationPledgeDocument.from_payload(payload)
+
+
+KINDS: dict[type, str] = {
+    InvoiceDocumentSnapshot: "invoice",
+    InvoiceCancellationDocument: "invoice_cancellation",
+    DonationPledgeDocument: "donation_pledge",
+}
+
+
 def _render_twice(
     *,
-    renderer: TypstInvoiceRenderer | TypstInvoiceCancellationRenderer,
-    snapshot: InvoiceDocumentSnapshot | InvoiceCancellationDocument,
+    renderer: (
+        TypstInvoiceRenderer
+        | TypstInvoiceCancellationRenderer
+        | TypstDonationPledgeRenderer
+    ),
+    snapshot: (
+        InvoiceDocumentSnapshot | InvoiceCancellationDocument | DonationPledgeDocument
+    ),
     output: Path,
 ) -> dict[str, object]:
     first = renderer.render(snapshot)  # type: ignore[arg-type]
@@ -116,11 +179,7 @@ def _render_twice(
     target = output / f"{snapshot.number}.pdf"
     target.write_bytes(first.content)
     return {
-        "kind": (
-            "invoice_cancellation"
-            if isinstance(snapshot, InvoiceCancellationDocument)
-            else "invoice"
-        ),
+        "kind": KINDS[type(snapshot)],
         "number": snapshot.number,
         "filename": target.name,
         "renderVersion": first.render_version,
@@ -135,6 +194,7 @@ def run_contract(
     database_snapshots: Path,
     fixture_directory: Path,
     cancellation_directory: Path,
+    donation_directory: Path,
     output: Path,
 ) -> list[dict[str, object]]:
     database_value: Any = json.loads(database_snapshots.read_text(encoding="utf-8"))
@@ -195,6 +255,28 @@ def run_contract(
             output=output,
         )
     )
+    # Donation pledges: the versioned snapshots and the longest values.
+    pledge_payloads = [
+        _load_payload(path) for path in sorted(donation_directory.glob("SP26-*.json"))
+    ]
+    if not pledge_payloads:
+        raise RenderContractError("No versioned donation pledges found.")
+    pledge_renderer = TypstDonationPledgeRenderer()
+    for payload in pledge_payloads:
+        manifest.append(
+            _render_twice(
+                renderer=pledge_renderer,
+                snapshot=DonationPledgeDocument.from_payload(payload),
+                output=output,
+            )
+        )
+    manifest.append(
+        _render_twice(
+            renderer=pledge_renderer,
+            snapshot=_stress_pledge(pledge_payloads[0]),
+            output=output,
+        )
+    )
     (output / "contract-manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -207,6 +289,7 @@ def main() -> int:
     parser.add_argument("database_snapshots", type=Path)
     parser.add_argument("fixture_directory", type=Path)
     parser.add_argument("cancellation_directory", type=Path)
+    parser.add_argument("donation_directory", type=Path)
     parser.add_argument("output", type=Path)
     arguments = parser.parse_args()
     try:
@@ -214,6 +297,7 @@ def main() -> int:
             database_snapshots=arguments.database_snapshots,
             fixture_directory=arguments.fixture_directory,
             cancellation_directory=arguments.cancellation_directory,
+            donation_directory=arguments.donation_directory,
             output=arguments.output,
         )
     except (

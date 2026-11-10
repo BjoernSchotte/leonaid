@@ -126,6 +126,18 @@ from leonaid.application.invoice_deliveries import (
     InvoiceDeliveryKind,
     InvoiceDeliveryService,
 )
+from leonaid.application.donations import (
+    DonationDraft,
+    DonationRecord,
+    DonationService,
+)
+from leonaid.domain.donations import (
+    DonorPartyKind,
+    DonorSnapshot,
+    ExemptionNoticeKind,
+    ReceiptSigning,
+    ReceivingBody,
+)
 from leonaid.application.invoice_settlements import InvoiceSettlementService
 from leonaid.application.buyer_mails import BuyerMailService, BuyerMailStatus
 from leonaid.application.order_mails import OrderMailKind
@@ -228,6 +240,7 @@ from leonaid.domain.commitments import (
     CommitmentSource,
     DeliveryRecipientSnapshot,
     InvoiceRecipientSnapshot,
+    Money,
     UnitQuantity,
 )
 from leonaid.domain.identity import AccountStatus, ActionRole, GlobalRole
@@ -345,6 +358,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     DashboardCommitmentResponse,
     DashboardGoalResponse,
     DashboardDeliveryResponse,
+    DashboardDonationResponse,
     DashboardDeliveryWindowResponse,
     DashboardInvoiceResponse,
     DashboardOrderValueWeekResponse,
@@ -394,6 +408,18 @@ from leonaid.entrypoints.fastapi.schemas import (
     LegalRetentionResponse,
     CancelInvoiceRequest,
     SettleInvoiceRefundRequest,
+    ReceivingBodyResponse,
+    CreateDonationRequest,
+    RecordDonationPaymentRequest,
+    DonationReasonRequest,
+    DonationResponse,
+    DonationListResponse,
+    DonationDonorResponse,
+    DonationPaymentResponse,
+    DonationPaymentWithdrawalResponse,
+    DonationCancellationResponse,
+    DonationDeliveryResponse,
+    DonationPledgeDocumentResponse,
     WithdrawInvoiceRefundRequest,
     InvoiceRefundWithdrawalResponse,
     ChangeMemberRoleRequest,
@@ -626,6 +652,107 @@ def order_cancellation_service(request: Request) -> OrderCancellationService:
     return cast(
         OrderCancellationService,
         request.app.state.order_cancellation_service,
+    )
+
+
+def donation_service(request: Request) -> DonationService:
+    return cast(DonationService, request.app.state.donation_service)
+
+
+def donation_delivery_response(delivery: InvoiceDelivery) -> DonationDeliveryResponse:
+    if delivery.donation_id is None:
+        raise RuntimeError("Ein Rechnungsversand ist kein Spendenversand.")
+    return DonationDeliveryResponse(
+        id=delivery.id,
+        donation_id=delivery.donation_id,
+        generated_document_id=delivery.generated_document_id,
+        recipient_email=delivery.recipient_email,
+        subject=delivery.subject,
+        status=delivery.status.value,
+        attempts=delivery.attempts,
+        last_error_code=delivery.last_error_code,
+        last_error_detail=delivery.last_error_detail,
+        requested_at=delivery.requested_at,
+        sent_at=delivery.sent_at,
+        can_retry=delivery.can_retry,
+    )
+
+
+def donation_response(record: DonationRecord) -> DonationResponse:
+    donation = record.donation
+    donor = donation.donor
+    document = record.pledge_document
+    return DonationResponse(
+        id=donation.id,
+        action_id=donation.action_id,
+        number=donation.number,
+        donor=DonationDonorResponse(
+            name=donor.name,
+            street_line_1=donor.street_line_1,
+            postal_code=donor.postal_code,
+            city=donor.city,
+            country_code=donor.country_code,
+            email=donor.email,
+            party_kind=donor.party_kind.value if donor.party_kind else None,
+            twenty_id=donor.twenty_id,
+        ),
+        pledged_minor=donation.pledged.amount_minor,
+        currency=donation.pledged.currency,
+        source=donation.source.value,
+        status=donation.status.value,
+        commitment_id=donation.commitment_id,
+        note=donation.note,
+        pledged_at=donation.pledged_at,
+        created_by_display_name=donation.created_by_display_name,
+        payment=(
+            DonationPaymentResponse(
+                amount_minor=donation.payment.amount.amount_minor,
+                received_on=donation.payment.received_on,
+                note=donation.payment.note,
+                recorded_by_display_name=donation.payment.recorded_by_display_name,
+                recorded_at=donation.payment.recorded_at,
+            )
+            if donation.payment is not None
+            else None
+        ),
+        payment_withdrawals=[
+            DonationPaymentWithdrawalResponse(
+                id=item.id,
+                amount_minor=item.amount.amount_minor,
+                received_on=item.received_on,
+                note=item.note,
+                recorded_by_display_name=item.recorded_by_display_name,
+                recorded_at=item.recorded_at,
+                reason=item.reason,
+                withdrawn_by_display_name=item.withdrawn_by_display_name,
+                withdrawn_at=item.withdrawn_at,
+            )
+            for item in donation.payment_withdrawals
+        ],
+        cancellation=(
+            DonationCancellationResponse(
+                reason=donation.cancellation.reason,
+                cancelled_by_display_name=(
+                    donation.cancellation.cancelled_by_display_name
+                ),
+                cancelled_at=donation.cancellation.cancelled_at,
+            )
+            if donation.cancellation is not None
+            else None
+        ),
+        pledge_document=DonationPledgeDocumentResponse(
+            id=document.id,
+            status=document.status.value,
+            version=document.version,
+            filename=document.filename,
+            size_bytes=document.size_bytes,
+            created_at=document.created_at,
+            available_at=document.available_at,
+        ),
+        pledge_deliveries=[
+            donation_delivery_response(item) for item in record.pledge_deliveries
+        ],
+        replayed=donation.replayed,
     )
 
 
@@ -928,6 +1055,16 @@ def legal_configuration_version_response(
             ),
             privacy_policy_text=values.privacy_policy_text,
             member_privacy_notice_text=values.member_privacy_notice_text,
+            donations=(
+                ReceivingBodyResponse.model_validate(
+                    {
+                        name: getattr(values.donations, name)
+                        for name in ReceivingBodyResponse.model_fields
+                    }
+                )
+                if values.donations is not None
+                else None
+            ),
         ),
         created_by_user_id=item.created_by_user_id,
         created_by_display_name=item.created_by_display_name,
@@ -1201,6 +1338,14 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                     )
                     for window in admin.delivery.windows
                 ],
+            ),
+            donations=DashboardDonationResponse(
+                enabled=admin.donations.enabled,
+                pledged=admin.donations.pledged,
+                paid=admin.donations.paid,
+                received_minor=admin.donations.received_minor,
+                pledged_open_minor=admin.donations.pledged_open_minor,
+                currency=admin.donations.currency,
             ),
         )
 
@@ -1820,6 +1965,8 @@ def invoice_record_response(record: InvoiceRecord) -> InvoiceRecordResponse:
 def invoice_delivery_response(
     delivery: InvoiceDelivery,
 ) -> InvoiceDeliveryResponse:
+    if delivery.invoice_id is None:
+        raise RuntimeError("Ein Spendenversand ist kein Rechnungsversand.")
     return InvoiceDeliveryResponse(
         id=delivery.id,
         action_id=delivery.action_id,
@@ -1835,7 +1982,7 @@ def invoice_delivery_response(
         requested_at=delivery.requested_at,
         sent_at=delivery.sent_at,
         can_retry=delivery.can_retry,
-        kind=delivery.kind.value,
+        kind=cast(Literal["invoice", "invoice_cancellation"], delivery.kind.value),
     )
 
 
@@ -1949,6 +2096,7 @@ def generated_document_record_response(
             action_id=document.action_id,
             commitment_id=document.commitment_id,
             invoice_id=document.invoice_id,
+            donation_id=document.donation_id,
             twenty_company_id=document.twenty_company_id,
             twenty_person_id=document.twenty_person_id,
             document_type=document.document_type.value,
@@ -3164,6 +3312,17 @@ async def save_legal_configuration_draft(
             ),
             privacy_policy_text=body.privacy_policy_text,
             member_privacy_notice_text=body.member_privacy_notice_text,
+            donations=(
+                ReceivingBody(
+                    **{
+                        **body.donations.model_dump(),
+                        "notice_kind": ExemptionNoticeKind(body.donations.notice_kind),
+                        "signing": ReceiptSigning(body.donations.signing),
+                    }
+                )
+                if body.donations is not None
+                else None
+            ),
         ),
         expected_revision=body.expected_revision,
         request_id=request_id(request),
@@ -4618,6 +4777,233 @@ async def retry_invoice_cancellation_delivery(
     )
     response.headers["Cache-Control"] = "no-store"
     return invoice_delivery_response(delivery)
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/donations",
+    operation_id="listDonations",
+    response_model=DonationListResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["donations"],
+)
+async def list_donations(
+    action_id: UUID, request: Request, response: Response
+) -> DonationListResponse:
+    """The donations of an action with the `donations` capability.
+
+    Read as invoices. `receivingBodyName` is null while the legal
+    configuration has no part "Spenden"; no donation can be recorded then.
+    """
+    actor = await identity_service(request).authenticate(session_token(request))
+    listing = await donation_service(request).list_for_action(actor, action_id)
+    response.headers["Cache-Control"] = "no-store"
+    return DonationListResponse(
+        action_id=listing.action_id,
+        action_name=listing.action_name,
+        items=[donation_response(record) for record in listing.records],
+        receiving_body_name=listing.receiving_body_name,
+        may_manage=listing.may_manage,
+        may_send=listing.may_send,
+        received_total_minor=listing.received_total.amount_minor,
+        pledged_open_total_minor=listing.pledged_open_total.amount_minor,
+        currency="EUR",
+    )
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/donations",
+    operation_id="createDonation",
+    response_model=DonationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["donations"],
+)
+async def create_donation(
+    action_id: UUID,
+    request: Request,
+    body: CreateDonationRequest,
+    response: Response,
+) -> DonationResponse:
+    """Record a donation. It gets its number and its pledge document at once.
+
+    409 `donation_receiving_body_missing` without the part "Spenden" in the
+    active legal configuration, 409 `donation_capability_disabled` without
+    the capability.
+    """
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    record = await donation_service(request).create(
+        actor,
+        action_id,
+        draft=DonationDraft(
+            donor=DonorSnapshot(
+                name=body.donor.name,
+                street_line_1=body.donor.street_line_1,
+                postal_code=body.donor.postal_code,
+                city=body.donor.city,
+                country_code=body.donor.country_code,
+                email=body.donor.email,
+                party_kind=(
+                    DonorPartyKind(body.donor.party_kind)
+                    if body.donor.party_kind is not None
+                    else None
+                ),
+                twenty_id=body.donor.twenty_id,
+            ),
+            pledged=Money(body.pledged_minor, "EUR"),
+            note=body.note,
+        ),
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return donation_response(record)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/donations/{donation_id}/payment",
+    operation_id="recordDonationPayment",
+    response_model=DonationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["donations"],
+)
+async def record_donation_payment(
+    action_id: UUID,
+    donation_id: UUID,
+    request: Request,
+    body: RecordDonationPaymentRequest,
+    response: Response,
+) -> DonationResponse:
+    """Record the one payment of a donation: what arrived, and when.
+
+    The amount may differ from the pledge. Same gate as recording an invoice
+    payment: fresh login and `Idempotency-Key`.
+    """
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    record = await donation_service(request).record_payment(
+        actor,
+        action_id,
+        donation_id,
+        amount_minor=body.amount_minor,
+        received_on=body.received_on,
+        note=body.note,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return donation_response(record)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/donations/{donation_id}/payment/withdrawal",
+    operation_id="withdrawDonationPayment",
+    response_model=DonationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["donations"],
+)
+async def withdraw_donation_payment(
+    action_id: UUID,
+    donation_id: UUID,
+    request: Request,
+    body: DonationReasonRequest,
+    response: Response,
+) -> DonationResponse:
+    """Take the payment back, with a reason; the donation is pledged again."""
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    record = await donation_service(request).withdraw_payment(
+        actor,
+        action_id,
+        donation_id,
+        reason=body.reason,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return donation_response(record)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/donations/{donation_id}/cancellation",
+    operation_id="cancelDonation",
+    response_model=DonationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["donations"],
+)
+async def cancel_donation(
+    action_id: UUID,
+    donation_id: UUID,
+    request: Request,
+    body: DonationReasonRequest,
+    response: Response,
+) -> DonationResponse:
+    """Cancel an unpaid donation. 409 `donation_paid` for a paid one."""
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    record = await donation_service(request).cancel(
+        actor,
+        action_id,
+        donation_id,
+        reason=body.reason,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return donation_response(record)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/donations/{donation_id}/pledge/deliveries",
+    operation_id="sendDonationPledge",
+    response_model=DonationDeliveryResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["donations"],
+)
+async def send_donation_pledge(
+    action_id: UUID, donation_id: UUID, request: Request, response: Response
+) -> DonationDeliveryResponse:
+    """Send the donation pledge to the donor by mail (action manager)."""
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    delivery = await donation_service(request).send_pledge(
+        actor,
+        action_id,
+        donation_id,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return donation_delivery_response(delivery)
+
+
+@router.post(
+    (
+        "/api/v1/actions/{action_id}/donations/{donation_id}/pledge/deliveries/"
+        "{delivery_id}/retry"
+    ),
+    operation_id="retryDonationPledgeDelivery",
+    response_model=DonationDeliveryResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["donations"],
+)
+async def retry_donation_pledge_delivery(
+    action_id: UUID,
+    donation_id: UUID,
+    delivery_id: UUID,
+    request: Request,
+    response: Response,
+) -> DonationDeliveryResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    delivery = await donation_service(request).retry_pledge_delivery(
+        actor,
+        action_id,
+        donation_id,
+        delivery_id,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return donation_delivery_response(delivery)
 
 
 @router.post(

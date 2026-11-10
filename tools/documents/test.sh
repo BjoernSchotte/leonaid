@@ -162,6 +162,46 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --entrypoint python \
   api tools/documents/contract.py cancellation-invoice
 
+# The running worker renders the pledge of a donation recorded now and mails
+# it to the donor with exactly the stored bytes.
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+  --env-from-file "$env_file" \
+  --env API_BASE_URL=http://api:8000 \
+  --env MAIL_TEST_API_URL=http://mailpit:8025/mail \
+  --env PYTHONPATH=/repo:/workspace/src \
+  --volume "$root:/repo:ro" \
+  --workdir /repo \
+  --entrypoint python \
+  api tools/documents/contract.py donation-pledge
+
+# The donations page in a real browser, on the donation recorded above.
+docker run --rm \
+  --network "${project}_edge" \
+  --env CI=1 \
+  --env HOME=/tmp \
+  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
+  --env-file "$proof/sessions.env" \
+  --volume "$root:/workspace:ro" \
+  --volume "$proof:/proof" \
+  --workdir /workspace \
+  --user "$(id -u):$(id -g)" \
+  "$PLAYWRIGHT_IMAGE" \
+  node_modules/.bin/playwright test \
+  --config=tests/e2e/pwa.config.mjs \
+  donations.spec.mjs \
+  --project=chromium-1440 \
+  --output=/tmp/leonaid-donation-results \
+  --trace=retain-on-failure \
+  --reporter=line
+
+for screenshot in donation-create.png donation-paid.png; do
+  if [ ! -s "$proof/$screenshot" ]; then
+    echo "document-test: ERROR: browser proof is missing: $screenshot" >&2
+    exit 1
+  fi
+done
+
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --env API_BASE_URL=http://api:8000 \
@@ -173,6 +213,7 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
 
 mkdir -p "$root/.artifacts/poc093"
 cp "$proof"/document-*.png "$root/.artifacts/poc093/"
+cp "$proof"/donation-*.png "$root/.artifacts/poc093/"
 
 echo "document-test: OK: all domain references, roles, RustFS metadata,"
 echo "document-test:     byte-identical browser download, the cancellation invoice"

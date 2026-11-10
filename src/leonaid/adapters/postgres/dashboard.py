@@ -27,6 +27,7 @@ from leonaid.application.dashboard import (
     DashboardSnapshot,
     DELIVERY_WINDOW_LIMIT,
     DeliveryOverview,
+    DonationOverview,
     DeliveryWindowLoad,
     GoalProgress,
     InvoiceCounts,
@@ -168,6 +169,7 @@ class AsyncpgDashboardRepository(DashboardRepository):
                         delivery=await self._delivery(
                             connection, action_id, evaluated_at=evaluated_at
                         ),
+                        donations=await self._donations(connection, action_id),
                     )
 
         actual_value = Decimal(action["actual_value"])
@@ -482,6 +484,38 @@ class AsyncpgDashboardRepository(DashboardRepository):
                 total_minor=totals.get(index, 0),
             )
             for index, monday in enumerate(mondays, start=1)
+        )
+
+    @staticmethod
+    async def _donations(
+        connection: asyncpg.Connection[Any], action_id: UUID
+    ) -> DonationOverview:
+        row = await connection.fetchrow(
+            """
+            SELECT
+                EXISTS (
+                    SELECT 1 FROM charity_action_capability
+                    WHERE action_id = $1 AND capability = 'donations'
+                ) AS enabled,
+                count(*) FILTER (WHERE status = 'pledged') AS pledged,
+                count(*) FILTER (WHERE status = 'paid') AS paid,
+                coalesce(sum(received_minor), 0) AS received_minor,
+                coalesce(sum(pledged_minor) FILTER (
+                    WHERE status = 'pledged'
+                ), 0) AS pledged_open_minor
+            FROM donation
+            WHERE action_id = $1
+            """,
+            action_id,
+        )
+        if row is None:
+            return DonationOverview()
+        return DonationOverview(
+            enabled=bool(row["enabled"]),
+            pledged=int(row["pledged"]),
+            paid=int(row["paid"]),
+            received_minor=int(row["received_minor"]),
+            pledged_open_minor=int(row["pledged_open_minor"]),
         )
 
     @staticmethod

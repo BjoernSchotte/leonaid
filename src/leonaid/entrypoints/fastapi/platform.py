@@ -117,6 +117,8 @@ from leonaid.application.identity import (
     IdentityQueryService,
 )
 from leonaid.application.invoice_deliveries import InvoiceDeliveryService
+from leonaid.adapters.postgres.donations import AsyncpgDonationRepository
+from leonaid.application.donations import DonationService
 from leonaid.application.invoice_settlements import InvoiceSettlementService
 from leonaid.application.invoices import InvoiceService
 from leonaid.application.invitations import InvitationService
@@ -365,6 +367,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             identity_repository,
             module_navigation=module_navigation(disabled_modules),
             delivery_navigation=identity_repository.manages_delivery,
+            donation_actions=identity_repository.donation_actions,
             cms_enabled=settings.cms_enabled,
             fresh_login_window=timedelta(seconds=settings.fresh_login_seconds),
         )
@@ -441,6 +444,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.invoice_settlement_service = InvoiceSettlementService(
             AsyncpgInvoiceSettlementRepository(pool)
+        )
+        application.state.donation_service = DonationService(
+            AsyncpgDonationRepository(pool)
         )
         application.state.order_cancellation_service = build_order_cancellation_service(
             pool, disabled_modules, mail_links=order_mail_links

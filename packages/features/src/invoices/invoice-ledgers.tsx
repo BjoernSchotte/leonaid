@@ -34,6 +34,11 @@ export function invoiceHref(actionId: string, invoiceId: string) {
   return `${ADMIN_BASE}invoices?action=${encodeURIComponent(actionId)}&open=${encodeURIComponent(invoiceId)}`;
 }
 
+/** Opens one donation in the pane of the donations list. */
+export function donationHref(actionId: string, donationId: string) {
+  return `${ADMIN_BASE}donations?action=${encodeURIComponent(actionId)}&open=${encodeURIComponent(donationId)}`;
+}
+
 function LedgerBody({
   children,
   state,
@@ -173,7 +178,7 @@ export function PaymentsLedger({
   );
 }
 
-/** "Dokumente": every invoice PDF of the action, newest first. */
+/** "Dokumente": every stored PDF of the action, newest first. */
 export function DocumentsLedger({
   actionId,
   client,
@@ -207,7 +212,7 @@ export function DocumentsLedger({
       <LedgerBody state={state}>
         {shown.length === 0 ? (
           <EmptyState
-            description="Das PDF einer Rechnung entsteht beim Ausstellen, das einer Stornorechnung beim Stornieren."
+            description="Das PDF einer Rechnung entsteht beim Ausstellen, das einer Stornorechnung beim Stornieren, das einer Spendenzusage beim Erfassen der Spende."
             headingLevel={2}
             icon={FileText}
             title="Noch keine Dokumente"
@@ -263,12 +268,18 @@ function DocumentRow({
 }) {
   const { document: generated } = record;
   const cancellation = generated.documentType === "invoice_cancellation_pdf";
-  const kind = cancellation ? "Stornorechnung" : "Rechnung";
+  const pledge = generated.documentType === "donation_pledge_pdf";
+  const kind = pledge
+    ? "Spendenzusage"
+    : cancellation
+      ? "Stornorechnung"
+      : "Rechnung";
   // A cancellation invoice has its own number; the invoice number stays the
-  // cancelled invoice's.
-  const number = cancellation
-    ? (record.documentNumber ?? null)
-    : record.invoiceNumber;
+  // cancelled invoice's. A pledge carries the donation number.
+  const number =
+    cancellation || pledge
+      ? (record.documentNumber ?? null)
+      : record.invoiceNumber;
   const title = number
     ? `${kind} ${number} · ${record.buyerDisplayName}`
     : (generated.filename ?? `${kind}s-PDF`);
@@ -298,6 +309,8 @@ function DocumentRow({
           <StatusIcon label={stateLabel} status={shape} />
           {generated.invoiceId ? (
             <a href={invoiceHref(actionId, generated.invoiceId)}>{title}</a>
+          ) : generated.donationId ? (
+            <a href={donationHref(actionId, generated.donationId)}>{title}</a>
           ) : (
             title
           )}

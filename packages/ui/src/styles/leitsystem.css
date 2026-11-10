@@ -320,7 +320,9 @@
   --zone-h: 205;
   --zone-c: 0.13;
 } /* lieferung */
-[data-zone="invoices"] {
+/* Donations are money work too: they share the invoices hue. */
+[data-zone="invoices"],
+[data-zone="donations"] {
   --zone-h: 145;
   --zone-c: 0.13;
 } /* rechnungen */

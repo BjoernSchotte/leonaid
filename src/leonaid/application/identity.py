@@ -119,6 +119,14 @@ class IdentityMembershipView:
 
 
 @dataclass(frozen=True, slots=True)
+class DonationActionView:
+    """An action that takes donations and whose finances the member reads."""
+
+    action_id: UUID
+    action_name: str
+
+
+@dataclass(frozen=True, slots=True)
 class CurrentIdentity:
     user_id: UUID
     display_name: str
@@ -131,6 +139,8 @@ class CurrentIdentity:
     session_last_seen_at: datetime
     fresh_login_at: datetime
     fresh_until: datetime
+    # The actions of the "Spenden" page: with the capability, readable.
+    donation_actions: tuple[DonationActionView, ...] = ()
     # Where this member starts after login or on `/` of the admin host.
     landing_path: str = PWA_BASE
     preferred_surface: PreferredSurface | None = None
@@ -411,6 +421,7 @@ def navigation_for(
     *,
     delivery: bool = False,
     cms: bool = False,
+    donations: bool = False,
 ) -> tuple[NavigationItem, ...]:
     """Core navigation plus registered module items, filtered by the server.
 
@@ -490,6 +501,12 @@ def navigation_for(
         items.append(
             NavigationItem("invoices", "Rechnungen", ADMIN_BASE + "invoices", "web")
         )
+    # Only where an action the account manages or reads the finances of
+    # takes donations (``donations``: the capability is on).
+    if donations:
+        items.append(
+            NavigationItem("donations", "Spenden", ADMIN_BASE + "donations", "web")
+        )
     if ActionRole.ACQUIRER in action_roles:
         items.extend(
             (
@@ -548,6 +565,10 @@ class IdentityQueryService:
         | None = None,
         delivery_navigation: Callable[[IdentityPrincipal], Awaitable[bool]]
         | None = None,
+        donation_actions: Callable[
+            [IdentityPrincipal], Awaitable[tuple[tuple[UUID, str], ...]]
+        ]
+        | None = None,
         cms_enabled: bool = False,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
@@ -557,6 +578,7 @@ class IdentityQueryService:
         self._cms_enabled = cms_enabled
         self._module_navigation = module_navigation
         self._delivery_navigation = delivery_navigation
+        self._donation_actions = donation_actions
         self._fresh_login_window = fresh_login_window
         self._clock = clock or (lambda: datetime.now(timezone.utc))
 
@@ -637,6 +659,14 @@ class IdentityQueryService:
         )
         all_roles: set[GlobalRole | ActionRole] = set(principal.global_roles)
         all_roles.update(item.role for item in principal.action_memberships)
+        donation_actions = tuple(
+            DonationActionView(action_id=action_id, action_name=action_name)
+            for action_id, action_name in (
+                await self._donation_actions(principal)
+                if self._donation_actions is not None
+                else ()
+            )
+        )
         navigation = navigation_for(
             principal,
             self._module_navigation(principal)
@@ -648,6 +678,7 @@ class IdentityQueryService:
                 else False
             ),
             cms=self._cms_enabled,
+            donations=bool(donation_actions),
         )
         return CurrentIdentity(
             user_id=principal.account.id,
@@ -657,6 +688,7 @@ class IdentityQueryService:
             action_memberships=memberships,
             role_labels=tuple(ROLE_LABELS[role] for role in sorted(all_roles, key=str)),
             navigation=navigation,
+            donation_actions=donation_actions,
             session_expires_at=identity.session.expires_at,
             session_last_seen_at=identity.session.last_seen_at,
             fresh_login_at=identity.session.fresh_login_at,

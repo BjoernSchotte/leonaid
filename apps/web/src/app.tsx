@@ -17,6 +17,7 @@ import {
   DeliveryBoardPage,
   CreateActionPage,
   FeatureFlagProvider,
+  DonationAdminPage,
   InvoiceAdminPage,
   LegalConfigurationPage,
   ManageActionPage,
@@ -131,6 +132,7 @@ const CAMPAIGN_SCOPED_ROUTES: ReadonlySet<string> = new Set([
   "acquisition",
   "orders",
   "invoices",
+  "donations",
   "delivery",
 ]);
 
@@ -188,6 +190,7 @@ function route(available: readonly UiModule[]) {
   if (/^\/invoices(\/(payments|documents))?$/.test(pathname)) {
     return { kind: "invoices" } as const;
   }
+  if (pathname === "/donations") return { kind: "donations" } as const;
   if (pathname === "/activities") return { kind: "activities" } as const;
   if (pathname === "/acquisition") return { kind: "acquisition" } as const;
   if (pathname === "/actions/new") return { kind: "new" } as const;
@@ -460,6 +463,8 @@ export function App({ client }: AppProps) {
               />
             ) : currentRoute.kind === "invoices" ? (
               <InvoiceAdminPage client={client} identity={identity.data} />
+            ) : currentRoute.kind === "donations" ? (
+              <DonationAdminPage client={client} identity={identity.data} />
             ) : currentRoute.kind === "activities" ? (
               <ActivityFeedPage client={client} surface="web" />
             ) : currentRoute.kind === "acquisition" ? (

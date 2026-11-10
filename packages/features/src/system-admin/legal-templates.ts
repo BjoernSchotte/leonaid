@@ -1,5 +1,6 @@
 /**
- * Default texts for the public privacy page (/datenschutz).
+ * Default texts for the public privacy page (/datenschutz) and, at the end
+ * of the file, proposals for the donation documents.
  *
  * LEGAL REVIEW PENDING: Björn Schotte has not reviewed these templates yet.
  * They describe only what LeonAid itself does; everything the club must
@@ -109,3 +110,16 @@ Wenn du dich abmeldest, in der Akquise-App oder im Verwaltungsbereich, löscht d
 [[Diesen Abschnitt nur behalten, wenn Benachrichtigungen in der Akquise-App aktiv sind; sonst den ganzen Abschnitt löschen. Danach diese Zeile löschen.]]
 
 Schaltest du in der App Benachrichtigungen ein, speichert LeonAid für dein Gerät eine Adresse des Benachrichtigungsdienstes deines Browsers oder Betriebssystems (Google, Apple, Mozilla oder Microsoft) und zwei Schlüssel. Über diesen Dienst senden wir verschlüsselte Hinweise, zum Beispiel „3 Wiedervorlagen sind fällig“. Die Hinweise enthalten keine Namen, Adressen oder Beträge. Der Dienst erfährt, dass und wann dein Gerät einen Hinweis von LeonAid erhält, aber nicht dessen Inhalt. Rechtsgrundlage ist deine Einwilligung (Art. 6 Abs. 1 Buchst. a DSGVO). Du kannst sie jederzeit in der App unter „Benachrichtigungen“ widerrufen; LeonAid löscht die Adresse dann sofort. Sie wird auch gelöscht, wenn du dich auf dem Gerät abmeldest oder der Dienst sie als ungültig meldet.`;
+
+/**
+ * Proposals for the wording blocks of the part "Spenden"
+ * (specs/mails-documents-donations-push/PLAN.md, Appendix A.3).
+ * LEGAL REVIEW PENDING, as the header says: the liability note follows the
+ * official sample for money donations and must be compared with the current
+ * sample of the Federal Ministry of Finance before a real club uses it.
+ */
+export const DONATION_PLEDGE_TEXT_TEMPLATE =
+  "Ihre Spende ist freiwillig. Sie erhalten dafür keine Gegenleistung. Dieses Schreiben ist keine Rechnung. Nach Eingang Ihrer Zahlung senden wir Ihnen eine Zuwendungsbestätigung für Ihre Steuererklärung.";
+
+export const DONATION_RECEIPT_LIABILITY_TEMPLATE =
+  "Hinweis: Wer vorsätzlich oder grob fahrlässig eine unrichtige Zuwendungsbestätigung erstellt oder veranlasst, dass Zuwendungen nicht zu den in der Zuwendungsbestätigung angegebenen steuerbegünstigten Zwecken verwendet werden, haftet für die entgangene Steuer (§ 10b Abs. 4 EStG, § 9 Abs. 3 KStG, § 9 Nr. 5 GewStG). Diese Bestätigung wird nicht als Nachweis für die steuerliche Berücksichtigung der Zuwendung anerkannt, wenn das Datum des Freistellungsbescheides länger als 5 Jahre bzw. das Datum der Feststellung der Einhaltung der satzungsmäßigen Voraussetzungen nach § 60a Abs. 1 AO länger als 3 Jahre seit Ausstellung des Bescheides zurückliegt (§ 63 Abs. 5 AO).";

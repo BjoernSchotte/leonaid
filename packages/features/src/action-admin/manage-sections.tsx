@@ -687,6 +687,12 @@ export const capabilityOptions: ReadonlyArray<{
     label: "Auslieferung",
     value: "delivery",
   },
+  {
+    description:
+      "Die Aktion nimmt Spenden mit eigenen Dokumenten entgegen (Spendenzusage; die Zuwendungsbestätigung folgt), getrennt von Rechnungen. Benötigt den Teil „Spenden“ in „Rechtliches“.",
+    label: "Spenden",
+    value: "donations",
+  },
 ];
 
 export function CapabilitiesSection(props: SharedSectionProps) {

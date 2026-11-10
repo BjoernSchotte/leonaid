@@ -99,6 +99,52 @@ GOLDEN_COMMITMENT_CREATED_AT = datetime(
     tzinfo=timezone.utc,
 )
 JsonObject = dict[str, Any]
+# The receiving body of the dev tenant (spec mails-documents-donations-push,
+# Appendix A.3): a synthetic Förderverein, another legal entity than the
+# invoice issuer, with the machine procedure so the receipt mail can be tried.
+GOLDEN_RECEIVING_BODY: JsonObject = {
+    "legalName": "Förderverein Lions Club Musterstadt e. V.",
+    "streetLine1": "Marktplatz 1",
+    "postalCode": "12345",
+    "city": "Musterstadt",
+    "countryCode": "DE",
+    "legalForm": "registered_association",
+    "taxOffice": "Finanzamt Musterstadt",
+    "taxNumber": "123/456/78901",
+    "noticeKind": "freistellungsbescheid",
+    "noticeDate": "2025-03-15",
+    "assessmentPeriodFrom": 2021,
+    "assessmentPeriodTo": 2023,
+    "purposes": "Förderung der Jugendhilfe, der Bildung und mildtätiger Zwecke",
+    "bankAccountHolder": "Förderverein Lions Club Musterstadt e. V.",
+    "iban": "DE02120300000000202051",
+    "bic": "BYLADEM1001",
+    "signatoryName": "Erika Mustermann",
+    "signatoryFunction": "Schatzmeisterin",
+    "signing": "machine",
+    "machineNotifiedOn": "2025-04-01",
+    "pledgePrefix": "SP26-",
+    "receiptPrefix": "ZB26-",
+    "numberWidth": 4,
+    "pledgeText": (
+        "Ihre Spende ist freiwillig. Sie erhalten dafür keine Gegenleistung. "
+        "Dieses Schreiben ist keine Rechnung. Nach Eingang Ihrer Zahlung "
+        "senden wir Ihnen eine Zuwendungsbestätigung für Ihre Steuererklärung."
+    ),
+    "receiptLiabilityText": (
+        "Hinweis: Wer vorsätzlich oder grob fahrlässig eine unrichtige "
+        "Zuwendungsbestätigung erstellt oder veranlasst, dass Zuwendungen "
+        "nicht zu den in der Zuwendungsbestätigung angegebenen "
+        "steuerbegünstigten Zwecken verwendet werden, haftet für die "
+        "entgangene Steuer (§ 10b Abs. 4 EStG, § 9 Abs. 3 KStG, § 9 Nr. 5 "
+        "GewStG). Diese Bestätigung wird nicht als Nachweis für die "
+        "steuerliche Berücksichtigung der Zuwendung anerkannt, wenn das Datum "
+        "des Freistellungsbescheides länger als 5 Jahre bzw. das Datum der "
+        "Feststellung der Einhaltung der satzungsmäßigen Voraussetzungen nach "
+        "§ 60a Abs. 1 AO länger als 3 Jahre seit Ausstellung des Bescheides "
+        "zurückliegt (§ 63 Abs. 5 AO)."
+    ),
+}
 
 
 class SeedError(RuntimeError):
@@ -739,6 +785,54 @@ def seed_today() -> date:
     return local_day(datetime.now(timezone.utc))
 
 
+async def clear_donations(connection: asyncpg.Connection[Any]) -> None:
+    """Removes every donation of the installation with what hangs on it.
+
+    A donation points at the legal configuration version that named its
+    receiving body. The seed replaces that version, so the donations recorded
+    against it go as well, in every action, and the numbers of the donation
+    series start again.
+    """
+
+    documents = [
+        row["id"]
+        for row in await connection.fetch(
+            "SELECT id FROM generated_document WHERE donation_id IS NOT NULL"
+        )
+    ]
+    delivery_events = [
+        row["outbox_event_id"]
+        for row in await connection.fetch(
+            "SELECT outbox_event_id FROM invoice_delivery WHERE donation_id IS NOT NULL"
+        )
+    ]
+    await connection.execute(
+        "DELETE FROM mail_delivery WHERE outbox_event_id = ANY($1::uuid[])",
+        delivery_events,
+    )
+    await connection.execute(
+        "DELETE FROM invoice_delivery WHERE donation_id IS NOT NULL"
+    )
+    await connection.execute(
+        "DELETE FROM outbox_event WHERE id = ANY($1::uuid[])", delivery_events
+    )
+    await connection.execute(
+        """
+        DELETE FROM outbox_event
+        WHERE aggregate_type = 'generated_document'
+          AND aggregate_id = ANY($1::uuid[])
+        """,
+        documents,
+    )
+    await connection.execute(
+        "DELETE FROM generated_document WHERE donation_id IS NOT NULL"
+    )
+    await connection.execute("DELETE FROM donation")
+    await connection.execute(
+        "DELETE FROM document_series WHERE kind IN ('donation', 'donation_receipt')"
+    )
+
+
 async def seed_identity(
     connection: asyncpg.Connection[Any],
     dataset: JsonObject,
@@ -934,6 +1028,7 @@ async def seed_identity(
         WHERE legal_configuration_version_id IS NOT NULL
         """
     )
+    await clear_donations(connection)
     await connection.execute("DELETE FROM legal_configuration_approval")
     await connection.execute("DELETE FROM legal_configuration_version")
     await connection.execute(
@@ -958,7 +1053,8 @@ async def seed_identity(
             imprint_register_court, imprint_register_number,
             imprint_content_responsible_name,
             imprint_content_responsible_address,
-            privacy_policy_text, member_privacy_notice_text, legal_form
+            privacy_policy_text, member_privacy_notice_text, legal_form,
+            donations
         )
         VALUES (
             $1, 1, 'Lions Hilfswerk LeonAid Golden e.V.', 'Clubweg 1',
@@ -981,7 +1077,7 @@ async def seed_identity(
             '+49 30 23125 044',
             'Amtsgericht Augsburg', 'VR 0044',
             'Paula Golden', 'Clubweg 1, 86150 Augsburg',
-            $4, $5, 'registered_association'
+            $4, $5, 'registered_association', $6::jsonb
         )
         """,
         GOLDEN_LEGAL_CONFIGURATION_ID,
@@ -989,6 +1085,7 @@ async def seed_identity(
         GOLDEN_COMMITMENT_CREATED_AT,
         GOLDEN_PRIVACY_POLICY,
         GOLDEN_MEMBER_PRIVACY_NOTICE,
+        json.dumps(GOLDEN_RECEIVING_BODY, ensure_ascii=False),
     )
     await connection.execute(
         """

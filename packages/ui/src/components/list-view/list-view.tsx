@@ -1263,7 +1263,9 @@ export function ListView<T>(props: ListViewProps<T>) {
       const isCollapsed = collapsed.has(groupKey);
       return (
         <section
-          aria-label={group.label || title}
+          // Without a group label the section is no landmark of its own: it
+          // would repeat the name of the list region around it.
+          aria-label={group.label || undefined}
           className="group"
           key={group.key}
         >

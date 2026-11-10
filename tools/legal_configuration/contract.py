@@ -14,6 +14,7 @@ from uuid import UUID, uuid5
 import asyncpg
 import httpx
 
+from tools.seed.golden import clear_donations
 from leonaid.domain.sessions import (
     SESSION_COOKIE_NAME,
     SESSION_LIFETIME,
@@ -77,6 +78,42 @@ def error_code(response: httpx.Response) -> str:
     if not isinstance(value, dict) or not isinstance(value.get("error"), dict):
         raise ContractFailure("Error response has no stable contract")
     return str(value["error"].get("code"))
+
+
+# The part "Spenden": the body that receives donations (ADR-0016).
+RECEIVING_BODY: dict[str, object] = {
+    "legalName": "Förderverein Pilot 044 e. V.",
+    "streetLine1": "Marktplatz 1",
+    "postalCode": "12345",
+    "city": "Musterstadt",
+    "countryCode": "DE",
+    "legalForm": "registered_association",
+    "taxOffice": "Finanzamt Musterstadt",
+    "taxNumber": "123/456/78901",
+    "noticeKind": "freistellungsbescheid",
+    "noticeDate": "2025-03-15",
+    "assessmentPeriodFrom": 2021,
+    "assessmentPeriodTo": 2023,
+    "purposes": "Förderung der Jugendhilfe, der Bildung und mildtätiger Zwecke",
+    "bankAccountHolder": "Förderverein Pilot 044 e. V.",
+    "iban": "DE02 1203 0000 0000 2020 51",
+    "bic": "BYLADEM1001",
+    "signatoryName": "Erika Mustermann",
+    "signatoryFunction": "Schatzmeisterin",
+    "signing": "machine",
+    "machineNotifiedOn": "2025-04-01",
+    "pledgePrefix": "SP26-",
+    "receiptPrefix": "ZB26-",
+    "numberWidth": 4,
+    "pledgeText": (
+        "Ihre Spende ist freiwillig. Sie erhalten dafür keine Gegenleistung. "
+        "Dieses Schreiben ist keine Rechnung."
+    ),
+    "receiptLiabilityText": (
+        "Hinweis: Wer vorsätzlich oder grob fahrlässig eine unrichtige "
+        "Zuwendungsbestätigung erstellt, haftet für die entgangene Steuer."
+    ),
+}
 
 
 def draft_payload(*, revision: int) -> dict[str, object]:
@@ -183,6 +220,8 @@ async def prepare(connection: asyncpg.Connection[Any]) -> None:
         WHERE legal_configuration_version_id IS NOT NULL
         """
     )
+    # Donations point at the version that named their receiving body.
+    await clear_donations(connection)
     await connection.execute("DELETE FROM legal_configuration_approval")
     await connection.execute("DELETE FROM legal_configuration_version")
     await connection.execute(
@@ -283,6 +322,33 @@ async def prepare(connection: asyncpg.Connection[Any]) -> None:
                 f"{incomplete.status_code} {incomplete.text[:200]}"
             )
 
+        if stored.get("donations", "missing") is not None:
+            raise ContractFailure("A draft without the part Spenden names a body")
+        # The part "Spenden": every document kind has its own prefix, and
+        # the body is checked like the rest of the draft. Neither refusal
+        # creates a version.
+        for change, code in (
+            ({"pledgePrefix": "KT"}, "legal_number_prefixes_not_distinct"),
+            ({"receiptPrefix": "SP26-"}, "legal_number_prefixes_not_distinct"),
+            ({"machineNotifiedOn": None}, "donation_body_machine_notice_invalid"),
+            ({"assessmentPeriodTo": None}, "donation_body_assessment_period_invalid"),
+            ({"legalForm": "verein"}, "request_invalid"),
+            ({"iban": "0002120300000000202051"}, "donation_body_iban_invalid"),
+        ):
+            refused = await api.put(
+                "/api/v1/admin/legal/configuration/draft",
+                headers=session_headers(tokens["simone"]),
+                json={
+                    **draft_payload(revision=2),
+                    "donations": {**RECEIVING_BODY, **change},
+                },
+            )
+            if refused.status_code != 422 or error_code(refused) != code:
+                raise ContractFailure(
+                    f"A receiving body with {change} was not refused with {code}: "
+                    f"{refused.status_code} {refused.text[:200]}"
+                )
+
         version_id = str(state["draft"]["id"])
         unapproved = await api.post(
             f"/api/v1/admin/legal/configuration/draft/{version_id}/activation",
@@ -369,12 +435,16 @@ async def act() -> None:
                 **draft_payload(revision=3),
                 "eInvoiceDecision": "not_required",
                 "eInvoiceEvidenceId": "ERECHNUNG-PILOT-044",
+                "donations": RECEIVING_BODY,
             },
         )
         saved.raise_for_status()
         state = saved.json()
         if state.get("revision") != 4 or state["draft"].get("version") != 2:
             raise ContractFailure(f"Second draft was not created: {state}")
+        body = state["draft"]["values"].get("donations")
+        if body != {**RECEIVING_BODY, "iban": "DE02120300000000202051"}:
+            raise ContractFailure(f"The receiving body was not stored: {body}")
         version_id = str(state["draft"]["id"])
 
         own_approval = await api.post(
@@ -406,6 +476,11 @@ async def act() -> None:
             or final.get("active", {}).get("version") != 2
         ):
             raise ContractFailure(f"Version 2 is not active: {final}")
+        if (
+            final["active"]["values"]["donations"]["legalName"]
+            != (RECEIVING_BODY["legalName"])
+        ):
+            raise ContractFailure("The active version lost the receiving body")
 
 
 async def assert_result(connection: asyncpg.Connection[Any]) -> None:
@@ -425,7 +500,8 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
 
     versions = await connection.fetch(
         """
-        SELECT version, e_invoice_decision, e_invoice_evidence_id
+        SELECT version, e_invoice_decision, e_invoice_evidence_id,
+               donations ->> 'pledgePrefix' AS pledge_prefix
         FROM legal_configuration_version
         ORDER BY version
         """
@@ -435,11 +511,12 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
             int(row["version"]),
             str(row["e_invoice_decision"]),
             row["e_invoice_evidence_id"],
+            row["pledge_prefix"],
         )
         for row in versions
     ] != [
-        (1, "pending", None),
-        (2, "not_required", "ERECHNUNG-PILOT-044"),
+        (1, "pending", None, None),
+        (2, "not_required", "ERECHNUNG-PILOT-044", "SP26-"),
     ]:
         raise ContractFailure("Versions are incomplete or were changed")
 

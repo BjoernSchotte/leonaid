@@ -87,6 +87,7 @@ def test_capability_and_beneficiary_invariants_stay_action_neutral() -> None:
                 ActionCapability.ORDERING,
                 ActionCapability.INVOICING,
                 ActionCapability.DELIVERY,
+                ActionCapability.DONATIONS,
             }
         )
     )

@@ -71,6 +71,7 @@ function identity(
   return {
     actionMemberships: [],
     displayName: "Klara Admin",
+    donationActions: [],
     email: "klara@example.org",
     freshLoginAt: "2026-11-03T10:00:00Z",
     installation: { clubName: "Lions Club Musterstadt" },

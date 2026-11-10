@@ -529,6 +529,7 @@ RULES: tuple[Rule, ...] = (
             "tools/schema/**",
             "tests/integration/test_order_cancellation_api.py",
             "tests/integration/test_cancellation_invoice_api.py",
+            "tests/integration/test_donations_api.py",
             "tests/integration/test_offline_capture_api.py",
             "tests/integration/test_buyer_mails_api.py",
             "tests/integration/test_campaign_renderer_api.py",
@@ -540,7 +541,11 @@ RULES: tuple[Rule, ...] = (
     Rule(("tools/outbox/**",), integration("outbox"), "outbox proofs"),
     Rule(("tools/storage/**",), integration("storage"), "storage proofs"),
     Rule(
-        ("tools/documents/**", "tests/e2e/documents.spec.mjs"),
+        (
+            "tools/documents/**",
+            "tests/e2e/documents.spec.mjs",
+            "tests/e2e/donations.spec.mjs",
+        ),
         integration("documents"),
         "document proofs",
     ),
