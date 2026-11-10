@@ -24,6 +24,7 @@ import { FeatureFlagProvider, ManageActionPage } from "@leonaid/features";
 import { HotkeyProvider, ToastProvider } from "@leonaid/ui";
 
 import { actionLocation } from "../../../packages/features/src/action-admin/manage-action";
+import { SEND_TIMES } from "../../../packages/features/src/action-admin/buyer-mail-section";
 import { windowLabel } from "../../../packages/features/src/action-admin/delivery-section";
 import { installDialogPolyfill } from "../../../packages/ui/src/test-utils/dialog-polyfill";
 
@@ -693,7 +694,8 @@ describe("action detail", () => {
       name: "E-Mails für Bestellungen, die Mitglieder erfassen",
     }) as HTMLInputElement;
     expect(toggle.checked).toBe(false);
-    expect(within(section).getByText("Aus")).toBeTruthy();
+    // Both switches start off.
+    expect(within(section).getAllByText("Aus")).toHaveLength(2);
     fireEvent.click(toggle);
     await waitFor(() =>
       expect(client.saveBuyerMailConfiguration).toHaveBeenCalledWith(actionId, {
@@ -712,7 +714,7 @@ describe("action detail", () => {
       ).checked,
     ).toBe(true);
     // The next change sends the revision the server answered with.
-    fireEvent.click(within(section).getByRole("switch"));
+    fireEvent.click(within(section).getByTestId("buyer-mail-internal"));
     await waitFor(() =>
       expect(client.saveBuyerMailConfiguration).toHaveBeenLastCalledWith(
         actionId,
@@ -743,7 +745,7 @@ describe("action detail", () => {
       internalOrderMails: true,
       revision: 4,
     });
-    fireEvent.click(within(section).getByRole("switch"));
+    fireEvent.click(within(section).getByTestId("buyer-mail-internal"));
     expect(
       await within(section).findByText(
         /Die Einstellungen wurden inzwischen geändert\./,
@@ -751,9 +753,106 @@ describe("action detail", () => {
     ).toBeTruthy();
     await waitFor(() =>
       expect(
-        (within(section).getByRole("switch") as HTMLInputElement).checked,
+        (within(section).getByTestId("buyer-mail-internal") as HTMLInputElement)
+          .checked,
       ).toBe(true),
     );
+  });
+
+  it("switches the delivery-day mail and its send time at once", async () => {
+    const client = await renderPage("#overview/edit");
+    const section = await screen.findByTestId("buyer-mail-section");
+    // The switch says what the buyer gets and when.
+    expect(section.textContent).toContain(
+      "Der Käufer erhält am Tag der Lieferung eine E-Mail mit seinem Lieferfenster, zum Beispiel „Ihre Lieferung kommt heute zwischen 10:00 und 12:00 Uhr“.",
+    );
+    const toggle = within(section).getByRole("switch", {
+      name: "E-Mail am Liefertag",
+    }) as HTMLInputElement;
+    expect(toggle.checked).toBe(false);
+    fireEvent.click(toggle);
+    await waitFor(() =>
+      expect(client.saveBuyerMailConfiguration).toHaveBeenCalledWith(actionId, {
+        deliveryDayMail: true,
+        deliveryDaySendTime: "07:00",
+        expectedRevision: 3,
+        internalOrderMails: false,
+      }),
+    );
+    await screen.findByText(
+      "Käufer erhalten am Liefertag ab 07:00 Uhr eine E-Mail mit ihrem Lieferfenster.",
+    );
+    // The send time: half hours from 05:00 to 12:00, saved on change.
+    const time = within(section).getByLabelText(
+      "E-Mail am Liefertag senden ab",
+    ) as HTMLSelectElement;
+    expect([...time.options].map((option) => option.value)).toEqual(SEND_TIMES);
+    expect(SEND_TIMES[0]).toBe("05:00");
+    expect(SEND_TIMES.at(-1)).toBe("12:00");
+    expect(time.value).toBe("07:00");
+    fireEvent.change(time, { target: { value: "06:30" } });
+    await waitFor(() =>
+      expect(client.saveBuyerMailConfiguration).toHaveBeenLastCalledWith(
+        actionId,
+        {
+          deliveryDayMail: true,
+          deliveryDaySendTime: "06:30",
+          expectedRevision: 4,
+          internalOrderMails: false,
+        },
+      ),
+    );
+    await screen.findByText(
+      "Die E-Mail am Liefertag geht ab 06:30 Uhr hinaus.",
+    );
+    expect(
+      (
+        within(section).getByLabelText(
+          "E-Mail am Liefertag senden ab",
+        ) as HTMLSelectElement
+      ).value,
+    ).toBe("06:30");
+  });
+
+  it("keeps a stored send time between the half hours selectable", async () => {
+    const client = fakeClient();
+    client.getBuyerMailConfiguration.mockResolvedValue({
+      ...buyerMails,
+      deliveryDayMail: true,
+      deliveryDaySendTime: "06:45",
+    });
+    await renderPage("#overview/edit", client);
+    const section = await screen.findByTestId("buyer-mail-section");
+    const time = within(section).getByLabelText(
+      "E-Mail am Liefertag senden ab",
+    ) as HTMLSelectElement;
+    expect(time.value).toBe("06:45");
+    expect([...time.options].map((option) => option.value).slice(3, 6)).toEqual(
+      ["06:30", "06:45", "07:00"],
+    );
+  });
+
+  it("keeps the delivery-day mail off for an action without delivery", async () => {
+    const client = fakeClient(
+      management({ capabilities: ["offerings", "ordering"] }),
+    );
+    await renderPage("#overview/edit", client);
+    const section = await screen.findByTestId("buyer-mail-section");
+    const toggle = within(section).getByRole("switch", {
+      name: "E-Mail am Liefertag",
+    }) as HTMLInputElement;
+    expect(toggle.disabled).toBe(true);
+    expect(section.textContent).toContain(
+      "Diese Aktion hat die Funktion „Auslieferung“ nicht; der Schalter bleibt deshalb aus.",
+    );
+    expect(
+      within(section).queryByLabelText("E-Mail am Liefertag senden ab"),
+    ).toBeNull();
+    // The mails for internal orders do not depend on delivery.
+    expect(
+      (within(section).getByTestId("buyer-mail-internal") as HTMLInputElement)
+        .disabled,
+    ).toBe(false);
   });
 
   it("offers no buyer mail switches for an action without orders", async () => {

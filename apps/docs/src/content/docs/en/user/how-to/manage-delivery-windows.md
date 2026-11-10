@@ -4,9 +4,9 @@ description: Enable campaign delivery planning, add time windows, and retire exi
 docId: DOC-P012
 audience: [user]
 diataxis: how-to
-contentRevision: 7
-reviewedRevision: 7
-verifiedAgainst: 0902dfb1bf60793cde4dd67936e7f8424c58a8db
+contentRevision: 10
+reviewedRevision: 10
+verifiedAgainst: 7425865669f0e487ad78293e8be3c472ccb69914
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -107,3 +107,70 @@ again.
 Booked orders appear per window on the **Auslieferung** (delivery) page. There
 you assign drivers, tick off deliveries and close windows; see
 [Work the delivery board](/en/user/how-to/work-delivery-board/).
+
+## E-mail on the delivery day
+
+LeonAid can send buyers an e-mail with their delivery window on the day of
+the delivery: **Ihre Lieferung kommt heute zwischen 10:00 und 12:00 Uhr**
+(your delivery comes today between 10:00 and 12:00). It names the order
+number, the delivery window, the delivery address, the ordered quantities and
+the club's contact details. Names or phone numbers of drivers, the note for
+the driver, prices and an arrival time per address are not in it.
+
+1. Open the campaign and select **Bearbeiten**.
+2. In the section **E-Mails an Käufer**, switch on **E-Mail am Liefertag**.
+   The switch applies at once, also while the campaign runs. For campaigns
+   without the function **Auslieferung** it stays off.
+3. Under **E-Mail am Liefertag senden ab**, select a full or half hour
+   between 05:00 and 12:00 (default 07:00). It applies in the time zone of
+   the delivery windows.
+
+From that time on the delivery day, the e-mail goes to every order whose
+window starts on that day, if the order is ready for review, confirmed or
+invoiced, holds an e-mail address of the buyer and is not ticked off on the
+**Auslieferung** board yet. This applies to every origin, also to orders from
+the public form. LeonAid checks every five minutes, so the e-mail arrives up
+to five minutes after the selected time. An order that is added on the
+delivery day itself gets the e-mail at the next check, as long as its window
+is not over.
+
+If you switch the e-mail on only on the delivery day, after the selected
+time, the next check sends it at once to every order whose window has not
+ended yet today. That includes orders that are already delivered but not
+ticked off on the board yet: they read "wird heute geliefert" (will be
+delivered today) although the delivery was already there. The same happens
+when LeonAid was not running in the morning and starts again later: it
+catches up on every window of the day that is still open, also shortly
+before its end. So tick deliveries off before you switch the e-mail on
+during the delivery day.
+
+Cancelled orders, drafts, deliveries already ticked off, orders without an
+e-mail address and windows that end before the selected time get no e-mail.
+For such a window the order says **Keine E-Mail: Das Lieferfenster endet vor
+der Versandzeit** (no e-mail: the delivery window ends before the send time).
+Once the campaign is completed or archived, no delivery-day e-mail goes out
+any more. Each order gets the e-mail for its window once.
+
+At most ten order e-mails go to one mailbox per hour. If a buyer has more
+orders under the same address on the delivery day (for example a member who
+ordered for colleagues), the first ten e-mails go out. The other orders show
+the row as **Fehlgeschlagen** (failed): with the note about the mailbox
+while it is full, and after that with the note that the e-mail did not go
+out. Send them later in the order with **Senden**. This raises no alert.
+
+If LeonAid could not send an e-mail before its window ended (e-mail delivery
+disturbed, LeonAid not running), it is not sent any more. The order then
+shows the row as **Fehlgeschlagen** (failed) with the reason, also when the
+e-mail was never created. It is not listed among the failed jobs in the
+operations overview, because a retry would send nothing any more. For
+windows that had already ended when you switched the e-mail on, the order
+shows no failure.
+
+For questions the e-mail names only what the legal configuration holds: the
+club's e-mail address and, if entered, the phone number of the imprint.
+
+The section **E-Mails an den Käufer** in the order shows whether the e-mail
+went out (row **Liefertags-E-Mail**). There you can also send it yourself or
+send it again on the delivery day from the selected time, until the window
+ends or the delivery is ticked off; see
+[Cancel an order](/en/user/how-to/cancel-order/#see-the-e-mails-of-an-order-and-send-one-again).

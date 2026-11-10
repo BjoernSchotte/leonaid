@@ -67,6 +67,12 @@ export const reasonTexts: Readonly<Record<Reason, string>> = {
     "Keine E-Mail: Das Lieferfenster endet vor der Versandzeit.",
 };
 
+/** The delivery-day mail has its own switch in the action. */
+const reasonText = (kind: Kind, reason: Reason) =>
+  kind === "delivery_day" && reason === "switched_off"
+    ? "Die E-Mail am Liefertag ist in der Aktion ausgeschaltet."
+    : reasonTexts[reason];
+
 export type LateReason = "delivery_recorded" | "window_over" | "action_closed";
 
 /** Why a confirmation would come too late, or did. */
@@ -104,7 +110,7 @@ export function buyerMailDetail(mail: BuyerMailStatusResponse): string {
   // got nothing, and the mail is not sent any more.
   if (mail.state === "failed" && mail.reason && isLateReason(mail.reason))
     return `Die E-Mail kam nicht rechtzeitig hinaus und wird nicht mehr gesendet. ${reasonTexts[mail.reason]}${last}`;
-  return `${mail.reason ? reasonTexts[mail.reason] : stateLabels[mail.state]}${last}`;
+  return `${mail.reason ? reasonText(mail.kind, mail.reason) : stateLabels[mail.state]}${last}`;
 }
 
 export const buyerMailsKey = (actionId: string, commitmentId: string) =>

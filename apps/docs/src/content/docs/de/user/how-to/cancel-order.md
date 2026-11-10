@@ -4,9 +4,9 @@ description: Eine noch nicht gelieferte Bestellung mit Grund stornieren, samt of
 docId: DOC-P047
 audience: [user]
 diataxis: how-to
-contentRevision: 7
-reviewedRevision: 7
-verifiedAgainst: cab8222f75f02ec4fb0df1e8186127bc609cbc69
+contentRevision: 8
+reviewedRevision: 8
+verifiedAgainst: 44a1e8cd5085ea1ac8be745dfaf7059945f955c2
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -160,7 +160,10 @@ Zeichen 0, O, 1, I und L, damit ein Käufer sie am Telefon nennen kann.
 (`LA-` und 32 Zeichen). Die Suche der Liste findet die Bestellung über beide.
 
 Der Abschnitt **E-Mails an den Käufer** zeigt je E-Mail eine Zeile:
-**Bestellbestätigung** und, nach einem Storno, **Stornierung**. Der Stand ist
+**Bestellbestätigung**, bei Bestellungen mit Lieferfenster die
+**Liefertags-E-Mail** (wenn die Aktion sie sendet, siehe
+[Lieferfenster pflegen](/de/user/how-to/manage-delivery-windows/#e-mail-am-liefertag))
+und, nach einem Storno, **Stornierung**. Der Stand ist
 **Gesendet** mit Datum und Uhrzeit, **Wartet**, **Fehlgeschlagen**, **Nicht
 gesendet** oder **Nicht fällig**; darunter steht der Grund, zum Beispiel dass
 die Bestellung keine E-Mail-Adresse hat, die E-Mails der Aktion
@@ -175,7 +178,12 @@ fehlt, solange die E-Mail wartet, und immer, wenn LeonAid die E-Mail auch von
 selbst nicht senden würde: ohne Adresse, bei ausgeschalteten E-Mails, für
 einen Entwurf und für die Bestätigung einer stornierten, gelieferten oder
 abgelaufenen Bestellung. Die Bestätigung nennt beim erneuten Senden den
-heutigen Stand der Bestellung, nicht den von damals. An dasselbe Postfach
-gehen höchstens zehn Bestell-E-Mails pro Stunde; darüber schlägt der Versand
-fehl, und du sendest später erneut. Meldet LeonAid nach einem Klick, der
-Auftrag von vorhin sei angekommen, ging keine weitere E-Mail hinaus.
+heutigen Stand der Bestellung, nicht den von damals. Die Liefertags-E-Mail
+ist nur am Liefertag fällig: ab der Uhrzeit, die die Aktion gewählt hat, bis
+das Fenster endet oder die Lieferung abgehakt ist. Vorher steht dort **Wird
+am Liefertag gesendet**. Endet das Lieferfenster vor dieser Uhrzeit, steht
+dort **Keine E-Mail: Das Lieferfenster endet vor der Versandzeit**. An
+dasselbe Postfach gehen höchstens zehn Bestell-E-Mails pro Stunde; darüber
+schlägt der Versand fehl, und du sendest später erneut. Meldet LeonAid nach
+einem Klick, der Auftrag von vorhin sei angekommen, ging keine weitere E-Mail
+hinaus.

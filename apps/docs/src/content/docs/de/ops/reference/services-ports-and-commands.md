@@ -4,9 +4,9 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 22
-reviewedRevision: 22
-verifiedAgainst: 6d17bcfaca798bedf39427163d35a7ccd859a66e
+contentRevision: 24
+reviewedRevision: 24
+verifiedAgainst: 7425865669f0e487ad78293e8be3c472ccb69914
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -72,6 +72,32 @@ die Outbox-Zähler unter **System › Hintergrundaufgaben** (`/admin/system/jobs
 für das Aufbewahrungsfenster. `docker compose run --rm worker python -m
 leonaid.entrypoints.worker.outbox retention-sweep` startet einen Durchlauf von
 Hand.
+
+## E-Mail am Liefertag
+
+Der Worker führt eine Schleife `delivery_day_mail` aus. Alle fünf Minuten
+legt sie für Aktionen mit eingeschalteter **E-Mail am Liefertag** je fälliger
+Bestellung einen Job `order.delivery_day.mail.v1` an (höchstens 200 pro
+Durchlauf, ein voller Stapel läuft nach einer Sekunde weiter). Laufen mehrere
+Worker, arbeitet immer nur einer (Advisory-Lock); die anderen überspringen den
+Durchlauf. Die Schleife sendet nichts selbst: Den Versand übernimmt die
+Outbox wie bei jeder E-Mail. Der Job enthält nur IDs und die Links zu
+`/impressum` und `/datenschutz`. Diese Links baut der Worker selbst und
+braucht dafür `LEONAID_PUBLIC_BASE_URL` und `LEONAID_SITE_BASE_URL` mit
+denselben Werten wie die API; die Compose-Dateien reichen sie durch, und der
+Pilot-Vertrag (`tools/pilot_deployment/validate.py`) lehnt abweichende Werte
+ab. Logs enthalten nur die Anzahl (`worker.delivery_day_mail.queued`); die
+Metrik `leonaid_worker_delivery_day_mails_queued_total` zählt die angelegten
+Jobs, `/health/ready` des Workers meldet die Schleife als `delivery_day_mail`.
+`docker compose run --rm worker python -m leonaid.entrypoints.worker.outbox
+delivery-day-mail-sweep` startet einen Durchlauf von Hand. Die Ausgabe nennt
+`queued` und `busy`; hält gerade ein anderer Worker den Durchlauf, ist `busy`
+wahr und der Befehl endet mit Code 75. Die Schleife zählt einen solchen
+Durchlauf nicht als Erfolg und fragt nach 30 Sekunden erneut. Liefertags-
+E-Mails erzeugen keine Dead Letters für ein volles Postfach (mehr als zehn
+Bestell-E-Mails pro Stunde an dieselbe Adresse) und keine für ein abgelaufenes
+Fenster: Der Job wird abgeschlossen, und die Bestellung zeigt die E-Mail als
+fehlgeschlagen.
 
 ## Benachrichtigungen der Akquise-App
 
@@ -237,7 +263,6 @@ abgeschalteter Module zählen bei beiden Werten nicht, weil sie absichtlich
 warten. Eine wachsende Wartezeit bei laufendem Worker deutet auf eine
 hängende oder überlastete Queue.
 
-
 ## Hosts und Routen
 
 Eine Routentabelle (`tools/proxy/caddyfiles.py`) erzeugt jede Caddyfile:
@@ -247,14 +272,14 @@ Eine Routentabelle (`tools/proxy/caddyfiles.py`) erzeugt jede Caddyfile:
 eine Datei von der Tabelle abweicht, und prüft jede Route gegen ein laufendes
 Caddy.
 
-| Pfad                                                    | Verwaltungshost (`app.<domain>`) | Öffentlicher Host (`<domain>`)       |
-| ------------------------------------------------------- | -------------------------------- | ------------------------------------ |
-| `/admin/*`, `/app/*`, `/login`, `/invite`, `/email-change`, `/fresh-login` | ausgeliefert | 308 auf den Verwaltungshost |
-| `/api/*`                                                | volle API                        | nur `/api/v1/public/*` und `/api/health/*` |
-| `/_emdash/*` (CMS-Redaktion)                            | ausgeliefert                     | 404                                  |
-| `/campaigns/*`, `/surveys/*`, Aliasse, `/archive/*`     | 308 auf den öffentlichen Host    | ausgeliefert                         |
-| `/impressum`, `/datenschutz`                            | ausgeliefert                     | ausgeliefert                         |
-| `/`                                                     | 302 auf `/admin/`                | öffentliche Startseite               |
+| Pfad                                                                       | Verwaltungshost (`app.<domain>`) | Öffentlicher Host (`<domain>`)             |
+| -------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------ |
+| `/admin/*`, `/app/*`, `/login`, `/invite`, `/email-change`, `/fresh-login` | ausgeliefert                     | 308 auf den Verwaltungshost                |
+| `/api/*`                                                                   | volle API                        | nur `/api/v1/public/*` und `/api/health/*` |
+| `/_emdash/*` (CMS-Redaktion)                                               | ausgeliefert                     | 404                                        |
+| `/campaigns/*`, `/surveys/*`, Aliasse, `/archive/*`                        | 308 auf den öffentlichen Host    | ausgeliefert                               |
+| `/impressum`, `/datenschutz`                                               | ausgeliefert                     | ausgeliefert                               |
+| `/`                                                                        | 302 auf `/admin/`                | öffentliche Startseite                     |
 
 Jeder weitere Name in `LEONAID_PUBLIC_DOMAIN_ALIASES` antwortet mit 308 auf
 den öffentlichen Host, Pfad und Query bleiben. Das Sitzungs-Cookie bleibt auf
