@@ -4,9 +4,9 @@ description: Verified limits of the current LeonAid development and pilot state.
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 9
-reviewedRevision: 9
-verifiedAgainst: 1f49427206df2ee9224ad2fb21c80e3f2241649b
+contentRevision: 10
+reviewedRevision: 10
+verifiedAgainst: 885cb6908275ffec7e1906482804f59f5d1296be
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -39,7 +39,10 @@ general production approval.
   Käufer**); an order is then confirmed once, as soon as it is ready for
   review. Orders without an e-mail address of the buyer and drafts get no
   e-mail, nor do orders that become ready for review only after the
-  delivery, after the delivery window or after the campaign was completed.
+  delivery, after the delivery window or after the campaign was completed;
+  this also holds for orders from the public form. If LeonAid could send a
+  confirmation that was created in time only after that (delivery
+  disturbed), it is not sent any more and the order shows it as failed.
   The campaign's managers confirm orders from before the switch was set one
   by one in the order (**Senden**). The address is the sponsor's from the
   CRM. LeonAid does not check that the club's privacy notice names these

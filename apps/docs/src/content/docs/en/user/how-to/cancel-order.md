@@ -4,9 +4,9 @@ description: Cancel an order that is not delivered yet, with a reason, including
 docId: DOC-P047
 audience: [user]
 diataxis: how-to
-contentRevision: 5
-reviewedRevision: 5
-verifiedAgainst: 1f49427206df2ee9224ad2fb21c80e3f2241649b
+contentRevision: 6
+reviewedRevision: 6
+verifiedAgainst: 885cb6908275ffec7e1906482804f59f5d1296be
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -77,9 +77,11 @@ order if needed.
 
 ## E-mails for orders that members enter
 
-Orders from the public form always get the order confirmation and the
-cancellation notice. For orders from acquisition and from the back office you
-switch the e-mails on per campaign:
+Orders from the public form get the order confirmation and the cancellation
+notice without a switch. The same rule applies to them as to all orders,
+though: a confirmation that would come too late is not sent any more (see
+below). For orders from acquisition and from the back office you switch the
+e-mails on per campaign:
 
 1. Open **Aktionen** in the back office, select the campaign and then
    **Bearbeiten**.
@@ -102,8 +104,18 @@ buyer that it is right.
 
 LeonAid does not send a confirmation that would come too late: not after the
 delivery was ticked off, not after the delivery window ended, and not once
-the campaign is completed. So an order that is captured or completed
-afterwards triggers no confirmation.
+the campaign is completed. This holds for orders of every origin, also for
+those from the public form. So an order that is captured or completed
+afterwards triggers no confirmation. The form **Angaben ergänzen** says so
+before you save: instead of the e-mails it names the reason why no
+confirmation goes out any more.
+
+It is different when a confirmation was created in time and LeonAid could
+only send it too late, for example because e-mail delivery was disturbed
+until after the delivery window. Then the buyer got nothing. The order shows
+the confirmation as **Fehlgeschlagen** (failed) with the reason, and the
+system admin sees it among the failed e-mails in the operations overview. It
+is not sent any more; contact the buyer directly if needed.
 
 LeonAid does not confirm orders from before you switched the e-mails on by
 itself. You can send the confirmation in the order, one by one (see below).

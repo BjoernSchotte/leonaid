@@ -4,9 +4,9 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 9
-reviewedRevision: 9
-verifiedAgainst: 1f49427206df2ee9224ad2fb21c80e3f2241649b
+contentRevision: 10
+reviewedRevision: 10
+verifiedAgainst: 885cb6908275ffec7e1906482804f59f5d1296be
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -40,7 +40,11 @@ allgemeine Produktionsfreigabe.
   (**E-Mails an Käufer**); dann wird eine Bestellung einmal bestätigt, sobald
   sie prüfbereit ist. Bestellungen ohne E-Mail-Adresse des Käufers und Entwürfe
   erhalten keine E-Mail, ebenso Bestellungen, die erst nach der Lieferung,
-  nach dem Lieferfenster oder nach Abschluss der Aktion prüfbereit werden.
+  nach dem Lieferfenster oder nach Abschluss der Aktion prüfbereit werden;
+  das gilt auch für Bestellungen aus dem öffentlichen Formular. Konnte
+  LeonAid eine rechtzeitig angelegte Bestätigung erst danach senden (Versand
+  gestört), geht sie nicht mehr hinaus und steht in der Bestellung als
+  fehlgeschlagen.
   Bestellungen von vor dem Einschalten bestätigt die Aktionsverwaltung
   einzeln in der Bestellung (**Senden**). Die Adresse ist die des Sponsors
   aus dem CRM. LeonAid prüft nicht, ob die Datenschutzerklärung des Clubs
