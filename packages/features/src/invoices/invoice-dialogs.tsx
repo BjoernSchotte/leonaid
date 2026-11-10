@@ -373,7 +373,7 @@ function CancellationForm({
   return (
     <Modal
       className="inv-dialog"
-      description="Die Rechnung bleibt mit Nummer, Daten und PDF erhalten und wird als storniert markiert. LeonAid stellt dazu eine Stornorechnung aus: Sie erhält eine eigene Nummer aus dem Nummernkreis der Rechnungen und nennt diese Rechnung. Für eine Korrektur stornieren Sie die Rechnung und stellen sie dann neu aus."
+      description="Die Rechnung bleibt mit Nummer, Daten und PDF erhalten und wird als storniert markiert. LeonAid stellt dazu eine Stornorechnung aus: Sie erhält eine eigene Nummer aus dem Nummernkreis der Rechnungen und nennt diese Rechnung. Für eine Korrektur erfassen Sie danach eine neue Bestellung und stellen deren Rechnung aus."
       footer={
         <>
           <Button

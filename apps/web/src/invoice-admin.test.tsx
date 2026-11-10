@@ -643,7 +643,7 @@ describe("InvoiceAdminPage", () => {
       "LeonAid stellt dazu eine Stornorechnung aus",
     );
     expect(dialog.textContent).toContain(
-      "stornieren Sie die Rechnung und stellen sie dann neu aus",
+      "erfassen Sie danach eine neue Bestellung und stellen deren Rechnung aus",
     );
     // Never sent and nothing received: no send option, no refund note.
     expect(

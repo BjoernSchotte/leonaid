@@ -562,8 +562,12 @@ async def cancellation_invoice(connection: asyncpg.Connection[Any]) -> None:
 
 
 async def assert_missing_object(connection: asyncpg.Connection[Any]) -> None:
+    # The invoice PDF; the invoice also has its cancellation invoice by now.
     row = await connection.fetchrow(
-        "SELECT * FROM generated_document WHERE invoice_id = $1",
+        """
+        SELECT * FROM generated_document
+        WHERE invoice_id = $1 AND document_type = 'invoice_pdf'
+        """,
         INVOICE_THREE_ID,
     )
     if row is None:
@@ -595,8 +599,11 @@ async def assert_missing_object(connection: asyncpg.Connection[Any]) -> None:
             f"/api/v1/actions/{ACTION_ID}/documents/{row['id']}/download",
             headers=session_headers(token),
         )
+    listed_types = sorted(
+        str(item["document"]["documentType"]) for item in listed.json().get("items", [])
+    )
     if (
-        len(listed.json().get("items", [])) != 1
+        listed_types != ["invoice_cancellation_pdf", "invoice_pdf"]
         or response.status_code != 503
         or error_code(response) != "generated_document_storage_missing"
         or response.headers.get("content-type") != "application/json"

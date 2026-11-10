@@ -112,8 +112,13 @@ def cancellation_block(
             "Die Bestellung ist bereits geliefert und kann nicht mehr storniert "
             "werden.",
         )
-    if invoice is not None and (
-        invoice.payment_recorded or invoice.status is InvoiceStatus.PAID
+    # A cancelled invoice is closed: its payments can no longer be reversed
+    # and its refund is tracked on its own cancellation (ADR-0015). Only a
+    # live invoice with money on it blocks the order.
+    if (
+        invoice is not None
+        and invoice.status is not InvoiceStatus.CANCELLED
+        and (invoice.payment_recorded or invoice.status is InvoiceStatus.PAID)
     ):
         return CancellationBlock(
             "commitment_cancellation_payment_recorded",

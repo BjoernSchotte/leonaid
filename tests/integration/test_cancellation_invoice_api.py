@@ -868,6 +868,29 @@ class Proof:
         )
         assert len(await self.documents("by_order")) == 1
         assert await self.next_number() == serial + 1
+        # The order of an invoice that was cancelled with money on it: the
+        # payment cannot be reversed any more, so it must not block the
+        # order. Nothing is issued again.
+        paid_id = str(self.data.orders["paid"])
+        paid = next(
+            item
+            for item in orders.json()["items"]
+            if item["commitment"]["id"] == paid_id
+        )
+        assert paid["invoice"]["status"] == "cancelled"
+        assert paid["invoice"]["paidMinor"] == 7200
+        released = await self.charity.post(
+            f"/api/v1/actions/{self.data.alpha}/commitments/{paid_id}/cancellation",
+            {
+                "expectedVersion": paid["commitment"]["deliveryCompletionVersion"],
+                "reason": REASON,
+            },
+            self.key(),
+        )
+        assert released.status_code == 201, released.text
+        assert released.json()["cancellation"]["invoiceCancellationId"] is None
+        assert await self.next_number() == serial + 1
+        assert len(await self.documents("paid")) == 1
 
     async def older_cancellations_get_their_document(self) -> None:
         record = await self.record("legacy")

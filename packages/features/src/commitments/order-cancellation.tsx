@@ -39,8 +39,12 @@ export function cancellationBlock(
   if (record.delivered) {
     return "Die Bestellung ist bereits geliefert und kann nicht mehr storniert werden.";
   }
-  // Active (not reversed) payment entries, ADR-0014.
-  if ((record.invoice?.paidMinor ?? 0) > 0) {
+  // Active (not reversed) payment entries, ADR-0014. A cancelled invoice is
+  // closed: its payments stay and its refund is tracked with the invoice.
+  if (
+    record.invoice?.status !== "cancelled" &&
+    (record.invoice?.paidMinor ?? 0) > 0
+  ) {
     return `Zur Rechnung ${record.invoice!.number} ist eine Zahlung erfasst. Buchen Sie die Zahlung in der Rechnung erst zurück (Zahlung zurückbuchen), dann können Sie die Bestellung stornieren.`;
   }
   return null;
