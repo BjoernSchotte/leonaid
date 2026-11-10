@@ -4,9 +4,9 @@ description: Assign the stops of a delivery day to drivers, set the base order p
 docId: DOC-P051
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 278f0c5658d87a7aaa1829609e883c816d35340b
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: c546921444a3c60a7681373698b85b3c3e37bc59
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -27,16 +27,27 @@ A tour is one driver on one delivery day. Each driver has one tour per day.
 
 ## Assign and order
 
-1. Assign stops to a driver (drag the stop to the driver column or select stops and use
-   **Fahrer zuordnen**, assign driver).
+1. Assign stops to a driver. There are three ways:
+   - Drag the stop by its grip (six dots on the left) into the driver's
+     column. The column under the pointer is marked and names the window at
+     whose end the stop goes.
+   - Point at the stop and select **Fahrer ändern** (change driver).
+   - Tick several stops and use **Fahrer zuordnen** (assign driver). **Alle
+     ohne Fahrer auswählen** ticks every stop without a driver.
+
+   This is also how you hand one stop to another driver. The message offers
+   **Rückgängig** (undo).
 2. Drag stops inside a window group to set the base order. LeonAid saves on
-   drop. The message offers **Rückgängig** (undo).
+   drop. The message offers **Rückgängig** (undo). A stop stays in its
+   delivery window: the time window is promised to the customer.
 3. **Vorschlag sortieren** (sort suggestion) on a driver column proposes an
    order by straight-line distance. If pins are missing, it says **Für den
    Vorschlag fehlen Koordinaten.** (coordinates are missing). **Strecke …**
    shows the straight-line length of the tour.
-4. The map shows the stops as numbered pins, coloured by driver. The numbers
-   follow the effective order.
+4. **Karte** (map) in the page header shows and hides the map; LeonAid
+   remembers the choice in the browser. The map shows the stops as numbered
+   pins, coloured by driver. The numbers follow the order the column shows;
+   the column and its numbers carry the colour of the pins.
 
 A driver can reorder their own tour. The driver's order then wins over your
 base order until you reset it.
