@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 9
 reviewedRevision: 9
-verifiedAgainst: 52718b176309716b363998e37aa2c91349cdbe8f
+verifiedAgainst: 54507e7edf12d3edd483cd304204649acb8ce1fa
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
