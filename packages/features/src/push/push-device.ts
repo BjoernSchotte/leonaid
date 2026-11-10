@@ -165,13 +165,26 @@ export async function syncPushDevice(
   return (await client.savePushSubscription(subscription)).id;
 }
 
+/** Sign-out never waits longer than this for the browser's push side. */
+const FORGET_WAIT_MS = 3_000;
+
 /**
  * Sign-out: ends the device's subscription at the push service. Core
- * deletes its copy when the session ends.
+ * deletes its copy when the session ends. Without the permission no
+ * subscription exists, so the browser is not asked at all; and a browser
+ * that does not answer (WebKit without a push service) must not hold the
+ * sign-out, so the wait is bounded.
  */
 export async function forgetPushDevice(
   device: PushDevice = browserPushDevice,
 ): Promise<void> {
-  if (device.support() !== "supported") return;
-  await device.unsubscribe();
+  if (device.support() !== "supported" || device.permission() !== "granted") {
+    return;
+  }
+  await Promise.race([
+    device.unsubscribe(),
+    new Promise<void>((resolve) => {
+      setTimeout(resolve, FORGET_WAIT_MS);
+    }),
+  ]);
 }

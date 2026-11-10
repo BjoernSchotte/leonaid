@@ -7,7 +7,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import axe from "axe-core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   LeonAidApiClient,
@@ -389,8 +389,37 @@ describe("the device outside the page", () => {
     await forgetPushDevice(signedIn.device);
     expect(signedIn.calls).toEqual(["unsubscribe"]);
     expect(await signedIn.device.subscription()).toBeNull();
-    const old = browser({ support: "unsupported" });
-    await forgetPushDevice(old.device);
-    expect(old.calls).toEqual([]);
+    // Without support or without the permission the browser is not asked.
+    for (const options of [
+      { support: "unsupported" },
+      { permission: "default" },
+      { permission: "denied" },
+    ] as const) {
+      const quiet = browser(options);
+      await forgetPushDevice(quiet.device);
+      expect(quiet.calls).toEqual([]);
+    }
+  });
+
+  it("does not hold the sign-out when the browser never answers", async () => {
+    vi.useFakeTimers();
+    try {
+      const { device } = browser({ permission: "granted", subscribed: true });
+      const silent = {
+        ...device,
+        unsubscribe: () => new Promise<void>(() => {}),
+      };
+      let done = false;
+      const forgotten = forgetPushDevice(silent).then(() => {
+        done = true;
+      });
+      await vi.advanceTimersByTimeAsync(2_999);
+      expect(done).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await forgotten;
+      expect(done).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
