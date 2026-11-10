@@ -204,10 +204,25 @@ test("a new company and a private person order in the guided form", async ({
     quantity: 3,
     recipient: "Paula Privat",
   });
+  // The form offers a voluntary extra donation and names who receives it.
+  // It is its own line, not part of the order total.
+  const donation = form.getByTestId("order-donation-amount");
+  await expect(form.locator("[data-order-donation]")).toContainText(
+    "Empfänger ist Förderverein Lions Club Musterstadt e. V.",
+  );
+  await expect(form.getByTestId("order-donation-line")).toBeHidden();
+  await donation.fill("0,50");
+  await donation.blur();
+  await expect(donation).toHaveAttribute("aria-invalid", "true");
+  await donation.fill("25");
+  await donation.blur();
+  await expect(form.getByTestId("order-donation-line")).toContainText("25,00");
   submitted = await submitOrder(form);
+  await expect(page.locator("[data-order-donation-note]")).toBeVisible();
   proof.orders.push({
     scenario: "person-without-company",
     publicReference: submitted.reference,
+    donationMinor: 2500,
   });
   await page.screenshot({
     path: `${artifactDirectory}/public-order-success-person.png`,
