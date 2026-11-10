@@ -1768,11 +1768,22 @@ async def test_the_mailbox_limit_holds_for_the_delivery_day_mail_and_its_resend(
 ):
     sender = RecordingSender()
 
+    # Over the limit nothing is sent, and the job completes: a buyer with
+    # many orders on one delivery day must not leave dead letters. The
+    # confirmation of the same mailbox is still dead-lettered.
     for event in (claimed_day(), claimed_day(resend=1)):
-        with pytest.raises(OrderMailError) as captured:
-            await day_handler(day_facts(), sender, recent=RECIPIENT_LIMIT).handle(event)
-        assert captured.value.code == "order_mail_recipient_limit"
-        assert captured.value.retryable is False
+        await day_handler(day_facts(), sender, recent=RECIPIENT_LIMIT).handle(event)
+    assert sender.events == []
+    limited = OrderMailHandler(
+        OrderMailKind.CONFIRMATION,
+        reader=Reader(facts(), recent=RECIPIENT_LIMIT),
+        legal_configuration=Legal(legal()),
+        sender=sender,
+        clock=lambda: ORDERED_AT,
+    )
+    with pytest.raises(OrderMailError) as captured:
+        await limited.handle(claimed(OrderMailKind.CONFIRMATION))
+    assert captured.value.code == "order_mail_recipient_limit"
     assert sender.events == []
 
     await day_handler(day_facts(), sender, recent=RECIPIENT_LIMIT - 1).handle(
@@ -1825,7 +1836,9 @@ async def test_a_sweep_that_another_worker_runs_queues_nothing_here() -> None:
         SweepRepository(None), LinkBuilder.single_host("https://app.leonaid.invalid")
     )
 
-    assert await sweep.run_once(now=DELIVERY_MORNING) == 0
+    # Not "nothing was due": the run did not happen, and the caller must
+    # be able to tell.
+    assert await sweep.run_once(now=DELIVERY_MORNING) is None
 
 
 def test_the_sweep_writes_the_same_job_for_an_order_and_window() -> None:

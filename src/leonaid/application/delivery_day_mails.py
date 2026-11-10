@@ -28,6 +28,9 @@ from leonaid.application.order_mails import (
 from leonaid.domain.outbox import PendingOutboxEvent
 
 SWEEP_INTERVAL_SECONDS = 300.0
+# After a run that another worker's sweep kept out: soon again, not after a
+# whole interval.
+SWEEP_BUSY_RETRY_SECONDS = 30.0
 # Orders per run; a full batch runs the next one after a second.
 SWEEP_BATCH = 200
 
@@ -80,12 +83,11 @@ class DeliveryDayMailSweep:
         self._repository = repository
         self._links = delivery_day_links(links)
 
-    async def run_once(self, *, now: datetime, limit: int = SWEEP_BATCH) -> int:
-        """One bounded run; the number of jobs it queued."""
+    async def run_once(self, *, now: datetime, limit: int = SWEEP_BATCH) -> int | None:
+        """One bounded run: the number of jobs it queued, or ``None`` when
+        it did not run because another worker holds the sweep. The caller
+        must not count that as a pass."""
 
         if now.tzinfo is None or now.utcoffset() is None:
             raise ValueError("The sweep needs an aware current time.")
-        queued = await self._repository.queue_due(
-            now=now, limit=limit, links=self._links
-        )
-        return queued or 0
+        return await self._repository.queue_due(now=now, limit=limit, links=self._links)

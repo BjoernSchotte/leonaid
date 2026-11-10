@@ -15,13 +15,14 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 from enum import StrEnum
 from typing import Protocol
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from leonaid.application.commitments import IDEMPOTENCY_KEY
+from leonaid.application.delivery_day_mails import SWEEP_INTERVAL_SECONDS
 from leonaid.application.errors import Conflict
 from leonaid.application.order_mails import (
     KEY_PREFIXES,
@@ -47,6 +48,8 @@ from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import IdentityPrincipal
 
 RECIPIENT_LIMIT_ERROR = "order_mail_recipient_limit"
+# The time the sweep needs at least to queue a mail that became due.
+MISSED_MARGIN = timedelta(seconds=SWEEP_INTERVAL_SECONDS)
 
 
 class BuyerMailState(StrEnum):
@@ -114,6 +117,11 @@ class BuyerMailLedger:
     delivery_day_mail: bool = False
     delivery_day_send_time: time = DEFAULT_DELIVERY_DAY_SEND_TIME
     delivery_zone: ZoneInfo = INSTALLATION_TIME_ZONE
+    # Since when the sweep could have queued the delivery-day mail of this
+    # order: the later of "the action switched the mail on" and "the order
+    # became ready for review". ``None`` when Core cannot tell (no record of
+    # the switch).
+    delivery_day_eligible_since: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -230,6 +238,33 @@ _LATE = {
 }
 
 
+def _missed_without_job(
+    ledger: BuyerMailLedger, not_due: BuyerMailReason | None
+) -> bool:
+    """The delivery-day mail was due while its window ran and no job exists.
+
+    Only when the window is over now and nothing else speaks against the
+    mail (``WINDOW_OVER`` is the last reason the rule gives), and only when
+    the sweep had at least one full interval to queue it: the order was
+    eligible (switch on, ready for review) that long before the window
+    ended. A window that ended before the switch was turned on, or an order
+    recorded afterwards, is no missed mail.
+    """
+
+    since = ledger.delivery_day_eligible_since
+    snapshot = ledger.commitment.delivery_window_snapshot
+    if not_due is not BuyerMailReason.WINDOW_OVER or since is None or snapshot is None:
+        return False
+    starts_at = datetime.fromisoformat(snapshot["startsAt"])
+    ends_at = datetime.fromisoformat(snapshot["endsAt"])
+    send_at = datetime.combine(
+        starts_at.astimezone(ledger.delivery_zone).date(),
+        ledger.delivery_day_send_time,
+        tzinfo=ledger.delivery_zone,
+    )
+    return max(since, send_at) + MISSED_MARGIN <= ends_at
+
+
 def confirmation_on_completion(
     ledger: BuyerMailLedger, *, now: datetime
 ) -> BuyerMailReason | None:
@@ -276,6 +311,12 @@ def buyer_mail_status(
     due = not_due is None
     latest = last_sequence(kind, ledger)
     if latest is None:
+        if kind is OrderMailKind.DELIVERY_DAY and _missed_without_job(ledger, not_due):
+            # Due through its window and never queued (worker down, sweep
+            # failing): the buyer got nothing, and the order says so.
+            return BuyerMailStatus(
+                kind, BuyerMailState.FAILED, reason=BuyerMailReason.WINDOW_OVER
+            )
         return BuyerMailStatus(
             kind,
             BuyerMailState.NOT_DUE,
@@ -304,6 +345,18 @@ def buyer_mail_status(
         # Completed without a ledger row and late: the buyer got nothing.
         return BuyerMailStatus(
             kind, BuyerMailState.FAILED, sent_at=sent_at, reason=not_due
+        )
+    if kind is OrderMailKind.DELIVERY_DAY and due:
+        # Completed without a ledger row although the mail is due: the
+        # worker completes a delivery-day job over the mailbox limit instead
+        # of dead-lettering it. (A switch or a tick that was taken back
+        # after the job ran ends here too; "send it" is right then as well.)
+        return BuyerMailStatus(
+            kind,
+            BuyerMailState.FAILED,
+            sent_at=sent_at,
+            reason=BuyerMailReason.RECIPIENT_LIMIT,
+            can_resend=True,
         )
     # Completed without a ledger row: the worker found nothing to send.
     return BuyerMailStatus(

@@ -1056,6 +1056,14 @@ class OrderMailHandler:
                 since=self._clock() - RECIPIENT_WINDOW,
             )
             if recent >= self._recipient_limit:
+                if self._kind is OrderMailKind.DELIVERY_DAY:
+                    # The sweep queues a whole day's mails in one minute, so
+                    # a buyer with many orders that day reaches the limit
+                    # without any abuse. No dead letter (it would page on
+                    # the delivery morning): the job completes, and the
+                    # order's mail status shows the mail as failed with the
+                    # limit as reason, where a manager can send it later.
+                    return
                 raise OrderMailError("order_mail_recipient_limit", retryable=False)
             # The rendered text lives only in memory; the stored job keeps ids.
             await self._sender.handle(

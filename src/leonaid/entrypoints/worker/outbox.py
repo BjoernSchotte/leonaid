@@ -89,8 +89,9 @@ async def retention_sweep() -> RetentionResult:
         await pool.close()
 
 
-async def delivery_day_mail_sweep() -> int:
-    """One run of the sweep that queues the mails of today's deliveries."""
+async def delivery_day_mail_sweep() -> int | None:
+    """One run of the sweep that queues the mails of today's deliveries;
+    ``None`` when another worker's sweep kept this one out."""
 
     links = load_link_settings().links
     pool = await create_pool(os.environ["CORE_DATABASE_URL"], maximum_size=1)
@@ -109,12 +110,15 @@ async def execute(arguments: argparse.Namespace) -> int:
         return 0
     if arguments.command == "delivery-day-mail-sweep":
         # Queues jobs only; the worker loop or ``run-until-idle`` sends them.
+        queued = await delivery_day_mail_sweep()
         print(
             json.dumps(
-                {"queued": await delivery_day_mail_sweep()}, separators=(",", ":")
+                {"queued": queued or 0, "busy": queued is None},
+                separators=(",", ":"),
             )
         )
-        return 0
+        # A run that did not happen is no success for the caller.
+        return 0 if queued is not None else 75
     database_url = os.environ["CORE_DATABASE_URL"]
     pool, queue, worker = await build_worker(
         database_url=database_url,

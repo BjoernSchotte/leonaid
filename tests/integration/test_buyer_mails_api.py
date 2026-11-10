@@ -65,6 +65,7 @@ from leonaid.adapters.postgres.legal_configuration import (
 from leonaid.adapters.postgres.order_mails import AsyncpgOrderMailReader
 from leonaid.adapters.postgres.order_numbers import free_order_number
 from leonaid.adapters.postgres.privacy import AsyncpgPrivacyRepository
+from leonaid.adapters.postgres.sponsor_search import SPONSOR_SEARCH_SYNC_LOCK
 from leonaid.adapters.postgres.public_orders import AsyncpgPublicOrderRepository
 from leonaid.application.buyer_mails import BuyerMailService
 from leonaid.application.delivery_day_mails import (
@@ -696,7 +697,17 @@ class Proof:
                 **changes,
             }
 
-        for send_time in ("04:59", "12:01", "25:00", "7:00", "07:00:30"):
+        # Full and half hours from 05:00 to 12:00 only (S1).
+        for send_time in (
+            "04:59",
+            "12:01",
+            "12:30",
+            "25:00",
+            "7:00",
+            "07:00:30",
+            "07:15",
+            "06:59",
+        ):
             invalid = await self.put(self.settings, body(deliveryDaySendTime=send_time))
             assert invalid.status_code == 422, (send_time, invalid.text)
         stale = await self.put(self.settings, body(expectedRevision=2))
@@ -1661,7 +1672,8 @@ class Proof:
             LinkBuilder.single_host(BASE_URL),
         ).run_once(now=now, limit=limit)
         new = len(await self.day_keys() - before)
-        assert queued >= new, (queued, new)
+        # ``None``: another worker held the sweep, nothing ran.
+        assert (queued or 0) >= new, (queued, new)
         return new
 
     async def day_keys(self) -> set[str]:
@@ -1677,6 +1689,99 @@ class Proof:
         return (
             f"order-delivery-day-mail:{order['id']}:{self.data.day_windows[window][0]}"
         )
+
+    async def missed_without_a_job(self, early: dict[str, Any]) -> None:
+        """S3: the 07:30–08:30 window ran without any sweep (worker down).
+
+        No job exists, and the order still says that the buyer got nothing.
+        No false alarm: not when the switch was turned on after the window,
+        and not for an order that became ready after it.
+        """
+
+        failed = {
+            "kind": "delivery_day",
+            "state": "failed",
+            "sentAt": None,
+            "reason": "window_over",
+            "canResend": False,
+        }
+        not_due = {**failed, "state": "not_due"}
+        assert await self.keys(early["id"], DELIVERY_DAY) == []
+        assert (await self.mails(early["id"]))["delivery_day"] == failed
+        refusal = await self.resend(early["id"], "delivery_day", self.key("day-early"))
+        assert refusal.status_code == 409, refusal.text
+        assert self.error(refusal) == "buyer_mail_not_due"
+        window_end = self.data.day_windows["early"][2]
+        switched = (
+            "UPDATE audit_event SET occurred_at = $2 WHERE action_id = $1 "
+            "AND event_type = 'buyer_mail_configuration_changed'"
+        )
+        recorded = "UPDATE commitment SET created_at = $2 WHERE id = $1"
+        real_now = datetime.now(timezone.utc)
+        # Switched on one minute after the window ended.
+        await self.db.execute(
+            switched, self.data.action, window_end + timedelta(minutes=1)
+        )
+        try:
+            assert (await self.mails(early["id"]))["delivery_day"] == not_due
+            # Switched on four minutes before its end: no sweep had the time.
+            await self.db.execute(
+                switched, self.data.action, window_end - timedelta(minutes=4)
+            )
+            assert (await self.mails(early["id"]))["delivery_day"] == not_due
+            await self.db.execute(
+                switched, self.data.action, window_end - timedelta(minutes=6)
+            )
+            assert (await self.mails(early["id"]))["delivery_day"] == failed
+        finally:
+            await self.db.execute(switched, self.data.action, real_now)
+        # The order was recorded after its window (a delivery noted later).
+        await self.db.execute(
+            recorded, UUID(early["id"]), window_end + timedelta(hours=1)
+        )
+        try:
+            assert (await self.mails(early["id"]))["delivery_day"] == not_due
+        finally:
+            await self.db.execute(recorded, UUID(early["id"]), real_now)
+        assert (await self.mails(early["id"]))["delivery_day"] == failed
+
+    async def over_the_mailbox_limit(self) -> None:
+        """S2: a mailbox over the limit on the delivery day leaves no dead
+        letter; the order shows the mail as failed and a manager sends it."""
+
+        at = self.data.at
+        limited = await self.order("day-limit", window="afternoon")
+        assert await self.sweep(at(9, 40)) == 1
+        sent = len(self.sent)
+        assert (
+            await self.work(
+                limited["id"], DELIVERY_DAY, recipient_limit=0, now=at(9, 40)
+            )
+            == "completed"
+        )
+        assert len(self.sent) == sent
+        assert [
+            job["status"] for job in await self.jobs(limited["id"], DELIVERY_DAY)
+        ] == ["completed"]
+        assert (await self.mails(limited["id"]))["delivery_day"] == {
+            "kind": "delivery_day",
+            "state": "failed",
+            "sentAt": None,
+            "reason": "recipient_limit",
+            "canResend": True,
+        }
+        # The sweep leaves the order alone; the manager sends the mail later.
+        assert await self.sweep(at(9, 41)) == 0
+        again = await self.resend(limited["id"], "delivery_day", self.key("day-limit"))
+        assert again.status_code == 202, again.text
+        assert (
+            await self.work(limited["id"], DELIVERY_DAY, now=at(9, 41)) == "completed"
+        )
+        assert self.sent[-1].idempotency_key == (
+            f"{self.day_key(limited, 'afternoon')}:resend:1"
+        )
+        status = (await self.mails(limited["id"]))["delivery_day"]
+        assert status["state"] == "sent"
 
     async def delivery_day(self) -> None:
         at = self.data.at
@@ -1755,9 +1860,32 @@ class Proof:
                 is None
             )
             assert await self.sweep(at(9, 0)) == 0
+            # A run that did not happen is told apart from an empty one.
+            assert (
+                await DeliveryDayMailSweep(
+                    AsyncpgDeliveryDayMailRepository(self.pool),
+                    LinkBuilder.single_host(BASE_URL),
+                ).run_once(now=at(9, 0))
+                is None
+            )
         finally:
             await self.db.execute(
                 "SELECT pg_advisory_unlock($1)", DELIVERY_DAY_SWEEP_LOCK
+            )
+        # The sponsor search sync holds its own lock for a whole run (M1):
+        # the sweep is not kept out by it.
+        await self.db.execute("SELECT pg_advisory_lock($1)", SPONSOR_SEARCH_SYNC_LOCK)
+        try:
+            assert (
+                await DeliveryDayMailSweep(
+                    AsyncpgDeliveryDayMailRepository(self.pool),
+                    LinkBuilder.single_host(BASE_URL),
+                ).run_once(now=at(6, 59))
+                == 0
+            )
+        finally:
+            await self.db.execute(
+                "SELECT pg_advisory_unlock($1)", SPONSOR_SEARCH_SYNC_LOCK
             )
         assert await self.day_keys() == set()
         # At 09:00 two workers sweep at once: the early window is over, the
@@ -1917,9 +2045,12 @@ class Proof:
             } == {
                 "cancelled": ("skipped", "order_cancelled"),
                 "missed": ("skipped", "delivery_recorded"),
-                # Due at 09:40, but its job ended without a mail.
-                "late": ("skipped", "not_sent"),
+                # Due at 09:40, but its job ended without a mail: for this
+                # kind that reads as the mailbox limit, with "Senden".
+                "late": ("failed", "recipient_limit"),
             }
+            await self.missed_without_a_job(early)
+            await self.over_the_mailbox_limit()
             skipped = await self.resend(
                 late_drop["id"], "delivery_day", self.key("day-skipped")
             )

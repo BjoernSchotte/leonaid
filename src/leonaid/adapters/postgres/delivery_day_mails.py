@@ -15,8 +15,10 @@ from leonaid.application.delivery_day_mails import (
 )
 from leonaid.application.order_mails import KEY_PREFIXES, OrderMailKind, OrderMailLinks
 
-# One worker at a time runs the sweep.
-DELIVERY_DAY_SWEEP_LOCK = 527064
+# One worker at a time runs the sweep. The key is this sweep's alone: every
+# integer advisory lock of Core has its own
+# (``tests/unit/test_advisory_locks.py``).
+DELIVERY_DAY_SWEEP_LOCK = 527065
 
 # ``order_mails.delivery_day_not_due_reason`` in SQL, plus "no job and no
 # ledger row for this order and window". $1 = now, $2 = key prefix, $3 = limit.

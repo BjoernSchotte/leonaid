@@ -193,7 +193,34 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
                 delivery_settings.timezone AS delivery_zone,
                 action.status AS action_status,
                 delivery.state AS drop_state,
-                cancellation.previous_status
+                cancellation.previous_status,
+                -- When the action last switched the delivery-day mail on
+                -- (the settings keep no timestamp; the audit trail does).
+                (
+                    SELECT max(switched.occurred_at) FROM audit_event AS switched
+                    WHERE switched.action_id = commitment.action_id
+                      AND switched.event_type = 'buyer_mail_configuration_changed'
+                      AND (switched.payload -> 'current' ->> 'deliveryDayMail')
+                          = 'true'
+                      AND COALESCE(
+                          switched.payload -> 'previous' ->> 'deliveryDayMail',
+                          'false'
+                      ) = 'false'
+                ) AS delivery_day_switched_on_at,
+                -- When the order became ready for review, or was last
+                -- completed.
+                COALESCE(
+                    (
+                        SELECT max(ready.occurred_at) FROM audit_event AS ready
+                        WHERE ready.entity_type = 'commitment'
+                          AND ready.entity_id = commitment.id
+                          AND ready.event_type IN (
+                              'commitment_completed',
+                              'commitment_delivery_completed'
+                          )
+                    ),
+                    commitment.created_at
+                ) AS ready_at
             FROM commitment
             JOIN charity_action AS action ON action.id = commitment.action_id
             LEFT JOIN action_buyer_mail_configuration AS mails
@@ -271,6 +298,11 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
                 ZoneInfo(str(row["delivery_zone"]))
                 if row["delivery_zone"] is not None
                 else INSTALLATION_TIME_ZONE
+            ),
+            delivery_day_eligible_since=(
+                max(row["delivery_day_switched_on_at"], row["ready_at"])
+                if row["delivery_day_switched_on_at"] is not None
+                else None
             ),
         )
 

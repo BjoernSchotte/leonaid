@@ -19,6 +19,7 @@ from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.security import AsyncpgSecurityRateLimitRepository
 from leonaid.application.delivery_day_mails import (
     SWEEP_BATCH,
+    SWEEP_BUSY_RETRY_SECONDS,
     SWEEP_INTERVAL_SECONDS,
 )
 from leonaid.bootstrap.worker import (
@@ -445,6 +446,11 @@ async def delivery_day_mail_loop() -> None:
             sweep = build_delivery_day_mail_sweep(pool, links)
             while True:
                 queued = await sweep.run_once(now=datetime.now(timezone.utc))
+                if queued is None:
+                    # Another worker sweeps right now. Not a pass of this
+                    # loop: no success is recorded, and it asks again soon.
+                    await asyncio.sleep(SWEEP_BUSY_RETRY_SECONDS)
+                    continue
                 record_success(delivery_day_mail_health)
                 if queued:
                     DELIVERY_DAY_MAILS_QUEUED["total"] += queued

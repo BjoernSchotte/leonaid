@@ -113,6 +113,10 @@ def test_the_delivery_day_send_time_lies_between_five_and_noon(moment: time) -> 
         time(23, 0),
         time(7, 0, 30),
         time(7, 0, tzinfo=timezone.utc),
+        # Full and half hours only.
+        time(7, 15),
+        time(6, 59),
+        time(11, 31),
     ],
 )
 def test_a_send_time_outside_the_morning_is_refused(moment: time) -> None:
@@ -648,6 +652,82 @@ def test_a_delivery_day_job_that_waited_past_the_window_shows_as_failed() -> Non
         assert status == BuyerMailStatus(
             DELIVERY_DAY, BuyerMailState.SKIPPED, reason=reason
         )
+
+
+def test_a_delivery_day_job_over_the_mailbox_limit_shows_as_failed() -> None:
+    # The worker completes such a job (no dead letter on the delivery
+    # morning); the mail is still due, and a manager can send it.
+    value = ledger(delivery_day_mail=True, jobs=(BuyerMailJob(day_key(), "completed"),))
+    during = datetime(2026, 2, 14, 9, 30, tzinfo=BERLIN)
+
+    assert buyer_mail_status(DELIVERY_DAY, value, now=during) == BuyerMailStatus(
+        DELIVERY_DAY,
+        BuyerMailState.FAILED,
+        reason=BuyerMailReason.RECIPIENT_LIMIT,
+        can_resend=True,
+    )
+    assert resend_refusal(DELIVERY_DAY, value, now=during) is None
+    assert next_sequence(DELIVERY_DAY, value) == 1
+    # The confirmation keeps "not sent" for a job that ended without a mail.
+    confirmation = ledger(jobs=(BuyerMailJob(key(), "completed"),))
+    assert buyer_mail_status(CONFIRMATION, confirmation).reason is (
+        BuyerMailReason.NOT_SENT
+    )
+
+
+WINDOW_START = datetime(2026, 2, 14, 9, 0, tzinfo=BERLIN)
+WINDOW_CLOSE = datetime(2026, 2, 14, 11, 0, tzinfo=BERLIN)
+SEND_AT = datetime(2026, 2, 14, 7, 0, tzinfo=BERLIN)
+
+
+def missed(since: datetime | None, **changes: object) -> BuyerMailStatus:
+    value = replace(
+        ledger(**{"delivery_day_mail": True, **changes}),
+        delivery_day_eligible_since=since,
+    )
+    return buyer_mail_status(DELIVERY_DAY, value, now=WINDOW_CLOSE + timedelta(hours=3))
+
+
+def test_a_delivery_day_mail_that_was_never_queued_through_its_window_failed() -> None:
+    # Worker down or sweep failing from the send time until the window
+    # ended: no job exists, and the buyer got nothing.
+    failed = BuyerMailStatus(
+        DELIVERY_DAY, BuyerMailState.FAILED, reason=BuyerMailReason.WINDOW_OVER
+    )
+
+    assert missed(SEND_AT - timedelta(days=3)) == failed
+    # Eligible during the window, with one sweep interval to spare.
+    assert missed(WINDOW_START + timedelta(minutes=30)) == failed
+    assert missed(WINDOW_CLOSE - timedelta(minutes=5)) == failed
+
+
+def test_no_false_alarm_for_a_window_that_was_not_the_sweeps_to_mail() -> None:
+    not_due = BuyerMailStatus(
+        DELIVERY_DAY, BuyerMailState.NOT_DUE, reason=BuyerMailReason.WINDOW_OVER
+    )
+
+    # The switch was turned on, or the order became ready, after the window
+    # ended or too shortly before its end for a sweep.
+    assert missed(WINDOW_CLOSE + timedelta(minutes=1)) == not_due
+    assert missed(WINDOW_CLOSE - timedelta(minutes=4)) == not_due
+    # Core has no record of when the switch was turned on.
+    assert missed(None) == not_due
+    # Other reasons stay what they are: delivered, cancelled, closed, off.
+    since = SEND_AT - timedelta(days=3)
+    assert missed(since, drop_state="delivered").reason is (
+        BuyerMailReason.DELIVERY_RECORDED
+    )
+    assert missed(since, action_status="completed").reason is (
+        BuyerMailReason.ACTION_CLOSED
+    )
+    assert missed(since, delivery_day_mail=False).reason is (
+        BuyerMailReason.SWITCHED_OFF
+    )
+    # Before the window ended nothing is missed yet.
+    waiting = replace(ledger(delivery_day_mail=True), delivery_day_eligible_since=since)
+    assert buyer_mail_status(DELIVERY_DAY, waiting, now=DELIVERY_MORNING).state is (
+        BuyerMailState.NOT_DUE
+    )
 
 
 def test_jobs_of_a_window_the_order_left_do_not_count_for_its_window_now() -> None:
