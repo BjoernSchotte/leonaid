@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 1
 reviewedRevision: 1
-verifiedAgainst: dd69fcf4fed541649862cc2ed3c869415a3813d6
+verifiedAgainst: ea0d4b8aca50736cc2d8442cd424e4e083cc472a
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -88,7 +88,8 @@ Ist das Geld zurücküberwiesen:
 2. Trage unter **Erstattet am** den Tag der Überweisung ein. Er liegt zwischen
    dem Tag des Stornos und heute.
 3. Ergänze bei Bedarf eine **Notiz**.
-4. Bestätige mit **Erstattung erledigt**.
+4. Bestätige mit **Erstattung erledigt**. Auch hier bestätigst du deine
+   Anmeldung gegebenenfalls erneut.
 
 Der Vermerk schließt nur die Erinnerung. Er lässt sich nicht ändern oder
 zurücknehmen. Der Abschnitt **Stornorechnung** zeigt danach

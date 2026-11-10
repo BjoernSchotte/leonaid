@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 1
 reviewedRevision: 1
-verifiedAgainst: dd69fcf4fed541649862cc2ed3c869415a3813d6
+verifiedAgainst: ea0d4b8aca50736cc2d8442cd424e4e083cc472a
 reviewer: Claude Code (review by Björn Schotte pending)
 ---
 
@@ -87,7 +87,8 @@ When the money has been transferred back:
 2. Enter the day of the transfer under **Erstattet am**. It lies between the
    day of the cancellation and today.
 3. Add a **Notiz** (note) if needed.
-4. Confirm with **Erstattung erledigt**.
+4. Confirm with **Erstattung erledigt**. Here too you may have to confirm
+   your sign-in again.
 
 The entry only closes the reminder. It cannot be changed or taken back. The
 section **Stornorechnung** then shows **Erstattung erledigt am** with the date
