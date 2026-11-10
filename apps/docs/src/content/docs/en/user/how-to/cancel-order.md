@@ -4,9 +4,9 @@ description: Cancel an order that is not delivered yet, with a reason, including
 docId: DOC-P047
 audience: [user]
 diataxis: how-to
-contentRevision: 8
-reviewedRevision: 8
-verifiedAgainst: 44a1e8cd5085ea1ac8be745dfaf7059945f955c2
+contentRevision: 9
+reviewedRevision: 9
+verifiedAgainst: 1236a5c74b40ce3254ab273018c8c6c3d18c6c6d
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -51,6 +51,10 @@ finds all cancelled orders. Quantity and amount totals no longer count them.
   the invoice. Because this creates a financial
   document, you may have to confirm your sign-in again. Reason and note are
   kept; after the sign-in the dialog opens again and you confirm once more.
+- **Donation:** if a donation came with the order and is not paid yet, the
+  dialog offers **Spende ebenfalls stornieren** (cancel the donation too);
+  the box is ticked. Without the tick the donation stays open. A paid
+  donation always stays; the dialog says so.
 - **Buyer:** before you cancel, the dialog says whether the buyer gets an
   e-mail. If the order came in through the public order form, the buyer soon
   gets the e-mail **Stornierung Ihrer Bestellung bei …** (your order was

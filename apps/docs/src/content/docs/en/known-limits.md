@@ -4,9 +4,9 @@ description: Verified limits of the current LeonAid development and pilot state.
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 15
-reviewedRevision: 15
-verifiedAgainst: 1c7cedc2a1d2733b336d30a146b28874c28e8eb1
+contentRevision: 16
+reviewedRevision: 16
+verifiedAgainst: 1236a5c74b40ce3254ab273018c8c6c3d18c6c6d
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -96,8 +96,10 @@ general production approval.
   **Rechtliches**. Only money donations in euro exist, one payment per
   donation and no collective receipt; a second part payment is a donation of
   its own. Only an unpaid donation can be cancelled. Donations are recorded
-  in the back office only, not yet in the order form; you enter the donor by
-  hand, there is no CRM search in that dialog yet. The donation
+  in the back office or as the extra donation of an order (1.00 € to
+  10,000.00 €); the public form takes no donation without an order. The donor
+  search in the CRM finds only sponsors of the action and fills in no street.
+  The donation
   receipt exists only as a single receipt for money donations, one per
   donation; it is never changed, only declared void. With a signature by hand
   LeonAid does not send it by e-mail. If the notice of the receiving body is

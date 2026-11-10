@@ -1047,6 +1047,26 @@
         "{noun} senden",
         "Erneut senden"
       ]
+    },
+    {
+      "file": "packages/features/src/donations/donor-search.tsx",
+      "contains": ["Spender im CRM suchen", "Übernehmen"]
+    },
+    {
+      "file": "packages/features/src/action-admin/order-form-donation.tsx",
+      "contains": ["Zusatzspende im Bestellformular anbieten"]
+    },
+    {
+      "file": "packages/features/src/commitments/commitment-capture.tsx",
+      "contains": ["Zusatzspende in €"]
+    },
+    {
+      "file": "apps/public/src/components/PublicOrder.astro",
+      "contains": ["Zusätzlich spenden", "Spendenbetrag in €"]
+    },
+    {
+      "file": "packages/features/src/commitments/order-cancellation.tsx",
+      "contains": ["Spende ebenfalls stornieren"]
     }
   ],
   "DOC-P060": [

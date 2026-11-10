@@ -4,9 +4,9 @@ description: Ohne LeonAid-Konto eine verbindliche Bestellung auf einer veröffen
 docId: DOC-P013
 audience: [user]
 diataxis: how-to
-contentRevision: 6
-reviewedRevision: 6
-verifiedAgainst: e2c162eb92c46bc3ee636eb795d33ad2f26059b5
+contentRevision: 7
+reviewedRevision: 7
+verifiedAgainst: 1236a5c74b40ce3254ab273018c8c6c3d18c6c6d
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -28,7 +28,12 @@ spricht Bestellende mit „Sie“ an.
    Lieferkontakts sind unabhängig voneinander optional.
 5. Lasse **Rechnungsadresse entspricht der Lieferadresse** aktiviert oder
    ergänze die abweichenden Rechnungsfelder vollständig.
-6. Bestätige unter **Datenschutz** die Hinweise zur Datenverarbeitung und **Ich bestelle
+6. Bietet die Aktion es an, kannst du unter **Zusätzlich spenden** einen
+   **Spendenbetrag in €** eintragen, von 1,00 € bis 10.000,00 €. Das Feld ist
+   freiwillig. Die Spende gehört nicht zum Bestellwert: Sie steht in einer
+   eigenen Zeile **Spende** darunter. Das Formular nennt den Empfänger der
+   Spende.
+7. Bestätige unter **Datenschutz** die Hinweise zur Datenverarbeitung und **Ich bestelle
    die gewählte Menge verbindlich.** Sende das Formular über den angezeigten
    Bestellbutton.
 
@@ -38,6 +43,11 @@ mit einem Link zu jedem betroffenen Feld. Die Eingaben bleiben erhalten.
 Die Bestätigung zeigt **Bestellung eingegangen**, **Danke für Ihre
 Bestellung!** und eine Referenz im Format `LA-…`. Bewahre sie für Rückfragen
 auf. Die Rechnung folgt separat nach Prüfung durch den Club.
+
+Hast du eine Spende eingetragen, erhältst du dafür eine eigene E-Mail mit der
+**Spendenzusage**: einer Zahlungsbitte mit dem Spendenkonto, getrennt von der
+Rechnung. Die Bestellbestätigung nennt die Spende in einem eigenen Absatz.
+Nach dem Zahlungseingang stellt der Club die Zuwendungsbestätigung aus.
 
 Kurz darauf kommt an die angegebene E-Mail-Adresse die Bestellbestätigung
 **Ihre Bestellung bei …**. Sie enthält Bestellnummer, Positionen mit Menge und

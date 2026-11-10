@@ -4,9 +4,9 @@ description: Eine Spende erfassen, die Spendenzusage senden, den Zahlungseingang
 docId: DOC-P059
 audience: [user]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 1c7cedc2a1d2733b336d30a146b28874c28e8eb1
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: 1236a5c74b40ce3254ab273018c8c6c3d18c6c6d
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -40,20 +40,52 @@ verwalten darfst.
 
 1. Öffne im Backoffice **Spenden** und wähle oben die Aktion.
 2. Wähle **Spende erfassen**.
-3. Trage **Name des Spenders**, **Straße und Hausnummer**, **Postleitzahl**
-   und **Ort** ein. Schreibe den Namen so, wie er später auf der
+3. Hat die Aktion Sponsoren aus der Akquise und leitest du sie, kannst du
+   unter **Spender im CRM suchen** einen Sponsor dieser Aktion nach Name oder
+   Ort suchen und mit **Übernehmen** wählen. Name, Postleitzahl, Ort und
+   E-Mail sind dann ausgefüllt, und die Spende ist mit dem CRM-Kontakt
+   verknüpft. Die Straße trägst du selbst ein.
+4. Trage **Name des Spenders**, **Straße und Hausnummer**, **Postleitzahl**
+   und **Ort** ein oder prüfe sie. Schreibe den Namen so, wie er später auf der
    Zuwendungsbestätigung stehen soll.
-4. Trage die **E-Mail** ein, wenn du die Spendenzusage per E-Mail senden
+5. Trage die **E-Mail** ein, wenn du die Spendenzusage per E-Mail senden
    willst. Das Feld ist freiwillig.
-5. Trage den **Betrag in €** ein, von 1,00 € bis 1.000.000,00 €. Das ist der
+6. Trage den **Betrag in €** ein, von 1,00 € bis 1.000.000,00 €. Das ist der
    zugesagte Betrag.
-6. Bestätige mit **Spende erfassen**. Weil dabei ein Beleg entsteht,
+7. Bestätige mit **Spende erfassen**. Weil dabei ein Beleg entsteht,
    bestätigst du deine Anmeldung gegebenenfalls erneut.
 
 Die Spende erhält sofort eine Nummer aus dem Nummernkreis der Spendenzusagen,
 zum Beispiel **SP26-0007**. Der Nummernkreis gilt für die ganze Installation.
 Name, Adresse und Betrag lassen sich danach nicht mehr ändern. Bei einem
 Fehler stornierst du die Spende und erfasst sie neu.
+
+## Spende mit einer Bestellung
+
+Eine Aktion kann im Bestellformular eine freiwillige Zusatzspende anbieten.
+
+- **Einschalten:** Öffne die Aktion und schalte im Bereich **Zusatzspende im
+  Bestellformular** die Option **Zusatzspende im Bestellformular anbieten**
+  ein. Das geht auch bei einer laufenden Aktion. Die Aktion braucht dafür die
+  Fähigkeit **Spenden**, und unter **Rechtliches** muss der Teil **Spenden**
+  aktiv sein; sonst zeigt kein Formular das Feld. Aktionen aus der Vorlage
+  **Krapfentaxi** ab Version 3 haben beides bereits.
+- **Öffentliches Formular:** Besteller tragen unter **Zusätzlich spenden**
+  einen Betrag von 1,00 € bis 10.000,00 € ein. Die Spende entsteht sofort mit
+  eigener Nummer, und die Spendenzusage geht von selbst per E-Mail an den
+  Besteller.
+- **Erfassung durch Mitglieder:** Im Backoffice und in der Akquise-App steht
+  das Feld **Zusatzspende in €**. Bei einem Entwurf merkt sich LeonAid nur
+  den Betrag; die Spende entsteht, wenn die Bestellung verbindlich wird. Die
+  Spendenzusage sendest du dann selbst.
+- **Spender** ist immer der Rechnungsempfänger der Bestellung. Eine
+  Bestellung mit Spende braucht deshalb einen vollständigen
+  Rechnungsempfänger.
+- Die Spende gehört nicht zum Bestellwert und steht nicht auf der Rechnung.
+  Die Bestellung zeigt sie mit Nummer und Status und verlinkt sie.
+- Wird die Bestellung storniert, wird eine unbezahlte Spende mit storniert,
+  wenn du das Häkchen im Dialog lässt (siehe
+  [Bestellung stornieren](/de/user/how-to/cancel-order/)).
 
 ## Spendenzusage ansehen und senden
 

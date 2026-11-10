@@ -4,9 +4,9 @@ description: Submit a binding order from a published campaign page without a Leo
 docId: DOC-P013
 audience: [user]
 diataxis: how-to
-contentRevision: 6
-reviewedRevision: 6
-verifiedAgainst: e2c162eb92c46bc3ee636eb795d33ad2f26059b5
+contentRevision: 7
+reviewedRevision: 7
+verifiedAgainst: 1236a5c74b40ce3254ab273018c8c6c3d18c6c6d
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -27,7 +27,12 @@ form addresses customers formally ("Sie").
    delivery contact name and phone are independently optional.
 5. Keep **Rechnungsadresse entspricht der Lieferadresse** selected or complete
    every separate billing field.
-6. Under **Datenschutz**, acknowledge the data-processing notice and **Ich bestelle die
+6. If the campaign offers it, you can enter a **Spendenbetrag in €** under
+   **Zusätzlich spenden** (donate in addition), from 1.00 € to 10,000.00 €.
+   The field is optional. The donation is not part of the order total: it
+   stands in a line **Spende** of its own below it. The form names who
+   receives the donation.
+7. Under **Datenschutz**, acknowledge the data-processing notice and **Ich bestelle die
    gewählte Menge verbindlich.** Submit with the displayed order button.
 
 If something is missing, a list **Bitte prüfen Sie …** (please check) appears
@@ -36,6 +41,11 @@ above the form with a link to each affected field. Your entries stay.
 The confirmation displays **Bestellung eingegangen**, **Danke für Ihre
 Bestellung!** and a reference in the form `LA-…`. Keep it for questions. The
 invoice follows separately after the club reviews the order.
+
+If you entered a donation, you get a separate e-mail with the donation pledge
+("Spendenzusage"): a payment request with the donation account, separate from
+the invoice. The order confirmation names the donation in a paragraph of its
+own. After the payment arrived the club issues the donation receipt.
 
 Shortly after, the order confirmation **Ihre Bestellung bei …** (your order
 at …) arrives at the e-mail address you entered. It contains the order number,

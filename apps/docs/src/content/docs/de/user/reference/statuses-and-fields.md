@@ -4,9 +4,9 @@ description: Nachschlagewerk für Aktions-, Akquise-, Bestell-, Rechnungs- und L
 docId: DOC-P017
 audience: [user]
 diataxis: reference
-contentRevision: 7
-reviewedRevision: 7
-verifiedAgainst: 1c7cedc2a1d2733b336d30a146b28874c28e8eb1
+contentRevision: 8
+reviewedRevision: 8
+verifiedAgainst: 1236a5c74b40ce3254ab273018c8c6c3d18c6c6d
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -91,5 +91,6 @@ erklärt**; geändert wird sie nie (siehe
 [Zuwendungsbestätigung ausstellen](/de/user/how-to/issue-donation-receipt/)).
 
 Die Herkunft ist `admin` (**Verwaltung**), `public_form` (**Öffentliches
-Formular**) oder `acquisition` (**Akquise**). In dieser Version entstehen
-Spenden nur in der Verwaltung.
+Formular**) oder `acquisition` (**Akquise**): Sie sagt, ob die Spende in der
+Verwaltung erfasst wurde oder mit einer Bestellung aus dem öffentlichen
+Formular oder der Akquise-App kam.

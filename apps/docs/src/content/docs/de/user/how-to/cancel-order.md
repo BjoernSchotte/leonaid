@@ -4,9 +4,9 @@ description: Eine noch nicht gelieferte Bestellung mit Grund stornieren, samt of
 docId: DOC-P047
 audience: [user]
 diataxis: how-to
-contentRevision: 8
-reviewedRevision: 8
-verifiedAgainst: 44a1e8cd5085ea1ac8be745dfaf7059945f955c2
+contentRevision: 9
+reviewedRevision: 9
+verifiedAgainst: 1236a5c74b40ce3254ab273018c8c6c3d18c6c6d
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -55,6 +55,10 @@ Menge und Betrag zählen sie nicht mehr mit.
   Weil dabei ein Beleg entsteht, bestätigst du deine Anmeldung
   gegebenenfalls erneut. Grund und Notiz bleiben dabei erhalten; nach der
   Anmeldung öffnet sich der Dialog wieder, und du bestätigst noch einmal.
+- **Spende:** Kam mit der Bestellung eine Spende und ist sie noch nicht
+  bezahlt, bietet der Dialog **Spende ebenfalls stornieren** an; das Häkchen
+  ist gesetzt. Ohne Häkchen bleibt die Spende offen. Eine bezahlte Spende
+  bleibt immer bestehen; der Dialog sagt das.
 - **Besteller:** Der Dialog sagt vor dem Stornieren, ob der Besteller eine
   E-Mail bekommt. Kam die Bestellung über das öffentliche Bestellformular,
   erhält er kurz darauf die E-Mail **Stornierung Ihrer Bestellung bei …** an
