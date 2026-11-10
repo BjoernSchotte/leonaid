@@ -9,6 +9,7 @@ kind and a count, nothing about the record that caused it.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta
@@ -26,6 +27,7 @@ from leonaid.domain.push import (
     PushKind,
     PushSubscription,
     PushTarget,
+    SubscriptionRefusal,
     device_is_dead,
     plan_dispatch,
 )
@@ -225,7 +227,7 @@ class AsyncpgPushRepository:
         device_limit: int,
         request_id: str,
         occurred_at: datetime,
-    ) -> UUID | None:
+    ) -> UUID | SubscriptionRefusal:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
                 # One member's registrations run one after the other, so the
@@ -235,19 +237,35 @@ class AsyncpgPushRepository:
                     f"push.devices:{user_id}",
                 )
                 existing = await connection.fetchrow(
-                    "SELECT id, user_id FROM push_subscription "
+                    "SELECT id, user_id, p256dh, auth FROM push_subscription "
                     "WHERE endpoint = $1 FOR UPDATE",
                     target.endpoint,
                 )
+                if (
+                    existing is not None
+                    and existing["user_id"] != user_id
+                    and not (
+                        # Both compared, whatever the first says, in
+                        # constant time: the stored keys stay a secret.
+                        hmac.compare_digest(bytes(existing["p256dh"]), target.p256dh)
+                        & hmac.compare_digest(bytes(existing["auth"]), target.auth)
+                    )
+                ):
+                    # Another member's device, named by its endpoint only.
+                    # Knowing the URL is no proof of holding the browser's
+                    # subscription; the keys are. Nothing is changed.
+                    return SubscriptionRefusal.BOUND_TO_ANOTHER_MEMBER
                 if existing is None or existing["user_id"] != user_id:
                     others = await connection.fetchval(
                         "SELECT count(*) FROM push_subscription WHERE user_id = $1",
                         user_id,
                     )
                     if int(others) >= device_limit:
-                        return None
-                # One row per endpoint: a device that signs in again, also
-                # as another member, moves its row to the new session.
+                        return SubscriptionRefusal.DEVICE_LIMIT
+                # One row per endpoint: a device that signs in again moves
+                # its row to the new session; as another member only with
+                # the same keys (checked above). The same member may renew
+                # the keys of their own row.
                 subscription_id = await connection.fetchval(
                     """
                     INSERT INTO push_subscription (

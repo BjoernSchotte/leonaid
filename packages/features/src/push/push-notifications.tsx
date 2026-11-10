@@ -156,11 +156,13 @@ export function PushNotificationsPage({
     onError: (error) =>
       setNotice({
         text:
-          errorCode(error) === "push_device_limit"
-            ? "Du hast schon zehn Geräte angemeldet. Schalte Benachrichtigungen zuerst auf einem anderen Gerät aus."
-            : error instanceof ApiError && error.status === 429
-              ? "Das waren viele Versuche in kurzer Zeit. Versuche es in einer Stunde wieder."
-              : "Dieses Gerät konnte nicht angemeldet werden. Prüfe die Verbindung und versuche es erneut.",
+          errorCode(error) === "push_device_bound"
+            ? "Dieses Gerät ist bereits für ein anderes Konto angemeldet. Benachrichtigungen dort ausschalten oder neu anmelden."
+            : errorCode(error) === "push_device_limit"
+              ? "Du hast schon zehn Geräte angemeldet. Schalte Benachrichtigungen zuerst auf einem anderen Gerät aus."
+              : error instanceof ApiError && error.status === 429
+                ? "Das waren viele Versuche in kurzer Zeit. Versuche es in einer Stunde wieder."
+                : "Dieses Gerät konnte nicht angemeldet werden. Prüfe die Verbindung und versuche es erneut.",
         tone: "error",
       }),
     onMutate: () => setNotice(null),

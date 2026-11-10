@@ -38,6 +38,7 @@ from leonaid.domain.push import (
     PushResult,
     PushSubscription,
     PushTarget,
+    SubscriptionRefusal,
     follow_up_push_due,
     require_push_keys,
 )
@@ -85,9 +86,14 @@ class PushRepository(Protocol):
         device_limit: int,
         request_id: str,
         occurred_at: datetime,
-    ) -> UUID | None:
-        """The device's id, or None when the member has ``device_limit``
-        other devices already."""
+    ) -> UUID | SubscriptionRefusal:
+        """The device's id, or why it was not registered.
+
+        An endpoint that is registered for another member moves to this
+        member only with the stored keys: then it is the same browser
+        subscription (one device, another member signed in). With other
+        keys nothing is changed.
+        """
         ...
 
     async def delete_subscription(
@@ -330,7 +336,13 @@ class PushService:
             request_id=request_id,
             occurred_at=self._clock(),
         )
-        if subscription_id is None:
+        if subscription_id is SubscriptionRefusal.BOUND_TO_ANOTHER_MEMBER:
+            raise Conflict(
+                "push_device_bound",
+                "Dieses Gerät ist bereits für ein anderes Konto angemeldet. "
+                "Benachrichtigungen dort ausschalten oder neu anmelden.",
+            )
+        if isinstance(subscription_id, SubscriptionRefusal):
             raise Conflict(
                 "push_device_limit",
                 f"Es sind schon {MAX_DEVICES_PER_MEMBER} Geräte angemeldet. "

@@ -400,6 +400,16 @@ describe("Benachrichtigungen", () => {
     );
   });
 
+  it("says so when the device is registered for another account", async () => {
+    const { device } = browser();
+    show(core([], { subscribe: failure(409, "push_device_bound") }), device);
+    fireEvent.click(await screen.findByTestId("push-switch-on"));
+    expect((await screen.findByTestId("push-notice")).textContent).toBe(
+      "Dieses Gerät ist bereits für ein anderes Konto angemeldet. Benachrichtigungen dort ausschalten oder neu anmelden.",
+    );
+    expect(screen.getByTestId("push-off")).toBeTruthy();
+  });
+
   it("says so when the member has ten devices already", async () => {
     const { device } = browser();
     show(core([], { subscribe: failure(409, "push_device_limit") }), device);

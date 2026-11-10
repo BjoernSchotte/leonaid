@@ -130,6 +130,15 @@ has at most 10 devices. The row is deleted:
   the device, so no outage removes a device;
 - when it was made with another VAPID key than the current one.
 
+One endpoint is one row. A member may renew the keys of their own row. A
+row of another member moves to the caller only when the submitted keys
+(`p256dh`, `auth`) equal the stored ones, compared in constant time: then
+it is the same browser subscription, a shared device on which another
+member signed in, and the new member's consent is recorded. With other keys
+the API answers 409 `push_device_bound` and changes nothing: knowing an
+endpoint URL is no way to take over or silence another member's device. No
+API response carries an endpoint or keys.
+
 After a sign-out the browser's subscription is gone too: the member
 switches the device on again after the next sign-in. A session that ended
 without a sign-out leaves the browser's subscription; the app registers it

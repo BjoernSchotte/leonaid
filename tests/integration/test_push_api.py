@@ -1298,6 +1298,75 @@ class Proof:
             phone.endpoint
         ]
 
+    async def device_of_another_member(self, phone: Device) -> None:
+        """Knowing an endpoint URL is no way to take a device over."""
+
+        key = self.signer.public_key
+        (before,) = await self.connection.fetch(
+            "SELECT * FROM push_subscription WHERE endpoint = $1", phone.endpoint
+        )
+        created = len(await self.audits("push.subscription.created", "admin"))
+        # The admin knows the URL of the acquirer's phone and registers it
+        # with keys of their own, to stop its pushes or to read them.
+        thief = Device(self.receiver, phone.name)
+        assert thief.endpoint == phone.endpoint
+        refused = await self.client.put(
+            "/api/v1/push/subscriptions",
+            headers=self.headers("admin"),
+            json=thief.subscription(key),
+        )
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["error"]["code"] == "push_device_bound"
+        # The answer names nothing of the owner's device.
+        assert phone.endpoint not in refused.text
+        assert b64url(phone.auth) not in refused.text
+        # One right key is not enough either.
+        half = thief.subscription(key)
+        half["keys"] = {
+            "p256dh": b64url(public_point(phone.private_key)),
+            "auth": b64url(thief.auth),
+        }
+        refused = await self.client.put(
+            "/api/v1/push/subscriptions", headers=self.headers("admin"), json=half
+        )
+        assert refused.status_code == 409, refused.text
+        (after,) = await self.connection.fetch(
+            "SELECT * FROM push_subscription WHERE endpoint = $1", phone.endpoint
+        )
+        assert dict(after) == dict(before)
+        assert await self.devices("admin") == []
+        assert len(await self.audits("push.subscription.created", "admin")) == created
+        # The owner still gets pushes, readable with the owner's keys.
+        self.clock.advance(PUSH_THROTTLE)
+        await self.order_arrives()
+        assert await self.run_all("acquirer") == 1
+        (request,) = self.receiver.take()
+        assert phone.read(request, public_key=key)["kind"] == "feed"
+
+        # The owner may renew the keys of their own row.
+        renewed = Device(self.receiver, "acquirer-renewed")
+        renewed_id = await self.subscribe("acquirer", renewed)
+        fresh = Device(self.receiver, renewed.name)
+        assert await self.subscribe("acquirer", fresh) == renewed_id
+
+        # One device, two members: the admin signs in on the browser that
+        # holds this subscription and registers it with its own keys. The
+        # row moves, and the consent of the new member is recorded.
+        assert await self.subscribe("admin", fresh) == renewed_id
+        (moved,) = await self.devices("admin")
+        assert moved["endpoint"] == fresh.endpoint
+        assert moved["session_id"] == self.data.sessions["admin"]
+        assert [row["endpoint"] for row in await self.devices("acquirer")] == [
+            phone.endpoint
+        ]
+        assert (await self.audits("push.subscription.created", "admin"))[-1] == {
+            "movedFromAnotherMember": True
+        }
+        removed = await self.client.delete(
+            f"/api/v1/push/subscriptions/{renewed_id}", headers=self.headers("admin")
+        )
+        assert removed.status_code == 204
+
     async def held_back_and_flag_off(self, phone: Device) -> None:
         """What was held back while the flag went off is not sent later."""
 
@@ -1582,6 +1651,7 @@ class Proof:
         await self.two_jobs_at_once(phone)
         await self.limits_per_member(phone)
         await self.replaced_key(phone)
+        await self.device_of_another_member(phone)
         await self.held_back_and_flag_off(phone)
         await self.tasks()
         await self.deliveries()
