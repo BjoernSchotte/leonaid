@@ -403,15 +403,15 @@ class AsyncpgIdentityRepository:
         principal reads or manages, newest first: id and name.
 
         Gates the "Spenden" navigation entry and fills its action picker.
-        The rule is the read rule of donations (``may_read_invoices``): system
-        admins and the global finance roles read every action, charity admins
-        and finance readers their own. Archived actions are left out.
+        The rule is the one of the "Rechnungen" entry: the global finance
+        roles see every action, charity admins and finance readers their own.
+        A system admin without a finance role gets no entry, as for invoices.
+        Archived actions are left out.
         """
         if not principal.account.can_authenticate:
             return ()
         everything = (
-            principal.is_system_admin
-            or GlobalRole.FINANCE_READER in principal.global_roles
+            GlobalRole.FINANCE_READER in principal.global_roles
             or GlobalRole.FINANCE_MANAGER in principal.global_roles
         )
         own = [

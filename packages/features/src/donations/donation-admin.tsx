@@ -104,8 +104,8 @@ export function DonationAdminPage({
   identity,
 }: DonationAdminPageProps) {
   // The server names the actions of this page: those with the `donations`
-  // capability whose finances the account reads (system admins and global
-  // finance roles: every such action).
+  // capability whose finances the account reads (global finance roles: every
+  // such action). A system admin reaches an action by its link only.
   const readsEveryAction =
     identity.globalRoles.includes("system_admin") ||
     identity.globalRoles.includes("finance_reader") ||
