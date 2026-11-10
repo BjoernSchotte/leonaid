@@ -69,6 +69,7 @@ def hit(
     detail: str | None = None,
     action_name: str | None = "Krapfentaxi",
     position: int = 0,
+    managed: bool = False,
 ) -> SearchHit:
     return SearchHit(
         type=kind,
@@ -80,6 +81,7 @@ def hit(
         status=status,
         detail=detail,
         action_name=action_name,
+        managed=managed,
     )
 
 
@@ -132,6 +134,8 @@ def test_system_admin_reads_every_core_type() -> None:
     assert scope.orders == ActionScope.everything()
     assert scope.invoices == ActionScope.everything()
     assert scope.members == ActionScope.everything()
+    assert scope.sponsors == ActionScope.everything()
+    assert scope.own_sponsors.is_empty
 
 
 def test_charity_admin_reads_only_own_actions() -> None:
@@ -144,13 +148,41 @@ def test_charity_admin_reads_only_own_actions() -> None:
     assert scope.orders == only_a
     assert scope.invoices == only_a
     assert scope.members == only_a
+    # Every assignment of A; in B only the account's own ones.
+    assert scope.sponsors == only_a
+    assert scope.own_sponsors == ActionScope.of({ACTION_B})
 
 
 @pytest.mark.parametrize("role", [ActionRole.ACQUIRER, ActionRole.DRIVER])
 def test_member_without_finance_or_admin_role_reads_nothing(role: ActionRole) -> None:
     scope = search_scope(principal((ACTION_A, role)))
-    for part in (scope.actions, scope.orders, scope.invoices, scope.members):
+    for part in (
+        scope.actions,
+        scope.orders,
+        scope.invoices,
+        scope.members,
+        scope.sponsors,
+    ):
         assert part.is_empty
+
+
+def test_acquirer_reads_own_sponsors_only() -> None:
+    scope = search_scope(principal((ACTION_A, ActionRole.ACQUIRER)))
+    assert scope.own_sponsors == ActionScope.of({ACTION_A})
+    assert scope.sponsors.is_empty
+    assert not scope.is_empty
+
+    for role in (ActionRole.DRIVER, ActionRole.FINANCE_READER):
+        other = search_scope(principal((ACTION_A, role)))
+        assert other.sponsors.is_empty and other.own_sponsors.is_empty
+
+
+def test_manager_who_is_also_acquirer_is_a_manager_of_that_action() -> None:
+    scope = search_scope(
+        principal((ACTION_A, ActionRole.CHARITY_ADMIN), (ACTION_A, ActionRole.ACQUIRER))
+    )
+    assert scope.sponsors == ActionScope.of({ACTION_A})
+    assert scope.own_sponsors.is_empty
 
 
 def test_finance_readers_read_invoices_only() -> None:
@@ -173,7 +205,14 @@ def test_inactive_account_reads_nothing() -> None:
             status=AccountStatus.SUSPENDED,
         )
     )
-    for part in (scope.actions, scope.orders, scope.invoices, scope.members):
+    for part in (
+        scope.actions,
+        scope.orders,
+        scope.invoices,
+        scope.members,
+        scope.sponsors,
+        scope.own_sponsors,
+    ):
         assert part.is_empty
 
 
@@ -193,6 +232,12 @@ def test_scopes_agree_with_the_central_policies(actor: IdentityPrincipal) -> Non
         assert scope.actions.allows(action_id) is may_manage_action(actor, action_id)
         assert scope.orders.allows(action_id) is may_manage_action(actor, action_id)
         assert scope.invoices.allows(action_id) is may_read_invoices(actor, action_id)
+        # The access levels of the acquisition policy (authorized_scope).
+        manages = may_manage_action(actor, action_id)
+        assert scope.sponsors.allows(action_id) is manages
+        assert scope.own_sponsors.allows(action_id) is (
+            not manages and ActionRole.ACQUIRER in actor.roles_for(action_id)
+        )
 
 
 # --- service -----------------------------------------------------------------
@@ -231,14 +276,17 @@ async def test_member_without_invoice_permission_gets_no_invoice_results() -> No
     assert criteria.prefix == "KT26-0042%"
     assert criteria.evaluated_at == NOW
 
+    # An acquirer searches own sponsors only; anything else is filtered.
     acquirer = RecordingRepository((invoice_b,))
+    actor = principal((ACTION_B, ActionRole.ACQUIRER))
     assert (
         await SearchService(acquirer, clock=lambda: NOW).search(
-            principal((ACTION_B, ActionRole.ACQUIRER)), SearchQuery("KT26-0042")
+            actor, SearchQuery("KT26-0042")
         )
         == ()
     )
-    assert acquirer.criteria == []
+    assert acquirer.criteria[0].scope.invoices.is_empty
+    assert acquirer.criteria[0].actor_user_id == actor.account.id
 
 
 @pytest.mark.asyncio
@@ -342,6 +390,104 @@ async def test_results_are_ranked_merged_limited_and_point_to_admin_routes() -> 
         ),
     ]
     assert repository_limit(service) == 5
+
+
+@pytest.mark.asyncio
+async def test_sponsor_hits_follow_the_assignment_scope_and_open_per_role() -> None:
+    managed = hit(
+        SearchResultType.SPONSOR,
+        title="Bäckerei Krapf",
+        status="contacted",
+        detail="Augsburg",
+        managed=True,
+    )
+    own = hit(
+        SearchResultType.SPONSOR,
+        title="Krapf & Söhne",
+        action_id=ACTION_B,
+        status="open",
+        detail=None,
+        action_name="Adventsmarkt",
+        position=1,
+    )
+    # Rows a wrong repository could return: another action's assignment as a
+    # manager, and a foreign assignment in the acquirer's action.
+    foreign_managed = hit(
+        SearchResultType.SPONSOR, title="Krapf fremd", action_id=ACTION_B, managed=True
+    )
+    foreign_own = hit(SearchResultType.SPONSOR, title="Krapf dritt", action_id=uuid4())
+    actor = principal(
+        (ACTION_A, ActionRole.CHARITY_ADMIN), (ACTION_B, ActionRole.ACQUIRER)
+    )
+    repository = RecordingRepository((own, foreign_managed, managed, foreign_own))
+
+    results = await SearchService(repository, clock=lambda: NOW).search(
+        actor, SearchQuery("Krapf")
+    )
+
+    assert [(item.id, item.title, item.context, item.href) for item in results] == [
+        (
+            managed.id,
+            "Bäckerei Krapf",
+            "Krapfentaxi · Augsburg",
+            f"/admin/acquisition?action={ACTION_A}&open={managed.id}",
+        ),
+        (
+            own.id,
+            "Krapf & Söhne",
+            "Adventsmarkt",
+            f"/app/sponsors?action={ACTION_B}&assignment={own.id}",
+        ),
+    ]
+    assert all(item.type is SearchResultType.SPONSOR for item in results)
+
+    # A manager's own assignment in a managed action opens in the web admin.
+    system_admin = principal(global_roles=frozenset({GlobalRole.SYSTEM_ADMIN}))
+    admin_results = await SearchService(
+        RecordingRepository((managed, foreign_managed)), clock=lambda: NOW
+    ).search(system_admin, SearchQuery("Krapf"))
+    assert {item.href.split("?")[0] for item in admin_results} == {"/admin/acquisition"}
+    assert len(admin_results) == 2
+
+
+@pytest.mark.asyncio
+async def test_sponsors_rank_between_invoices_and_members() -> None:
+    sponsor_prefix = hit(
+        SearchResultType.SPONSOR, title="Krapfenwerk", prefix=True, managed=True
+    )
+    sponsor = hit(
+        SearchResultType.SPONSOR, title="Zum Krapfen", position=1, managed=True
+    )
+    invoice = hit(SearchResultType.INVOICE, title="KT26-0001", detail="Krapf GmbH")
+    member = hit(
+        SearchResultType.MEMBER,
+        title="Anna Krapf",
+        action_id=None,
+        detail="anna@example.test",
+        status="active",
+        action_name=None,
+    )
+    order = hit(
+        SearchResultType.ORDER,
+        title="Krapfenhaus",
+        prefix=True,
+        status="confirmed",
+    )
+    admin = principal(global_roles=frozenset({GlobalRole.SYSTEM_ADMIN}))
+
+    results = await SearchService(
+        RecordingRepository((member, sponsor, invoice, sponsor_prefix, order)),
+        clock=lambda: NOW,
+    ).search(admin, SearchQuery("Krapf"))
+
+    # Prefix matches first, then the type order, then the row's position.
+    assert [item.id for item in results] == [
+        order.id,
+        sponsor_prefix.id,
+        invoice.id,
+        sponsor.id,
+        member.id,
+    ]
 
 
 def repository_limit(service: SearchService) -> int:

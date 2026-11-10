@@ -4,9 +4,9 @@ description: Verified limits of the current LeonAid development and pilot state.
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 7
-reviewedRevision: 7
-verifiedAgainst: e0a3533c57747a914cde695a334e31fb90ffbc60
+contentRevision: 8
+reviewedRevision: 8
+verifiedAgainst: e2e199217b9b0d23fc0ad225051cfc36fe01daf5
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -38,6 +38,14 @@ general production approval.
   enter send no e-mail. The campaign link points to the campaign page on the
   public host; own campaign domains follow with stage 2. The sender is the
   configured system address, not the club.
+- The search (**Suchen und Befehle**) finds sponsors by name and city only,
+  and only if they are assigned to an acquirer in a campaign (see
+  [Find things with the search](/en/user/how-to/find-with-search/)). E-mail,
+  phone and street cannot be searched. A change in the CRM reaches the search
+  after up to about 15 minutes; a sponsor deleted in the CRM leaves the search
+  only in the following night. Until then its result opens the assignment,
+  which is then named "Im CRM nicht mehr vorhanden" and shows no contact data.
+  The acquisition app has no search of its own.
 - An issued invoice and its PDF are never overwritten. Corrections use a
   cancellation and a new transaction.
 - Partial payments and overpayments are recorded as separate payment entries

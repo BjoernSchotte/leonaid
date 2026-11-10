@@ -274,13 +274,14 @@ def test_worker_registers_every_existing_handler_once() -> None:
         "knowledge",
         "inbox",
         "actions",
+        "acquisition",
         "invoicing",
         "mail",
     ]
     assert collect_handlers(modules) == {}
     assert [
         loop.name for loop in background_loops("postgresql://unused", frozenset())
-    ] == ["survey_sweep"]
+    ] == ["survey_sweep", "sponsor_search_sync"]
 
 
 def test_worker_handler_set_is_unchanged() -> None:
@@ -369,7 +370,10 @@ def test_switched_off_module_has_no_routes_navigation_or_loops(
         "inbox",
     }
     assert any(path.startswith("/api/v1/task") for path in paths)
-    assert background_loops("postgresql://unused", off) == ()
+    # Core loops keep running; the module's own loop is gone.
+    assert [loop.name for loop in background_loops("postgresql://unused", off)] == [
+        "sponsor_search_sync"
+    ]
     assert module_switch_problems(off) == []
     assert module_switch_problems(frozenset({"mail"})) == [
         "LEONAID_DISABLED_MODULES:Module cannot be switched off: mail"
