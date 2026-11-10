@@ -45,6 +45,7 @@ PAYMENT_KEY = "poc095:payment:browser-v1"
 CANCELLATION_KEY = "poc095:cancellation:browser-v1"
 LIFECYCLE_KEY = "poc095:lifecycle-v1"
 CANCELLED_PAYMENT_ID = UUID("97000000-0000-4000-8000-000000000095")
+OLDER_CANCELLATION_PAYMENT_ID = UUID("97000000-0000-4000-8000-000000000096")
 DELIVERED_DELIVERY_ID = UUID("95000000-0000-4000-8000-000000000095")
 DELIVERED_OUTBOX_ID = UUID("e5000000-0000-4000-8000-000000000095")
 # The browser books a partial entry, reverses it, then the full payment.
@@ -977,6 +978,23 @@ async def capture(
     state_path: Path,
 ) -> None:
     await assert_delivered_invoice_reopens_as_sent(connection)
+    # The golden invoice KT26-0003 was cancelled before cancellation invoices
+    # existed. Money received before that cancellation stays recorded, so the
+    # browser shows "Erstattung offen" and issues the document later.
+    await connection.execute(
+        """
+        INSERT INTO payment_record (
+            id, invoice_id, amount_minor, currency, received_on,
+            recorded_by_user_id, reference, created_at
+        )
+        SELECT $1, id, gross_minor, currency, $3, $4, 'Vor dem Storno', now()
+        FROM invoice WHERE id = $2
+        """,
+        OLDER_CANCELLATION_PAYMENT_ID,
+        CANCELLED_INVOICE_ID,
+        date.fromisoformat(PAYMENT_DATE),
+        KLARA_ID,
+    )
     state = read_state(state_path)
     invoice_id = UUID(str(state["cancellationInvoiceId"]))
     invoice_snapshot = await connection.fetchval(
@@ -1193,10 +1211,44 @@ async def assert_after_browser(
             f"The browser's cancellation issued no cancellation invoice: "
             f"{dict(issued or {})}"
         )
+    # In the browser the manager issued the cancellation invoice of the
+    # older cancellation and recorded its refund.
+    older = await connection.fetchrow(
+        """
+        SELECT cancellation.number, cancellation.issued_on,
+               cancellation.requested_at, cancellation.issued_at,
+               cancellation.refund_settled_on,
+               cancellation.snapshot ->> 'receivedMinor' AS received_minor,
+               (
+                 SELECT count(*) FROM audit_event
+                 WHERE entity_id = cancellation.id
+                   AND event_type IN (
+                     'invoice_cancellation_document_issued',
+                     'invoice_refund_settled'
+                   )
+               ) AS audits
+        FROM invoice_cancellation AS cancellation
+        WHERE cancellation.invoice_id = $1
+        """,
+        CANCELLED_INVOICE_ID,
+    )
+    if (
+        older is None
+        or older["number"] is None
+        or older["number"] == issued["number"]
+        or older["issued_at"] <= older["requested_at"]
+        or older["received_minor"] != "3600"
+        or older["refund_settled_on"] is None
+        or older["audits"] != 2
+    ):
+        raise ContractFailure(
+            "The older cancellation got no cancellation invoice or refund "
+            f"marker in the browser: {dict(older or {})}"
+        )
     print(
         "invoice-settlement-contract: partial, over and full payments, reversals, "
-        "cancellation with its cancellation invoice, audit, replay and unchanged "
-        "Typst PDF durably proven"
+        "cancellation with its cancellation invoice, the document and refund of "
+        "an older cancellation, audit, replay and unchanged Typst PDF durably proven"
     )
 
 

@@ -545,8 +545,8 @@ export function InvoiceDetail({
               ]}
             />
             <p className="small subtle inv-note">
-              Eine Korrektur wird als neue, separat nummerierte Rechnung
-              angelegt.
+              Für eine Korrektur erfassen Sie eine neue Bestellung und stellen
+              deren Rechnung aus.
             </p>
           </div>
         </DetailSection>
