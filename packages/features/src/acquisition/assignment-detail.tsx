@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type {
   AcquisitionActivityWorkItemResponse,
@@ -30,6 +30,13 @@ export const assignmentStatusLabels = {
 } as const;
 
 type AssignmentStatus = keyof typeof assignmentStatusLabels;
+
+/**
+ * The name the boards give an assignment whose sponsor the CRM no longer
+ * has (CRM_PARTY_GONE_LABEL in application/activities.py; a unit test keeps
+ * both equal).
+ */
+export const CRM_PARTY_GONE_LABEL = "Im CRM nicht mehr vorhanden";
 
 function statusOf(state: Record<string, unknown>): AssignmentStatus | null {
   const value = state.status;
@@ -93,12 +100,65 @@ export function AssignmentDetail({
   });
   const blocked = (channel: "email" | "phone") =>
     item.suppressedChannels.includes(channel) ? " (Kontaktsperre)" : "";
+  // The sponsor was deleted in the CRM: no contact can be recorded any
+  // more, so the pipeline itself offers to end the assignment.
+  const gone = item.partyDisplayName === CRM_PARTY_GONE_LABEL;
+  const endable =
+    gone && ["open", "contacted", "committed"].includes(item.status);
+  const queryClient = useQueryClient();
+  const end = useMutation({
+    mutationFn: () =>
+      client.updateAcquisitionAssignment(actionId, item.assignmentId, {
+        dueAt: null,
+        nextAction: null,
+        priority: item.priority,
+        revision: item.revision,
+        status: "declined",
+      }),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["acquisition-admin-board", actionId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["acquisition-assignment", actionId, item.assignmentId],
+        }),
+      ]),
+  });
   return (
     <div
       className="acq-admin-detail"
       data-assignment-id={item.assignmentId}
       data-testid="acquisition-assignment-detail"
     >
+      {gone ? (
+        <StatusMessage tone="warning">
+          <strong>Sponsor im CRM nicht mehr vorhanden</strong>
+          <p>
+            Der Sponsor dieser Zuordnung wurde im CRM gelöscht. Name und
+            Kontaktdaten stehen deshalb nicht mehr zur Verfügung.
+            {endable
+              ? " Sie können die Zuordnung als abgesagt abschließen."
+              : ""}
+          </p>
+          {endable ? (
+            <Button
+              data-testid="acquisition-assignment-end"
+              disabled={end.isPending}
+              onClick={() => end.mutate()}
+              variant="secondary"
+            >
+              Zuordnung abschließen
+            </Button>
+          ) : null}
+          {end.isError ? (
+            <p role="alert">
+              Die Zuordnung konnte nicht abgeschlossen werden. Laden Sie die
+              Seite neu und versuchen Sie es erneut.
+            </p>
+          ) : null}
+        </StatusMessage>
+      ) : null}
       <DetailSection title="Sponsor">
         <DetailProps
           items={[

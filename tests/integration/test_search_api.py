@@ -880,15 +880,98 @@ async def prove_search_index(
         assert alpha["erased_at"] == now
         beta = await entry(data.companies["beta"])
         assert beta is not None and beta["display_name"] is not None
-        # Restore the entry for the proofs that follow.
+
+        # A party without an entry gets the marker too (the first full pass
+        # has not run, the worker has no CRM key, Twenty was down): a company
+        # and a person of the subject's orders.
         await connection.execute(
-            "DELETE FROM sponsor_search_entry WHERE twenty_id = $1",
-            data.companies["alpha"],
+            "DELETE FROM sponsor_search_entry WHERE twenty_id = ANY($1::uuid[])",
+            [data.companies["alpha"], data.person],
         )
+        await connection.execute(
+            "UPDATE commitment SET twenty_person_id = $2, twenty_company_id = NULL "
+            "WHERE id = $1",
+            data.order_b,
+            data.person,
+        )
+        await connection.execute(
+            "UPDATE commitment "
+            "SET invoice_recipient_snapshot = invoice_recipient_snapshot || $2::jsonb "
+            "WHERE id = $1",
+            data.order_b,
+            json.dumps({"email": email}),
+        )
+        later = datetime.now(timezone.utc)
+        assert await contributor.anonymize(connection, email, later) == 2
+        for twenty_id, kind in (
+            (data.companies["alpha"], "company"),
+            (data.person, "person"),
+        ):
+            marker = await entry(twenty_id)
+            assert marker is not None, kind
+            assert marker["party_kind"] == kind
+            assert (marker["display_name"], marker["city"]) == (None, None)
+            assert marker["erased_at"] == later
+        # The full pass reads both from Twenty; neither name comes back.
+        alpha_party = data.party("alpha", data.sponsor_name("Alpha"), data.sponsor_city)
+        person_party = SponsorParty(
+            PartyKey(CrmPartyKind.PERSON, data.person),
+            f"Petra {data.sponsor_tag}",
+            None,
+        )
+        for party in (alpha_party, person_party):
+            written, deleted = await index.store_full_batch(
+                (party.key,), (party,), synced_at=later
+            )
+            assert (written, deleted) == (0, 0)
+            assert await index.refresh((party,), synced_at=later) == 0
+            marker = await entry(party.key.twenty_id)
+            assert marker is not None and marker["display_name"] is None
+        await index.finish_full_pass(later)
+        await connection.execute(
+            "UPDATE sponsor_search_sync SET full_pass_completed_at = $1",
+            state_before.full_pass_completed_at,
+        )
+        # A new assignment for the party ends the marker: the entry is back
+        # with what the CRM holds then.
+        assert (
+            await write_sponsor_search_entries(
+                connection, (alpha_party,), synced_at=later, new_assignment=True
+            )
+            == 1
+        )
+        alpha = await entry(data.companies["alpha"])
+        assert alpha is not None
+        assert alpha["display_name"] == alpha_party.display_name
+        assert alpha["erased_at"] is None
+        # A marker whose party lost its last assignment goes with the pass.
+        stray = uuid4()
+        await connection.execute(
+            "UPDATE commitment SET twenty_person_id = $2 WHERE id = $1",
+            data.order_b,
+            stray,
+        )
+        # (The company's marker is back as well: it was just lifted.)
+        assert await contributor.anonymize(connection, email, later) == 2
+        assert await entry(stray) is not None
+        assert await index.delete_unreferenced() >= 1
+        assert await entry(stray) is None
+
+        # The changed pass records up to when it has read Twenty's changes.
+        read_before = (await index.sync_state()).changed_read_until
+        await index.finish_changed_pass(later)
+        state = await index.sync_state()
+        assert state.changed_read_until == later
+        assert state.last_success is not None and state.last_success >= later
+        await connection.execute(
+            "UPDATE sponsor_search_sync SET changed_pass_read_until = $1", read_before
+        )
+        # Restore the entries for the proofs that follow.
         await write_sponsor_search_entries(
             connection,
-            (data.party("alpha", data.sponsor_name("Alpha"), data.sponsor_city),),
+            (alpha_party, person_party),
             synced_at=now,
+            new_assignment=True,
         )
     finally:
         await pool.close()

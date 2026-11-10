@@ -23,7 +23,8 @@ from leonaid.domain.privacy import PrivacyReference
 SPONSOR_SEARCH_SYNC_LOCK = 527064
 
 # $1 kind, $2 ids, $3 names, $4 cities, $5 synced_at. An erased entry keeps
-# its marker: the name must not come back while Twenty still has the party.
+# its marker: the sync must not bring the name back while Twenty still has
+# the party.
 _WRITE = """
 INSERT INTO sponsor_search_entry (
     party_kind, twenty_id, display_name, city, synced_at
@@ -38,6 +39,12 @@ SET display_name = EXCLUDED.display_name,
 WHERE sponsor_search_entry.erased_at IS NULL
 """
 
+# The same write for a new assignment: it ends an erasure marker.
+_WRITE_FOR_NEW_ASSIGNMENT = _WRITE.replace(
+    "    synced_at = EXCLUDED.synced_at\n",
+    "    synced_at = EXCLUDED.synced_at,\n    erased_at = NULL\n",
+).replace("WHERE sponsor_search_entry.erased_at IS NULL\n", "")
+
 _REFRESH = """
 UPDATE sponsor_search_entry AS entry
 SET display_name = party.display_name,
@@ -51,8 +58,12 @@ WHERE entry.party_kind = $1
 """
 
 # The parties the privacy erasure treats as the subject's: those of the
-# orders and of the consent records that carry the e-mail address.
-_SUBJECT_PARTIES = """
+# orders and of the consent records that carry the e-mail address. Every one
+# gets the marker, also a party without an entry (first full pass not done,
+# worker without CRM key, Twenty down): otherwise the next full pass would
+# write its name. The full pass deletes markers of parties without an
+# assignment.
+_ERASE_SUBJECT_PARTIES = """
 WITH subject AS (
     SELECT twenty_company_id, twenty_person_id
     FROM commitment
@@ -63,17 +74,28 @@ WITH subject AS (
     SELECT twenty_company_id, twenty_person_id
     FROM consent_record
     WHERE normalized_recipient = $1
+),
+party AS (
+    SELECT 'company' AS party_kind, twenty_company_id AS twenty_id
+    FROM subject
+    WHERE twenty_company_id IS NOT NULL
+    UNION
+    SELECT 'person', twenty_person_id
+    FROM subject
+    WHERE twenty_person_id IS NOT NULL
 )
-UPDATE sponsor_search_entry AS entry
+INSERT INTO sponsor_search_entry (
+    party_kind, twenty_id, display_name, city, synced_at, erased_at
+)
+SELECT party_kind, twenty_id, NULL, NULL, $2, $2
+FROM party
+-- A fixed order keeps this from deadlocking with a batch of the sync.
+ORDER BY party_kind, twenty_id
+ON CONFLICT (party_kind, twenty_id) DO UPDATE
 SET display_name = NULL,
     city = NULL,
-    erased_at = $2
-FROM subject
-WHERE entry.erased_at IS NULL
-  AND (
-    (entry.party_kind = 'company' AND entry.twenty_id = subject.twenty_company_id)
-    OR (entry.party_kind = 'person' AND entry.twenty_id = subject.twenty_person_id)
-  )
+    erased_at = EXCLUDED.erased_at
+WHERE sponsor_search_entry.erased_at IS NULL
 """
 
 
@@ -98,13 +120,21 @@ async def write_sponsor_search_entries(
     parties: tuple[SponsorParty, ...],
     *,
     synced_at: datetime,
+    new_assignment: bool = False,
 ) -> int:
-    """Add or update entries on the caller's transaction."""
+    """Add or update entries on the caller's transaction.
 
+    An erased entry stays erased, except with ``new_assignment``: the caller
+    just created an assignment for the party.
+    """
+
+    statement = _WRITE_FOR_NEW_ASSIGNMENT if new_assignment else _WRITE
     written = 0
     for kind, (ids, names, cities) in _columns(parties).items():
         written += _affected(
-            await connection.execute(_WRITE, kind.value, ids, names, cities, synced_at)
+            await connection.execute(
+                statement, kind.value, ids, names, cities, synced_at
+            )
         )
     return written
 
@@ -134,7 +164,7 @@ class AsyncpgSponsorSearchIndex(SponsorSearchIndex):
             row = await connection.fetchrow(
                 """
                 SELECT full_pass_completed_at, full_pass_after_kind,
-                       full_pass_after_id
+                       full_pass_after_id, changed_pass_read_until
                 FROM sponsor_search_sync
                 """
             )
@@ -151,6 +181,7 @@ class AsyncpgSponsorSearchIndex(SponsorSearchIndex):
         return SyncState(
             full_pass_completed_at=row["full_pass_completed_at"],
             full_pass_after=after,
+            changed_read_until=row["changed_pass_read_until"],
         )
 
     async def delete_unreferenced(self) -> int:
@@ -251,6 +282,13 @@ class AsyncpgSponsorSearchIndex(SponsorSearchIndex):
                 completed_at,
             )
 
+    async def finish_changed_pass(self, read_until: datetime) -> None:
+        async with self._pool.acquire() as connection:
+            await connection.execute(
+                "UPDATE sponsor_search_sync SET changed_pass_read_until = $1",
+                read_until,
+            )
+
     async def refresh(
         self, parties: tuple[SponsorParty, ...], *, synced_at: datetime
     ) -> int:
@@ -271,10 +309,12 @@ class AsyncpgSponsorSearchIndex(SponsorSearchIndex):
 class SponsorSearchPrivacyContributor:
     """Removes the name and city of an erased party from the search index.
 
-    The row stays as a marker (``erased_at``) without any personal data: the
-    party still exists in Twenty until the manual CRM deletion, and the sync
-    must not copy its name back. The nightly full pass deletes the marker once
-    Twenty no longer has the party. The index adds no reference of its own to
+    Every party of the subject gets a marker row (``erased_at``) without any
+    personal data, whether it had an entry or not: the party still exists in
+    Twenty until the manual CRM deletion, and the sync must not copy its name
+    back. The marker ends with a new assignment for the party; the nightly
+    full pass deletes it once Twenty no longer has the party or its last
+    assignment is gone. The index adds no reference of its own to
     the subject report: it holds a name only for parties with an assignment,
     and the report lists those assignments already.
     """
@@ -288,6 +328,6 @@ class SponsorSearchPrivacyContributor:
         self, connection: object, normalized_email: str, occurred_at: datetime
     ) -> int:
         status = await cast("asyncpg.Connection[Any]", connection).execute(
-            _SUBJECT_PARTIES, normalized_email, occurred_at
+            _ERASE_SUBJECT_PARTIES, normalized_email, occurred_at
         )
         return _affected(status)

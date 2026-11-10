@@ -47,6 +47,28 @@ completed and unreferenced outbox jobs and expired rate-limit attempts
 5. Check the outbox counters and the dead-letter backlog.
 6. Retry business jobs only through the protected admin retry.
 
+## Sponsor search
+
+`LeonAidSponsorSearchStale` (P2): the worker loop `sponsor_search_sync` has
+completed no pass against Twenty for 24 hours
+(`leonaid_worker_sponsor_search_last_success_age_seconds`). The search still
+answers from the index, but renamed or deleted sponsors are stale. The loop
+itself stays ready: a CRM failure is not a worker failure.
+
+1. Search the worker log for `worker.sponsor_search.synced`: `crmError`
+   names the cause, `failedRuns` counts the failed runs in a row.
+2. `crm_permission_denied`: the integration key was revoked or rotated in
+   Twenty. Provision it again and restart API and worker.
+3. `crm_unavailable`, `crm_timeout`: follow [Dependency](#dependency) for
+   Twenty.
+4. `crm_rate_limited` for hours: another client spends Twenty's quota of 100
+   requests a minute.
+5. `crm_request_rejected`, `crm_pagination_invalid`: the Twenty version or
+   its schema differs from the pinned one; compare with `infra/twenty`.
+
+The alert resolves with the next completed pass. After a failed run the loop
+waits one minute, then doubles the pause up to 15 minutes.
+
 ## Dead Letter
 
 1. Restore the dependencies first.

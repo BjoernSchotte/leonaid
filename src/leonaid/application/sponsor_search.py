@@ -9,8 +9,8 @@ core search can find sponsors without a CRM call per keystroke
 The index is filled in three ways:
 
 - when an assignment is created, with the name core just read from Twenty;
-- by the changed pass: parties that Twenty changed in the last 30 minutes and
-  that are in the index;
+- by the changed pass: parties that are in the index and that Twenty
+  changed since the last complete changed pass (minus an overlap);
 - by the full pass, once a night: every referenced party is read again in ID
   batches. It adds missing entries and deletes entries without an assignment
   or without a CRM record. Polling cannot see a delete in Twenty; this pass
@@ -18,7 +18,15 @@ The index is filled in three ways:
 
 One run spends at most ``SYNC_REQUEST_BUDGET`` CRM requests and stops on the
 first 429: Twenty allows 100 requests a minute, the gateway counts them per
-process, and the API needs the rest.
+process, and the API needs the rest. Any other CRM error ends the run too;
+the loop then waits longer after each failed run (``retry_delay_seconds``),
+and the age of the last successful pass is the operator's signal
+(``last_success``).
+
+A privacy erasure leaves a marker (``erased_at``, no name, no city) for every
+party of the subject, whether it had an entry or not. The sync never writes
+over a marker. Only a new assignment for that party does: a new, deliberate
+relation makes the party searchable again with what the CRM then holds.
 """
 
 from __future__ import annotations
@@ -37,9 +45,15 @@ from leonaid.application.crm import CrmGatewayError, CrmPartyKind
 SYNC_REQUEST_BUDGET = 30
 # Parties per ID read; one read is one CRM request.
 SYNC_ID_BATCH = 50
-# The changed pass asks for parties changed within this window. It is twice
-# the loop interval, so one missed run loses nothing.
+# The changed pass reads from the start of the last complete changed pass,
+# minus CHANGED_OVERLAP, and never less than CHANGED_WINDOW back. Runs that
+# failed or ran out of budget therefore lose no change. CHANGED_LOOKBACK_MAX
+# bounds the read after a long outage; the nightly full pass covers the rest.
 CHANGED_WINDOW = timedelta(minutes=30)
+CHANGED_OVERLAP = timedelta(minutes=5)
+CHANGED_LOOKBACK_MAX = timedelta(hours=26)
+# The index counts as stale when no pass succeeded for this long.
+STALE_AFTER = timedelta(hours=24)
 # Seconds between two runs, and after a run that left a full pass unfinished.
 # The short pause keeps the loop at SYNC_REQUEST_BUDGET requests a minute.
 SYNC_INTERVAL_SECONDS = 15 * 60.0
@@ -98,7 +112,11 @@ class SponsorPartySource(Protocol):
         *,
         correlation_id: str,
     ) -> tuple[SponsorParty, ...]:
-        """At most ``SYNC_ID_BATCH`` ids."""
+        """At most ``SYNC_ID_BATCH`` ids.
+
+        The answer is complete or the call raises: the full pass deletes the
+        entries of the ids that are missing from it.
+        """
         ...
 
     async def sponsor_parties_changed_since(
@@ -116,6 +134,19 @@ class SyncState:
     full_pass_completed_at: datetime | None
     # Where an unfinished full pass continues; None between passes.
     full_pass_after: PartyKey | None
+    # Start of the last complete changed pass: Twenty's changes up to this
+    # instant are in the index.
+    changed_read_until: datetime | None = None
+
+    @property
+    def last_success(self) -> datetime | None:
+        """When a pass last completed, of either kind."""
+        moments = [
+            moment
+            for moment in (self.full_pass_completed_at, self.changed_read_until)
+            if moment is not None
+        ]
+        return max(moments) if moments else None
 
 
 class SponsorSearchIndex(Protocol):
@@ -152,6 +183,8 @@ class SponsorSearchIndex(Protocol):
 
     async def finish_full_pass(self, completed_at: datetime) -> None: ...
 
+    async def finish_changed_pass(self, read_until: datetime) -> None: ...
+
     async def refresh(
         self, parties: tuple[SponsorParty, ...], *, synced_at: datetime
     ) -> int:
@@ -172,10 +205,40 @@ class SyncReport:
     # Stable code of the CRM error that ended the run, if any.
     crm_error: str | None = None
 
+    # False for an error that waiting does not cure (refused key, rejected
+    # request); True for 429, timeouts and outages.
+    crm_error_retryable: bool = True
+
     @property
     def continue_soon(self) -> bool:
         """An unfinished full pass goes on after the short pause."""
         return self.mode == "full" and not self.complete
+
+
+def changed_since(read_until: datetime | None, now: datetime) -> datetime:
+    """From when the changed pass reads Twenty's changes."""
+
+    window = now - CHANGED_WINDOW
+    if read_until is None:
+        return window
+    return max(min(window, read_until - CHANGED_OVERLAP), now - CHANGED_LOOKBACK_MAX)
+
+
+def retry_delay_seconds(report: SyncReport, failed_runs: int) -> float:
+    """Pause before the next run; ``failed_runs`` counts CRM errors in a row.
+
+    A healthy run waits the interval (an unfinished full pass the short
+    pause). After a CRM error the pause doubles with each failed run, from
+    one minute up to the interval. An error that waiting does not cure waits
+    the whole interval at once.
+    """
+
+    if report.crm_error is None:
+        return SYNC_CONTINUE_SECONDS if report.continue_soon else SYNC_INTERVAL_SECONDS
+    if not report.crm_error_retryable:
+        return SYNC_INTERVAL_SECONDS
+    doubled = SYNC_CONTINUE_SECONDS * 2 ** min(max(failed_runs, 1) - 1, 10)
+    return float(min(doubled, SYNC_INTERVAL_SECONDS))
 
 
 def full_pass_due(completed_at: datetime | None, now: datetime, zone: ZoneInfo) -> bool:
@@ -233,7 +296,7 @@ class SponsorSearchSync:
                 or full_pass_due(state.full_pass_completed_at, now, self._zone)
             ):
                 return await self._full_pass(state, budget, now)
-            return await self._changed_pass(budget, now)
+            return await self._changed_pass(state, budget, now)
 
     async def _full_pass(
         self, state: SyncState, budget: _Budget, now: datetime
@@ -271,8 +334,10 @@ class SponsorSearchSync:
             after = batch[-1]
         return _report("full", budget, written, deleted, complete, stopped)
 
-    async def _changed_pass(self, budget: _Budget, now: datetime) -> SyncReport:
-        since = now - CHANGED_WINDOW
+    async def _changed_pass(
+        self, state: SyncState, budget: _Budget, now: datetime
+    ) -> SyncReport:
+        since = changed_since(state.changed_read_until, now)
         written = 0
         stopped: CrmGatewayError | None = None
         complete = True
@@ -300,6 +365,9 @@ class SponsorSearchSync:
             if stopped is not None or not complete:
                 complete = False
                 break
+        if complete:
+            # Everything Twenty changed before this run started is read.
+            await self._index.finish_changed_pass(now)
         return _report("changed", budget, written, 0, complete, stopped)
 
 
@@ -319,4 +387,5 @@ def _report(
         complete=complete and stopped is None,
         rate_limited=stopped is not None and stopped.http_status == 429,
         crm_error=stopped.code if stopped is not None else None,
+        crm_error_retryable=stopped.retryable if stopped is not None else True,
     )

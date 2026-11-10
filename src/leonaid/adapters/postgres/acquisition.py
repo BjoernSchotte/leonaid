@@ -673,9 +673,13 @@ class AsyncpgAcquisitionPolicyRepository(
                         occurred_at,
                     )
                 # The search finds the sponsor from now on, with the name
-                # the matching just read from the CRM.
+                # the matching just read from the CRM. A new assignment also
+                # ends an erasure marker of the party.
                 await write_sponsor_search_entries(
-                    connection, (search_entry,), synced_at=occurred_at
+                    connection,
+                    (search_entry,),
+                    synced_at=occurred_at,
+                    new_assignment=assignment_added,
                 )
                 await connection.execute(
                     """
@@ -876,11 +880,6 @@ class AsyncpgAcquisitionPolicyRepository(
                     raise RuntimeError(
                         "Proaktive Zuordnung konnte nicht ermittelt werden."
                     )
-                # The search finds the sponsor from now on, with the name
-                # the service just read from the CRM.
-                await write_sponsor_search_entries(
-                    connection, (search_entry,), synced_at=occurred_at
-                )
                 row = await self._assignment_record(
                     connection,
                     action_id=action_id,
@@ -922,6 +921,15 @@ class AsyncpgAcquisitionPolicyRepository(
                     current = self._assignment(row)
                     event_type = "acquisition_assignment_reactivated"
                     changed = True
+                # The search finds the sponsor from now on, with the name
+                # the service just read from the CRM. A new assignment also
+                # ends an erasure marker of the party.
+                await write_sponsor_search_entries(
+                    connection,
+                    (search_entry,),
+                    synced_at=occurred_at,
+                    new_assignment=changed,
+                )
                 if changed:
                     await self._append_history(
                         connection,

@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import os
-from dataclasses import dataclass
-from datetime import timedelta
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import asyncpg
@@ -57,11 +57,10 @@ from leonaid.application.order_mails import (
 )
 from leonaid.application.outbox import OutboxEventHandler, OutboxWorker
 from leonaid.application.sponsor_search import (
-    SYNC_CONTINUE_SECONDS,
     SYNC_INTERVAL_SECONDS,
     SYNC_REQUEST_BUDGET,
     SponsorSearchSync,
-    SyncReport,
+    retry_delay_seconds,
 )
 from leonaid.bootstrap.registry import (
     ModuleRegistration,
@@ -177,15 +176,44 @@ SPONSOR_SEARCH_SYNC_LOOP = "sponsor_search_sync"
 _SPONSOR_SEARCH_RUN_SECONDS = SYNC_REQUEST_BUDGET * 5.0
 
 
+@dataclass
+class SponsorSearchSyncStatus:
+    """What the worker's metrics say about the sync (one per process).
+
+    The loop stays healthy when Twenty fails: that is not a fault of the
+    worker. The operator's signal is the age of the last successful pass
+    (alert ``LeonAidSponsorSearchStale``) and the error counter.
+    """
+
+    # False without an integration key: the loop idles and reports nothing.
+    configured: bool = False
+    # Age baseline until the first pass succeeded.
+    started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    last_success: datetime | None = None
+    crm_errors_total: int = 0
+    # CRM errors in a row; the pause grows with it.
+    failed_runs: int = 0
+
+    def last_success_age_seconds(self, now: datetime) -> float:
+        return max(0.0, (now - (self.last_success or self.started_at)).total_seconds())
+
+
+SPONSOR_SEARCH_SYNC_STATUS = SponsorSearchSyncStatus()
+
+
 def sponsor_search_sync(database_url: str) -> BackgroundLoop:
     """Keeps the sponsor search index in step with Twenty.
 
     Every 15 minutes one bounded run (``SponsorSearchSync``); an unfinished
-    full pass goes on after a minute. A CRM outage or a 429 ends the run and
-    is logged; the loop stays healthy, because Twenty being down is not a
-    fault of the worker. Without an integration key the loop idles. Logged
-    by count only, never with a name.
+    full pass goes on after a minute. A CRM error or a 429 ends the run and
+    is logged, and the pause doubles with each failed run up to the
+    interval. The loop stays healthy meanwhile; ``SPONSOR_SEARCH_SYNC_STATUS``
+    carries the age of the last successful pass for the stale-index alert.
+    Without an integration key the loop idles. Logged by count only, never
+    with a name.
     """
+
+    status = SPONSOR_SEARCH_SYNC_STATUS
 
     async def run(report: LoopReporter) -> None:
         while True:
@@ -194,21 +222,21 @@ def sponsor_search_sync(database_url: str) -> BackgroundLoop:
             try:
                 pool = await create_pool(database_url, maximum_size=2)
                 crm = crm_gateway_from_environment()
-                sync = (
-                    SponsorSearchSync(
-                        AsyncpgSponsorSearchIndex(pool),
-                        crm,
-                        zone=INSTALLATION_TIME_ZONE,
-                    )
-                    if crm is not None
-                    else None
-                )
+                status.configured = crm is not None
+                if crm is None:
+                    while True:
+                        report.succeeded()
+                        await asyncio.sleep(SYNC_INTERVAL_SECONDS)
+                index = AsyncpgSponsorSearchIndex(pool)
+                sync = SponsorSearchSync(index, crm, zone=INSTALLATION_TIME_ZONE)
                 while True:
-                    result = (
-                        await sync.run_once()
-                        if sync is not None
-                        else SyncReport(mode="skipped")
-                    )
+                    result = await sync.run_once()
+                    status.last_success = (await index.sync_state()).last_success
+                    if result.crm_error is None:
+                        status.failed_runs = 0
+                    else:
+                        status.failed_runs += 1
+                        status.crm_errors_total += 1
                     report.succeeded()
                     if result.requests or result.deleted:
                         print(
@@ -221,14 +249,11 @@ def sponsor_search_sync(database_url: str) -> BackgroundLoop:
                                 complete=result.complete,
                                 rateLimited=result.rate_limited,
                                 crmError=result.crm_error,
+                                failedRuns=status.failed_runs,
                             ),
                             flush=True,
                         )
-                    await asyncio.sleep(
-                        SYNC_CONTINUE_SECONDS
-                        if result.continue_soon
-                        else SYNC_INTERVAL_SECONDS
-                    )
+                    await asyncio.sleep(retry_delay_seconds(result, status.failed_runs))
             except Exception as error:
                 # Logged by type and location only, never with party data.
                 await asyncio.sleep(report.failed(error))

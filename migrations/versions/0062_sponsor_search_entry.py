@@ -11,7 +11,8 @@ whose name the privacy erasure removed; the row stays as a marker so the sync
 does not copy the name back while the party still exists in Twenty.
 
 ``sponsor_search_sync`` is the single row of the sync loop: when the last full
-pass finished and where an unfinished one continues. Both tables start empty;
+pass finished, where an unfinished one continues, and up to when the changed
+pass has read Twenty's changes. Both tables start empty;
 the first worker run fills the index for the existing assignments. The
 downgrade drops both: the index is derived data and the sync rebuilds it.
 """
@@ -69,6 +70,7 @@ def upgrade() -> None:
                 CONSTRAINT ck_sponsor_search_sync_after_kind
                 CHECK (full_pass_after_kind IN ('company', 'person')),
             full_pass_after_id uuid,
+            changed_pass_read_until timestamptz,
             CONSTRAINT ck_sponsor_search_sync_cursor CHECK (
                 (full_pass_after_kind IS NULL) = (full_pass_after_id IS NULL)
             )

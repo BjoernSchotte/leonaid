@@ -559,6 +559,156 @@ async def prove_budget(stack: Stack) -> None:
     check(SYNC_REQUEST_BUDGET == 30, "The request budget is not 30")
 
 
+async def prove_changed_pass_state(stack: Stack) -> None:
+    """Only a complete changed pass moves the point it has read up to."""
+
+    before = await stack.index.sync_state()
+    started = datetime.now(timezone.utc)
+    complete = await stack.run()
+    check(
+        complete.mode == "changed" and complete.complete,
+        f"Expected a complete changed pass: {complete!r}",
+    )
+    after = await stack.index.sync_state()
+    check(
+        after.changed_read_until is not None
+        and after.changed_read_until >= started
+        and (
+            before.changed_read_until is None
+            or after.changed_read_until > before.changed_read_until
+        ),
+        "A complete changed pass did not record how far it has read",
+    )
+    check(
+        after.last_success == after.changed_read_until,
+        "The last successful pass is not the changed pass that just ran",
+    )
+    # One request reads the companies only: the pass is cut by its budget.
+    cut = await stack.run(budget=1)
+    check(
+        cut.mode == "changed" and not cut.complete and cut.crm_error is None,
+        f"Expected a changed pass cut by its budget: {cut!r}",
+    )
+    check(
+        (await stack.index.sync_state()).changed_read_until == after.changed_read_until,
+        "An incomplete changed pass moved the point it has read up to",
+    )
+
+
+async def run_with(
+    stack: Stack, gateway: TwentyCrmGateway, *, force_full: bool = True
+) -> SyncReport:
+    return await SponsorSearchSync(stack.index, gateway, zone=ZONE).run_once(
+        force_full=force_full
+    )
+
+
+async def prove_incomplete_answer_deletes_nothing(
+    stack: Stack, base_url: str, key: str
+) -> None:
+    """An ID batch that Twenty answers on more than one page is refused.
+
+    The full pass deletes the entries missing from an answer, so a cut
+    answer must never reach it. A page size of one cuts every batch of two.
+    """
+
+    companies = [
+        row["twenty_id"]
+        for row in await stack.connection.fetch(
+            "SELECT twenty_id FROM sponsor_search_entry "
+            "WHERE party_kind = 'company' AND erased_at IS NULL"
+        )
+    ]
+    check(len(companies) >= 2, "The proof needs two indexed companies")
+    entries_before = await stack.connection.fetch(
+        "SELECT * FROM sponsor_search_entry ORDER BY party_kind, twenty_id"
+    )
+    state_before = await stack.index.sync_state()
+    small_pages = TwentyCrmGateway(
+        TwentyGatewaySettings(
+            base_url=base_url,
+            api_key=SecretStr(key),
+            page_size=1,
+            max_rate_limit_retries=0,
+        )
+    )
+    try:
+        try:
+            await small_pages.sponsor_parties_by_id(
+                CrmPartyKind.COMPANY,
+                tuple(companies[:2]),
+                correlation_id="sponsor-search:cut-page",
+            )
+        except CrmGatewayError as error:
+            check(
+                error.code == "crm_pagination_invalid" and not error.retryable,
+                f"A cut ID batch raised the wrong error: {error.code}",
+            )
+        else:
+            raise ContractFailure("A cut ID batch was accepted as complete")
+        report = await run_with(stack, small_pages)
+    finally:
+        await small_pages.close()
+    check(
+        report.mode == "full"
+        and report.crm_error == "crm_pagination_invalid"
+        and not report.crm_error_retryable
+        and not report.complete
+        and report.deleted == 0
+        and report.written == 0,
+        f"A full pass acted on a cut answer: {report!r}",
+    )
+    check(
+        await stack.connection.fetch(
+            "SELECT * FROM sponsor_search_entry ORDER BY party_kind, twenty_id"
+        )
+        == entries_before,
+        "A cut answer changed the index",
+    )
+    check(
+        (await stack.index.sync_state()).full_pass_completed_at
+        == state_before.full_pass_completed_at,
+        "A failed full pass recorded a completion",
+    )
+
+
+async def prove_refused_key(stack: Stack, base_url: str) -> None:
+    """A key that Twenty refuses ends the run and is not a success."""
+
+    state_before = await stack.index.sync_state()
+    refused = TwentyCrmGateway(
+        TwentyGatewaySettings(
+            base_url=base_url,
+            api_key=SecretStr("revoked-" + uuid4().hex + uuid4().hex),
+            max_rate_limit_retries=0,
+        )
+    )
+    try:
+        full = await run_with(stack, refused)
+        changed = await run_with(stack, refused, force_full=False)
+    finally:
+        await refused.close()
+    for report in (full, changed):
+        check(
+            report.crm_error == "crm_permission_denied"
+            and not report.crm_error_retryable
+            and not report.complete
+            and report.requests == 1
+            and not report.rate_limited,
+            f"A refused key was not reported as such: {report!r}",
+        )
+    check(
+        changed.mode == "changed" and full.mode == "full",
+        "The refused runs were not one full and one changed pass",
+    )
+    state = await stack.index.sync_state()
+    check(
+        state.last_success == state_before.last_success
+        and state.changed_read_until == state_before.changed_read_until,
+        "A run with a refused key counted as a successful pass",
+    )
+
+
 def delete_company_in_twenty(company_id: UUID) -> None:
     """Delete the company as a workspace admin would in the Twenty UI.
 
@@ -848,6 +998,9 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
                 await prove_delete(stack, company_id, renamed, token)
             finally:
                 await remove_proof_assignments(connection, company_id)
+            await prove_changed_pass_state(stack)
+            await prove_incomplete_answer_deletes_nothing(stack, base_url, key)
+            await prove_refused_key(stack, base_url)
             await prove_rate_limit(stack, twenty)
     finally:
         await gateway.close()

@@ -555,13 +555,25 @@ class TwentyCrmGateway:
                 f"Ein ID-Batch muss 1 bis {TWENTY_ID_FILTER_CHUNK} IDs enthalten."
             )
         collection = _collection(kind)
-        page, _next = await self._list_page(
+        operation = f"sponsor_parties_by_id_{collection}"
+        page, next_cursor = await self._list_page(
             collection,
             filter_expression=_in_filter("id", sorted(set(twenty_ids), key=str)),
             cursor=None,
             correlation_id=correlation_id,
-            operation=f"sponsor_parties_by_id_{collection}",
+            operation=operation,
         )
+        if next_cursor is not None:
+            # The caller deletes what is missing from the answer; a cut
+            # page (small page size, a lower cap in Twenty) must not pass.
+            raise CrmGatewayError(
+                "crm_pagination_invalid",
+                "Twenty lieferte den ID-Batch nicht auf einer Seite.",
+                operation=operation,
+                correlation_id=correlation_id,
+                retryable=False,
+                outcome_unknown=False,
+            )
         return _sponsor_parties(kind, page)
 
     async def sponsor_parties_changed_since(
