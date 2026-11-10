@@ -10,7 +10,12 @@ import type {
   DeliveryWindowResponse,
 } from "@leonaid/api-client";
 
-import type { ActivityEntry, CommitmentEntry, QueueEntry } from "./queue";
+import {
+  isTourEntry,
+  type ActivityEntry,
+  type CommitmentEntry,
+  type QueueEntry,
+} from "./queue";
 
 export type Resolution =
   | "keep-follow-up"
@@ -28,6 +33,9 @@ export type Resolution =
 
 /** The choices of §10 for an entry, in the order the sheet shows them. */
 export function resolutionsFor(entry: QueueEntry): Resolution[] {
+  // A driver's mark or order (krapfentaxi-touren §9): Core's state wins,
+  // the driver marks again on it; no acquirer choice applies.
+  if (isTourEntry(entry)) return ["discard"];
   const code = entry.lastError?.code ?? "";
   const note = entry.kind === "activity" && Boolean(entry.request.note);
   if (entry.state === "expired" || entry.state === "blocked") {

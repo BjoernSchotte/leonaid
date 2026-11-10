@@ -15,9 +15,9 @@ reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 | `system_admin`    | global                     | Benutzer, globale Rollen, Integrationen, Datenschutz- und Betriebsfunktionen verwalten  |
 | `finance_reader`  | global oder Aktion         | Rechnungen, PDFs, Versand, Zahlungen und offene Posten lesen                            |
 | `finance_manager` | global                     | Zahlungen buchen und zurückbuchen, Rechnungen kontrolliert stornieren                   |
-| `charity_admin`   | eine Aktion                | Aktion, Mitglieder, Bestellungen, Rechnungen und Finanzaktionen dieser Aktion verwalten |
+| `charity_admin`   | eine Aktion                | Aktion, Mitglieder, Bestellungen, Rechnungen und Finanzaktionen dieser Aktion verwalten. Mit Flag `delivery.tours`: **Touren planen** |
 | `acquirer`        | eine Aktion                | zugeordnete Sponsoren, Aktivitäten und Bestellungen bearbeiten                          |
-| `driver` (UI: **Ausfahrer**) | Aktion mit Lieferfähigkeit | in der App **Auslieferung** nur die eigenen zugewiesenen Lieferungen mit Adresse und Kontakt, ohne Beträge, sehen und abhaken, solange das Fenster offen ist |
+| `driver` (UI: **Ausfahrer**) | Aktion mit Lieferfähigkeit | in der App **Auslieferung** nur die eigenen zugewiesenen Lieferungen mit Adresse und Kontakt, ohne Beträge, sehen und abhaken, solange das Fenster offen ist. Mit Flag `delivery.tours`: **Meine Tour** (Tab **Tour**) |
 
 Eine Person kann mehrere Rollen besitzen. Aktionsrollen gelten nur für die
 angegebene Charity-Aktion. Ein Charity-Admin erhält dadurch keine Rechte auf
@@ -40,7 +40,7 @@ Adresse eingibst:
 | ---------------------------------------- | -------------------------------- |
 | eine Akquise-Rolle (auch neben anderen)  | Akquise-App                      |
 | `system_admin`                           | Verwaltung, Seite **System**     |
-| `charity_admin`                          | Verwaltung, Übersicht            |
+| `charity_admin`                          | Verwaltung, Übersicht. Mit Flag `delivery.tours`: **Touren planen** |
 | Finanzrollen                             | Verwaltung, **Rechnungen**       |
 | nur Ausfahrer oder keine Verwaltungsrolle | Akquise-App                     |
 

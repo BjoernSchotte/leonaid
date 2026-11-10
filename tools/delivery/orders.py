@@ -48,7 +48,7 @@ async def prove_orders(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) -> N
         "Billing", "Invoice road 1", "12345", "Test", email="customer@example.invalid"
     )
     address = DeliveryRecipientSnapshot("Warehouse", "Delivery road 2", "12345", "Test")
-    contact = DeliveryContactSnapshot("Reception", "+49 123-45")
+    contact = DeliveryContactSnapshot("Reception", "+49 123-45", "Hintereingang im Hof")
     line = CommitmentLineDraft(offering_id, 2, OfferingUnit.BOX, 3600)
     draft = CommitmentDraft(
         buyer,

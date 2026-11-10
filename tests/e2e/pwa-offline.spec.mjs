@@ -197,7 +197,14 @@ test("the PWA starts offline from the encrypted device copy", async ({
   // §8.4: non-extractable key; no clear text in a copy of the database.
   expect(raw.keyExtractable).toBe(false);
   expect(raw.keyExportable).toBe(false);
-  expect(raw.metaNames).toEqual(["device-key", "identity", "offlineEnabled"]);
+  // "flags": the flag values of the last online start, for an offline
+  // start (krapfentaxi-touren §9); no personal data.
+  expect(raw.metaNames).toEqual([
+    "device-key",
+    "flags",
+    "identity",
+    "offlineEnabled",
+  ]);
   for (const secret of [
     "Musterwerk",
     "mara.muster",
@@ -254,8 +261,9 @@ test("the PWA starts offline from the encrypted device copy", async ({
     fullPage: true,
   });
 
-  // Online-only areas keep the explanation page.
-  await page.goto(`${baseUrl}/app/delivery`);
+  // Online-only areas (modules) keep the explanation page; the driver's
+  // tour (/app/delivery) starts offline since krapfentaxi-touren §9.
+  await page.goto(`${baseUrl}/app/tasks`);
   await expect(page).toHaveTitle("LeonAid ist offline");
 
   // §8.4: the fetch time is authenticated with the copy. An edited clear-

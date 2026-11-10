@@ -12,6 +12,10 @@ import {
   type CommitmentResponse,
   type CompleteCommitmentRequest,
   type CreateCommitmentRequest,
+  type DeliveryDropResponse,
+  type DeliveryStateRequest,
+  type DeliveryTourOrderRequest,
+  type DeliveryTourResponse,
   type RecordAcquisitionActivityRequest,
   type RecordAcquisitionActivityResponse,
 } from "@leonaid/api-client";
@@ -22,7 +26,9 @@ export type QueueKind =
   | "activity"
   | "commitment"
   | "commitment-completion"
-  | "sponsor-draft";
+  | "sponsor-draft"
+  | "delivery-state"
+  | "tour-order";
 
 /**
  * §9.3. `queued` waits for the network or its backoff; `sending` is in
@@ -128,11 +134,58 @@ export interface SponsorDraftEntry extends EntryCommon {
   readonly request: SponsorDraftRequest;
 }
 
+/** A stop's state as the driver sets it ("Meine Tour"). */
+export type DeliveryTarget = "open" | "delivered" | "missed";
+
+/**
+ * The driver marked a stop offline (spec krapfentaxi-touren §9). Core is
+ * idempotent by target state: a replay of an accepted mark changes nothing.
+ * `fromState` is the state the driver saw before; an unsent entry that an
+ * undo takes back to it is deleted (`queueDeliveryState`).
+ */
+export interface DeliveryStateEntry extends EntryCommon {
+  readonly kind: "delivery-state";
+  readonly commitmentId: string;
+  readonly fromState: DeliveryTarget;
+  readonly request: DeliveryStateRequest;
+}
+
+/**
+ * The driver's own order of one day, reordered offline (§9). Core is
+ * idempotent by target order. `fromOrder` is the order the driver saw
+ * before the first unsent move; going back to it deletes the entry.
+ */
+export interface TourOrderEntry extends EntryCommon {
+  readonly kind: "tour-order";
+  readonly fromOrder: readonly string[];
+  readonly request: DeliveryTourOrderRequest;
+}
+
 export type QueueEntry =
   | ActivityEntry
   | CommitmentEntry
   | CompletionEntry
-  | SponsorDraftEntry;
+  | SponsorDraftEntry
+  | DeliveryStateEntry
+  | TourOrderEntry;
+
+/** The target state a delivery-state request sets. */
+export function deliveryTarget(request: DeliveryStateRequest): DeliveryTarget {
+  if (request.delivered) return "delivered";
+  return request.missed ? "missed" : "open";
+}
+
+/** Action ids from Core, the URL and the device compare case-blind. */
+export function sameAction(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
+/** A driver's entry of "Meine Tour" (not a sponsor capture). */
+export function isTourEntry(
+  entry: QueueEntry,
+): entry is DeliveryStateEntry | TourOrderEntry {
+  return entry.kind === "delivery-state" || entry.kind === "tour-order";
+}
 
 export interface QueueStore {
   list(): Promise<QueueEntry[]>;
@@ -245,7 +298,17 @@ export function retention(
 
 /* ---------- ordering (§9.2) ---------- */
 
+/**
+ * The line an entry waits in: a sponsor's captures, one stop's marks, or
+ * one day's tour order. An unresolved entry holds back only its own line.
+ */
 export function partyKey(entry: QueueEntry) {
+  if (entry.kind === "delivery-state") {
+    return `stop:${entry.actionId}:${entry.commitmentId}`;
+  }
+  if (entry.kind === "tour-order") {
+    return `tour:${entry.actionId}:${entry.request.day}`;
+  }
   return `${entry.party.kind}:${entry.party.id}`;
 }
 
@@ -344,6 +407,12 @@ export const CONFLICT_CODES: ReadonlySet<string> = new Set([
   "commitment_ordering_disabled",
   "commitment_action_closed",
   "captured_at_out_of_range",
+  // "Meine Tour" (krapfentaxi-touren §9): the planner or the closure won.
+  "delivery_state_conflict",
+  "tour_revision_conflict",
+  "tour_order_stale",
+  "delivery_window_closed",
+  "delivery_order_not_deliverable",
 ]);
 
 export type SendOutcome =
@@ -369,6 +438,8 @@ export const ACTION_FORBIDDEN_CODES: ReadonlySet<string> = new Set([
   "acquirer_required",
   "commitment_capture_required",
   "commitment_acquisition_required",
+  // No driver role in the action any more (delivery board and tours).
+  "delivery_board_forbidden",
 ]);
 
 /** 403 codes about this one sponsor or order, not the action. */
@@ -376,6 +447,8 @@ const ENTRY_FORBIDDEN_CODES: ReadonlyMap<string, string> = new Map([
   ["commitment_party_not_assigned", "sponsor_not_assigned"],
   ["commitment_owner_required", "commitment_owner_required"],
   ["commitment_source_forbidden", "commitment_source_forbidden"],
+  // The stop went to another driver.
+  ["delivery_not_assigned", "delivery_not_assigned"],
 ]);
 
 /**
@@ -447,7 +520,66 @@ export type SendResult =
       readonly kind: "activity";
       readonly response: RecordAcquisitionActivityResponse;
     }
-  | { readonly kind: "commitment"; readonly response: CommitmentResponse };
+  | { readonly kind: "commitment"; readonly response: CommitmentResponse }
+  | {
+      readonly kind: "delivery-state";
+      readonly response: DeliveryDropResponse;
+    }
+  | { readonly kind: "tour-order"; readonly response: DeliveryTourResponse };
+
+/**
+ * After an accepted mark or order, the later unsent entries of the same
+ * stop or day were made on top of it: they take the revision Core
+ * returned, so they do not fail on the driver's own change.
+ */
+export function rebaseTourEntries(
+  accepted: QueueEntry,
+  result: SendResult,
+  entries: readonly QueueEntry[],
+): QueueEntry[] {
+  const later = entries.filter(
+    (entry) =>
+      entry.entryId !== accepted.entryId &&
+      entry.sequence > accepted.sequence &&
+      partyKey(entry) === partyKey(accepted) &&
+      entry.state === "queued" &&
+      // An order that may be at Core is rebased too: Core takes an order it
+      // already has without a revision check (idempotent by target order,
+      // and the PUT has no idempotency key). A mark keeps its revision.
+      (!entry.everSent || entry.kind === "tour-order"),
+  );
+  if (result.kind === "delivery-state") {
+    return later.flatMap((entry) =>
+      entry.kind === "delivery-state"
+        ? [
+            {
+              ...entry,
+              request: {
+                ...entry.request,
+                expectedRevision: result.response.revision,
+              },
+            },
+          ]
+        : [],
+    );
+  }
+  if (result.kind === "tour-order") {
+    return later.flatMap((entry) =>
+      entry.kind === "tour-order"
+        ? [
+            {
+              ...entry,
+              request: {
+                ...entry.request,
+                expectedRevision: result.response.revision,
+              },
+            },
+          ]
+        : [],
+    );
+  }
+  return [];
+}
 
 /**
  * After an accepted activity, later activities of the same sponsor move

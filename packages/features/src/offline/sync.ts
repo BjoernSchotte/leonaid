@@ -17,8 +17,11 @@ import {
   classifyFailure,
   nextSendable,
   rebaseAfter,
+  rebaseTourEntries,
   draftCheckOutlived,
+  isTourEntry,
   retention,
+  sameAction,
   type QueueEntry,
   type QueueStore,
   type SendResult,
@@ -38,6 +41,12 @@ export interface SyncDependencies {
   readonly preflight?: (entry: QueueEntry) => Promise<string | null>;
   /** Called when an entry goes on its way, so views can follow. */
   readonly onProgress?: () => Promise<void> | void;
+  /**
+   * Records that are no queue entries but leave with the same sync, e.g.
+   * the driver's offline reads of "Meine Tour" (tour-cache.ts). Runs once
+   * per drain, before the entries; a failure never stops the queue.
+   */
+  readonly sendRecords?: () => Promise<void>;
 }
 
 export interface SyncReport {
@@ -82,6 +91,8 @@ export async function drainQueue(
       });
     }
   }
+
+  await dependencies.sendRecords?.().catch(() => undefined);
 
   // Each loop sends one entry; a send changes what is due next.
   for (;;) {
@@ -134,9 +145,12 @@ export async function drainQueue(
           // to "Nicht mehr möglich", stay readable and wait for the
           // acquirer's "Verwerfen" or a retry once the role is back.
           const settledAt = now().toISOString();
+          // Only the role that was refused: losing the driver role
+          // leaves the captures sendable, and the reverse.
           for (const other of await store.list()) {
             if (
-              other.actionId === entry.actionId &&
+              sameAction(other.actionId, entry.actionId) &&
+              isTourEntry(other) === isTourEntry(entry) &&
               other.state !== "expired" &&
               other.state !== "blocked" &&
               (other.entryId === entry.entryId || other.state !== "sending")
@@ -188,6 +202,9 @@ async function settleAccepted(
   entry: QueueEntry,
   result: SendResult,
 ) {
+  for (const rebased of rebaseTourEntries(entry, result, await store.list())) {
+    await store.put(rebased);
+  }
   if (result.kind === "activity") {
     const response: RecordAcquisitionActivityResponse = result.response;
     for (const rebased of rebaseAfter(entry, response, await store.list())) {
@@ -284,6 +301,27 @@ export async function sendEntry(
           entry.actionId,
           entry.commitmentId,
           { ...entry.request, capturedAt: entry.capturedAt },
+          options,
+        ),
+      };
+    case "delivery-state":
+      // Core keeps no receipt here: the target state and the drop's
+      // revision make a replay harmless (krapfentaxi-touren §9).
+      return {
+        kind: "delivery-state",
+        response: await client.setDeliveryState(
+          entry.actionId,
+          entry.commitmentId,
+          entry.request,
+          options,
+        ),
+      };
+    case "tour-order":
+      return {
+        kind: "tour-order",
+        response: await client.saveMyTourOrder(
+          entry.actionId,
+          entry.request,
           options,
         ),
       };

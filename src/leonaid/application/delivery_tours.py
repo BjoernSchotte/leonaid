@@ -5,7 +5,9 @@ Behind the feature flag ``delivery.tours``: switched off, every call answers
 and write base orders; drivers read their own tour ("Meine Tour") and write
 only their own order beside it (spec §10). An empty driver write resets the
 driver order to the base order ("Zurück zur Planung", Ruling 7). Managers
-pin a stop by hand when its address was not found (spec §6.4).
+pin a stop by hand when its address was not found (spec §6.4). A driver's
+offline reads of "Meine Tour" arrive with the next sync; they need both
+flags, ``delivery.tours`` and ``pwa.offline_queue`` (D14 d, g).
 """
 
 from __future__ import annotations
@@ -25,7 +27,9 @@ from leonaid.domain.delivery_tours import (
     DriverTour,
     MapTiles,
     MyTour,
+    TourRead,
     TourStopView,
+    bounded_read_at,
 )
 from leonaid.domain.feature_flags import FeatureFlagKey, FeatureFlagSurface
 from leonaid.domain.identity import IdentityPrincipal
@@ -81,6 +85,14 @@ class DeliveryTourRepository(Protocol):
         request_id: str,
         occurred_at: datetime,
     ) -> TourStopView: ...
+
+    async def record_reads(
+        self,
+        *,
+        action_id: UUID,
+        driver_user_id: UUID,
+        reads: Sequence[TourRead],
+    ) -> None: ...
 
 
 def _require_driver(actor: IdentityPrincipal, action_id: UUID) -> None:
@@ -146,6 +158,34 @@ class DeliveryTourService:
             day=day,
             viewed_at=viewed_at,
         )
+
+    async def record_reads(
+        self,
+        actor: IdentityPrincipal,
+        action_id: UUID,
+        reads: Sequence[TourRead],
+        *,
+        received_at: datetime,
+    ) -> None:
+        """Offline reads into the first-read audit (spec §10), at their read
+        time. Windows without a stop of this driver are ignored."""
+
+        await self._driver(actor, action_id)
+        await self._flags.require_enabled(
+            actor, FeatureFlagKey.PWA_OFFLINE_QUEUE, surface=FeatureFlagSurface.PWA
+        )
+        bounded = tuple(
+            TourRead(
+                read.window_id, bounded_read_at(read.read_at, received_at=received_at)
+            )
+            for read in reads
+        )
+        if bounded:
+            await self._repository.record_reads(
+                action_id=action_id,
+                driver_user_id=actor.account.id,
+                reads=bounded,
+            )
 
     async def save_base_order(
         self,

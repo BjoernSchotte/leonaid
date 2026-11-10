@@ -140,7 +140,8 @@ E2E_SECONDS = {
     "invoices": 70,
     "commitments": 70,
     "pwa": 119,
-    "pwa-offline": 189,
+    # +10 s: the offline tour journey (pwa-offline-tour, 9.5 s locally).
+    "pwa-offline": 199,
     "pwa-offline-webkit": 84,
     "action-admin": 35,
     "public-orders": 134,
@@ -671,6 +672,22 @@ RULES: tuple[Rule, ...] = (
         e2e("invoices") | {"golden"},
         "invoice UI",
     ),
+    # "Meine Tour" also works offline (krapfentaxi-touren §9): its offline
+    # journey runs in the pwa-offline leaf (tests/e2e/pwa-offline-tour).
+    Rule(
+        (
+            "packages/features/src/delivery/my-tour.tsx",
+            "apps/web/src/my-tour.test.tsx",
+        ),
+        e2e("invoices", "pwa-offline"),
+        "Meine Tour, online and offline",
+    ),
+    # The offline queue, device store and tour copy of the PWA.
+    Rule(
+        ("packages/features/src/offline/**",),
+        e2e("pwa-offline", "pwa-offline-webkit"),
+        "PWA offline UI",
+    ),
     # The delivery board, the tour planner and "Meine Tour" with their web
     # component tests; the delivery journeys run in the invoices leaf.
     Rule(
@@ -678,7 +695,9 @@ RULES: tuple[Rule, ...] = (
             "packages/features/src/delivery/**",
             "apps/web/src/delivery-board.test.tsx",
             "apps/web/src/delivery-tours.test.tsx",
+            "apps/web/src/driver-note.test.tsx",
             "apps/web/src/my-tour.test.tsx",
+            "apps/web/src/tour-map.test.tsx",
             "apps/web/src/tour-model.test.ts",
         ),
         e2e("invoices"),
@@ -698,6 +717,34 @@ RULES: tuple[Rule, ...] = (
         ("packages/features/src/activity-feed/**",),
         e2e("public-catalog"),
         "activity feed UI",
+    ),
+    # Flag evaluation: the flag proofs (operations), the flag-gated tours
+    # (invoices) and the PWA's flags, cached for the offline start.
+    Rule(
+        ("packages/features/src/feature-flags/openfeature-provider.tsx",),
+        e2e("operations", "invoices", *PWA),
+        "feature flag provider",
+    ),
+    # The PWA shell, its service worker and offline page.
+    Rule(("apps/pwa/**",), e2e(*PWA), "PWA app"),
+    # The EmDash proofs import the Krapfentaxi intro and assets.
+    Rule(
+        (
+            "apps/public/package.json",
+            "apps/public/src/assets/krapfentaxi/**",
+            "apps/public/src/components/KrapfentaxiIntro.astro",
+        ),
+        e2e("public-orders") | EMDASH,
+        "public Krapfentaxi page",
+    ),
+    Rule(
+        ("apps/public/src/pages/surveys/**",), frozenset({"surveys"}), "public surveys"
+    ),
+    # The public site: order form, catalog, sign-in and invitation pages.
+    Rule(
+        ("apps/public/**",),
+        e2e("public-orders", "public-catalog", "identity", "membership"),
+        "public site",
     ),
 )
 

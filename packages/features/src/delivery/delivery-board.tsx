@@ -60,6 +60,7 @@ import {
   longDay,
   weekday,
 } from "./delivery-shared";
+import { DriverNote } from "./driver-note";
 import {
   DeliveryViewSwitch,
   TourPlanner,
@@ -232,6 +233,8 @@ function WebDeliveryPage(props: DeliveryBoardPageProps) {
     );
   }
   if (view === "tours" && tours) {
+    // A campaign switch remounts the planner; as on a day switch, its
+    // waiting moves go out first, without asking (useOrderAutosave).
     return (
       <TourPlanner
         actionId={props.actionId}
@@ -1090,6 +1093,10 @@ function DeliveryListPage({
                                   ) : null}
                                 </p>
                               ) : null}
+                              {/* The note is collected with or without
+                                  delivery.tours; the driver sees it here
+                                  too (spec §5.1, Ruling 26). */}
+                              <DriverNote drop={drop} full />
                             </div>
                             {manager ? (
                               <button

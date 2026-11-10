@@ -1117,6 +1117,7 @@ class PublicOrderLineRequest(TransportModel):
 class DeliveryContactRequest(TransportModel):
     name: str | None = Field(default=None, max_length=200)
     phone: str | None = Field(default=None, max_length=40)
+    driver_note: str | None = Field(default=None, max_length=200)
 
 
 class CreatePublicOrderRequest(TransportModel):
@@ -2685,6 +2686,7 @@ class DeliveryDropAddressResponse(TransportModel):
 class DeliveryDropContactResponse(TransportModel):
     name: str | None
     phone: str | None
+    driver_note: str | None
 
 
 class DeliveryDropResponse(TransportModel):
@@ -2831,6 +2833,29 @@ class MyTourResponse(TransportModel):
     tour: DeliveryTourResponse | None
     start_point: DeliveryStartPointResponse | None
     map: MapTilesResponse
+
+
+class MyTourReadRequest(TransportModel):
+    window_id: UUID
+    read_at: AwareDatetime = Field(
+        description="Wann das Gerät die Stopps des Fensters offline zeigte; "
+        "höchstens 14 Tage vor und höchstens 5 Minuten nach der Empfangszeit "
+        "des Servers (Uhrabweichung des Geräts), sonst "
+        "`tour_read_out_of_range` für die ganze Anfrage."
+    )
+
+
+class MyTourReadsRequest(TransportModel):
+    """Offline reads of "Meine Tour", sent with the next sync (spec §10).
+    Windows without a stop of the driver are ignored."""
+
+    reads: list[MyTourReadRequest] = Field(min_length=1, max_length=50)
+
+
+# Offline reads of "Meine Tour" (spec §10, D14 d).
+MY_TOUR_READS_RESPONSES = _invalid(
+    AUTHENTICATED_ERROR_RESPONSES, "tour_read_out_of_range"
+)
 
 
 class DeliveryTourOrderRequest(TransportModel):

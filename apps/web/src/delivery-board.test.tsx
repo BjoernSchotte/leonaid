@@ -60,7 +60,7 @@ function drop(
     },
     buyerName,
     commitmentId: id,
-    contact: { name: "Empfang", phone: "+49 30 123" },
+    contact: { driverNote: null, name: "Empfang", phone: "+49 30 123" },
     driverName: null,
     driverUserId: null,
     missedAtClosure: false,
@@ -313,6 +313,37 @@ describe("delivery board", () => {
     expect(screen.queryByTestId("delivery-close-window")).toBeNull();
     expect(screen.queryByRole("button", { name: /Fahrer/ })).toBeNull();
     expect(screen.getAllByRole("link", { name: "+49 30 123" })).toHaveLength(2);
+  });
+
+  it("shows the driver note on the drop card, also with delivery.tours off", async () => {
+    // No flag provider: delivery.tours is not on (Ruling 26).
+    const plain = board({ manager: false, drivers: [] });
+    const [window0] = plain.windows;
+    const [first, second] = window0!.drops;
+    const withNote = {
+      ...plain,
+      windows: [
+        {
+          ...window0!,
+          drops: [
+            {
+              ...first!,
+              contact: {
+                ...first!.contact!,
+                driverNote: "Hofeinfahrt links, bitte klingeln",
+              },
+            },
+            second!,
+          ],
+        },
+      ],
+    };
+    await renderBoard(fakeClient(withNote), "pwa");
+    const [card, other] = screen.getAllByTestId("delivery-drop");
+    expect(within(card!).getByTestId("driver-note").textContent).toContain(
+      "Hofeinfahrt links, bitte klingeln",
+    );
+    expect(within(other!).queryByTestId("driver-note")).toBeNull();
   });
 
   it("tells a closed window apart and lets managers deliver missed drops later", async () => {

@@ -12,6 +12,7 @@ const fieldLimits = {
   deliveryWindowId: 36,
   deliveryContactName: 200,
   deliveryContactPhone: 40,
+  deliveryDriverNote: 200,
   invoiceRecipientName: 300,
   invoiceStreetLine1: 300,
   invoicePostalCode: 24,

@@ -51,5 +51,23 @@ if [ "$first" != "$second" ]; then
   exit 1
 fi
 echo "demo-tours-test: second run changed nothing"
+test "$(tool demo_tours_check.py counts)" = "orders=14 noted=4" || {
+  echo "demo-tours-test: ERROR: expected 14 orders, 4 with a driver note" >&2
+  exit 1
+}
+echo "demo-tours-test: 14 orders, 4 driver notes, same after the second run"
 tool demo_tours_check.py drivers
+# An instance seeded by the version without notes converges in place (ruling 21).
+test "$(tool demo_tours_check.py downgrade)" = "orders=14 noted=0"
+tool demo_tours.py
+third=$(tool demo_tours_check.py fingerprint)
+test "$(tool demo_tours_check.py counts)" = "orders=14 noted=4"
+tool demo_tours.py
+fourth=$(tool demo_tours_check.py fingerprint)
+if [ "$third" != "$fourth" ]; then
+  echo "demo-tours-test: ERROR: a run after the upgrade changed data" >&2
+  exit 1
+fi
+tool demo_tours_check.py drivers
+echo "demo-tours-test: upgrade from the note-less seed converged, then stable"
 echo "demo-tours-test: OK"

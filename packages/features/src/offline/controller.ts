@@ -6,19 +6,43 @@
  * BroadcastChannel and re-read the store.
  */
 import { drainQueue, type SyncDependencies, type SyncReport } from "./sync";
-import type { SponsorDraftRequest } from "@leonaid/api-client";
+import type {
+  DeliveryStateRequest,
+  SponsorDraftRequest,
+} from "@leonaid/api-client";
 
 import {
   capturedAtNow,
+  deliveryTarget,
   idempotencyKeyFor,
   nextDueAt,
   newEntryId,
+  sameAction,
+  type DeliveryStateEntry,
+  type DeliveryTarget,
   type QueueEntry,
   type QueueError,
   type QueueStore,
   type SendResult,
   type SponsorDraftEntry,
+  type TourOrderEntry,
 } from "./queue";
+
+/**
+ * "Meine Tour" offline: what changed with the queue (§9). `queued`: an
+ * entry waits to be sent; `cleared`: an unsent entry was taken back (the
+ * stop or order is as Core has it); `unchanged`: nothing to do.
+ */
+export type TourWriteOutcome = "queued" | "cleared" | "unchanged";
+
+function sameOrder(a: readonly string[], b: readonly string[]) {
+  return a.length === b.length && a.every((id, index) => id === b[index]);
+}
+
+/** Not sent yet and not in flight: its body may still change or go. */
+function replaceable(entry: QueueEntry) {
+  return entry.state === "queued" && !entry.everSent;
+}
 
 /** What the page fills in; the controller adds the bookkeeping. */
 export type QueueDraft = QueueEntry extends infer Entry
@@ -81,6 +105,7 @@ export interface QueueControllerOptions {
   readonly userId: string;
   readonly send: SyncDependencies["send"];
   readonly preflight?: SyncDependencies["preflight"];
+  readonly sendRecords?: SyncDependencies["sendRecords"];
   /** After accepted entries: refresh the read cache and the pages. */
   readonly onAccepted?: (report: SyncReport) => void;
   readonly now?: () => Date;
@@ -206,32 +231,41 @@ export class QueueController {
     return { entryId, error: current.lastError, state: current.state };
   }
 
+  /** A new entry of `draft` with the bookkeeping, numbered after `existing`. */
+  #build(
+    draft: QueueDraft,
+    entryId: string,
+    existing: readonly QueueEntry[],
+    attempt: number,
+  ): QueueEntry {
+    const now = this.#options.now?.() ?? new Date();
+    const highest = existing.reduce(
+      (max, item) => Math.max(max, item.sequence),
+      0,
+    );
+    return {
+      ...draft,
+      attempts: 0,
+      capturedAt: draft.capturedAt ?? capturedAtNow(now),
+      dependsOn: draft.dependsOn ?? null,
+      entryId,
+      idempotencyKey: idempotencyKeyFor(entryId),
+      lastError: null,
+      nextAttemptAt: null,
+      previousKeys: [],
+      sequence: Math.max(highest + 1, now.getTime()) + attempt,
+      settledAt: null,
+      state: "queued",
+    } as QueueEntry;
+  }
+
   async #write(
     draft: QueueDraft,
     entryId: string = newEntryId(),
   ): Promise<QueueEntry> {
     const { store } = this.#options;
-    const now = this.#options.now?.() ?? new Date();
     for (let attempt = 0; ; attempt += 1) {
-      const existing = await store.list();
-      const highest = existing.reduce(
-        (max, item) => Math.max(max, item.sequence),
-        0,
-      );
-      const entry = {
-        ...draft,
-        attempts: 0,
-        capturedAt: draft.capturedAt ?? capturedAtNow(now),
-        dependsOn: draft.dependsOn ?? null,
-        entryId,
-        idempotencyKey: idempotencyKeyFor(entryId),
-        lastError: null,
-        nextAttemptAt: null,
-        previousKeys: [],
-        sequence: Math.max(highest + 1, now.getTime()) + attempt,
-        settledAt: null,
-        state: "queued",
-      } as QueueEntry;
+      const entry = this.#build(draft, entryId, await store.list(), attempt);
       try {
         await store.put(entry);
         await this.#askPersistence();
@@ -243,6 +277,188 @@ export class QueueController {
         if (attempt >= 5) throw error;
       }
     }
+  }
+
+  /**
+   * Writes a driver's entry under the sending lock: `decide` sees the store
+   * and returns the entry to keep, an entry to delete, or nothing to do.
+   */
+  async #tourWrite(
+    decide: (
+      entries: readonly QueueEntry[],
+    ) =>
+      | { readonly put: QueueEntry }
+      | { readonly delete: string }
+      | { readonly add: QueueDraft }
+      | null,
+  ): Promise<TourWriteOutcome> {
+    let outcome = "unchanged" as TourWriteOutcome;
+    await this.#mutate(async (store) => {
+      const entries = await store.list();
+      const decision = decide(entries);
+      if (!decision) return;
+      if ("delete" in decision) {
+        await store.delete(decision.delete);
+        outcome = "cleared";
+        return;
+      }
+      outcome = "queued";
+      if ("put" in decision) {
+        await store.put(decision.put);
+        return;
+      }
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          await store.put(
+            this.#build(decision.add, newEntryId(), entries, attempt),
+          );
+          return;
+        } catch (error) {
+          if (attempt >= 5) throw error;
+        }
+      }
+    });
+    if (outcome === "queued") await this.#askPersistence();
+    void this.run();
+    return outcome;
+  }
+
+  /**
+   * "Zugestellt", "Nicht da" or "Rückgängig" of a stop, through the queue
+   * (krapfentaxi-touren §9). A pending mark of the stop that was not sent
+   * yet takes the new target; one that goes back to the state it started
+   * from is deleted ("cleared"). `fromState` and `expectedRevision` are the
+   * stop as the driver sees it.
+   */
+  queueDeliveryState(draft: {
+    readonly actionId: string;
+    readonly commitmentId: string;
+    readonly displayName: string;
+    readonly fromState: DeliveryTarget;
+    readonly target: DeliveryTarget;
+    readonly expectedRevision: number;
+  }): Promise<TourWriteOutcome> {
+    const request: DeliveryStateRequest = {
+      delivered: draft.target === "delivered",
+      expectedRevision: draft.expectedRevision,
+      missed: draft.target === "missed",
+    };
+    const now = this.#options.now?.() ?? new Date();
+    return this.#tourWrite((entries) => {
+      const pending = entries.find(
+        (entry): entry is DeliveryStateEntry =>
+          entry.kind === "delivery-state" &&
+          sameAction(entry.actionId, draft.actionId) &&
+          entry.commitmentId === draft.commitmentId &&
+          replaceable(entry),
+      );
+      if (pending) {
+        if (draft.target === pending.fromState) {
+          return { delete: pending.entryId };
+        }
+        if (draft.target === deliveryTarget(pending.request)) return null;
+        // Never sent: the body may change under the same key.
+        return {
+          put: {
+            ...pending,
+            capturedAt: capturedAtNow(now),
+            request: {
+              ...request,
+              expectedRevision: pending.request.expectedRevision,
+            },
+          },
+        };
+      }
+      if (draft.target === draft.fromState) return null;
+      return {
+        add: {
+          actionId: draft.actionId,
+          assignmentId: "",
+          base: {},
+          commitmentId: draft.commitmentId,
+          fromState: draft.fromState,
+          kind: "delivery-state",
+          party: {
+            displayName: draft.displayName,
+            id: `stop:${draft.commitmentId}`,
+            kind: "person",
+          },
+          request,
+        },
+      };
+    });
+  }
+
+  /**
+   * One move of the driver's order, through the queue (§9). A pending
+   * order of the same action and day that was not sent yet takes the new
+   * order; back at the order it started from it is deleted.
+   *
+   * `everSent`: the order already went out once (an online save that got no
+   * answer) and may be at Core. It becomes an entry of its own, never merged,
+   * so later moves queue behind it and take the revision Core returns for it
+   * (`rebaseTourEntries`).
+   */
+  queueTourOrder(draft: {
+    readonly actionId: string;
+    readonly day: string;
+    readonly displayName: string;
+    readonly fromOrder: readonly string[];
+    readonly commitmentIds: readonly string[];
+    readonly expectedRevision: string;
+    readonly everSent?: boolean;
+  }): Promise<TourWriteOutcome> {
+    const now = this.#options.now?.() ?? new Date();
+    return this.#tourWrite((entries) => {
+      const pending = draft.everSent
+        ? undefined
+        : entries.find(
+            (entry): entry is TourOrderEntry =>
+              entry.kind === "tour-order" &&
+              sameAction(entry.actionId, draft.actionId) &&
+              entry.request.day === draft.day &&
+              replaceable(entry),
+          );
+      if (pending) {
+        if (sameOrder(draft.commitmentIds, pending.fromOrder)) {
+          return { delete: pending.entryId };
+        }
+        if (sameOrder(draft.commitmentIds, pending.request.commitmentIds)) {
+          return null;
+        }
+        return {
+          put: {
+            ...pending,
+            capturedAt: capturedAtNow(now),
+            request: {
+              ...pending.request,
+              commitmentIds: [...draft.commitmentIds],
+            },
+          },
+        };
+      }
+      if (sameOrder(draft.commitmentIds, draft.fromOrder)) return null;
+      return {
+        add: {
+          actionId: draft.actionId,
+          assignmentId: "",
+          base: {},
+          fromOrder: [...draft.fromOrder],
+          ...(draft.everSent ? { everSent: true } : {}),
+          kind: "tour-order",
+          party: {
+            displayName: draft.displayName,
+            id: `tour:${draft.actionId}:${draft.day}`,
+            kind: "person",
+          },
+          request: {
+            commitmentIds: [...draft.commitmentIds],
+            day: draft.day,
+            expectedRevision: draft.expectedRevision,
+          },
+        },
+      };
+    });
   }
 
   /** The entry changes content: new body, new key, the old key kept. */
@@ -533,6 +749,7 @@ export class QueueController {
             await this.reload();
           },
           preflight: this.#options.preflight,
+          sendRecords: this.#options.sendRecords,
           send: this.#options.send,
           store: this.#options.store,
         });

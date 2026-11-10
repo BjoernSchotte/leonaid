@@ -3,21 +3,26 @@
 ``fingerprint`` prints a digest of every row the demo seed may touch;
 ``drivers`` reads the delivery board as Dora and as Emil, the way the app
 does for their session, and checks they see exactly their own stops, and
-that the action names the bakery as its start point.
+that the action names the bakery as its start point. `counts` prints the
+orders and driver notes; `downgrade` rewinds the orders to the note-less seed.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import sys
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
 
 import asyncpg
 
 from leonaid.adapters.postgres.delivery import AsyncpgDeliveryRepository
+from leonaid.domain.commitments import CommitmentSource, CommitmentStatus
 from tools.seed.demo_tours import (
+    draft_for,
     board_service,
     ACTION_ID,
     START_ADDRESS,
@@ -71,6 +76,8 @@ async def drivers(pool: asyncpg.Pool[Any]) -> None:
             [order.idempotency_key for order in ORDERS],
         )
     }
+    row = await pool.fetchrow(COUNTS, list(keys))
+    assert row is not None and (row["orders"], row["noted"]) == (14, 4), dict(row)
     for driver in DRIVERS:
         board = await service.board(
             await load_principal(pool, driver.id),
@@ -86,6 +93,18 @@ async def drivers(pool: asyncpg.Pool[Any]) -> None:
             keys[order.idempotency_key] for order in ORDERS if order.driver == driver
         }
         assert seen == wanted, (driver.key, sorted(seen), sorted(wanted))
+        notes = {
+            str(drop.commitment_id): drop.contact.driver_note
+            for window in board.windows
+            for drop in window.drops
+            if drop.contact and drop.contact.driver_note
+        }
+        expected = {
+            keys[order.idempotency_key]: order.driver_note
+            for order in ORDERS
+            if order.driver == driver and order.driver_note
+        }
+        assert notes == expected, (driver.key, notes, expected)
         delivered = sum(
             drop.state.value == "delivered"
             for window in board.windows
@@ -103,17 +122,84 @@ async def drivers(pool: asyncpg.Pool[Any]) -> None:
         )
 
 
+COUNTS = """
+SELECT count(*) AS orders,
+       count(*) FILTER (
+           WHERE c.delivery_contact_snapshot::jsonb ->> 'driver_note' IS NOT NULL
+       ) AS noted
+FROM command_receipt r
+JOIN commitment c ON c.id = (r.result ->> 'commitmentId')::uuid
+WHERE r.idempotency_key = ANY($1::text[])
+"""
+
+
+async def counts(pool: asyncpg.Pool[Any]) -> None:
+    row = await pool.fetchrow(COUNTS, [order.idempotency_key for order in ORDERS])
+    assert row is not None
+    print(f"orders={row['orders']} noted={row['noted']}")
+
+
+async def downgrade(pool: asyncpg.Pool[Any]) -> None:
+    """Make the stored demo orders look as an older seed left them: no notes."""
+
+    for order in ORDERS:
+        receipt = await pool.fetchrow(
+            "SELECT result ->> 'commitmentId' AS commitment_id FROM command_receipt"
+            " WHERE idempotency_key = $1",
+            order.idempotency_key,
+        )
+        assert receipt is not None, order.slug
+        window_id = await pool.fetchval(
+            "SELECT delivery_window_id FROM commitment WHERE id = $1::uuid",
+            receipt["commitment_id"],
+        )
+        old = draft_for(replace(order, driver_note=None), window_id)
+        fingerprint = old.fingerprint(
+            action_id=ACTION_ID,
+            source=CommitmentSource.ADMIN,
+            status=CommitmentStatus.CONFIRMED,
+        )
+        async with pool.acquire() as connection, connection.transaction():
+            await connection.execute(
+                "UPDATE commitment SET delivery_contact_snapshot = $2::jsonb"
+                " WHERE id = $1::uuid",
+                receipt["commitment_id"],
+                json.dumps(old.delivery_contact.payload())
+                if old.delivery_contact
+                else None,
+            )
+            await connection.execute(
+                "UPDATE command_receipt SET request_hash = $2"
+                " WHERE idempotency_key = $1",
+                order.idempotency_key,
+                fingerprint,
+            )
+    await counts(pool)
+
+
 async def main(command: str) -> None:
     pool = await asyncpg.create_pool(
         os.environ["CORE_DATABASE_URL"], min_size=1, max_size=2
     )
     try:
-        await (fingerprint if command == "fingerprint" else drivers)(pool)
+        await {
+            "fingerprint": fingerprint,
+            "drivers": drivers,
+            "counts": counts,
+            "downgrade": downgrade,
+        }[command](pool)
     finally:
         await pool.close()
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2 or sys.argv[1] not in {"fingerprint", "drivers"}:
-        raise SystemExit("usage: demo_tours_check.py fingerprint|drivers")
+    if len(sys.argv) != 2 or sys.argv[1] not in {
+        "fingerprint",
+        "drivers",
+        "counts",
+        "downgrade",
+    }:
+        raise SystemExit(
+            "usage: demo_tours_check.py fingerprint|drivers|counts|downgrade"
+        )
     asyncio.run(main(sys.argv[1]))

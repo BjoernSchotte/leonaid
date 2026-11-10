@@ -43,7 +43,8 @@ async function storedOfflineStart(): Promise<boolean | null> {
 /**
  * Whether `/app/` may start from the cache. The setting lives in the
  * service worker's Cache Storage, which every page of the origin reaches,
- * so the admin web app can switch it off too.
+ * so the admin web app can switch it off too. Switching it off also drops
+ * the offline page's audience (`setOfflineAudience`).
  */
 export async function setOfflineStart(enabled: boolean): Promise<void> {
   // The service worker writes its own setting (WebKit does not always
@@ -82,10 +83,39 @@ export async function setOfflineStart(enabled: boolean): Promise<void> {
         new Response("true", { headers: { "content-type": "text/plain" } }),
       );
     } else {
+      // Off: the offline page no longer names who works offline here.
       await settings.delete(offlineStartKey());
+      await settings.delete(offlineAudienceKey());
     }
   } catch {
     // Without Cache Storage there is no offline start to switch.
+  }
+}
+
+/** Who the offline page (offline.html) speaks to; no personal data. */
+export type OfflineAudience = "acquirer" | "driver" | "both";
+
+function offlineAudienceKey() {
+  return new URL(`${PWA_BASE}offline-audience`, window.location.origin).href;
+}
+
+/**
+ * What the offline page names as still working offline: the sponsors, the
+ * driver's tour (krapfentaxi-touren §9) or both. Read by offline.js from
+ * the origin's Cache Storage.
+ */
+export async function setOfflineAudience(
+  audience: OfflineAudience,
+): Promise<void> {
+  if (typeof caches === "undefined") return;
+  try {
+    const settings = await caches.open(SETTINGS_CACHE);
+    await settings.put(
+      offlineAudienceKey(),
+      new Response(audience, { headers: { "content-type": "text/plain" } }),
+    );
+  } catch {
+    // Without Cache Storage the page keeps its default copy.
   }
 }
 

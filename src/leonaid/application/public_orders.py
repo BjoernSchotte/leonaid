@@ -323,6 +323,7 @@ class PublicOrderDraft:
             for part, contact_value in (
                 ("Name", contact.name),
                 ("Telefon", contact.phone),
+                ("Hinweis für den Fahrer", contact.driver_note),
             ):
                 if contact_value is not None:
                     _require_plain(

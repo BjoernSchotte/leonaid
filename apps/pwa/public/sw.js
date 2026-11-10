@@ -13,8 +13,10 @@ const OFFLINE_START_KEY = "__LEONAID_PWA_BASE__offline-start";
 const SHELL_URL = "__LEONAID_PWA_BASE__";
 const OFFLINE_URL = "__LEONAID_PWA_BASE__offline.html";
 // App screens that work from the device copy; every other path (modules,
-// the delivery board, unknown paths) keeps the offline explanation.
-const OFFLINE_SCREENS = ["sponsors", "activities", "commitments"];
+// unknown paths) keeps the offline explanation. "delivery" is the driver's
+// tour ("Meine Tour", krapfentaxi-touren §9); without a device copy it says
+// so itself.
+const OFFLINE_SCREENS = ["sponsors", "activities", "commitments", "delivery"];
 // The offline page loads its stylesheet and script from files because the
 // Content-Security-Policy forbids inline code; they are cached with it.
 const OFFLINE_RESOURCES = [

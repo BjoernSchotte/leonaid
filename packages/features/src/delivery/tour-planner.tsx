@@ -69,6 +69,7 @@ import {
   dropQuantities,
   longDay,
 } from "./delivery-shared";
+import { DriverNote } from "./driver-note";
 import {
   canSuggestOrder,
   moveStop,
@@ -173,6 +174,8 @@ interface PlanStop {
 /** Where a move was made: its save and cache update stay there. */
 interface PlanContext {
   readonly day: string;
+  /** The driver (the lane key). */
+  readonly driverUserId: string;
   readonly laneName: string;
   readonly queryKey: readonly unknown[];
 }
@@ -342,8 +345,8 @@ export function TourPlanner({
   // revision it started from, for the day and cache entry it was made in
   // (a day switch sends it first); a conflict reloads the columns.
   const autosave = useOrderAutosave<DeliveryTourResponse, PlanContext>({
-    save: (key, ids, revision, context) =>
-      client.saveDeliveryTourOrder(actionId, key, {
+    save: (_key, ids, revision, context) =>
+      client.saveDeliveryTourOrder(actionId, context.driverUserId, {
         commitmentIds: [...ids],
         day: context.day,
         expectedRevision: revision,
@@ -398,12 +401,19 @@ export function TourPlanner({
   const lanes = model.lanes;
   const laneByKey = new Map(lanes.map((lane) => [lane.key, lane]));
   const windowOf = (id: string) => model.stops.get(id)?.window.windowId ?? "";
+  /** The autosave key of a lane's tour: one per day and driver. */
+  const saveKey = (lane: PlanLane) =>
+    lane.tour ? `${lane.tour.day}|${lane.key}` : null;
+  const pendingOf = (lane: PlanLane) => {
+    const key = saveKey(lane);
+    return key ? autosave.orderOf(key) : null;
+  };
 
   const shownOf = (lane: PlanLane) => {
     if (viewing.has(lane.key) && lane.tour?.driverOrderedAt) {
       return lane.effective;
     }
-    const pending = autosave.orderOf(lane.key);
+    const pending = pendingOf(lane);
     return pending ? reconcileOrder(pending, lane.base, windowOf) : lane.base;
   };
   const isViewingDriver = (lane: PlanLane) =>
@@ -413,8 +423,9 @@ export function TourPlanner({
     if (!lane.tour) return;
     const current = shownOf(lane);
     if (sameOrder(next, current)) return;
-    autosave.move(lane.key, next, current, lane.tour.revision, {
+    autosave.move(saveKey(lane)!, next, current, lane.tour.revision, {
       day: lane.tour.day,
+      driverUserId: lane.key,
       laneName: lane.name,
       queryKey,
     });
@@ -426,9 +437,12 @@ export function TourPlanner({
     }
   };
 
-  /** Sends waiting moves first, then runs `leave` (day or view change). */
+  /**
+   * Sends waiting moves first, then runs `leave` (day or view change);
+   * every lane's, also one whose tour left the columns meanwhile.
+   */
   const guarded = (leave: () => void) => {
-    for (const lane of lanes) void autosave.release(lane.key);
+    autosave.releaseAll();
     leave();
   };
 
@@ -584,9 +598,7 @@ export function TourPlanner({
       ];
     }),
   );
-  const draftLane = lanes.find(
-    (lane) => lane.tour && autosave.orderOf(lane.key),
-  );
+  const draftLane = lanes.find((lane) => lane.tour && pendingOf(lane));
   const chosenLane =
     onlyLane && onlyLane !== UNASSIGNED ? laneByKey.get(onlyLane) : undefined;
   const mapLine = draftLane
@@ -1244,6 +1256,7 @@ function StopRow({
           {drop.address?.streetLine1 ?? "Keine Lieferadresse"} ·{" "}
           {dropQuantities(drop)}
         </span>
+        <DriverNote className="tour-stop-note" drop={drop} />
       </label>
       {/* Ruling 18: a pin that is there can move; the click writes a manual pin. */}
       {stop.lat !== null && stop.lon !== null ? (

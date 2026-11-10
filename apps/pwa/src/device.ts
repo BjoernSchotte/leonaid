@@ -4,7 +4,8 @@
  * refresh and the clearing rules of §8.5. Ownership and clearing that the
  * admin web app shares live in @leonaid/features/offline (device-session).
  * Everything here is behind the flag `pwa.offline_queue`; with it off
- * nothing is kept on the device.
+ * nothing is kept on the device. The driver's tour needs `delivery.tours`
+ * too (krapfentaxi-touren §9, D14 g).
  */
 import {
   ApiError,
@@ -25,8 +26,10 @@ import {
   identityFromSummary,
   minimizeBoard,
   minimizeCaptureContext,
+  purgeTourCaches,
   sessionEnded,
   setActiveDeviceUser,
+  setOfflineAudience,
   setOfflineStart,
   summarizeIdentity,
   type IdentitySummary,
@@ -39,7 +42,33 @@ export {
 } from "@leonaid/features/offline";
 
 export const OFFLINE_QUEUE_FLAG = "pwa.offline_queue";
+export const DELIVERY_TOURS_FLAG = "delivery.tours";
 const ENABLED_META = "offlineEnabled";
+/**
+ * The PWA's flags at the last online start: an offline start shows the
+ * same pages (no personal data, only flag keys and values).
+ */
+const FLAGS_META = "flags";
+
+export type DeviceFlags = ReadonlyMap<string, boolean>;
+
+/** Driver actions whose tour the device keeps: both flags on (D14 g). */
+function tourActions(
+  memberships: CurrentIdentityResponse["actionMemberships"],
+  flags: DeviceFlags,
+): Set<string> {
+  if (
+    flags.get(OFFLINE_QUEUE_FLAG) !== true ||
+    flags.get(DELIVERY_TOURS_FLAG) !== true
+  ) {
+    return new Set();
+  }
+  return new Set(
+    memberships
+      .filter((membership) => membership.role === "driver")
+      .map((membership) => membership.actionId),
+  );
+}
 
 /** What an offline start returns when the session behind the copy ended. */
 function sessionEndedError() {
@@ -50,9 +79,13 @@ function sessionEndedError() {
   });
 }
 
-/** Removes read-cache documents past 14 days (§8.5), online or not. */
+/**
+ * Removes read-cache documents past 14 days (§8.5), online or not. The
+ * driver's tour has its own rules (purgeTourCaches).
+ */
 async function purgeExpired(store: DeviceStore, keep?: ReadonlySet<string>) {
   for (const entry of await store.listCache()) {
+    if (entry.kind === "tour") continue;
     if (
       (keep && !keep.has(entry.actionId)) ||
       cacheFreshness(entry.fetchedAt) === "expired"
@@ -70,6 +103,7 @@ async function purgeExpired(store: DeviceStore, keep?: ReadonlySet<string>) {
 export async function cachedDevice(existing?: DeviceStore | null): Promise<{
   readonly identity: CurrentIdentityResponse;
   readonly store: DeviceStore;
+  readonly flags: DeviceFlags;
 } | null> {
   const userId = activeDeviceUser();
   if (!userId || !deviceStorageAvailable()) return null;
@@ -99,18 +133,22 @@ export async function cachedDevice(existing?: DeviceStore | null): Promise<{
       throw sessionEndedError();
     }
     await purgeExpired(store);
-    return { identity: identityFromSummary(summary), store };
+    const flags = new Map(
+      Object.entries(
+        (await store.getMeta<Record<string, boolean>>(FLAGS_META)) ?? {},
+      ),
+    );
+    await purgeTourCaches(store, tourActions(summary.memberships, flags));
+    return { identity: identityFromSummary(summary), store, flags };
   } catch (error) {
     drop();
     throw error;
   }
 }
 
-async function offlineQueueEnabled(client: LeonAidApiClient) {
+async function pwaFlags(client: LeonAidApiClient): Promise<DeviceFlags> {
   const evaluation = await client.getFeatureFlagEvaluations({ surface: "pwa" });
-  return evaluation.flags.some(
-    (flag) => flag.key === OFFLINE_QUEUE_FLAG && flag.enabled,
-  );
+  return new Map(evaluation.flags.map((flag) => [flag.key, flag.enabled]));
 }
 
 /**
@@ -122,14 +160,18 @@ async function offlineQueueEnabled(client: LeonAidApiClient) {
 export interface PreparedDevice {
   readonly store: DeviceStore;
   readonly mode: "on" | "drain";
+  /** The flags this start was decided on. */
+  readonly flags: DeviceFlags;
 }
 
 /**
- * Online start: with the flag on and an acquirer role, the user's device
- * storage is opened (or the open one reused) and the identity summary
- * written; otherwise nothing of this user stays on the device, except
- * queued entries until they are sent. Undefined without a decision (the
- * flag could not be read): the device stays as it is.
+ * Online start: with the flag on and an acquirer role (or a driver role
+ * with `delivery.tours` on), the user's device storage is opened (or the
+ * open one reused) and the identity summary written; otherwise nothing of
+ * this user stays on the device, except queued entries until they are
+ * sent. Tour copies of actions the user no longer drives for, or all of
+ * them with `delivery.tours` off, are deleted. Undefined without a
+ * decision (the flags could not be read): the device stays as it is.
  */
 export async function prepareDevice(
   client: LeonAidApiClient,
@@ -137,22 +179,24 @@ export async function prepareDevice(
   existing?: DeviceStore | null,
 ): Promise<PreparedDevice | null | undefined> {
   if (!deviceStorageAvailable()) return null;
-  let enabled: boolean;
+  let flags: DeviceFlags;
   try {
-    enabled = await offlineQueueEnabled(client);
+    flags = await pwaFlags(client);
   } catch {
     return undefined;
   }
+  const enabled = flags.get(OFFLINE_QUEUE_FLAG) === true;
   const acquirer = identity.actionMemberships.some(
     (membership) => membership.role === "acquirer",
   );
-  if (!enabled || !acquirer) {
+  const tours = tourActions(identity.actionMemberships, flags);
+  if (!enabled || (!acquirer && !tours.size)) {
     const queued = await openIfQueued(identity.userId, existing);
     if (queued) {
       // Captures already saved are still sent; nothing new is kept.
       await setOfflineStart(false);
       await queued.clearCache();
-      return { mode: "drain", store: queued };
+      return { flags, mode: "drain", store: queued };
     }
     await forgetDevice(identity.userId);
     return null;
@@ -162,11 +206,19 @@ export async function prepareDevice(
     existing?.open && existing.userId === identity.userId
       ? existing
       : await DeviceStore.open(identity.userId);
-  await store.putMeta(IDENTITY_META, summarizeIdentity(identity));
+  await store.putMeta(
+    IDENTITY_META,
+    summarizeIdentity(identity, new Date(), { drivers: tours.size > 0 }),
+  );
+  await store.putMeta(FLAGS_META, Object.fromEntries(flags));
   await store.putMeta(ENABLED_META, true);
   await store.deleteMeta(SESSION_ENDED_META);
+  await purgeTourCaches(store, tours);
+  await setOfflineAudience(
+    acquirer && tours.size ? "both" : tours.size ? "driver" : "acquirer",
+  );
   await setOfflineStart(true);
-  return { mode: "on", store };
+  return { flags, mode: "on", store };
 }
 
 /** The user's database, only when it holds queued entries. */

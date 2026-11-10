@@ -75,6 +75,9 @@ Lieferungen mit dem Hinweis **Nachliefern** auf der Tafel.
   ihre Aufgaben erledigt. Schließt du erneut ab, öffnet LeonAid dieselben
   Aufgaben wieder und weist sie dir zu, ohne Duplikate.
 
+Mit dem Flag `delivery.tours` planst du Touren und Reihenfolgen (siehe
+[Lieferrouten planen](/de/user/how-to/plan-delivery-tours/)).
+
 ## In der App (Ausfahrer)
 
 1. Öffne in der App **Auslieferung**. Du siehst nur deine Lieferungen mit

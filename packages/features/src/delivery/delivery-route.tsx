@@ -47,16 +47,12 @@ export function PwaDeliveryPage(props: PwaDeliveryPageProps) {
 /**
  * The PWA start (`/app/`) of a user who only drives in the selected action
  * (critique-driver P0-2, D19 3a): with `delivery.tours` the URL moves to the
- * delivery route and the tour shows; without it the usual start page.
- * Until the flag is known a skeleton shows, never the acquirer start page.
+ * delivery route, whose page shows the tour; without it the usual start
+ * page. A skeleton shows until the flag is known (never the acquirer start
+ * page) and, with the flag, until the route has moved: the tour mounts
+ * once, under the delivery route.
  */
-export function PwaDriverStart({
-  delivery,
-  fallback,
-}: {
-  readonly delivery: ReactNode;
-  readonly fallback: ReactNode;
-}) {
+export function PwaDriverStart({ fallback }: { readonly fallback: ReactNode }) {
   const tours = useLeonAidSettledFlag(FEATURE_FLAGS.deliveryTours);
   useEffect(() => {
     if (!tours) return;
@@ -64,14 +60,12 @@ export function PwaDriverStart({
       replace: true,
     });
   }, [tours]);
-  if (tours === null) {
-    return (
-      <div className="delivery" data-zone="delivery">
-        <SkeletonRows rows={5} />
-      </div>
-    );
-  }
-  return tours ? delivery : fallback;
+  if (tours === false) return fallback;
+  return (
+    <div className="delivery" data-zone="delivery">
+      <SkeletonRows rows={5} />
+    </div>
+  );
 }
 
 /**

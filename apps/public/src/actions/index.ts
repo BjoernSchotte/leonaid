@@ -97,6 +97,7 @@ export const server = {
       deliveryWindowId: z.uuid().optional(),
       deliveryContactName: optionalText(200),
       deliveryContactPhone: optionalText(40),
+      deliveryDriverNote: optionalText(200),
       billingSameAsDelivery: z.boolean(),
       invoiceRecipientName: optionalText(300),
       invoiceStreetLine1: optionalText(300),
@@ -203,11 +204,14 @@ export const server = {
             ...(input.deliveryWindowId
               ? { deliveryWindowId: input.deliveryWindowId }
               : {}),
-            ...(input.deliveryContactName || input.deliveryContactPhone
+            ...(input.deliveryContactName ||
+            input.deliveryContactPhone ||
+            input.deliveryDriverNote
               ? {
                   deliveryContact: {
                     name: input.deliveryContactName || null,
                     phone: input.deliveryContactPhone || null,
+                    driverNote: input.deliveryDriverNote || null,
                   },
                 }
               : {}),

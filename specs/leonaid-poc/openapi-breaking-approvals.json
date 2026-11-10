@@ -143,6 +143,14 @@
         "property-newly-required:PrivacyOrderDeliveryResponse.coordinates"
       ],
       "rationale": "Delivery tours slice 2 (specs/krapfentaxi-touren §5, §6.4, §11, D11, D14 b) adds response fields only: the stop coordinates (lat/lon), the action's start point and the map tiles in the tour reads, the start point in the delivery configuration, and the coordinates in the privacy report (Task 9). They are always present (null when unknown), so the generator marks them required. No field is removed or narrowed and no request gets stricter: startPoint in the configuration request is optional and its absence keeps the stored value. The only clients are the generated client and the apps of this repository, regenerated in the same change. Ratified by the lead under Björn's standing delegation on 2026-11-09 (task review of delivery tours Task 10). Approval is bound to these exact contract hashes and changes."
+    },
+    {
+      "oldSha256": "8091897f0754166efef8742e3eb56308b2bd85d5255502dfc6a51ecdb5753412",
+      "newSha256": "3ac6dd760bfef8e80cce9b3faf76d416ef53dddabe51981fb6b903cc3b147f17",
+      "changes": [
+        "property-newly-required:DeliveryDropContactResponse.driverNote"
+      ],
+      "rationale": "Delivery tours slices 3 and 4 (specs/krapfentaxi-touren §5.1, §9, §10): the driver note joins the board's drop contact. It is always present (null when the order has no note), like name and phone, so the generator marks it required. The bundle also adds the operation recordMyTourReads (new, not breaking) and description text. No field is removed or narrowed; the new request field is optional. The only clients are the generated client and the apps of this repository, regenerated in the same change. Ratified by the lead under Björn's standing delegation on 2026-11-10 (Ruling 24). Approval is bound to these exact contract hashes and changes."
     }
   ]
 }

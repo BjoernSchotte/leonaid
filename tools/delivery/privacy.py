@@ -104,7 +104,12 @@ async def prove_privacy(pool: asyncpg.Pool, admin_id: UUID) -> None:
         with_contact = [item for item in details if item["deliveryContact"]]
         assert len(with_contact) == 2
         assert all(
-            item["deliveryContact"] == {"name": "Reception", "phone": "+49 123-45"}
+            item["deliveryContact"]
+            == {
+                "name": "Reception",
+                "phone": "+49 123-45",
+                "driverNote": "Hintereingang im Hof",
+            }
             and item["deliveryWindowSnapshot"]["windowId"] == item["deliveryWindowId"]
             for item in with_contact
         )

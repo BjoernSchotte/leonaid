@@ -14,6 +14,7 @@ import type {
 import {
   ACTIVE_USER_KEY,
   forgetDevice,
+  setOfflineAudience,
   setOfflineStart,
 } from "@leonaid/features/offline";
 
@@ -139,10 +140,12 @@ describe("offline start with the flag off (§8.5)", () => {
     const entries = stubCaches();
     stubIndexedDb();
     window.localStorage.setItem(ACTIVE_USER_KEY, USER_ID);
+    await setOfflineAudience("driver");
     await setOfflineStart(true);
-    expect(entries.size).toBe(1);
+    expect(entries.size).toBe(2);
     await forgetDevice(USER_ID);
-    expect(entries.size).toBe(0);
+    // The offline page's audience goes with the offline start.
+    expect([...entries.keys()]).toEqual([]);
     expect(window.localStorage.getItem(ACTIVE_USER_KEY)).toBeNull();
   });
 });

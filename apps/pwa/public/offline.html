@@ -12,7 +12,10 @@
     <script src="__LEONAID_PWA_BASE__offline.js" defer></script>
   </head>
   <body>
-    <main data-offline-start="__LEONAID_PWA_BASE__offline-start">
+    <main
+      data-offline-start="__LEONAID_PWA_BASE__offline-start"
+      data-offline-audience="__LEONAID_PWA_BASE__offline-audience"
+    >
       <div aria-hidden="true" class="mark">L</div>
       <h1>Gerade keine Verbindung</h1>
       <p data-offline-copy="off">
@@ -20,10 +23,21 @@
         wieder her und lade den Arbeitsbereich neu; so entstehen keine doppelten
         Aktivitäten oder Bestellungen.
       </p>
-      <p data-offline-copy="on" hidden>
+      <p data-offline-copy="on" data-audience="acquirer" hidden>
         Dieser Bereich braucht eine Verbindung. Kontakte, Wiedervorlagen und
         Bestellungen erfasst du auch offline bei deinen Sponsoren.
         <a href="__LEONAID_PWA_BASE__sponsors">Zu den Sponsoren</a>
+      </p>
+      <p data-offline-copy="on" data-audience="driver" hidden>
+        Dieser Bereich braucht eine Verbindung. Deine Tour, Zustellungen und die
+        Reihenfolge gehen auch offline.
+        <a href="__LEONAID_PWA_BASE__delivery">Zu meiner Tour</a>
+      </p>
+      <p data-offline-copy="on" data-audience="both" hidden>
+        Dieser Bereich braucht eine Verbindung. Kontakte, Wiedervorlagen,
+        Bestellungen und deine Tour gehen auch offline.
+        <a href="__LEONAID_PWA_BASE__sponsors">Zu den Sponsoren</a>
+        <a href="__LEONAID_PWA_BASE__delivery">Zu meiner Tour</a>
       </p>
       <button type="button" data-offline-retry>Verbindung erneut prüfen</button>
     </main>

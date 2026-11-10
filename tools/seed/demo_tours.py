@@ -18,6 +18,7 @@ Run it with ``./leonaid demo-tours`` after ``./leonaid seed``.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import sys
 from collections import Counter
@@ -121,6 +122,7 @@ class DemoOrder:
     delivered: bool = False
     contact_name: str | None = None
     contact_phone: str | None = None
+    driver_note: str | None = None
 
     @property
     def idempotency_key(self) -> str:
@@ -155,7 +157,14 @@ ORDERS = (
         True,
     ),
     DemoOrder(
-        "maria-obermaier", 8, False, "Maria Obermaier", "Marktstraße 48", 6, DORA
+        "maria-obermaier",
+        8,
+        False,
+        "Maria Obermaier",
+        "Marktstraße 48",
+        6,
+        DORA,
+        driver_note="Bei Nachbarin abgeben",
     ),
     DemoOrder(
         "physio-kurpark",
@@ -168,6 +177,7 @@ ORDERS = (
         False,
         "Empfang",
         "+49 8041 990104",
+        driver_note="Klingel defekt, bitte anrufen",
     ),
     DemoOrder(
         "ingenieurbuero-lechner",
@@ -209,6 +219,7 @@ ORDERS = (
         False,
         "Frau Kiefersauer",
         "+49 8041 990108",
+        driver_note="Lieferantentür links",
     ),
     DemoOrder(
         "steuerbuero-wallner",
@@ -231,6 +242,7 @@ ORDERS = (
         False,
         "Herr Fischbacher",
         "+49 8041 990111",
+        driver_note="Hintereingang im Hof",
     ),
     DemoOrder("anna-demmel", 12, False, "Anna Demmel", "Hindenburgstraße 26", 6, DORA),
     DemoOrder(
@@ -420,8 +432,10 @@ def draft_for(order: DemoOrder, window_id: UUID) -> CommitmentDraft:
     kind = CommitmentPartyKind.COMPANY if order.company else CommitmentPartyKind.PERSON
     email = f"demo.{order.slug}@leonaid.invalid"
     contact = (
-        DeliveryContactSnapshot(order.contact_name, order.contact_phone)
-        if order.contact_name or order.contact_phone
+        DeliveryContactSnapshot(
+            order.contact_name, order.contact_phone, order.driver_note
+        )
+        if order.contact_name or order.contact_phone or order.driver_note
         else None
     )
     return CommitmentDraft(
@@ -438,6 +452,55 @@ def draft_for(order: DemoOrder, window_id: UUID) -> CommitmentDraft:
         # A window a manager marked "ausgebucht" still takes demo orders.
         allow_full_window=True,
     )
+
+
+async def converge_stored_orders(
+    pool: asyncpg.Pool[Any], windows: dict[int, UUID]
+) -> None:
+    """Bring orders seeded by an older version of this file up to date.
+
+    A demo order keeps its idempotency key when its content grows (the
+    driver notes); the repository would refuse the changed request. Demo data
+    only: write the contact snapshot and the receipt hash in place, keyed by
+    this file's own idempotency keys. Nothing else about the order changes.
+    """
+
+    for order in ORDERS:
+        draft = draft_for(order, windows[order.starts_hour])
+        fingerprint = draft.fingerprint(
+            action_id=ACTION_ID,
+            source=CommitmentSource.ADMIN,
+            status=CommitmentStatus.CONFIRMED,
+        )
+        contact = (
+            json.dumps(draft.delivery_contact.payload())
+            if draft.delivery_contact
+            else None
+        )
+        async with pool.acquire() as connection, connection.transaction():
+            receipt = await connection.fetchrow(
+                "SELECT request_hash, result->>'commitmentId' AS commitment_id"
+                " FROM command_receipt WHERE idempotency_key = $1 FOR UPDATE",
+                order.idempotency_key,
+            )
+            if (
+                receipt is None
+                or receipt["commitment_id"] is None
+                or receipt["request_hash"] == fingerprint
+            ):
+                continue
+            await connection.execute(
+                "UPDATE commitment SET delivery_contact_snapshot = $2::jsonb"
+                " WHERE id = $1",
+                UUID(receipt["commitment_id"]),
+                contact,
+            )
+            await connection.execute(
+                "UPDATE command_receipt SET request_hash = $2"
+                " WHERE idempotency_key = $1",
+                order.idempotency_key,
+                fingerprint,
+            )
 
 
 async def ensure_orders(
@@ -471,6 +534,7 @@ async def ensure_orders(
         OFFERING_UNTIL,
     )
     repository = AsyncpgCommitmentRepository(pool)
+    await converge_stored_orders(pool, windows)
     # The app has no command that confirms an order yet; like the Golden
     # seed, the demo stores its orders as confirmed. Everything else
     # (pricing, window booking, receipts, audit) is the app's create path.

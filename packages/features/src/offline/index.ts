@@ -15,6 +15,7 @@ export * from "./resolutions";
 export * from "./runtime";
 export * from "./sign-out";
 export * from "./sync";
+export * from "./tour-cache";
 export * from "./apply-resolution";
 export * from "./entry-choices";
 export * from "./resolutions";

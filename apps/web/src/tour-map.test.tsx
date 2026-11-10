@@ -1,5 +1,13 @@
 import { fireEvent, render, waitFor } from "@testing-library/react";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest";
 
 import { TourMap, type TourMapPin } from "@leonaid/features";
 
@@ -9,6 +17,10 @@ beforeAll(() => {
     unobserve() {}
     disconnect() {}
   } as unknown as typeof ResizeObserver;
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 const tiles = {
@@ -165,6 +177,41 @@ describe("TourMap", () => {
     }
   });
 
+  it("once placing ends, map and pin clicks place nothing", async () => {
+    const onPlace = vi.fn();
+    const { container, onSelect, rerender } = await renderMap({ onPlace });
+    rerender(
+      <TourMap
+        label="Tourkarte"
+        line={null}
+        onSelect={onSelect}
+        pins={pins}
+        start={null}
+        tiles={tiles}
+      />,
+    );
+    const canvas = container.querySelector('[data-testid="tour-map-canvas"]');
+    expect(canvas?.classList.contains("is-placing")).toBe(false);
+    const host = container.querySelector<HTMLElement>(".leaflet-container")!;
+    fireEvent.click(host, { clientX: 10, clientY: 10 });
+    expect(onPlace).not.toHaveBeenCalled();
+    fireEvent.click(container.querySelector<HTMLElement>('[data-pin-id="b"]')!);
+    expect(onPlace).not.toHaveBeenCalled();
+    expect(onSelect).toHaveBeenCalledWith("b");
+  });
+
+  it("while placing, a click on a pin places there instead of selecting it", async () => {
+    const onPlace = vi.fn();
+    const { container, onSelect } = await renderMap({ onPlace });
+    const pin = container.querySelector<HTMLElement>('[data-pin-id="b"]')!;
+    fireEvent.click(pin, { clientX: 30, clientY: 40 });
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onPlace).toHaveBeenCalledTimes(1);
+    const [lat, lon] = onPlace.mock.calls[0]!;
+    expect(Number.isFinite(lat)).toBe(true);
+    expect(Number.isFinite(lon)).toBe(true);
+  });
+
   it("a map click places a pin only when placing", async () => {
     const onPlace = vi.fn();
     const { container } = await renderMap({ onPlace });
@@ -184,10 +231,17 @@ describe("TourMap", () => {
   it("watches the device location only while asked and never sends it", async () => {
     const watchPosition = vi.fn(() => 7);
     const clearWatch = vi.fn();
+    const own = Object.getOwnPropertyDescriptor(navigator, "geolocation");
     Object.defineProperty(navigator, "geolocation", {
       configurable: true,
       value: { watchPosition, clearWatch },
     });
+    onTestFinished(() => {
+      // Back to jsdom's navigator (the property lives on its prototype).
+      if (own) Object.defineProperty(navigator, "geolocation", own);
+      else delete (navigator as { geolocation?: unknown }).geolocation;
+    });
+    // Restored by restoreAllMocks after each test.
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const { rerender } = await renderMap();
     expect(watchPosition).not.toHaveBeenCalled();

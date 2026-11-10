@@ -69,7 +69,10 @@ export interface TourMapProps {
     readonly dashed: boolean;
   } | null;
   readonly onSelect: (id: string) => void;
-  /** Set: a click on the map places a pin there (manager, §6.4). */
+  /**
+   * Set: a click on the map places a pin there (manager, §6.4); a click on
+   * a pin places there too instead of selecting it.
+   */
   readonly onPlace?: (lat: number, lon: number) => void;
   /**
    * With onPlace: a button that places the pin at the map centre (marked
@@ -268,7 +271,20 @@ export function TourMap({
         keyboard: interactive,
         zIndexOffset: pin.selected ? 1000 : 0,
       });
-      marker.on("click", () => handlers.current.onSelect(pin.id));
+      marker.on("click", (event: Leaflet.LeafletMouseEvent) => {
+        const place = handlers.current.onPlace;
+        if (!place) {
+          handlers.current.onSelect(pin.id);
+          return;
+        }
+        // Leaflet reports the marker's own point; a mouse or touch click
+        // places at the pointer, a key on a focused pin at the pin.
+        const at =
+          event.originalEvent instanceof MouseEvent
+            ? map.mouseEventToLatLng(event.originalEvent)
+            : event.latlng;
+        place(at.lat, at.lng);
+      });
       marker.addTo(group);
       const icon = marker.getElement();
       if (icon) {

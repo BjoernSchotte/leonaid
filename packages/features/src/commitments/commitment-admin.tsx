@@ -694,17 +694,27 @@ function OrderDetail({
             },
             {
               label: "Kontakt",
-              value: commitment.deliveryContact
-                ? [
-                    commitment.deliveryContact.name ?? "Kein Name angegeben",
-                    commitment.deliveryContact.phone,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")
-                : [commitment.buyer.displayName, commitment.buyer.email]
-                    .filter(Boolean)
-                    .join(" · "),
+              value:
+                commitment.deliveryContact?.name ||
+                commitment.deliveryContact?.phone
+                  ? [
+                      commitment.deliveryContact.name ?? "Kein Name angegeben",
+                      commitment.deliveryContact.phone,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")
+                  : [commitment.buyer.displayName, commitment.buyer.email]
+                      .filter(Boolean)
+                      .join(" · "),
             },
+            ...(commitment.deliveryContact?.driverNote
+              ? [
+                  {
+                    label: "Hinweis für den Fahrer",
+                    value: commitment.deliveryContact.driverNote,
+                  },
+                ]
+              : []),
           ]}
         />
       </DetailSection>

@@ -9,6 +9,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -69,15 +70,27 @@ const ALL_OFF: ReadonlyMap<string, boolean> = new Map();
 const SettledFlagsContext = createContext<ReadonlyMap<string, boolean> | null>(
   new Map(),
 );
+/** Core's own answer only: null until it arrived (or without one). */
+const EvaluatedFlagsContext = createContext<ReadonlyMap<
+  string,
+  boolean
+> | null>(null);
 
 export interface FeatureFlagProviderProps {
   readonly children: ReactNode;
   readonly client: LeonAidApiClient;
   readonly identity: CurrentIdentityResponse;
   readonly surface: "web" | "pwa";
+  /**
+   * Values to settle on when the evaluation fails, e.g. the PWA's device
+   * copy of its last online start while Core is out of reach; without
+   * them every flag is off.
+   */
+  readonly cached?: ReadonlyMap<string, boolean> | null;
 }
 
 export function FeatureFlagProvider({
+  cached,
   children,
   client,
   identity,
@@ -133,13 +146,32 @@ export function FeatureFlagProvider({
     };
   }, [evaluations.data]);
 
-  const settled = applied ?? (evaluations.isError ? ALL_OFF : null);
+  // Once an evaluation failed, the fallback stays until Core answers: a
+  // refetch after an error is "pending" again, and gated views must not
+  // fall back to their skeleton (or flicker) while it runs. Only while no
+  // answer exists: errorUpdateCount never resets, and an answer that
+  // arrived waits for `applied` (null), never shows the fallback.
+  const failed =
+    (evaluations.isError || evaluations.errorUpdateCount > 0) &&
+    !evaluations.data;
+  const settled = applied ?? (failed ? (cached ?? ALL_OFF) : null);
+  const evaluated = useMemo(
+    () =>
+      evaluations.data
+        ? new Map(
+            evaluations.data.flags.map((flag) => [flag.key, flag.enabled]),
+          )
+        : null,
+    [evaluations.data],
+  );
 
   return (
     <OpenFeatureProvider domain={FEATURE_FLAG_DOMAIN}>
-      <SettledFlagsContext.Provider value={settled}>
-        {children}
-      </SettledFlagsContext.Provider>
+      <EvaluatedFlagsContext.Provider value={evaluated}>
+        <SettledFlagsContext.Provider value={settled}>
+          {children}
+        </SettledFlagsContext.Provider>
+      </EvaluatedFlagsContext.Provider>
     </OpenFeatureProvider>
   );
 }
@@ -152,6 +184,16 @@ export function FeatureFlagProvider({
 export function useLeonAidSettledFlag(key: FeatureFlagKey): boolean | null {
   const settled = useContext(SettledFlagsContext);
   return settled ? (settled.get(key) ?? false) : null;
+}
+
+/**
+ * A flag as Core last answered it: null while no answer arrived (loading,
+ * offline, failed). For decisions that delete data, which must never
+ * follow a fallback.
+ */
+export function useLeonAidEvaluatedFlag(key: FeatureFlagKey): boolean | null {
+  const evaluated = useContext(EvaluatedFlagsContext);
+  return evaluated ? (evaluated.get(key) ?? false) : null;
 }
 
 export function useLeonAidBooleanFlag(

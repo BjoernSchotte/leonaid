@@ -21,7 +21,12 @@ const KEY_RECORD = "device-key";
 const USER_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export type CacheKind = "board" | "capture";
+export type CacheKind = "board" | "capture" | "tour";
+const CACHE_KINDS: ReadonlySet<string> = new Set<CacheKind>([
+  "board",
+  "capture",
+  "tour",
+]);
 
 export interface CacheEntryInfo {
   readonly kind: CacheKind;
@@ -315,10 +320,10 @@ export class DeviceStore {
     return records.flatMap((record) => {
       const separator = record.id.indexOf(":");
       const kind = record.id.slice(0, separator);
-      if (kind !== "board" && kind !== "capture") return [];
+      if (!CACHE_KINDS.has(kind)) return [];
       return [
         {
-          kind,
+          kind: kind as CacheKind,
           actionId: record.id.slice(separator + 1),
           fetchedAt: record.fetchedAt,
         },

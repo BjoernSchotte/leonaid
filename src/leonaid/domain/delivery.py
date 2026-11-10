@@ -18,16 +18,19 @@ from leonaid.domain.errors import DomainInvariantError
 class DeliveryContactSnapshot:
     name: str | None = None
     phone: str | None = None
+    driver_note: str | None = None
 
     def __post_init__(self) -> None:
-        for field, limit in (("name", 200), ("phone", 40)):
+        for field, limit in (("name", 200), ("phone", 40), ("driver_note", 200)):
             value = getattr(self, field)
             if value is None:
                 continue
             if any(character in value for character in "\r\n"):
                 raise DomainInvariantError(
                     "delivery_contact_invalid",
-                    "Bitte den Lieferkontakt einzeilig angeben.",
+                    "Bitte den Hinweis für den Fahrer einzeilig angeben."
+                    if field == "driver_note"
+                    else "Bitte den Lieferkontakt einzeilig angeben.",
                 )
             value = value.strip()
             if len(value) > limit:
@@ -51,16 +54,22 @@ class DeliveryContactSnapshot:
 
     @property
     def empty(self) -> bool:
-        return self.name is None and self.phone is None
+        return self.name is None and self.phone is None and self.driver_note is None
 
     def payload(self) -> dict[str, str | None]:
-        return {"name": self.name, "phone": self.phone}
+        payload: dict[str, str | None] = {"name": self.name, "phone": self.phone}
+        if self.driver_note is not None:
+            payload["driver_note"] = self.driver_note
+        return payload
 
     @classmethod
     def from_payload(cls, payload: dict[str, object]) -> DeliveryContactSnapshot:
         return cls(
             name=str(payload["name"]) if payload.get("name") is not None else None,
             phone=str(payload["phone"]) if payload.get("phone") is not None else None,
+            driver_note=str(payload["driver_note"])
+            if payload.get("driver_note") is not None
+            else None,
         )
 
 

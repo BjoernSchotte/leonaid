@@ -19,15 +19,19 @@ import {
   type CommitmentCaptureContextResponse,
   type CurrentIdentityResponse,
   type LeonAidApiClient,
+  type MyTourResponse,
 } from "@leonaid/api-client";
 import {
   DeviceQueueStore,
   QueueController,
+  SEND_TIMEOUT_MS,
   deviceCopyFetchedAt,
   forgetDevice,
   isNetworkFailure,
   preflightConflict,
   sendEntry,
+  sendTourReads,
+  withAcceptedWrite,
   type DeviceStore,
   type OfflineRuntime,
   type QueueSnapshot,
@@ -38,6 +42,7 @@ import {
   claimDevice,
   prepareDevice,
   refreshReadCache,
+  type DeviceFlags,
   type PreparedDevice,
 } from "./device";
 
@@ -53,6 +58,11 @@ export interface DeviceState {
   /** The identity came from the device: Core was not reachable. */
   readonly startedOffline: boolean;
   readonly runtime: OfflineRuntime;
+  /**
+   * The flags of the device's last online start; the shell settles on them
+   * while Core is out of reach. Null without device storage.
+   */
+  readonly cachedFlags: DeviceFlags | null;
 }
 
 export function useDevice(
@@ -64,6 +74,7 @@ export function useDevice(
   // hand it to each other instead of opening new connections.
   const openStore = useRef<DeviceStore | null>(null);
   const fromCache = useRef(false);
+  const deviceFlags = useRef<DeviceFlags | null>(null);
   const identity = useQuery({
     queryFn: async () => {
       try {
@@ -83,6 +94,7 @@ export function useDevice(
         );
         if (!device) throw error;
         openStore.current = device.store;
+        deviceFlags.current = device.flags;
         fromCache.current = true;
         return device.identity;
       }
@@ -102,6 +114,12 @@ export function useDevice(
     .map((membership) => membership.actionId)
     .sort()
     .join(",");
+  // A driver's tour copy follows the actions they drive for (D14 g).
+  const driverActions = (identity.data?.actionMemberships ?? [])
+    .filter((membership) => membership.role === "driver")
+    .map((membership) => membership.actionId)
+    .sort()
+    .join(",");
   const latestIdentity = useRef(identity.data);
   latestIdentity.current = identity.data;
 
@@ -118,13 +136,14 @@ export function useDevice(
           openStore.current.close();
         }
         openStore.current = next?.store ?? null;
+        deviceFlags.current = next?.mode === "on" ? next.flags : null;
         setPrepared(next);
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [client, userId, acquirerActions, startedOffline]);
+  }, [client, userId, acquirerActions, driverActions, startedOffline]);
 
   // Started from the device: back online, Core answers again.
   useEffect(() => {
@@ -205,7 +224,22 @@ export function useDevice(
   useEffect(() => {
     if (!store || !userId) return;
     const controller = new QueueController({
-      onAccepted: () => {
+      onAccepted: (report) => {
+        // "Meine Tour" shows Core's answer at once; the page reloads the
+        // tour itself once its entries left the queue (§9).
+        for (const { entry, result } of report.accepted) {
+          if (
+            result.kind !== "delivery-state" &&
+            result.kind !== "tour-order"
+          ) {
+            continue;
+          }
+          queries.setQueriesData<MyTourResponse>(
+            { queryKey: ["my-tour", entry.actionId] },
+            (current) =>
+              current ? withAcceptedWrite(current, result) : current,
+          );
+        }
         // §9.4: the read cache and the pages follow each accepted entry.
         void queries.invalidateQueries({
           queryKey: ["acquisition-activity-board"],
@@ -222,6 +256,13 @@ export function useDevice(
         return preflightConflict(entry, cached?.value);
       },
       send: (entry) => sendEntry(client, entry),
+      // The driver's offline reads of "Meine Tour" (spec §10).
+      sendRecords: () =>
+        sendTourReads(store, (actionId, body) =>
+          client.recordMyTourReads(actionId, body, {
+            signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+          }),
+        ),
       store: new DeviceQueueStore(store),
       userId,
     });
@@ -262,5 +303,10 @@ export function useDevice(
     }),
     [mode, queue, store],
   );
-  return { identity, runtime, startedOffline };
+  return {
+    cachedFlags: runtime.enabled ? deviceFlags.current : null,
+    identity,
+    runtime,
+    startedOffline,
+  };
 }

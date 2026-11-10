@@ -132,12 +132,12 @@ export type DeliveryBoardResponse = { readonly actionId: string; readonly action
 export type DeliveryBoardWindowResponse = { readonly closure: DeliveryWindowClosureResponse | null; readonly drops: Array<DeliveryDropResponse>; readonly endsAt: string; readonly fullyBooked: boolean; readonly id: string; readonly retired: boolean; readonly startsAt: string; };
 export type DeliveryConfigurationRequest = { readonly enabled: boolean; readonly expectedRevision: number; readonly startPoint?: DeliveryStartPointRequest | null; readonly timezone: string; readonly windows: Array<DeliveryWindowRequest>; };
 export type DeliveryConfigurationResponse = { readonly actionId: string; readonly enabled: boolean; readonly revision: number; readonly startPoint: DeliveryStartPointResponse | null; readonly timezone: string; readonly windows: Array<DeliveryWindowResponse>; };
-export type DeliveryContactRequest = { readonly name?: string | null; readonly phone?: string | null; };
+export type DeliveryContactRequest = { readonly driverNote?: string | null; readonly name?: string | null; readonly phone?: string | null; };
 export type DeliveryDayToursResponse = { readonly actionId: string; readonly actionName: string; readonly day: string | null; readonly days: Array<string>; readonly drivers: Array<DeliveryBoardDriverResponse>; readonly map: MapTilesResponse; readonly startPoint: DeliveryStartPointResponse | null; readonly timezone: string; readonly tours: Array<DeliveryTourResponse>; readonly unassigned: Array<DeliveryTourWindowResponse>; };
 export type DeliveryDriverAssignmentRequest = { readonly commitmentIds: Array<string>; readonly driverUserId: string | null; };
 export type DeliveryDriverAssignmentResponse = { readonly changed: number; };
 export type DeliveryDropAddressResponse = { readonly city: string; readonly postalCode: string; readonly recipientName: string; readonly streetLine1: string; };
-export type DeliveryDropContactResponse = { readonly name: string | null; readonly phone: string | null; };
+export type DeliveryDropContactResponse = { readonly driverNote: string | null; readonly name: string | null; readonly phone: string | null; };
 export type DeliveryDropQuantityResponse = { readonly quantity: number; readonly unit: "box" | "piece" | "package" | "sponsoring"; };
 export type DeliveryDropResponse = { readonly address: DeliveryDropAddressResponse | null; readonly buyerName: string; readonly commitmentId: string; readonly contact: DeliveryDropContactResponse | null; readonly driverName: string | null; readonly driverUserId: string | null; readonly missedAtClosure: boolean; readonly orderStatus: "draft" | "review_ready" | "confirmed" | "invoiced" | "cancelled" | null; readonly quantities: Array<DeliveryDropQuantityResponse>; readonly revision: number; readonly state: "open" | "delivered" | "missed"; readonly stateChangedAt: string | null; readonly stateChangedByName: string | null; readonly totalBoxes: number; readonly windowId: string; };
 export type DeliveryPinRequest = { readonly lat: number; readonly lon: number; };
@@ -235,6 +235,8 @@ export type MovePlacement = { readonly after?: string | null; readonly before?: 
 export type MoveSiteRootRequest = { readonly actionId: string; readonly commandId: string; readonly revision: number; readonly segment?: string | null; };
 export type MoveTask = { readonly context: "list" | "personal"; readonly expectedOrderRevision: number; readonly expectedPlanRevision?: number | null; readonly expectedTaskRevision?: number | null; readonly idempotencyKey: string; readonly placement: MovePlacement; readonly targetDate?: string | null; readonly targetEpicId?: string | null; };
 export type Mutation = { readonly expectedRevision: number; readonly operationId: string; };
+export type MyTourReadRequest = { readonly readAt: string; readonly windowId: string; };
+export type MyTourReadsRequest = { readonly reads: Array<MyTourReadRequest>; };
 export type MyTourResponse = { readonly actionId: string; readonly actionName: string; readonly days: Array<string>; readonly map: MapTilesResponse; readonly startPoint: DeliveryStartPointResponse | null; readonly timezone: string; readonly tour: DeliveryTourResponse | null; };
 export type NavigationItemResponse = { readonly href: string; readonly key: string; readonly label: string; readonly surface: "web" | "pwa"; };
 export type NpsSegments = { readonly detractors: number; readonly passives: number; readonly promoters: number; };
@@ -488,6 +490,35 @@ export class LeonAidApiClient {
       throw responseError(response, await readJsonBody(response));
     }
     return response.blob();
+  }
+
+  /** An operation that answers without a body (204). */
+  async requestVoid(
+    path: string,
+    init: RequestInit,
+    options: RequestOptions = {},
+  ): Promise<void> {
+    const response = await this.#fetch(`${this.#baseUrl}${path}`, {
+      ...init,
+      headers: {
+        Accept: "application/json",
+        ...(init.headers as Readonly<Record<string, string>> | undefined),
+        ...options.headers,
+      },
+      signal: options.signal,
+      keepalive: options.keepalive,
+    });
+    if (!response.ok) {
+      throw responseError(response, await readJsonBody(response));
+    }
+    if (response.status !== 204) {
+      // A proxy or static fallback answered instead of the API.
+      throw new ApiError(response.status, {
+        code: "unexpected_response_type",
+        message: `LeonAid API answered ${response.status} instead of 204`,
+        requestId: response.headers.get("x-request-id") ?? "",
+      });
+    }
   }
 
   async listActionTemplates(
@@ -1413,6 +1444,22 @@ export class LeonAidApiClient {
       `/api/v1/actions/${encodeURIComponent(String(actionId))}/my-tour/order`,
       {
         method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async recordMyTourReads(
+    actionId: string,
+    body: MyTourReadsRequest,
+    options: RequestOptions = {},
+  ): Promise<void> {
+    return this.requestVoid(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/my-tour/reads`,
+      {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },

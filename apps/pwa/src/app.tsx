@@ -39,12 +39,13 @@ import {
   pendingDeviceEntries,
   useOfflineRuntime,
   useQueueSnapshot,
+  useTourCachePurge,
 } from "@leonaid/features/offline";
 
 import { forgetDevice, forgetSession } from "./device";
 import { pwaModuleNavigationKeys, pwaModules, pwaPath } from "./modules";
 import { mobileNavigation } from "./navigation";
-import { QUEUE_OFFLINE_TEXT, queueIndicator } from "./queue-indicator";
+import { queueIndicator, queueOfflineText } from "./queue-indicator";
 import { useDevice } from "./use-device";
 import {
   ADMIN_BASE,
@@ -280,6 +281,8 @@ function PwaShell({
   readonly navigation: CurrentIdentityResponse["navigation"];
 }) {
   useLocationHref();
+  // A flag switched off mid-session takes the driver's tour copy along.
+  useTourCachePurge();
   const deliveryTours = useLeonAidSettledFlag(FEATURE_FLAGS.deliveryTours);
   const { active, menu, tabs } = mobileNavigation(
     navigation,
@@ -287,7 +290,15 @@ function PwaShell({
     window.location,
     { deliveryTours, driver, driverOnly },
   );
-  const { sheet, ...queue } = useQueueShell(client, identity, !props.offline);
+  const { sheet, ...queue } = useQueueShell(
+    client,
+    identity,
+    !props.offline,
+    deliveryTours === true &&
+      identity.actionMemberships.some(
+        (membership) => membership.role === "driver",
+      ),
+  );
   return (
     <>
       <MobileShell
@@ -311,6 +322,8 @@ function useQueueShell(
   client: LeonAidApiClient,
   identity: CurrentIdentityResponse,
   online: boolean,
+  /** Drives with tours on: marks and moves are queued too (§9). */
+  driving: boolean,
 ): Pick<MobileShellProps, "offlineText" | "queue"> & {
   readonly sheet: ReactNode;
 } {
@@ -336,7 +349,12 @@ function useQueueShell(
   return {
     offlineText: (
       <>
-        {QUEUE_OFFLINE_TEXT}
+        {queueOfflineText({
+          acquirer: identity.actionMemberships.some(
+            (membership) => membership.role === "acquirer",
+          ),
+          driver: driving,
+        })}
         {indicator.waiting ? (
           <strong data-testid="offline-waiting">
             {` ${indicator.waiting} ${indicator.waiting === 1 ? "wartet" : "warten"} auf Versand.`}
@@ -506,7 +524,16 @@ export function App({ client }: AppProps) {
     : undefined;
 
   return (
-    <FeatureFlagProvider client={client} identity={identity.data} surface="pwa">
+    <FeatureFlagProvider
+      // Until Core's first answer in this page the flags are those of the
+      // last online start, so an offline start shows the same pages (the
+      // driver's tour needs `delivery.tours`) and reconnecting does not
+      // flicker through "all off".
+      cached={device.cachedFlags}
+      client={client}
+      identity={identity.data}
+      surface="pwa"
+    >
       <OfflineRuntimeContext.Provider value={device.runtime}>
         <PwaShell
           campaign={currentAction}
@@ -563,14 +590,6 @@ export function App({ client }: AppProps) {
             />
           ) : driverOnly && atStart ? (
             <PwaDriverStart
-              delivery={
-                <PwaDeliveryPage
-                  actionId={driverActionId}
-                  actions={driverActions}
-                  client={client}
-                  offline={!lifecycle.online}
-                />
-              }
               fallback={
                 <RoleDashboardPage
                   client={client}

@@ -18,8 +18,13 @@ general production approval.
 - One installation represents one club or isolated tenant. Shared
   multi-tenancy is not supported.
 - Drivers tick off their assigned deliveries in the app (see
-  [Work the delivery board](/en/user/how-to/work-delivery-board/)). Route and tour
-  planning is outside the current scope.
+  [Work the delivery board](/en/user/how-to/work-delivery-board/)). Tour planning
+  (feature flag `delivery.tours`, see
+  [Plan delivery tours](/en/user/how-to/plan-delivery-tours/)) has limits: no
+  road routing (straight-line distance only), no live tracking of drivers, one
+  tour per driver and delivery day. The public Nominatim service and the OSM
+  tiles are subject to their usage policies; for heavy use, configure your own
+  provider.
 - `finance_reader` can only read documents. The maintained demo user Finn
   Finanzen proves this read-only access. Payments and cancellation require
   `finance_manager` or the charity administrator for the affected campaign.

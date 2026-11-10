@@ -6,6 +6,7 @@ import pytest
 
 from leonaid.domain.delivery import (
     DeliveryConfiguration,
+    DeliveryContactSnapshot,
     DeliveryStartPoint,
     DeliveryWindow,
     local_instant,
@@ -223,3 +224,32 @@ def test_start_point_request_needs_both_coordinates() -> None:
         _request(startPoint={"label": "B", "address": "A", "lat": 47.5})
     with pytest.raises(ValueError):
         _request(startPoint={"label": "B", "address": "A", "lat": 91, "lon": 1})
+
+
+def test_contact_payload_without_note_is_unchanged() -> None:
+    contact = DeliveryContactSnapshot("X", "1")
+    assert contact.payload() == {"name": "X", "phone": "1"}
+    assert DeliveryContactSnapshot.from_payload(contact.payload()) == contact
+
+
+def test_contact_payload_round_trips_the_note() -> None:
+    contact = DeliveryContactSnapshot(driver_note=" Hintereingang ")
+    assert not contact.empty
+    assert contact.payload() == {
+        "name": None,
+        "phone": None,
+        "driver_note": "Hintereingang",
+    }
+    assert DeliveryContactSnapshot.from_payload(contact.payload()) == contact
+    assert DeliveryContactSnapshot(driver_note="  ").empty
+
+
+@pytest.mark.parametrize("note", ["a\nb", "a\rb"])
+def test_driver_note_rejects_newline_and_201_chars(note: str) -> None:
+    with pytest.raises(DomainInvariantError) as error:
+        DeliveryContactSnapshot(driver_note=note)
+    assert error.value.code == "delivery_contact_invalid"
+    DeliveryContactSnapshot(driver_note="x" * 200)
+    with pytest.raises(DomainInvariantError) as error:
+        DeliveryContactSnapshot(driver_note="x" * 201)
+    assert error.value.code == "delivery_contact_too_long"

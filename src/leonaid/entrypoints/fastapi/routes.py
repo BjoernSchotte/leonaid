@@ -25,6 +25,7 @@ from leonaid.domain.delivery_tours import (
     DriverTour,
     MapTiles,
     MyTour,
+    TourRead,
     TourStopView,
     TourWindow,
 )
@@ -65,6 +66,8 @@ from leonaid.entrypoints.fastapi.schemas import (
     DeliveryTourStopResponse,
     DeliveryTourWindowResponse,
     MyTourResponse,
+    MyTourReadsRequest,
+    MY_TOUR_READS_RESPONSES,
     DeliveryWindowClosureResponse,
     DeliveryWindowClosureResultResponse,
     DeliveryWindowReopenResponse,
@@ -3998,7 +4001,9 @@ async def complete_commitment(
         if address is not None
         else None,
         delivery_window_id=body.delivery_window_id,
-        delivery_contact=DeliveryContactSnapshot(contact.name, contact.phone)
+        delivery_contact=DeliveryContactSnapshot(
+            contact.name, contact.phone, contact.driver_note
+        )
         if contact is not None
         else None,
     )
@@ -4054,7 +4059,9 @@ async def complete_commitment_delivery(
         if address is not None
         else None,
         delivery_window_id=body.delivery_window_id,
-        delivery_contact=DeliveryContactSnapshot(contact.name, contact.phone)
+        delivery_contact=DeliveryContactSnapshot(
+            contact.name, contact.phone, contact.driver_note
+        )
         if contact is not None
         else None,
     )
@@ -5566,7 +5573,9 @@ def delivery_drop_response(drop: DeliveryDrop) -> DeliveryDropResponse:
         ),
         contact=(
             DeliveryDropContactResponse(
-                name=drop.contact.name, phone=drop.contact.phone
+                name=drop.contact.name,
+                phone=drop.contact.phone,
+                driver_note=drop.contact.driver_note,
             )
             if drop.contact
             else None
@@ -5915,6 +5924,29 @@ async def get_my_tour(
     )
     response.headers["Cache-Control"] = "private, no-store"
     return my_tour_response(mine, service.tiles)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/my-tour/reads",
+    operation_id="recordMyTourReads",
+    status_code=204,
+    response_class=Response,
+    responses=MY_TOUR_READS_RESPONSES,
+    tags=["actions"],
+)
+async def record_my_tour_reads(
+    action_id: UUID, body: MyTourReadsRequest, request: Request
+) -> Response:
+    """Reads of "Meine Tour" the device showed offline (spec §10): each is
+    audited at its read time; windows without an own stop are ignored."""
+    actor = await identity_service(request).authenticate(session_token(request))
+    await delivery_tour_service(request).record_reads(
+        actor,
+        action_id,
+        [TourRead(read.window_id, read.read_at) for read in body.reads],
+        received_at=datetime.now(timezone.utc),
+    )
+    return Response(status_code=204, headers={"Cache-Control": "private, no-store"})
 
 
 @router.put(
