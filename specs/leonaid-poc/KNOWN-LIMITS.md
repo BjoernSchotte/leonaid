@@ -34,8 +34,8 @@ pilot-create-system-admin` an (Anmeldemail, kein Passwort).
   begründete Rückbuchungen einzelner Einträge (ADR-0014). Eine Überzahlung
   wird nur angezeigt; die Erstattung läuft außerhalb von LeonAid und wird
   nicht gebucht. Bankabgleich, Buchhaltung, E-Rechnung, Mahnwesen, Payment
-  Provider und Spendenbescheinigungen fehlen. Spenden werden als Zusage
-  mit manuell erfasstem Zahlungseingang geführt (ADR-0016, siehe unten).
+  Provider fehlen. Spenden werden als Zusage mit manuell erfasstem
+  Zahlungseingang und Zuwendungsbestätigung geführt (ADR-0016, siehe unten).
 - Lieferfenster, Fahrerzuweisung und Abhaken im Lieferboard sind gebaut.
   Tourenplanung, Karte und Navigation fehlen. Die Fenster-Kapazität ist keine
   Zahl: es gibt nur das manuelle Kennzeichen „ausgebucht“
@@ -203,9 +203,18 @@ pilot-create-system-admin` an (Anmeldemail, kein Passwort).
   - "Spende erfassen" takes the donor as free text. The CRM donor search of
     spec §8.7 needs a new CRM read and comes with stage 6.
   - Donations are recorded in the web admin only. The order forms have no
-    donation block and the donation receipt ("Zuwendungsbestätigung") is not
-    issued yet (stages 5 and 6 of
+    donation block yet (stage 6 of
     `specs/mails-documents-donations-push/PLAN.md`).
+  - The donation receipt ("Zuwendungsbestätigung", `donation_receipt_pdf`)
+    is the single receipt for a money donation: one valid receipt per paid
+    donation, for the amount and the day that arrived. No collective
+    receipt, no receipt for donations in kind or for waived expenses. A
+    receipt is never edited; it is declared void with a reason and with what
+    happened to the donor's paper, then a new one can be issued. A receipt
+    signed by hand is printed and never mailed by LeonAid. No receipt is
+    issued when the notice of the receiving body is older than § 63 Abs. 5
+    AO allows (`donation_receipt_notice_expired`). The amount in words covers
+    0 to 999,999,999 euro.
   - A privacy erasure lists the donations of the subject and keeps them, as
     it keeps issued invoices.
   - Re-seeding the golden data deletes every donation of the installation,

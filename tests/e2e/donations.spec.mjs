@@ -117,6 +117,55 @@ test("a manager records a donation, gets the pledge and books the payment", asyn
       fullPage: true,
     });
 
+    // The receipt confirms what arrived. The dev tenant signs by machine.
+    await detail.getByTestId("open-donation-receipt-form").click();
+    const receiptDialog = page.getByTestId("donation-receipt-form");
+    await expect(receiptDialog).toContainText("60,00 €");
+    await page.getByTestId("issue-donation-receipt").click();
+    const receipt = detail.getByTestId("donation-receipt");
+    await expect(receipt.getByTestId("donation-receipt-number")).toHaveText(
+      "ZB26-0001",
+    );
+    // The worker renders the receipt PDF.
+    await expect(
+      receipt.getByTestId("donation-receipt-document"),
+    ).toContainText("Zuwendungsbestaetigung-ZB26-0001.pdf", {
+      timeout: 60_000,
+    });
+    const receiptDownload = page.waitForEvent("download");
+    await receipt.getByTestId("download-donation-receipt").click();
+    expect((await receiptDownload).suggestedFilename()).toBe(
+      "Zuwendungsbestaetigung-ZB26-0001.pdf",
+    );
+    // While the receipt is valid, the payment cannot be taken back.
+    await expect(
+      detail.getByTestId("donation-receipt-blocks-withdrawal"),
+    ).toBeVisible();
+    await expect(
+      detail.getByTestId("open-donation-withdrawal-form"),
+    ).toHaveCount(0);
+    await page.getByRole("button", { name: "Bestätigt", exact: true }).click();
+    await expect(page.getByText("SP26-0002").first()).toBeVisible();
+    expect((await analyzeAccessibility(page)).violations).toEqual([]);
+    await page.screenshot({
+      path: `${artifactDirectory}/donation-receipt.png`,
+      fullPage: true,
+    });
+
+    // A receipt is declared void, never edited: reason and what happened to
+    // the donor's paper.
+    await detail.getByTestId("open-donation-receipt-void-form").click();
+    await page
+      .getByTestId("donation-receipt-void-reason")
+      .fill("Zahlung gehörte zu einer anderen Spende");
+    await page
+      .getByTestId("donation-receipt-void-evidence-original_returned")
+      .check();
+    await page.getByTestId("void-donation-receipt").click();
+    await expect(
+      detail.getByTestId("donation-receipt-void-list"),
+    ).toContainText("ZB26-0001");
+
     await detail.getByTestId("open-donation-withdrawal-form").click();
     await page
       .getByTestId("donation-withdrawal-reason")

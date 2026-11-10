@@ -642,4 +642,12 @@ if printf '%s\n' "INSERT INTO charity_action_capability (action_id, capability) 
 fi
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 
+echo "poc021-test: 0067 goes back and forth while no receipt exists"
+compose run --rm --no-deps --entrypoint alembic api downgrade 0066_donations
+if printf '%s\n' "SELECT 1 FROM donation_receipt LIMIT 1;" | series_sql >/dev/null 2>&1; then
+  echo "poc021-test: ERROR: 0067 downgrade kept donation_receipt" >&2
+  exit 1
+fi
+compose run --rm --no-deps --entrypoint alembic api upgrade head
+
 echo "poc021-test: OK: build from empty, upgrade, constraints and data retention proven"

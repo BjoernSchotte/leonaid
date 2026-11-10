@@ -195,12 +195,24 @@ docker run --rm \
   --trace=retain-on-failure \
   --reporter=line
 
-for screenshot in donation-create.png donation-paid.png; do
+for screenshot in donation-create.png donation-paid.png donation-receipt.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "document-test: ERROR: browser proof is missing: $screenshot" >&2
     exit 1
   fi
 done
+
+# The donation of the pledge proof gets its payment and its receipt: the
+# worker renders it and mails it (the golden receiving body signs by machine).
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+  --env-from-file "$env_file" \
+  --env API_BASE_URL=http://api:8000 \
+  --env MAIL_TEST_API_URL=http://mailpit:8025/mail \
+  --env PYTHONPATH=/repo:/workspace/src \
+  --volume "$root:/repo:ro" \
+  --workdir /repo \
+  --entrypoint python \
+  api tools/documents/contract.py donation-receipt
 
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
