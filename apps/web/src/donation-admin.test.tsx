@@ -658,7 +658,8 @@ describe("DonationAdminPage", () => {
     ) as HTMLInputElement;
     expect(amount.value).toBe("50,00");
     expect(date.value).toBe(localIsoDate());
-    expect(date.min).toBe("2026-10-01");
+    // No lower bound: the money may have arrived before the pledge.
+    expect(date.min).toBe("");
     expect(date.max).toBe(localIsoDate());
     expect(
       dialog.getByText(
@@ -902,6 +903,33 @@ describe("DonationAdminPage", () => {
     expect(
       client.retryDonationPledgeDelivery.mock.calls[0]?.slice(0, 3),
     ).toEqual([actionId, "d-failed", "delivery-d-failed"]);
+  });
+
+  it("sends no pledge for a paid donation: it asks for money that arrived", async () => {
+    await renderPage({
+      list: {
+        items: [
+          {
+            ...paid,
+            pledgeDeliveries: [
+              delivery("d-paid", "sent"),
+              // The server says a failed pledge mail of a paid donation
+              // cannot be started again.
+              { ...delivery("d-paid", "failed"), canRetry: false },
+            ],
+          },
+        ],
+      },
+      view: "paid",
+    });
+    const pane = await openRow("SP26-0002");
+    // What was sent stays visible; nothing can be sent or sent again.
+    expect(
+      pane.getAllByTestId("donation-pledge-delivery-attempt").length,
+    ).toBeGreaterThan(0);
+    expect(pane.queryByTestId("send-donation-pledge")).toBeNull();
+    expect(pane.queryByTestId("resend-donation-pledge")).toBeNull();
+    expect(pane.queryByTestId("retry-donation-pledge-delivery")).toBeNull();
   });
 
   it("offers no send button without a donor e-mail or while the PDF renders", async () => {

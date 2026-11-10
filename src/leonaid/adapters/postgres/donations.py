@@ -287,6 +287,14 @@ async def insert_donation(
     return donation
 
 
+def _pledge_paid() -> Conflict:
+    return Conflict(
+        "donation_pledge_paid",
+        "Die Zahlung für diese Spende ist eingegangen. Die Spendenzusage mit "
+        "der Zahlungsbitte wird nicht mehr versendet.",
+    )
+
+
 async def _audit(
     connection: asyncpg.Connection[Any],
     *,
@@ -1008,6 +1016,8 @@ class AsyncpgDonationRepository:
                 "donation_cancelled",
                 "Die Zusage einer stornierten Spende wird nicht versendet.",
             )
+        if str(row["status"]) == "paid":
+            raise _pledge_paid()
         if row["document_id"] is None:
             raise Conflict(
                 "donation_pledge_document_not_ready",
@@ -1114,6 +1124,8 @@ class AsyncpgDonationRepository:
                 "donation_cancelled",
                 "Die Zusage einer stornierten Spende wird nicht versendet.",
             )
+        if str(current["status"]) == "paid":
+            raise _pledge_paid()
         if str(current["donor_email"] or "").casefold() != draft.recipient_email:
             raise Conflict(
                 "donation_delivery_recipient_changed",
@@ -1199,8 +1211,10 @@ class AsyncpgDonationRepository:
                 row = await connection.fetchrow(
                     """
                     SELECT delivery.outbox_event_id, event.status, mail.sent_at,
-                           document.document_type
+                           document.document_type, document.version,
+                           donation.status AS donation_status
                     FROM invoice_delivery AS delivery
+                    JOIN donation ON donation.id = delivery.donation_id
                     JOIN generated_document AS document
                       ON document.id = delivery.generated_document_id
                     JOIN outbox_event AS event
@@ -1233,6 +1247,16 @@ class AsyncpgDonationRepository:
                         "Nur ein endgültig fehlgeschlagener Versand kann "
                         "manuell neu gestartet werden.",
                     )
+                if str(row["document_type"]) == "donation_pledge_pdf":
+                    # A pledge asks for a payment: not for a donation that
+                    # is paid or cancelled by now.
+                    if str(row["donation_status"]) == "paid":
+                        raise _pledge_paid()
+                    if str(row["donation_status"]) == "cancelled":
+                        raise Conflict(
+                            "donation_cancelled",
+                            "Die Zusage einer stornierten Spende wird nicht versendet.",
+                        )
                 await connection.execute(
                     """
                     UPDATE outbox_event

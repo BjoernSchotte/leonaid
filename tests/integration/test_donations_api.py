@@ -912,6 +912,17 @@ class Proof:
             409,
             "donation_donor_email_missing",
         )
+        # A paid donation: the pledge asks for money that has arrived.
+        await self.make_available("first")
+        self.error(
+            await self.charity.post(
+                self.path(self.data.alpha, "first", "/pledge/deliveries"),
+                None,
+                self.key(),
+            ),
+            409,
+            "donation_pledge_paid",
+        )
         await self.make_available("replay")
         self.error(
             await self.charity.post(
@@ -969,6 +980,9 @@ class Proof:
         invoices = await self.charity.get(f"/api/v1/actions/{self.data.alpha}/invoices")
         assert invoices.status_code == 200, invoices.text
         assert delivery["id"] not in invoices.text
+        await self.a_failed_pledge_mail_of_a_paid_donation_stays_failed(
+            "after_cancel", UUID(delivery["id"])
+        )
         audit = await self.db.fetchval(
             "SELECT count(*) FROM audit_event "
             "WHERE event_type = 'donation_pledge_delivery_requested' "
@@ -976,6 +990,59 @@ class Proof:
             self.data.alpha,
         )
         assert audit == 1
+
+    async def dead_letter(self, delivery_id: UUID) -> None:
+        """What the worker records when the mail failed for good."""
+
+        await self.db.execute(
+            """
+            UPDATE outbox_event
+            SET status = 'dead_letter', dead_lettered_at = CURRENT_TIMESTAMP,
+                attempts = 5, last_attempt_at = CURRENT_TIMESTAMP,
+                last_error_code = 'smtp_unavailable',
+                last_error_detail = 'smtp_unavailable'
+            WHERE id = (SELECT outbox_event_id FROM invoice_delivery WHERE id = $1)
+            """,
+            delivery_id,
+        )
+
+    async def job_status(self, delivery_id: UUID) -> str:
+        return str(
+            await self.db.fetchval(
+                "SELECT event.status FROM outbox_event AS event "
+                "JOIN invoice_delivery AS delivery "
+                "ON delivery.outbox_event_id = event.id WHERE delivery.id = $1",
+                delivery_id,
+            )
+        )
+
+    async def a_failed_pledge_mail_of_a_paid_donation_stays_failed(
+        self, name: str, delivery_id: UUID
+    ) -> None:
+        retry = self.path(
+            self.data.alpha, name, f"/pledge/deliveries/{delivery_id}/retry"
+        )
+        await self.dead_letter(delivery_id)
+        record = await self.record(name)
+        assert record["pledgeDeliveries"][0]["status"] == "failed"
+        assert record["pledgeDeliveries"][0]["canRetry"] is True
+        paid = await self.pay(name, 5000)
+        assert paid.status_code == 201, paid.text
+        # Paid by now: the payment request is not started again.
+        assert paid.json()["pledgeDeliveries"][0]["canRetry"] is False
+        self.error(await self.charity.post(retry, None), 409, "donation_pledge_paid")
+        assert await self.job_status(delivery_id) == "dead_letter"
+        # Open again after the payment was taken back: the retry works.
+        withdrawn = await self.charity.post(
+            self.path(self.data.alpha, name, "/payment/withdrawal"),
+            {"reason": REASON},
+            self.key(),
+        )
+        assert withdrawn.status_code == 201, withdrawn.text
+        assert withdrawn.json()["pledgeDeliveries"][0]["canRetry"] is True
+        retried = await self.charity.post(retry, None)
+        assert retried.status_code == 202, retried.text
+        assert await self.job_status(delivery_id) == "pending"
 
     async def sums_dashboard_and_navigation(self) -> None:
         listing = await self.listing()
