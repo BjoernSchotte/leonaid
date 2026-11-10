@@ -325,7 +325,8 @@
 
 /* The row whose detail is open or was open last (a search hit lands here). */
 .acq-admin-table-wrap tbody tr[aria-current="true"] {
-  background: var(--accent-soft);
+  /* Lighter than the status pill, which uses the full accent-soft. */
+  background: color-mix(in oklch, var(--accent-soft) 45%, transparent);
   box-shadow: inset 3px 0 0 var(--accent);
 }
 

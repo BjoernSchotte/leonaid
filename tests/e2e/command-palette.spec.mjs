@@ -298,11 +298,6 @@ test.describe("enabled modules", () => {
       await expect(page.getByTestId("acquisition-admin-action")).toHaveValue(
         actionId,
       );
-      if (artifactDirectory) {
-        await page.screenshot({
-          path: `${artifactDirectory}/ux-sponsor-search-detail.png`,
-        });
-      }
       const axe = await analyzeAccessibility(page, {
         include: "dialog.modal[open]",
         tags: WCAG_TAGS,
@@ -312,6 +307,13 @@ test.describe("enabled modules", () => {
           ["serious", "critical"].includes(impact),
         ),
       ).toEqual([]);
+      if (artifactDirectory) {
+        // After the dialog's opening animation.
+        await page.screenshot({
+          animations: "disabled",
+          path: `${artifactDirectory}/ux-sponsor-search-detail.png`,
+        });
+      }
 
       // Closing drops ?open=; the row stays marked and opens the detail
       // again.
