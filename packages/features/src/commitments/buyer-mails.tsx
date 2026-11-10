@@ -67,6 +67,15 @@ const reasonTexts: Readonly<Record<Reason, string>> = {
     "Keine E-Mail: Das Lieferfenster endet vor der Versandzeit.",
 };
 
+/**
+ * The badge. A mail that is due and never went out is "Nicht gesendet",
+ * not "Nicht fällig": the button next to it sends it.
+ */
+export const stateLabel = (mail: BuyerMailStatusResponse) =>
+  mail.state === "not_due" && mail.canResend
+    ? stateLabels.skipped
+    : stateLabels[mail.state];
+
 /** "Senden" for a mail that never went out, "Erneut senden" after that. */
 export const sendLabel = (mail: BuyerMailStatusResponse) =>
   mail.sentAt ? "Erneut senden" : "Senden";
@@ -207,7 +216,7 @@ export function BuyerMails({
                   <span className="buyer-mail-kind">
                     {kindLabels[mail.kind]}{" "}
                     <Badge tone={stateTones[mail.state]}>
-                      {stateLabels[mail.state]}
+                      {stateLabel(mail)}
                     </Badge>
                   </span>
                   <span className="small subtle">{buyerMailDetail(mail)}</span>

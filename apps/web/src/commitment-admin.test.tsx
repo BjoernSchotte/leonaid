@@ -1305,6 +1305,9 @@ describe("buyer mails: first send, lost answer and the other states", () => {
       name: "Bestellbestätigung senden",
     });
     expect(button.textContent).toBe("Senden");
+    // Due and sendable: the badge does not say "Nicht fällig".
+    expect(block.textContent).toContain("Nicht gesendet");
+    expect(block.textContent).not.toContain("Nicht fällig");
     // The server does not know why: the text claims no reason.
     expect(block.textContent).toContain(
       "Für diese Bestellung ist noch keine E-Mail hinausgegangen.",
