@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 1
 reviewedRevision: 1
-verifiedAgainst: 30c252a22ffbcc5a41735023446c40168b5cc260
+verifiedAgainst: 5e94339473f2439e5532a5408069a974ca7f5ca0
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -75,8 +75,11 @@ none for something you caused yourself.
 - **This device:** choose **Auf diesem Gerät ausschalten**. LeonAid deletes
   the address of this device at once.
 - **Sign out:** when you sign out on the device, notifications end there.
-  After the next sign-in they come again once you have opened the app on the
-  device.
+  After the next sign-in you switch them on again on the device; your
+  switches stay as they were.
+- **90 days without opening:** if you do not open the app on a device for 90
+  days, your sign-in ends there and the notifications with it. Sign in and
+  open the app; then they come again.
 
 ## If it does not work
 
@@ -88,13 +91,17 @@ none for something you caused yourself.
 | **Dieser Browser kann keine Benachrichtigungen empfangen.** | Use a current Chrome, Edge, Firefox or Safari.                                                                                                                                     |
 | **Benachrichtigungen sind im Browser blockiert.**           | You declined the browser's question. Allow notifications for the page in the browser's settings (the lock or settings icon next to the address) and reload.                        |
 | **Dieses Gerät konnte nicht angemeldet werden.**            | The browser did not reach the notification service. Check the connection and try again.                                                                                            |
-| **Das waren viele Tests in kurzer Zeit.**                   | More than five tests in ten minutes. Wait a few minutes.                                                                                                                           |
+| **Das waren viele Tests in kurzer Zeit.**                   | More than five tests in ten minutes, from whatever device. Wait a few minutes.                                                                                                     |
 | The test does not arrive                                    | Check in the device's settings that notifications for LeonAid (or the browser) are allowed and no "do not disturb" is active. Then switch the device off and on again on the page. |
-| Nothing arrives after a new sign-in                         | Open the app once on the device. It then registers the device again.                                                                                                               |
+| Nothing arrives after a sign-out or a long break            | Sign in, open **Benachrichtigungen** and switch them on again on the device. After 90 days without opening the app the sign-in on the device ends.                                 |
+| **Du hast schon zehn Geräte angemeldet.**                   | Switch notifications off on a device you no longer use.                                                                                                                            |
 
 ## Limits
 
 - Notifications are a hint, not a delivery guarantee. If your device is off
   for more than a day, a notification expires.
-- There are no quiet hours and no setting per device.
+- There are no quiet hours and no setting per device. You can register at
+  most ten devices.
+- When LeonAid cannot reach a device for several days, it removes the
+  device. Switch notifications on again there.
 - More limits are listed under [Known limits](../../../known-limits/).

@@ -6,7 +6,7 @@ audience: [user, ops, dev]
 diataxis: reference
 contentRevision: 8
 reviewedRevision: 8
-verifiedAgainst: 30c252a22ffbcc5a41735023446c40168b5cc260
+verifiedAgainst: 5e94339473f2439e5532a5408069a974ca7f5ca0
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -34,9 +34,12 @@ general production approval.
   There are four kinds (follow-ups once a day from 8:00, new orders, tasks,
   deliveries), at most one notification per kind in 15 minutes, no quiet
   hours and no setting per device. A notification names a kind and a count
-  only. It is a hint without a delivery guarantee. After a new sign-in it
-  comes again only once the app was opened on the device. A new
-  `LEONAID_VAPID_PRIVATE_KEY` ends all device registrations.
+  only. It is a hint without a delivery guarantee. After a sign-out the
+  member switches the device on again; after 90 days without opening the app
+  nothing arrives until it is opened again. A member can register at most
+  ten devices. A new `LEONAID_VAPID_PRIVATE_KEY` ends all device
+  registrations; each device registers again by itself when its app is next
+  opened.
 - `finance_reader` can only read documents. The maintained demo user Finn
   Finanzen proves this read-only access. Payments and cancellation require
   `finance_manager` or the charity administrator for the affected campaign.

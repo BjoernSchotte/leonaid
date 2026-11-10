@@ -6,7 +6,7 @@ audience: [ops]
 diataxis: reference
 contentRevision: 2
 reviewedRevision: 2
-verifiedAgainst: 30c252a22ffbcc5a41735023446c40168b5cc260
+verifiedAgainst: 5e94339473f2439e5532a5408069a974ca7f5ca0
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -52,8 +52,10 @@ Installation zwei Werte; API und Worker bekommen dieselben.
   `worker.configuration.invalid`.
 - **Der Schlüssel bleibt für die Lebensdauer der Installation.** Jede
   Anmeldung eines Geräts ist an ihn gebunden. Ein neuer Schlüssel beendet
-  alle Anmeldungen; die Mitglieder schalten Benachrichtigungen dann neu ein.
-  Der Schlüssel gehört ins Backup der Environment-Datei.
+  alle Anmeldungen: Der Worker sendet an die alten nichts mehr und löscht
+  sie. Jedes Gerät meldet sich mit dem neuen Schlüssel von selbst neu an,
+  sobald das Mitglied die App dort wieder öffnet; bis dahin bekommt es
+  nichts. Der Schlüssel gehört ins Backup der Environment-Datei.
 - **Ausgang:** Der Worker sendet an `fcm.googleapis.com` und
   `jmt17.google.com` (Chrome, Edge auf Android),
   `updates.push.services.mozilla.com` (Firefox), `web.push.apple.com` (Safari,

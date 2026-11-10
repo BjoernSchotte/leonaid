@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 3
 reviewedRevision: 3
-verifiedAgainst: 30c252a22ffbcc5a41735023446c40168b5cc260
+verifiedAgainst: 5e94339473f2439e5532a5408069a974ca7f5ca0
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -74,8 +74,8 @@ deinem Namen beziehungsweise im Menü **Mehr**.
    Vier-Augen-Ablauf (Prüfung durch Björn Schotte offen).
    Der Hinweis enthält außerdem den Abschnitt „Benachrichtigungen auf deinem
    Gerät“: dass LeonAid je Gerät die Adresse beim Benachrichtigungsdienst
-   des Browsers oder Betriebssystems (Google, Apple, Mozilla oder Microsoft),
-   zwei Schlüssel und die Kennung des Browsers speichert, dass die Hinweise
+   des Browsers oder Betriebssystems (Google, Apple, Mozilla oder Microsoft)
+   und zwei Schlüssel speichert, dass die Hinweise
    verschlüsselt sind und keine Namen, Adressen oder Beträge enthalten, dass
    die Einwilligung die Rechtsgrundlage ist und dass Ausschalten, Abmelden
    oder eine ungültige Adresse sie löscht. Behalte ihn nur, wenn

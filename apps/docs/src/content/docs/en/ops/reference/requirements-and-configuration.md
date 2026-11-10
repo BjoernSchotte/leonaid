@@ -6,7 +6,7 @@ audience: [ops]
 diataxis: reference
 contentRevision: 2
 reviewedRevision: 2
-verifiedAgainst: 30c252a22ffbcc5a41735023446c40168b5cc260
+verifiedAgainst: 5e94339473f2439e5532a5408069a974ca7f5ca0
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -49,9 +49,10 @@ values for this; the API and the worker get the same ones.
   `pilot-doctor` reports `web_push_settings_invalid`, and the worker ends at
   start with `worker.configuration.invalid`.
 - **The key stays for the life of the installation.** Every registration of a
-  device is bound to it. A new key ends all registrations; members then
-  switch notifications on again. The key belongs in the backup of the
-  environment file.
+  device is bound to it. A new key ends all registrations: the worker sends
+  nothing to the old ones and deletes them. Each device registers again with
+  the new key by itself once the member opens the app there; until then it
+  gets nothing. The key belongs in the backup of the environment file.
 - **Egress:** the worker sends to `fcm.googleapis.com` and `jmt17.google.com`
   (Chrome, Edge on Android), `updates.push.services.mozilla.com` (Firefox),
   `web.push.apple.com` (Safari, iPhone, iPad) and hosts below

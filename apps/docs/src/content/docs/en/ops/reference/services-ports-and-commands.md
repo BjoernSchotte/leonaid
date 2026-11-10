@@ -6,7 +6,7 @@ audience: [ops]
 diataxis: reference
 contentRevision: 21
 reviewedRevision: 21
-verifiedAgainst: 30c252a22ffbcc5a41735023446c40168b5cc260
+verifiedAgainst: 5e94339473f2439e5532a5408069a974ca7f5ca0
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -73,19 +73,31 @@ leonaid.entrypoints.worker.outbox retention-sweep` runs one sweep by hand.
 
 The worker sends Web Push (ADR-0017) while the feature flag `pwa.push` is on
 and `LEONAID_VAPID_PRIVATE_KEY` is set. The job `push.notification.v1` sends
-one notification of one kind to all registered devices of a member, at most
-one per kind in 15 minutes; what arrives in that time is sent by a later job
-with the sum. A job carries a member, a kind and a count only. When a push
-service answers 404 or 410, the worker deletes the device. When it reaches no
-device of the member (timeout, 429, 5xx), the job fails with
-`push_service_unavailable` and runs again like every job, up to
-`OUTBOX_MAX_ATTEMPTS` attempts; after that it is a dead letter under
-**System › Hintergrundaufgaben**.
+one notification of one kind to all registered devices of a member (at most
+ten) at once, at most one per kind in 15 minutes; what arrives in that time
+is sent by a later job with the sum. A job carries a member, a kind and a
+count only. It ends by itself after at most 15 seconds, a single request
+after 10 seconds.
+
+Notifications are a hint. A job does not fail because a device or a push
+service was out of reach (timeout, 429, 5xx): a later job tries the devices
+not reached after 1 minute and once more after 10 minutes; then the worker
+gives the message up. No dead letter and no alert result. When a push
+service answers 404 or 410, the worker deletes the device. When it refuses
+the message (400, 401, 403, 413), the worker does not try again. Every
+message that did not reach a device writes one log line
+`worker.push.undelivered` with `kind`, `host` (the push service's host,
+never the path), `status` (HTTP status or empty), `outcome` (`unavailable`
+or `rejected`), `attempt` and `deviceRemoved`. 401 or 403 for all devices of
+one service point at the VAPID key or `LEONAID_VAPID_SUBJECT`. A device that
+five messages in a row did not reach over at least three days is deleted;
+so are devices registered with an earlier VAPID key.
 
 The `push_follow_ups` loop runs every five minutes. Between 08:00 and 20:00
 club time (Europe/Berlin) it creates one job a day per member with follow-ups
 due or overdue; a worker that was down at 08:00 catches up until 20:00. The
-same loop deletes devices whose session has expired. Logs carry only the
+same loop deletes devices whose session has expired or that belong to an
+earlier VAPID key. Logs carry only the
 number of members (`worker.push.follow_ups`). The worker's readiness names
 the loop as `push_follow_ups`. Key, contact and the hosts it reaches are
 described under

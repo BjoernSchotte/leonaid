@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 3
 reviewedRevision: 3
-verifiedAgainst: 30c252a22ffbcc5a41735023446c40168b5cc260
+verifiedAgainst: 5e94339473f2439e5532a5408069a974ca7f5ca0
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -71,7 +71,7 @@ app and in the acquisition app, the links are below your name or in the
    The notice also contains the section "Benachrichtigungen auf deinem
    Gerät": that LeonAid stores, per device, the address at the notification
    service of the browser or operating system (Google, Apple, Mozilla or
-   Microsoft), two keys and the browser identifier, that the notifications
+   Microsoft) and two keys, that the notifications
    are encrypted and contain no names, addresses or amounts, that consent is
    the legal basis, and that switching off, signing out or an invalid
    address deletes it. Keep it only when notifications are active; it too

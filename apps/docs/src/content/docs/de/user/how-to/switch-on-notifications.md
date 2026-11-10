@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 1
 reviewedRevision: 1
-verifiedAgainst: 30c252a22ffbcc5a41735023446c40168b5cc260
+verifiedAgainst: 5e94339473f2439e5532a5408069a974ca7f5ca0
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -75,8 +75,11 @@ Benachrichtigung. Für etwas, das du selbst ausgelöst hast, bekommst du keine.
 - **Dieses Gerät:** Wähle **Auf diesem Gerät ausschalten**. LeonAid löscht
   die Adresse dieses Geräts sofort.
 - **Abmelden:** Wenn du dich auf dem Gerät abmeldest, enden die
-  Benachrichtigungen dort. Nach der nächsten Anmeldung kommen sie wieder,
-  sobald du die App auf dem Gerät geöffnet hast.
+  Benachrichtigungen dort. Nach der nächsten Anmeldung schaltest du sie auf
+  dem Gerät wieder ein; deine Schalter bleiben, wie sie waren.
+- **90 Tage ohne Öffnen:** Öffnest du die App auf einem Gerät 90 Tage lang
+  nicht, endet dort deine Anmeldung und mit ihr die Benachrichtigungen.
+  Melde dich an und öffne die App; dann kommen sie wieder.
 
 ## Wenn es nicht klappt
 
@@ -88,13 +91,17 @@ Benachrichtigung. Für etwas, das du selbst ausgelöst hast, bekommst du keine.
 | **Dieser Browser kann keine Benachrichtigungen empfangen.** | Nutze einen aktuellen Chrome, Edge, Firefox oder Safari.                                                                                                                                |
 | **Benachrichtigungen sind im Browser blockiert.**           | Du hast die Frage des Browsers abgelehnt. Erlaube Benachrichtigungen für die Seite in den Einstellungen des Browsers (Schloss- oder Einstellungssymbol neben der Adresse) und lade neu. |
 | **Dieses Gerät konnte nicht angemeldet werden.**            | Der Browser hat den Benachrichtigungsdienst nicht erreicht. Prüfe die Verbindung und versuche es erneut.                                                                                |
-| **Das waren viele Tests in kurzer Zeit.**                   | Mehr als fünf Tests in zehn Minuten. Warte ein paar Minuten.                                                                                                                            |
+| **Das waren viele Tests in kurzer Zeit.**                   | Mehr als fünf Tests in zehn Minuten, egal von welchem Gerät. Warte ein paar Minuten.                                                                                                    |
 | Der Test kommt nicht an                                     | Prüfe in den Einstellungen des Geräts, ob Benachrichtigungen für LeonAid (oder den Browser) erlaubt sind und kein „Nicht stören“ aktiv ist. Schalte das Gerät dann aus und wieder ein.  |
-| Nach einer neuen Anmeldung kommt nichts mehr                | Öffne die App einmal auf dem Gerät. Sie meldet das Gerät dann wieder an.                                                                                                                |
+| Nach dem Abmelden oder nach langer Pause kommt nichts mehr  | Melde dich an, öffne **Benachrichtigungen** und schalte sie auf dem Gerät wieder ein. Nach 90 Tagen ohne Öffnen der App endet die Anmeldung auf dem Gerät.                              |
+| **Du hast schon zehn Geräte angemeldet.**                   | Schalte Benachrichtigungen auf einem Gerät aus, das du nicht mehr nutzt.                                                                                                                |
 
 ## Grenzen
 
 - Benachrichtigungen sind ein Hinweis, keine Zustellgarantie. Ist dein Gerät
   länger als einen Tag aus, verfällt eine Benachrichtigung.
-- Es gibt keine Ruhezeiten und keine Einstellung je Gerät.
+- Es gibt keine Ruhezeiten und keine Einstellung je Gerät. Du kannst
+  höchstens zehn Geräte anmelden.
+- Erreicht LeonAid ein Gerät mehrere Tage lang nicht, entfernt es das Gerät.
+  Schalte Benachrichtigungen dort dann neu ein.
 - Weitere Grenzen stehen unter [Bekannte Grenzen](../../../known-limits/).

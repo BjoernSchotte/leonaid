@@ -6,7 +6,7 @@ audience: [ops]
 diataxis: reference
 contentRevision: 21
 reviewedRevision: 21
-verifiedAgainst: 30c252a22ffbcc5a41735023446c40168b5cc260
+verifiedAgainst: 5e94339473f2439e5532a5408069a974ca7f5ca0
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -78,20 +78,32 @@ Hand.
 Der Worker sendet Web Push (ADR-0017), solange das Feature-Flag `pwa.push` an
 ist und `LEONAID_VAPID_PRIVATE_KEY` gesetzt ist. Der Job
 `push.notification.v1` sendet einem Mitglied eine Benachrichtigung einer Art
-an alle seine angemeldeten Geräte, höchstens eine je Art in 15 Minuten; was
-in dieser Zeit dazukommt, sendet ein späterer Job mit der Summe. Ein Job
-trägt nur Mitglied, Art und Anzahl. Antwortet ein Push-Dienst mit 404 oder
-410, löscht der Worker das Gerät. Erreicht er kein Gerät des Mitglieds
-(Zeitüberschreitung, 429, 5xx), schlägt der Job mit
-`push_service_unavailable` fehl und läuft wie jeder Job erneut, bis zu
-`OUTBOX_MAX_ATTEMPTS` Versuche; danach steht er unter **System ›
-Hintergrundaufgaben** als Dead Letter.
+an alle seine angemeldeten Geräte (höchstens zehn) gleichzeitig, höchstens
+eine je Art in 15 Minuten; was in dieser Zeit dazukommt, sendet ein späterer
+Job mit der Summe. Ein Job trägt nur Mitglied, Art und Anzahl. Er endet nach
+höchstens 15 Sekunden von selbst, eine einzelne Anfrage nach 10 Sekunden.
+
+Benachrichtigungen sind ein Hinweis. Ein Job schlägt nicht fehl, weil ein
+Gerät oder ein Push-Dienst nicht erreichbar war (Zeitüberschreitung, 429,
+5xx): Ein späterer Job versucht die nicht erreichten Geräte nach 1 Minute
+und noch einmal nach 10 Minuten; danach gibt der Worker die Nachricht auf.
+Es entsteht kein Dead Letter und kein Alarm. Antwortet ein Push-Dienst mit
+404 oder 410, löscht der Worker das Gerät. Lehnt er die Nachricht ab (400,
+401, 403, 413), versucht der Worker es nicht erneut. Jede Nachricht, die ein
+Gerät nicht erreicht hat, schreibt eine Log-Zeile `worker.push.undelivered`
+mit `kind`, `host` (Host des Push-Dienstes, nie der Pfad), `status`
+(HTTP-Status oder leer), `outcome` (`unavailable` oder `rejected`), `attempt`
+und `deviceRemoved`. 401 oder 403 bei allen Geräten eines Dienstes deuten auf
+den VAPID-Schlüssel oder `LEONAID_VAPID_SUBJECT`. Ein Gerät, das fünf
+Nachrichten in Folge über mindestens drei Tage nicht erreicht haben, wird
+gelöscht; ebenso Geräte, die mit einem früheren VAPID-Schlüssel angemeldet
+wurden.
 
 Die Schleife `push_follow_ups` läuft alle fünf Minuten. Zwischen 08:00 und
 20:00 Uhr Clubzeit (Europe/Berlin) legt sie je Mitglied mit fälligen oder
 überfälligen Wiedervorlagen einmal am Tag einen Job an; war der Worker um
 08:00 Uhr aus, holt sie das bis 20:00 Uhr nach. Dieselbe Schleife löscht
-Geräte, deren Sitzung abgelaufen ist. Logs enthalten nur die Zahl der
+Geräte, deren Sitzung abgelaufen ist oder die zu einem früheren VAPID-Schlüssel gehören. Logs enthalten nur die Zahl der
 Mitglieder (`worker.push.follow_ups`). Die Readiness des Workers nennt die
 Schleife als `push_follow_ups`. Schlüssel, Kontakt und die erreichten Hosts
 stehen unter

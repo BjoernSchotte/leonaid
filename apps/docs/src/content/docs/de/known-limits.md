@@ -6,7 +6,7 @@ audience: [user, ops, dev]
 diataxis: reference
 contentRevision: 8
 reviewedRevision: 8
-verifiedAgainst: 30c252a22ffbcc5a41735023446c40168b5cc260
+verifiedAgainst: 5e94339473f2439e5532a5408069a974ca7f5ca0
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -36,9 +36,12 @@ allgemeine Produktionsfreigabe.
   (Wiedervorlagen einmal am Tag ab 8 Uhr, neue Bestellungen, Aufgaben,
   Lieferungen), höchstens eine Benachrichtigung je Art in 15 Minuten, keine
   Ruhezeiten und keine Einstellung je Gerät. Eine Benachrichtigung nennt nur
-  Art und Anzahl. Sie ist ein Hinweis ohne Zustellgarantie. Nach einer neuen
-  Anmeldung kommt sie erst wieder, wenn die App auf dem Gerät geöffnet wurde.
-  Ein neuer `LEONAID_VAPID_PRIVATE_KEY` beendet alle Anmeldungen von Geräten.
+  Art und Anzahl. Sie ist ein Hinweis ohne Zustellgarantie. Nach dem
+  Abmelden schaltet das Mitglied das Gerät neu ein; nach 90 Tagen ohne Öffnen
+  der App kommt nichts mehr, bis sie wieder geöffnet wird. Ein Mitglied kann
+  höchstens zehn Geräte anmelden. Ein neuer `LEONAID_VAPID_PRIVATE_KEY`
+  beendet alle Anmeldungen; jedes Gerät meldet sich beim nächsten Öffnen der
+  App von selbst neu an.
 - `finance_reader` darf Belege nur lesen. Der gepflegte Demo-Benutzer Finn
   Finanzen beweist genau diesen Lesezugriff. Zahlungen und Storno benötigen
   `finance_manager` oder den Charity-Admin der betroffenen Aktion.
