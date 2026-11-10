@@ -45,6 +45,7 @@ from leonaid.application.invoice_deliveries import (
 )
 from leonaid.configuration import Settings
 from leonaid.domain.calendar import local_day
+from leonaid.domain.commitments import order_number
 from leonaid.domain.sessions import (
     SESSION_COOKIE_NAME,
     SESSION_LIFETIME,
@@ -391,10 +392,10 @@ class Fixture:
             INSERT INTO commitment (
                 id, action_id, twenty_company_id, source, status,
                 customer_snapshot, invoice_recipient_snapshot, currency,
-                total_minor, idempotency_key
+                total_minor, idempotency_key, public_reference
             )
             VALUES ($1, $2, $3, 'admin', $4, $5::jsonb, $6::jsonb, 'EUR',
-                    7200, $7)
+                    7200, $7, $8)
             """,
             order_id,
             self.action_of(name),
@@ -410,6 +411,7 @@ class Fixture:
             ),
             json.dumps(self.recipient(name)),
             f"series-proof:{order_id}",
+            order_number(order_id),
         )
         await connection.execute(
             """
