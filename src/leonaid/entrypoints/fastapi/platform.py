@@ -94,6 +94,8 @@ from leonaid.application.assignments import AssignmentManagementService
 from leonaid.application.actions import CharityActionService
 from leonaid.application.campaign_aliases import CampaignAliasService
 from leonaid.application.site_hosts import SiteHostService
+from leonaid.adapters.postgres.buyer_mails import AsyncpgBuyerMailRepository
+from leonaid.application.buyer_mails import BuyerMailService
 from leonaid.application.commitments import CommitmentService
 from leonaid.application.delivery_completion import DeliveryCompletionService
 from leonaid.application.documents import GeneratedDocumentService
@@ -412,12 +414,21 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.delivery_board_service = build_delivery_board_service(
             pool, disabled_modules, application.state.feature_flag_service
         )
+        # The buyer's order mails link the campaign and the legal pages. The
+        # campaign link is the permanent edition URL on the campaign host
+        # (decision D8), else the public host page, else none (§7.6).
+        order_mail_links = OrderMailLinkResolver(
+            settings.links, site_directory.edition_link
+        )
         application.state.commitment_service = CommitmentService(
-            AsyncpgCommitmentRepository(pool)
+            AsyncpgCommitmentRepository(pool), mail_links=order_mail_links
+        )
+        application.state.buyer_mail_service = BuyerMailService(
+            AsyncpgBuyerMailRepository(pool), mail_links=order_mail_links
         )
         application.state.search_service = SearchService(AsyncpgSearchRepository(pool))
         application.state.delivery_completion_service = DeliveryCompletionService(
-            AsyncpgDeliveryCompletionRepository(pool)
+            AsyncpgDeliveryCompletionRepository(pool), mail_links=order_mail_links
         )
         application.state.invoice_service = InvoiceService(
             AsyncpgInvoiceRepository(pool)
@@ -427,12 +438,6 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.invoice_settlement_service = InvoiceSettlementService(
             AsyncpgInvoiceSettlementRepository(pool)
-        )
-        # The buyer's order mails link the campaign and the legal pages. The
-        # campaign link is the permanent edition URL on the campaign host
-        # (decision D8), else the public host page, else none (§7.6).
-        order_mail_links = OrderMailLinkResolver(
-            settings.links, site_directory.edition_link
         )
         application.state.order_cancellation_service = build_order_cancellation_service(
             pool, disabled_modules, mail_links=order_mail_links

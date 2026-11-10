@@ -1,24 +1,33 @@
-"""Transactional mails to the buyer of a public order.
+"""Transactional mails to the buyer of an order.
 
-Two mails: the order confirmation after a public order is recorded and the
-cancellation notice after ``cancelCommitment`` cancelled such an order. Both
-are outbox jobs written in the same transaction as the order or the
-cancellation. The job payload holds ids and the non-personal links only; the
-worker reads the order from Core when it sends, so a privacy erasure that
-ran in between leaves nothing to send, and no copy of the buyer's data waits
-in the queue.
+Two mails: the order confirmation and the cancellation notice after
+``cancelCommitment`` cancelled the order. A public order is confirmed when it
+is recorded. An order that a member or acquirer entered is confirmed when it
+becomes ``review_ready`` (at creation or by ``completeCommitment``), and only
+while the action has ``internal_order_mails`` switched on
+(``mail_not_due_reason``). Both are outbox jobs written in the same
+transaction as the order, its completion or the cancellation. The job payload
+holds ids and the non-personal links only; the worker reads the order from
+Core when it sends, so a privacy erasure that ran in between leaves nothing
+to send, and no copy of the buyer's data waits in the queue.
 
 One job per order and kind: the job id and the idempotency key are derived
 from the order id, and the HTTP replay of an order or a cancellation returns
-before it writes a job. Delivery is at least once: the SMTP ledger
+before it writes a job. A manager can send a mail again
+(``application.buyer_mails``); that job's key ends in ``:resend:{n}``, and
+the order id stays the second key segment, which the mailbox limit's ledger
+join relies on. Delivery is at least once: the SMTP ledger
 (``mail_delivery``) skips a key that was already sent when a job is retried
 or claimed again, but a crash between the SMTP server accepting the mail and
 the ledger write sends it a second time on the retry.
 
 The order lines, prices, addresses and window of a public order cannot be
-changed after it is placed (only drafts get a window later), so the order
-read at send time is the order as placed. A confirmation whose order is
-already cancelled is skipped; the cancellation notice covers it.
+changed after it is placed, so the order read at send time is the order as
+placed. A manager may still correct the address of an internal order
+(``completeCommitmentDelivery``); the mail shows the order as it is when it
+is sent, and a later change sends no second confirmation. A confirmation
+whose order is already cancelled is skipped; the cancellation notice covers
+it.
 
 The text contains only what the buyer entered (items, quantities, delivery
 window, addresses) and the club's details from the active legal
@@ -29,8 +38,9 @@ entered before the input check cannot forge a paragraph or hide text.
 
 At most ``RECIPIENT_LIMIT`` order mails go to one mailbox per
 ``RECIPIENT_WINDOW`` (``+tags`` and Gmail dots count as one mailbox, and an
-advisory lock per mailbox keeps parallel workers under the limit): the unauthenticated form must not make the club flood
-an address it does not own. A job over the limit is dead-lettered with
+advisory lock per mailbox keeps parallel workers under the limit): neither
+the unauthenticated form nor a repeated "send again" must make the club
+flood an address it does not own. A job over the limit is dead-lettered with
 ``order_mail_recipient_limit`` and shows in the operations view, where an
 operator can retry it later.
 """
@@ -67,7 +77,6 @@ ORDER_MAIL_NAMESPACE = UUID("f3b0c6a2-5d1e-4c8b-9a57-0e6d2b4f8c13")
 ORDER_CONFIRMATION_MAIL = "order.confirmation.mail.v1"
 ORDER_CANCELLATION_MAIL = "order.cancellation.mail.v1"
 ORDER_MAIL_EVENT_TYPES = (ORDER_CONFIRMATION_MAIL, ORDER_CANCELLATION_MAIL)
-ORDER_MAIL_KEY_PREFIXES = ("order-confirmation-mail:", "order-cancellation-mail:")
 RECIPIENT_LIMIT = 10
 RECIPIENT_WINDOW = timedelta(hours=1)
 
@@ -91,6 +100,9 @@ EVENT_TYPES = {
     OrderMailKind.CONFIRMATION: ORDER_CONFIRMATION_MAIL,
     OrderMailKind.CANCELLATION: ORDER_CANCELLATION_MAIL,
 }
+KEY_PREFIXES = {kind: f"order-{kind.value}-mail:" for kind in OrderMailKind}
+RESEND_MARKER = ":resend:"
+ORDER_MAIL_KEY_PREFIXES = tuple(KEY_PREFIXES.values())
 
 
 class OrderMailError(RuntimeError):
@@ -159,16 +171,30 @@ class OrderMailLinkResolver:
         )
 
 
+def order_mail_key(
+    kind: OrderMailKind, commitment_id: UUID, *, resend: int | None = None
+) -> str:
+    """``order-{kind}-mail:{order id}``, plus ``:resend:{n}`` for a resend."""
+
+    key = f"{KEY_PREFIXES[kind]}{commitment_id}"
+    if resend is None:
+        return key
+    if resend < 1:
+        raise ValueError("A resend is numbered from 1.")
+    return f"{key}{RESEND_MARKER}{resend}"
+
+
 def order_mail_event(
     kind: OrderMailKind,
     *,
     action_id: UUID,
     commitment_id: UUID,
     links: OrderMailLinks,
+    resend: int | None = None,
 ) -> PendingOutboxEvent:
-    """The single job of one mail kind for one order."""
+    """The single job of one mail kind for one order, or its n-th resend."""
 
-    key = f"order-{kind.value}-mail:{commitment_id}"
+    key = order_mail_key(kind, commitment_id, resend=resend)
     return PendingOutboxEvent(
         id=uuid5(ORDER_MAIL_NAMESPACE, key),
         aggregate_type="commitment",
@@ -188,6 +214,8 @@ class OrderCancellationFacts:
     cancelled_at: datetime
     # The order's invoice that the cancellation cancelled with it, if any.
     invoice_number: str | None = None
+    # The status the order left: an internal draft was never confirmed.
+    previous_status: CommitmentStatus = CommitmentStatus.REVIEW_READY
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,6 +226,21 @@ class OrderMailFacts:
     commitment: Commitment
     ordered_at: datetime
     cancellation: OrderCancellationFacts | None = None
+    # The action's switch for orders that members and acquirers enter.
+    internal_order_mails: bool = False
+
+    def not_due_reason(self) -> MailNotDueReason | None:
+        """Why this order gets no mail now; ``None`` when a mail is due."""
+
+        return mail_not_due_reason(
+            self.commitment,
+            internal_order_mails=self.internal_order_mails,
+            status=(
+                self.cancellation.previous_status
+                if self.cancellation is not None
+                else None
+            ),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -361,12 +404,29 @@ def render_order_confirmation(
     commitment = facts.commitment
     recipient = _recipient(commitment)
     reference = _reference(commitment)
+    thanks = (
+        f"vielen Dank für Ihre Bestellung bei der Aktion „{_clean(facts.action_name)}“."
+    )
+    if commitment.source is CommitmentSource.PUBLIC_FORM:
+        opening = [
+            f"{thanks} Wir haben sie am {_day(facts.ordered_at)} um "
+            f"{_local(facts.ordered_at):%H:%M} Uhr erhalten."
+        ]
+    else:
+        # The buyer filled in no form: say who recorded the order. The time
+        # of a draft or of a queued capture is not the buyer's order time.
+        issuer = legal.configuration.issuer
+        opening = [
+            thanks,
+            "",
+            "Ihre Bestellung wurde von einem Mitglied des "
+            f"{_clean(issuer.legal_name)} für Sie erfasst. Stimmt etwas "
+            f"nicht, schreiben Sie uns bitte an {_clean(issuer.email)}.",
+        ]
     lines = [
         "Guten Tag,",
         "",
-        f"vielen Dank für Ihre Bestellung bei der Aktion „{_clean(facts.action_name)}“. "
-        f"Wir haben sie am {_day(facts.ordered_at)} um "
-        f"{_local(facts.ordered_at):%H:%M} Uhr erhalten.",
+        *opening,
         "",
         f"Bestellnummer: {reference}",
         "",
@@ -454,8 +514,6 @@ def _recipient(commitment: Commitment) -> str:
 
 
 def _reference(commitment: Commitment) -> str:
-    if commitment.public_reference is None:
-        raise OrderMailError("order_mail_reference_missing")
     return commitment.public_reference
 
 
@@ -492,17 +550,50 @@ def limit_digest(address: str) -> str:
     return hashlib.sha256(mailbox_key(address).encode()).hexdigest()
 
 
-def mail_due(commitment: Commitment) -> bool:
-    """Only public orders whose buyer address still exists get a mail.
+class MailNotDueReason(StrEnum):
+    NO_EMAIL = "no_email"
+    SWITCHED_OFF = "switched_off"
+    ORDER_DRAFT = "order_draft"
 
-    Orders entered by members or acquirers never got a confirmation, so they
-    get no cancellation notice either; a privacy erasure clears the address.
+
+def mail_not_due_reason(
+    commitment: Commitment,
+    *,
+    internal_order_mails: bool,
+    status: CommitmentStatus | None = None,
+) -> MailNotDueReason | None:
+    """The one rule for confirmation and cancellation notice.
+
+    A mail needs the buyer's address (a privacy erasure clears it). A public
+    order always gets its mails. An order that a member or acquirer entered
+    gets them only while the action has ``internal_order_mails``, and never
+    as a draft: a draft was not confirmed, so its cancellation is no news to
+    the buyer. ``status`` is the status to judge by when the order's own is
+    not it: the status a cancelled order left.
     """
 
+    if commitment.buyer.email is None or not commitment.buyer.email.strip():
+        return MailNotDueReason.NO_EMAIL
+    if commitment.source is CommitmentSource.PUBLIC_FORM:
+        return None
+    if not internal_order_mails:
+        return MailNotDueReason.SWITCHED_OFF
+    if (status or commitment.status) is CommitmentStatus.DRAFT:
+        return MailNotDueReason.ORDER_DRAFT
+    return None
+
+
+def mail_due(
+    commitment: Commitment,
+    *,
+    internal_order_mails: bool,
+    status: CommitmentStatus | None = None,
+) -> bool:
     return (
-        commitment.source is CommitmentSource.PUBLIC_FORM
-        and commitment.buyer.email is not None
-        and bool(commitment.buyer.email.strip())
+        mail_not_due_reason(
+            commitment, internal_order_mails=internal_order_mails, status=status
+        )
+        is None
     )
 
 
@@ -537,7 +628,7 @@ class MailSender(Protocol):
 
 
 class OrderMailHandler:
-    """Outbox handler for both order mail kinds."""
+    """Outbox handler for the order mail kinds, first mail and resend alike."""
 
     def __init__(
         self,
@@ -568,8 +659,9 @@ class OrderMailHandler:
             raise OrderMailError("order_mail_payload_invalid")
         links = OrderMailLinks.from_payload(event.payload)
         facts = await self._reader.facts(commitment_id, self._kind)
-        if facts is None or not mail_due(facts.commitment):
-            # Nothing to send: the order is gone, not public or erased.
+        if facts is None or facts.not_due_reason() is not None:
+            # Nothing to send: the order is gone or erased, or the action
+            # switched the mails for internal orders off meanwhile.
             return
         if (
             self._kind is OrderMailKind.CONFIRMATION

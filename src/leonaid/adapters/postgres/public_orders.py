@@ -49,6 +49,7 @@ from leonaid.domain.commitments import (
     InvoiceRecipientSnapshot,
     Money,
     Offering,
+    order_number,
 )
 
 COMMAND_TYPE = "create_public_order_v1"
@@ -454,7 +455,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
             delivery_window_snapshot=window_snapshot,
             delivery_contact=draft.delivery_contact,
             message=draft.message,
-            public_reference=f"LA-{commitment_id.hex.upper()}",
+            public_reference=order_number(commitment_id),
             lines=tuple(priced_lines),
             total=total,
             idempotency_key=idempotency_key,
@@ -886,11 +887,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
                 if row["message_snapshot"] is not None
                 else None
             ),
-            public_reference=(
-                str(row["public_reference"])
-                if row["public_reference"] is not None
-                else None
-            ),
+            public_reference=str(row["public_reference"]),
             lines=tuple(
                 CommitmentLine(
                     id=item["id"],

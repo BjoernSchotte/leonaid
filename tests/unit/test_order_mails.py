@@ -25,10 +25,14 @@ from leonaid.application.order_mails import (
     OrderMailKind,
     OrderMailLinkResolver,
     OrderMailLinks,
+    MailNotDueReason,
     delivery_window_label,
     limit_digest,
+    mail_due,
+    mail_not_due_reason,
     mailbox_key,
     order_mail_event,
+    order_mail_key,
     render_order_cancellation,
     render_order_confirmation,
 )
@@ -144,12 +148,14 @@ def facts(
     commitment: Commitment | None = None,
     *,
     cancellation: OrderCancellationFacts | None = None,
+    internal_order_mails: bool = False,
 ) -> OrderMailFacts:
     return OrderMailFacts(
         action_name="Krapfentaxi 2026",
         commitment=commitment or order(),
         ordered_at=ORDERED_AT,
         cancellation=cancellation,
+        internal_order_mails=internal_order_mails,
     )
 
 
@@ -437,7 +443,11 @@ async def test_handler_sends_the_cancellation_notice() -> None:
     "value",
     [
         None,
-        facts(order(source=CommitmentSource.ADMIN, public_reference=None)),
+        facts(order(source=CommitmentSource.ADMIN)),
+        facts(
+            order(source=CommitmentSource.ACQUISITION, status=CommitmentStatus.DRAFT),
+            internal_order_mails=True,
+        ),
         facts(
             order(
                 buyer=BuyerSnapshot(
@@ -449,7 +459,7 @@ async def test_handler_sends_the_cancellation_notice() -> None:
             )
         ),
     ],
-    ids=["order-gone", "not-public", "erased"],
+    ids=["order-gone", "internal-switched-off", "internal-draft", "erased"],
 )
 @pytest.mark.asyncio
 async def test_handler_completes_without_mail_when_nothing_is_due(
@@ -857,3 +867,196 @@ def test_link_markers() -> None:
         assert has_link_markers(value), value
     for value in ("Müller-Lüdenscheidt GmbH & Co. KG", "Am Wall 3", "86150 Augsburg"):
         assert not has_link_markers(value), value
+
+
+INTERNAL_SOURCES = (CommitmentSource.ACQUISITION, CommitmentSource.ADMIN)
+
+
+@pytest.mark.parametrize("source", INTERNAL_SOURCES)
+def test_an_internal_order_gets_mails_only_while_the_action_switched_them_on(
+    source: CommitmentSource,
+) -> None:
+    internal = order(source=source)
+
+    assert mail_not_due_reason(internal, internal_order_mails=False) is (
+        MailNotDueReason.SWITCHED_OFF
+    )
+    assert mail_due(internal, internal_order_mails=True)
+    # The public form is not behind the switch (D-M1).
+    assert mail_due(order(), internal_order_mails=False)
+
+
+@pytest.mark.parametrize("source", INTERNAL_SOURCES)
+def test_an_internal_draft_gets_no_mail_and_no_cancellation_notice(
+    source: CommitmentSource,
+) -> None:
+    draft = order(source=source, status=CommitmentStatus.DRAFT)
+    cancelled = order(source=source, status=CommitmentStatus.CANCELLED)
+
+    assert mail_not_due_reason(draft, internal_order_mails=True) is (
+        MailNotDueReason.ORDER_DRAFT
+    )
+    # A cancelled order is judged by the status it left.
+    assert (
+        mail_not_due_reason(
+            cancelled, internal_order_mails=True, status=CommitmentStatus.DRAFT
+        )
+        is MailNotDueReason.ORDER_DRAFT
+    )
+    assert mail_due(
+        cancelled, internal_order_mails=True, status=CommitmentStatus.REVIEW_READY
+    )
+
+
+def test_no_address_means_no_mail_whatever_the_switch() -> None:
+    erased = BuyerSnapshot(
+        party_kind=CommitmentPartyKind.COMPANY,
+        twenty_id=uuid4(),
+        display_name="Anonymisiert",
+        email=None,
+    )
+    for source in CommitmentSource:
+        assert mail_not_due_reason(
+            order(source=source, buyer=erased), internal_order_mails=True
+        ) is (MailNotDueReason.NO_EMAIL)
+
+
+def test_internal_confirmation_says_who_recorded_the_order() -> None:
+    mail = render_order_confirmation(
+        facts(order(source=CommitmentSource.ACQUISITION), internal_order_mails=True),
+        legal(),
+        LINKS,
+    )
+    reference = f"LA-{ORDER_ID.hex.upper()}"
+
+    assert mail.subject == f"Ihre Bestellung bei Krapfentaxi 2026 · {reference}"
+    for expected in (
+        "vielen Dank für Ihre Bestellung bei der Aktion „Krapfentaxi 2026“.\n",
+        "Ihre Bestellung wurde von einem Mitglied des Lions Hilfswerk Augsburg "
+        "e.V. für Sie erfasst. Stimmt etwas nicht, schreiben Sie uns bitte an "
+        "rechnung@hilfswerk.test.",
+        f"Bestellnummer: {reference}",
+        "Gesamtbetrag: 120,50 €",
+        "Datenschutzerklärung: https://krapfen.leonaid.invalid/datenschutz",
+    ):
+        assert expected in mail.text, expected
+    # The time a member typed the order in is not the buyer's order time.
+    assert "Wir haben sie am" not in mail.text
+    # The public confirmation does not carry the sentence.
+    assert (
+        "für Sie erfasst" not in render_order_confirmation(facts(), legal(), LINKS).text
+    )
+
+
+@pytest.mark.parametrize("source", INTERNAL_SOURCES)
+def test_internal_order_mails_never_render_internal_data(
+    source: CommitmentSource,
+) -> None:
+    internal = order(source=source)
+    texts = (
+        render_order_confirmation(
+            facts(internal, internal_order_mails=True), legal(), LINKS
+        ).text,
+        render_order_cancellation(
+            facts(
+                internal,
+                cancellation=OrderCancellationFacts(cancelled_at=CANCELLED_AT),
+                internal_order_mails=True,
+            ),
+            legal(),
+            LINKS,
+        ).text,
+    )
+    for text in texts:
+        for forbidden in ("Hofeinfahrt links", "Pforte", "999999", "4711"):
+            assert forbidden not in text, forbidden
+
+
+@pytest.mark.asyncio
+async def test_handler_sends_the_confirmation_of_an_internal_order() -> None:
+    sender = RecordingSender()
+    value = facts(order(source=CommitmentSource.ADMIN), internal_order_mails=True)
+
+    await handler(OrderMailKind.CONFIRMATION, value, sender).handle(
+        claimed(OrderMailKind.CONFIRMATION)
+    )
+
+    assert "für Sie erfasst" in str(sender.events[0].payload["text"])
+
+
+@pytest.mark.asyncio
+async def test_handler_skips_the_notice_for_a_cancelled_internal_draft() -> None:
+    sender = RecordingSender()
+    value = facts(
+        order(source=CommitmentSource.ADMIN, status=CommitmentStatus.CANCELLED),
+        cancellation=OrderCancellationFacts(
+            cancelled_at=CANCELLED_AT, previous_status=CommitmentStatus.DRAFT
+        ),
+        internal_order_mails=True,
+    )
+
+    await handler(OrderMailKind.CANCELLATION, value, sender).handle(
+        claimed(OrderMailKind.CANCELLATION)
+    )
+
+    assert sender.events == []
+
+
+def test_a_resend_job_keeps_the_order_id_as_second_key_segment() -> None:
+    first = order_mail_event(
+        OrderMailKind.CONFIRMATION,
+        action_id=ACTION_ID,
+        commitment_id=ORDER_ID,
+        links=LINKS,
+    )
+    resend = order_mail_event(
+        OrderMailKind.CONFIRMATION,
+        action_id=ACTION_ID,
+        commitment_id=ORDER_ID,
+        links=LINKS,
+        resend=2,
+    )
+
+    assert resend.idempotency_key == f"order-confirmation-mail:{ORDER_ID}:resend:2"
+    # ``recent_order_mails`` joins the order through this segment.
+    assert resend.idempotency_key.split(":")[1] == str(ORDER_ID)
+    assert resend.id != first.id
+    assert resend.event_type == first.event_type
+    assert resend.payload == first.payload
+    assert order_mail_key(OrderMailKind.CANCELLATION, ORDER_ID) == (
+        f"order-cancellation-mail:{ORDER_ID}"
+    )
+    with pytest.raises(ValueError):
+        order_mail_key(OrderMailKind.CONFIRMATION, ORDER_ID, resend=0)
+
+
+@pytest.mark.asyncio
+async def test_a_resend_is_sent_under_its_own_key_and_counts_for_the_limit() -> None:
+    sender = RecordingSender()
+    reader = Reader(facts(), recent=RECIPIENT_LIMIT)
+    event = order_mail_event(
+        OrderMailKind.CONFIRMATION,
+        action_id=ACTION_ID,
+        commitment_id=ORDER_ID,
+        links=LINKS,
+        resend=1,
+    )
+    job = replace(claimed(OrderMailKind.CONFIRMATION), id=event.id)
+    job = replace(job, idempotency_key=event.idempotency_key)
+    limited = OrderMailHandler(
+        OrderMailKind.CONFIRMATION,
+        reader=reader,
+        legal_configuration=Legal(legal()),
+        sender=sender,
+    )
+
+    with pytest.raises(OrderMailError) as captured:
+        await limited.handle(job)
+    assert captured.value.code == "order_mail_recipient_limit"
+    assert sender.events == []
+
+    reader.recent = 0
+    await limited.handle(job)
+    assert [sent.idempotency_key for sent in sender.events] == [
+        f"order-confirmation-mail:{ORDER_ID}:resend:1"
+    ]

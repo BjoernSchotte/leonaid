@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -12,6 +11,10 @@ from uuid import UUID
 import asyncpg
 
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
+from leonaid.adapters.postgres.order_mail_jobs import (
+    insert_order_mail_event,
+    internal_order_mails_enabled,
+)
 from leonaid.application.order_mails import (
     ORDER_MAIL_KEY_PREFIXES,
     OrderCancellationFacts,
@@ -19,33 +22,13 @@ from leonaid.application.order_mails import (
     OrderMailKind,
     mailbox_key,
 )
-from leonaid.domain.outbox import PendingOutboxEvent
+from leonaid.domain.commitments import CommitmentStatus
 
-
-async def insert_order_mail_event(
-    connection: asyncpg.Connection[Any],
-    event: PendingOutboxEvent,
-    occurred_at: datetime,
-) -> None:
-    """Write the mail job in the caller's transaction, at most once per key."""
-
-    await connection.execute(
-        """
-        INSERT INTO outbox_event (
-            id, aggregate_type, aggregate_id, event_type,
-            idempotency_key, payload, available_at, created_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $7)
-        ON CONFLICT (idempotency_key) DO NOTHING
-        """,
-        event.id,
-        event.aggregate_type,
-        event.aggregate_id,
-        event.event_type,
-        event.idempotency_key,
-        json.dumps(event.payload, separators=(",", ":")),
-        occurred_at,
-    )
+__all__ = [
+    "AsyncpgOrderMailReader",
+    "insert_order_mail_event",
+    "internal_order_mails_enabled",
+]
 
 
 class AsyncpgOrderMailReader:
@@ -58,9 +41,13 @@ class AsyncpgOrderMailReader:
         async with self._pool.acquire() as connection:
             row = await connection.fetchrow(
                 """
-                SELECT commitment.created_at, action.name AS action_name
+                SELECT commitment.created_at, action.name AS action_name,
+                    COALESCE(mails.internal_order_mails, false)
+                        AS internal_order_mails
                 FROM commitment
                 JOIN charity_action AS action ON action.id = commitment.action_id
+                LEFT JOIN action_buyer_mail_configuration AS mails
+                  ON mails.action_id = commitment.action_id
                 WHERE commitment.id = $1
                 """,
                 commitment_id,
@@ -74,7 +61,8 @@ class AsyncpgOrderMailReader:
             if kind is OrderMailKind.CANCELLATION:
                 cancelled = await connection.fetchrow(
                     """
-                    SELECT cancellation.requested_at, invoice.number
+                    SELECT cancellation.requested_at, invoice.number,
+                        cancellation.previous_status
                     FROM commitment_cancellation AS cancellation
                     LEFT JOIN invoice_cancellation
                       ON invoice_cancellation.id
@@ -94,12 +82,14 @@ class AsyncpgOrderMailReader:
                         if cancelled["number"] is not None
                         else None
                     ),
+                    previous_status=CommitmentStatus(str(cancelled["previous_status"])),
                 )
         return OrderMailFacts(
             action_name=str(row["action_name"]),
             commitment=commitment,
             ordered_at=row["created_at"],
             cancellation=cancellation,
+            internal_order_mails=bool(row["internal_order_mails"]),
         )
 
     async def was_sent(self, idempotency_key: str) -> bool:

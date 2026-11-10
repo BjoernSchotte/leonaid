@@ -14,6 +14,10 @@ from leonaid.adapters.postgres.retry import (
     serialization_pause,
 )
 from leonaid.adapters.postgres.invoice_payment_state import ACTIVE_PAID_MINOR_SQL
+from leonaid.adapters.postgres.order_mail_jobs import (
+    insert_order_mail_event,
+    internal_order_mails_enabled,
+)
 from leonaid.adapters.postgres.delivery import (
     guard_window_booking,
     read_configuration,
@@ -32,6 +36,12 @@ from leonaid.application.commitments import (
     CommitmentRepository,
 )
 from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFound
+from leonaid.application.order_mails import (
+    OrderMailKind,
+    OrderMailLinks,
+    mail_due,
+    order_mail_event,
+)
 from leonaid.domain.action_templates import OfferingStatus, OfferingUnit
 from leonaid.domain.captures import bounded_captured_at
 from leonaid.domain.commitments import (
@@ -44,6 +54,7 @@ from leonaid.domain.commitments import (
     InvoiceRecipientSnapshot,
     Money,
     Offering,
+    order_number,
 )
 from leonaid.domain.invoices import InvoiceStatus
 from leonaid.domain.order_cancellation import OrderCancellation, OrderInvoiceState
@@ -96,6 +107,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None = None,
     ) -> Commitment:
         async with self._pool.acquire() as connection:
             for attempt in range(SERIALIZABLE_ATTEMPTS):
@@ -112,6 +124,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                             request_hash=request_hash,
                             request_id=request_id,
                             occurred_at=occurred_at,
+                            mail_links=mail_links,
                         )
                 except RETRYABLE_ERRORS:
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
@@ -184,6 +197,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None,
     ) -> Commitment:
         await connection.execute(
             "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
@@ -317,7 +331,45 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             json.dumps({"commitmentId": str(commitment_id)}),
             occurred_at,
         )
-        return await self._get(connection, commitment_id, replayed=False)
+        completed = await self._get(connection, commitment_id, replayed=False)
+        await self._confirm_to_buyer(
+            connection, completed, mail_links=mail_links, occurred_at=occurred_at
+        )
+        return completed
+
+    @staticmethod
+    async def _confirm_to_buyer(
+        connection: asyncpg.Connection[Any],
+        commitment: Commitment,
+        *,
+        mail_links: OrderMailLinks | None,
+        occurred_at: datetime,
+    ) -> None:
+        """Queue the confirmation of an internal order that is review-ready.
+
+        Called in the transaction that makes the order ``review_ready`` (its
+        creation or the completion of its draft), once: a replay of either
+        command returns before this point, and the job key is the order's.
+        A later change of window or address sends no second confirmation.
+        """
+
+        if mail_links is None or not mail_due(
+            commitment,
+            internal_order_mails=await internal_order_mails_enabled(
+                connection, commitment.action_id
+            ),
+        ):
+            return
+        await insert_order_mail_event(
+            connection,
+            order_mail_event(
+                OrderMailKind.CONFIRMATION,
+                action_id=commitment.action_id,
+                commitment_id=commitment.id,
+                links=mail_links,
+            ),
+            occurred_at,
+        )
 
     async def capture_context(
         self,
@@ -412,6 +464,8 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                     invoice.status AS invoice_status,
                     {ACTIVE_PAID_MINOR_SQL} AS invoice_paid_minor,
                     COALESCE(delivery.state = 'delivered', false) AS delivered,
+                    COALESCE(mails.internal_order_mails, false)
+                        AS internal_order_mails,
                     cancellation.id AS cancellation_id,
                     cancellation.previous_status AS cancellation_previous_status,
                     cancellation.reason_snapshot AS cancellation_reason,
@@ -450,6 +504,8 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                   ON cancellation.commitment_id = commitment.id
                 LEFT JOIN user_account AS canceller
                   ON canceller.id = cancellation.requested_by_user_id
+                LEFT JOIN action_buyer_mail_configuration AS mails
+                  ON mails.action_id = commitment.action_id
                 WHERE commitment.action_id = $1
                 ORDER BY
                     commitment.created_at DESC,
@@ -481,6 +537,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None = None,
     ) -> Commitment:
         async with self._pool.acquire() as connection:
             for attempt in range(SERIALIZABLE_ATTEMPTS):
@@ -497,6 +554,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                             request_hash=request_hash,
                             request_id=request_id,
                             occurred_at=occurred_at,
+                            mail_links=mail_links,
                         )
                 except RETRYABLE_ERRORS:
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
@@ -521,6 +579,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None,
     ) -> Commitment:
         await connection.execute(
             "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
@@ -629,8 +688,9 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             total = total.plus(line.line_total)
         if draft.captured_at is not None:
             self._guard_quoted_prices(draft, priced_lines, total)
+        commitment_id = uuid4()
         commitment = Commitment(
-            id=uuid4(),
+            id=commitment_id,
             action_id=action_id,
             source=source,
             status=status,
@@ -643,6 +703,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             delivery_window_snapshot=window_snapshot,
             delivery_contact=draft.delivery_contact,
             message=draft.message,
+            public_reference=order_number(commitment_id),
             idempotency_key=idempotency_key,
             captured_at=captured_at,
         )
@@ -654,6 +715,9 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             request_hash=request_hash,
             occurred_at=occurred_at,
             full_window_booked=full_window_booked,
+        )
+        await self._confirm_to_buyer(
+            connection, commitment, mail_links=mail_links, occurred_at=occurred_at
         )
         return commitment
 
@@ -901,11 +965,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 if header["message_snapshot"] is not None
                 else None
             ),
-            public_reference=(
-                str(header["public_reference"])
-                if header["public_reference"] is not None
-                else None
-            ),
+            public_reference=str(header["public_reference"]),
             idempotency_key=(
                 str(header["idempotency_key"])
                 if header["idempotency_key"] is not None
@@ -967,6 +1027,13 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             cancellation=cancellation,
             invoice=invoice,
             delivered=bool(header["delivered"]),
+            buyer_mail_due=(
+                commitment.status is not CommitmentStatus.CANCELLED
+                and mail_due(
+                    commitment,
+                    internal_order_mails=bool(header["internal_order_mails"]),
+                )
+            ),
         )
 
     @staticmethod
@@ -1210,11 +1277,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 if row["message_snapshot"] is not None
                 else None
             ),
-            public_reference=(
-                str(row["public_reference"])
-                if row["public_reference"] is not None
-                else None
-            ),
+            public_reference=str(row["public_reference"]),
             idempotency_key=(
                 str(row["idempotency_key"])
                 if row["idempotency_key"] is not None

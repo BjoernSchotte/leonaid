@@ -52,6 +52,10 @@ export type BindSiteEditionRequest = { readonly actionId: string; readonly atRoo
 export type BindableActionResponse = { readonly archiveSlug: string; readonly availability: "published" | "archive" | "inactive"; readonly campaignPage: boolean; readonly id: string; readonly name: string; readonly status: string; };
 export type Body_addMaterialVersion = { readonly expectedRevision: number; readonly file: Blob; readonly idempotencyKey: string; };
 export type Body_createMaterial = { readonly actionId?: string | null; readonly file: Blob; readonly idempotencyKey: string; readonly title: string; };
+export type BuyerMailConfigurationRequest = { readonly deliveryDayMail: boolean; readonly deliveryDaySendTime: string; readonly expectedRevision: number; readonly internalOrderMails: boolean; };
+export type BuyerMailConfigurationResponse = { readonly actionId: string; readonly deliveryDayMail: boolean; readonly deliveryDaySendTime: string; readonly internalOrderMails: boolean; readonly revision: number; };
+export type BuyerMailListResponse = { readonly commitmentId: string; readonly mails: Array<BuyerMailStatusResponse>; };
+export type BuyerMailStatusResponse = { readonly canResend: boolean; readonly kind: "confirmation" | "cancellation"; readonly reason: "no_email" | "switched_off" | "order_draft" | "order_cancelled" | "not_requested" | "not_sent" | "recipient_limit" | "delivery_failed" | null; readonly sentAt: string | null; readonly state: "not_due" | "queued" | "sent" | "failed" | "skipped"; };
 export type CampaignAliasItemResponse = { readonly actionId: string; readonly alias: string; readonly aliasId: string; readonly enabled: boolean; readonly isPrimary: boolean; readonly revision: number; };
 export type CampaignAliasListResponse = { readonly actionId: string; readonly canonicalPath: string; readonly items: Array<CampaignAliasItemResponse>; readonly targets: Array<CampaignAliasTargetResponse>; };
 export type CampaignAliasMutationResponse = { readonly actionId: string; readonly alias: string; readonly aliasId: string; readonly enabled: boolean; readonly removed: boolean; readonly revision: number; };
@@ -85,8 +89,8 @@ export type CommitmentInvoiceSummaryResponse = { readonly id: string; readonly n
 export type CommitmentLineRequest = { readonly offeringId: string; readonly quantity: number; readonly quotedUnitPriceMinor?: number | null; readonly unit: "box" | "piece" | "package" | "sponsoring"; };
 export type CommitmentLineResponse = { readonly boxCount: number; readonly currency: string; readonly description: string; readonly id: string; readonly lineTotalMinor: number; readonly offeringId: string; readonly pieceCount: number; readonly piecesPerUnit: number | null; readonly quantity: number; readonly unit: "box" | "piece" | "package" | "sponsoring"; readonly unitPriceMinor: number; };
 export type CommitmentListResponse = { readonly actionId: string; readonly currencyTotals: Array<CommitmentCurrencyTotalResponse>; readonly items: Array<CommitmentRecordResponse>; readonly quantities: Array<UnitQuantityResponse>; readonly totalBoxes: number; readonly totalPieces: number; };
-export type CommitmentRecordResponse = { readonly cancellation?: CommitmentCancellationResponse | null; readonly capturedByDisplayName: string | null; readonly commitment: CommitmentResponse; readonly createdAt: string; readonly delivered?: boolean; readonly invoice?: CommitmentInvoiceSummaryResponse | null; };
-export type CommitmentResponse = { readonly actionId: string; readonly buyer: CommitmentBuyerResponse; readonly capturedAt?: string | null; readonly currency: string; readonly deliveryCompletionVersion: string; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; readonly deliveryWindowSnapshot?: Record<string, string> | null; readonly id: string; readonly invoiceRecipient: CommitmentInvoiceRecipientResponse | null; readonly lines: Array<CommitmentLineResponse>; readonly quantities: Array<UnitQuantityResponse>; readonly replayed: boolean; readonly source: "acquisition" | "public_form" | "admin"; readonly status: "draft" | "review_ready" | "confirmed" | "invoiced" | "cancelled"; readonly totalBoxes: number; readonly totalMinor: number; readonly totalPieces: number; };
+export type CommitmentRecordResponse = { readonly buyerMailDue: boolean; readonly cancellation?: CommitmentCancellationResponse | null; readonly capturedByDisplayName: string | null; readonly commitment: CommitmentResponse; readonly createdAt: string; readonly delivered?: boolean; readonly invoice?: CommitmentInvoiceSummaryResponse | null; };
+export type CommitmentResponse = { readonly actionId: string; readonly buyer: CommitmentBuyerResponse; readonly capturedAt?: string | null; readonly currency: string; readonly deliveryCompletionVersion: string; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; readonly deliveryWindowSnapshot?: Record<string, string> | null; readonly id: string; readonly invoiceRecipient: CommitmentInvoiceRecipientResponse | null; readonly lines: Array<CommitmentLineResponse>; readonly publicReference: string; readonly quantities: Array<UnitQuantityResponse>; readonly replayed: boolean; readonly source: "acquisition" | "public_form" | "admin"; readonly status: "draft" | "review_ready" | "confirmed" | "invoiced" | "cancelled"; readonly totalBoxes: number; readonly totalMinor: number; readonly totalPieces: number; };
 export type CompleteCommitmentDeliveryRequest = { readonly allowFullWindow?: boolean; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; readonly expectedVersion: string; readonly invoiceRecipient: CommitmentInvoiceRecipientRequest; };
 export type CompleteCommitmentRequest = { readonly allowFullWindow?: boolean; readonly capturedAt?: string | null; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; };
 export type CompleteFreshLoginRequest = { readonly code?: string | null; readonly magicToken?: string | null; };
@@ -835,6 +839,33 @@ export class LeonAidApiClient {
     );
   }
 
+  async getBuyerMailConfiguration(
+    actionId: string,
+    options: RequestOptions = {},
+  ): Promise<BuyerMailConfigurationResponse> {
+    return this.request<BuyerMailConfigurationResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/buyer-mail-configuration`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async saveBuyerMailConfiguration(
+    actionId: string,
+    body: BuyerMailConfigurationRequest,
+    options: RequestOptions = {},
+  ): Promise<BuyerMailConfigurationResponse> {
+    return this.request<BuyerMailConfigurationResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/buyer-mail-configuration`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
   async setCharityActionCapabilities(
     actionId: string,
     body: SetActionCapabilitiesRequest,
@@ -897,6 +928,31 @@ export class LeonAidApiClient {
     return this.request<CommitmentResponse>(
       `/api/v1/actions/${encodeURIComponent(String(actionId))}/commitments/${encodeURIComponent(String(commitmentId))}`,
       { method: "GET" },
+      options,
+    );
+  }
+
+  async listBuyerMails(
+    actionId: string,
+    commitmentId: string,
+    options: RequestOptions = {},
+  ): Promise<BuyerMailListResponse> {
+    return this.request<BuyerMailListResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/commitments/${encodeURIComponent(String(commitmentId))}/buyer-mails`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async resendBuyerMail(
+    actionId: string,
+    commitmentId: string,
+    kind: "confirmation" | "cancellation",
+    options: RequestOptions = {},
+  ): Promise<BuyerMailStatusResponse> {
+    return this.request<BuyerMailStatusResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/commitments/${encodeURIComponent(String(commitmentId))}/buyer-mails/${encodeURIComponent(String(kind))}/resend`,
+      { method: "POST" },
       options,
     );
   }

@@ -20,6 +20,15 @@ COUNTRY_CODE = re.compile(r"^[A-Z]{2}$")
 PUBLIC_REFERENCE = re.compile(r"^LA-[A-F0-9]{32}$")
 
 
+def order_number(commitment_id: UUID) -> str:
+    """The order number of an order, derived from its id.
+
+    Migration 0062 backfills older internal orders with the same rule in SQL.
+    """
+
+    return f"LA-{commitment_id.hex.upper()}"
+
+
 class CommitmentSource(StrEnum):
     ACQUISITION = "acquisition"
     PUBLIC_FORM = "public_form"
@@ -451,7 +460,9 @@ class Commitment:
     delivery_contact: DeliveryContactSnapshot | None = None
     delivery_recipient: DeliveryRecipientSnapshot | None = None
     message: str | None = None
-    public_reference: str | None = None
+    # The order number the buyer can quote; every order has one. Left empty
+    # it is derived from the id (``order_number``), as for a new order.
+    public_reference: str = ""
     idempotency_key: str | None = None
     replayed: bool = False
     # When the acquirer saved the order on the device (PWA queue); history
@@ -510,18 +521,12 @@ class Commitment:
                     "Die Nachricht darf höchstens 1000 Zeichen enthalten.",
                 )
             object.__setattr__(self, "message", normalized_message or None)
-        if self.source is CommitmentSource.PUBLIC_FORM:
-            if self.public_reference is None or not PUBLIC_REFERENCE.fullmatch(
-                self.public_reference
-            ):
-                raise DomainInvariantError(
-                    "commitment_public_reference_invalid",
-                    "Eine öffentliche Bestellung benötigt eine gültige Referenz.",
-                )
-        elif self.public_reference is not None:
+        if not self.public_reference:
+            object.__setattr__(self, "public_reference", order_number(self.id))
+        if not PUBLIC_REFERENCE.fullmatch(self.public_reference):
             raise DomainInvariantError(
-                "commitment_public_reference_forbidden",
-                "Nur öffentliche Bestellungen besitzen eine öffentliche Referenz.",
+                "commitment_public_reference_invalid",
+                "Eine Bestellung benötigt eine gültige Bestellnummer.",
             )
 
     @property

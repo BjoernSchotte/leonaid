@@ -1439,11 +1439,8 @@ async def seed_operational_golden(
             if isinstance(delivery, dict)
             else None
         )
-        public_reference = (
-            f"LA-{str(commitment['id']).replace('-', '').upper()}"
-            if source[str(commitment["source"])] == "public_form"
-            else None
-        )
+        # Every order has an order number (migration 0062).
+        public_reference = f"LA-{str(commitment['id']).replace('-', '').upper()}"
         created_at = GOLDEN_COMMITMENT_CREATED_AT + timedelta(minutes=commitment_index)
         await connection.execute(
             """

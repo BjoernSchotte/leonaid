@@ -102,6 +102,7 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
     /repo/tests/integration/test_search_api.py \
     /repo/tests/integration/test_order_cancellation_api.py \
     /repo/tests/integration/test_offline_capture_api.py \
+    /repo/tests/integration/test_buyer_mails_api.py \
     /repo/tests/integration/test_public_origins_api.py \
     /repo/tests/integration/test_public_campaigns_api.py \
     /repo/tests/integration/test_preferred_surface_service.py \
@@ -371,6 +372,44 @@ compose run --rm --no-deps --entrypoint alembic api downgrade "$flag_parent"
   exit 1
 }
 compose run --rm --no-deps --entrypoint alembic api upgrade head
+
+echo "poc021-test: 0062 gives every order a number and every action its mail switches"
+mails_parent=$(sed -n 's/^down_revision: str | None = "\(.*\)"$/\1/p' \
+  "$root/migrations/versions/0062_buyer_mails.py")
+[ -n "$mails_parent" ] || {
+  echo "poc021-test: ERROR: 0062 names no down_revision" >&2
+  exit 1
+}
+# The legacy order is an admin order from before order numbers for all.
+legacy_number="SELECT public_reference FROM commitment WHERE id = '80000000-0000-4000-8000-000000000001';"
+buyer_mail_state() {
+  printf '%s\n' "$legacy_number SELECT count(*) FROM commitment WHERE public_reference IS NULL; SELECT count(*) FROM charity_action AS action WHERE NOT EXISTS (SELECT 1 FROM action_buyer_mail_configuration AS mails WHERE mails.action_id = action.id AND NOT mails.internal_order_mails AND NOT mails.delivery_day_mail AND mails.delivery_day_send_time = '07:00' AND mails.revision = 1);" | preference_sql | tr '\n' ' '
+}
+state=$(buyer_mail_state)
+[ "$state" = "LA-80000000000040008000000000000001 0 0 " ] || {
+  echo "poc021-test: ERROR: 0062 left an order without a number or an action without switched-off mail settings: $state" >&2
+  exit 1
+}
+if printf '%s\n' "UPDATE commitment SET public_reference = NULL WHERE id = '80000000-0000-4000-8000-000000000001';" | preference_sql 2>/dev/null; then
+  echo "poc021-test: ERROR: 0062 accepted an order without a number" >&2
+  exit 1
+fi
+if printf '%s\n' "UPDATE action_buyer_mail_configuration SET delivery_day_send_time = '12:30';" | preference_sql 2>/dev/null; then
+  echo "poc021-test: ERROR: 0062 accepted a send time after noon" >&2
+  exit 1
+fi
+compose run --rm --no-deps --entrypoint alembic api downgrade "$mails_parent"
+state=$(printf '%s\n' "SELECT count(*) FROM commitment WHERE source <> 'public_form' AND public_reference IS NOT NULL; SELECT count(*) FROM pg_constraint WHERE conname = 'ck_commitment_public_reference'; SELECT count(*) FROM information_schema.tables WHERE table_name = 'action_buyer_mail_configuration';" | preference_sql | tr '\n' ' ')
+[ "$state" = "0 1 0 " ] || {
+  echo "poc021-test: ERROR: 0062 downgrade did not restore the old order-number rule: $state" >&2
+  exit 1
+}
+compose run --rm --no-deps --entrypoint alembic api upgrade head
+state=$(buyer_mail_state)
+[ "$state" = "LA-80000000000040008000000000000001 0 0 " ] || {
+  echo "poc021-test: ERROR: 0062 upgrade after a downgrade lost the order number: $state" >&2
+  exit 1
+}
 
 echo "poc021-test: 0050 downgrade refuses payment data the old schema cannot hold"
 payment_guard() {

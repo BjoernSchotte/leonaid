@@ -2170,6 +2170,179 @@
         "title": "Body_createMaterial",
         "type": "object"
       },
+      "BuyerMailConfigurationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "deliveryDayMail": {
+            "description": "The mail on the delivery day; needs the `delivery` capability.",
+            "title": "Deliverydaymail",
+            "type": "boolean"
+          },
+          "deliveryDaySendTime": {
+            "description": "Local time of the action, `HH:MM`, from 05:00 to 12:00.",
+            "examples": [
+              "07:00"
+            ],
+            "pattern": "^\\d{2}:\\d{2}$",
+            "title": "Deliverydaysendtime",
+            "type": "string"
+          },
+          "expectedRevision": {
+            "minimum": 1.0,
+            "title": "Expectedrevision",
+            "type": "integer"
+          },
+          "internalOrderMails": {
+            "description": "Confirmation and cancellation notice for orders that members and acquirers enter.",
+            "title": "Internalordermails",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "expectedRevision",
+          "internalOrderMails",
+          "deliveryDayMail",
+          "deliveryDaySendTime"
+        ],
+        "title": "BuyerMailConfigurationRequest",
+        "type": "object"
+      },
+      "BuyerMailConfigurationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "deliveryDayMail": {
+            "title": "Deliverydaymail",
+            "type": "boolean"
+          },
+          "deliveryDaySendTime": {
+            "examples": [
+              "07:00"
+            ],
+            "pattern": "^\\d{2}:\\d{2}$",
+            "title": "Deliverydaysendtime",
+            "type": "string"
+          },
+          "internalOrderMails": {
+            "title": "Internalordermails",
+            "type": "boolean"
+          },
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "actionId",
+          "internalOrderMails",
+          "deliveryDayMail",
+          "deliveryDaySendTime",
+          "revision"
+        ],
+        "title": "BuyerMailConfigurationResponse",
+        "type": "object"
+      },
+      "BuyerMailListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "commitmentId": {
+            "format": "uuid",
+            "title": "Commitmentid",
+            "type": "string"
+          },
+          "mails": {
+            "items": {
+              "$ref": "#/components/schemas/BuyerMailStatusResponse"
+            },
+            "title": "Mails",
+            "type": "array"
+          }
+        },
+        "required": [
+          "commitmentId",
+          "mails"
+        ],
+        "title": "BuyerMailListResponse",
+        "type": "object"
+      },
+      "BuyerMailStatusResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "canResend": {
+            "description": "`resendBuyerMail` is allowed for this kind now.",
+            "title": "Canresend",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "confirmation",
+              "cancellation"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "no_email",
+                  "switched_off",
+                  "order_draft",
+                  "order_cancelled",
+                  "not_requested",
+                  "not_sent",
+                  "recipient_limit",
+                  "delivery_failed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set for `not_due`, `skipped` and `failed`.",
+            "title": "Reason"
+          },
+          "sentAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the mail of this kind was last sent, if ever.",
+            "title": "Sentat"
+          },
+          "state": {
+            "enum": [
+              "not_due",
+              "queued",
+              "sent",
+              "failed",
+              "skipped"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "state",
+          "sentAt",
+          "reason",
+          "canResend"
+        ],
+        "title": "BuyerMailStatusResponse",
+        "type": "object"
+      },
       "CampaignAliasItemResponse": {
         "additionalProperties": false,
         "properties": {
@@ -3669,6 +3842,11 @@
       "CommitmentRecordResponse": {
         "additionalProperties": false,
         "properties": {
+          "buyerMailDue": {
+            "description": "Cancelling this order now sends the buyer a cancellation notice: the buyer has an e-mail address and the order came through the public form or the action sends mails for orders that members enter. False for a cancelled order.",
+            "title": "Buyermaildue",
+            "type": "boolean"
+          },
           "cancellation": {
             "anyOf": [
               {
@@ -3718,7 +3896,8 @@
         "required": [
           "commitment",
           "createdAt",
-          "capturedByDisplayName"
+          "capturedByDisplayName",
+          "buyerMailDue"
         ],
         "title": "CommitmentRecordResponse",
         "type": "object"
@@ -3824,6 +4003,11 @@
             "title": "Lines",
             "type": "array"
           },
+          "publicReference": {
+            "description": "The order number the buyer can quote (`LA-…`). Every order has one, whatever its source.",
+            "title": "Publicreference",
+            "type": "string"
+          },
           "quantities": {
             "items": {
               "$ref": "#/components/schemas/UnitQuantityResponse"
@@ -3877,6 +4061,7 @@
           "actionId",
           "source",
           "status",
+          "publicReference",
           "buyer",
           "invoiceRecipient",
           "lines",
@@ -21446,6 +21631,212 @@
         ]
       }
     },
+    "/api/v1/actions/{action_id}/buyer-mail-configuration": {
+      "get": {
+        "description": "The action's switches for mails to buyers. Managers only.",
+        "operationId": "getBuyerMailConfiguration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuyerMailConfigurationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Get Buyer Mail Configuration",
+        "tags": [
+          "actions"
+        ]
+      },
+      "put": {
+        "description": "Change the switches in any status of the action.\n\nAnswers 409 for a stale `expectedRevision` and when `deliveryDayMail` is\nset for an action without the `delivery` capability.",
+        "operationId": "saveBuyerMailConfiguration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BuyerMailConfigurationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuyerMailConfigurationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Save Buyer Mail Configuration",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
     "/api/v1/actions/{action_id}/capabilities": {
       "put": {
         "operationId": "setCharityActionCapabilities",
@@ -21964,6 +22355,237 @@
           }
         },
         "summary": "Get Commitment",
+        "tags": [
+          "commitments"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/commitments/{commitment_id}/buyer-mails": {
+      "get": {
+        "description": "The mails to the buyer of one order: one entry per kind that applies.\n\nThe confirmation always, the cancellation notice once the order is\ncancelled. Managers only.",
+        "operationId": "listBuyerMails",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "commitment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Commitment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuyerMailListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "List Buyer Mails",
+        "tags": [
+          "commitments"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/commitments/{commitment_id}/buyer-mails/{kind}/resend": {
+      "post": {
+        "description": "Send a mail to the buyer again.\n\nAllowed for a mail that was sent or that failed. Answers 409 while the\nmail waits in the queue or is not due (no address, cancelled order for a\nconfirmation, switched off). The worker applies the limit per mailbox.\nIdempotent per `Idempotency-Key`.",
+        "operationId": "resendBuyerMail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "commitment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Commitment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "confirmation",
+                "cancellation"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuyerMailStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Resend Buyer Mail",
         "tags": [
           "commitments"
         ]

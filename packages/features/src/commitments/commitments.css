@@ -560,6 +560,34 @@
   justify-content: flex-end;
   margin-bottom: var(--s-2);
 }
+/* The order number is 35 characters long: it may wrap in a narrow pane. */
+.commitment-reference {
+  overflow-wrap: anywhere;
+}
+.buyer-mails {
+  display: grid;
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.buyer-mails li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+.buyer-mail-text {
+  display: grid;
+  gap: var(--s-1);
+  min-width: 0;
+}
+.buyer-mail-kind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
 .commitment-address {
   display: grid;
   gap: var(--s-0);

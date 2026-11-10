@@ -11,6 +11,7 @@ from typing import Protocol
 from uuid import UUID
 
 from leonaid.application.errors import PermissionDenied
+from leonaid.application.order_mails import OrderMailLinkResolver, OrderMailLinks
 from leonaid.application.policies import require_action_manager
 from leonaid.domain.action_templates import OfferingUnit
 from leonaid.domain.commitments import (
@@ -220,6 +221,9 @@ class CommitmentRecord:
     cancellation: OrderCancellation | None = None
     invoice: OrderInvoiceState | None = None
     delivered: bool = False
+    # Cancelling this order now would send the buyer a notice
+    # (``order_mails.mail_not_due_reason``); false for a cancelled order.
+    buyer_mail_due: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -260,6 +264,7 @@ class CommitmentRepository(Protocol):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None = None,
     ) -> Commitment: ...
 
     async def capture_context(
@@ -287,12 +292,27 @@ class CommitmentRepository(Protocol):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None = None,
     ) -> Commitment: ...
 
 
 class CommitmentService:
-    def __init__(self, repository: CommitmentRepository) -> None:
+    def __init__(
+        self,
+        repository: CommitmentRepository,
+        *,
+        mail_links: OrderMailLinkResolver | None = None,
+    ) -> None:
         self._repository = repository
+        # Without a resolver no order confirmation is queued.
+        self._mail_links = mail_links
+
+    async def _links(self, action_id: UUID) -> OrderMailLinks | None:
+        """Resolved before the order transaction holds a connection."""
+
+        if self._mail_links is None:
+            return None
+        return await self._mail_links.for_action(action_id)
 
     @staticmethod
     def _require_capture(actor: IdentityPrincipal, action_id: UUID) -> None:
@@ -350,6 +370,7 @@ class CommitmentService:
             ),
             request_id=request_id,
             occurred_at=moment,
+            mail_links=await self._links(action_id),
         )
 
     async def capture_context(
@@ -461,4 +482,5 @@ class CommitmentService:
             ),
             request_id=request_id,
             occurred_at=moment,
+            mail_links=await self._links(action_id),
         )

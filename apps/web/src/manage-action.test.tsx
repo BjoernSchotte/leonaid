@@ -12,6 +12,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   type ActionManagementResponse,
+  type BuyerMailConfigurationRequest,
+  type BuyerMailConfigurationResponse,
   type CharityActionConfigurationResponse,
   type CharityActionResponse,
   type CurrentIdentityResponse,
@@ -148,6 +150,14 @@ const delivery: DeliveryConfigurationResponse = {
   ],
 };
 
+const buyerMails: BuyerMailConfigurationResponse = {
+  actionId,
+  deliveryDayMail: false,
+  deliveryDaySendTime: "07:00",
+  internalOrderMails: false,
+  revision: 3,
+};
+
 function fakeClient(state: ActionManagementResponse = management()) {
   return {
     getCharityActionManagement: vi.fn(async () => state),
@@ -258,6 +268,21 @@ function fakeClient(state: ActionManagementResponse = management()) {
     ),
     setCharityActionPublication: vi.fn(),
     updateCampaignAlias: vi.fn(),
+    getBuyerMailConfiguration: vi.fn(
+      async (): Promise<BuyerMailConfigurationResponse> => buyerMails,
+    ),
+    saveBuyerMailConfiguration: vi.fn(
+      async (
+        _id: string,
+        body: BuyerMailConfigurationRequest,
+      ): Promise<BuyerMailConfigurationResponse> => ({
+        actionId,
+        deliveryDayMail: body.deliveryDayMail,
+        deliveryDaySendTime: body.deliveryDaySendTime,
+        internalOrderMails: body.internalOrderMails,
+        revision: body.expectedRevision + 1,
+      }),
+    ),
   };
 }
 
@@ -650,6 +675,89 @@ describe("action detail", () => {
     expect(window.location.hash).toBe("#overview/edit");
     fireEvent.click(screen.getByTestId("action-edit-done"));
     expect(screen.queryByTestId("manage-name")).toBeNull();
+  });
+
+  it("switches the buyer mails for internal orders at once, with the row's revision", async () => {
+    const client = await renderPage("#overview/edit");
+    const section = await screen.findByTestId("buyer-mail-section");
+    expect(section.textContent).toContain("E-Mails an Käufer");
+    // The switch says what the buyer gets and when.
+    expect(section.textContent).toContain(
+      "Der Käufer erhält eine Bestellbestätigung, sobald die Bestellung prüfbereit ist, und eine Nachricht, wenn sie storniert wird.",
+    );
+    const toggle = within(section).getByRole("switch", {
+      name: "E-Mails für Bestellungen, die Mitglieder erfassen",
+    }) as HTMLInputElement;
+    expect(toggle.checked).toBe(false);
+    expect(within(section).getByText("Aus")).toBeTruthy();
+    fireEvent.click(toggle);
+    await waitFor(() =>
+      expect(client.saveBuyerMailConfiguration).toHaveBeenCalledWith(actionId, {
+        deliveryDayMail: false,
+        deliveryDaySendTime: "07:00",
+        expectedRevision: 3,
+        internalOrderMails: true,
+      }),
+    );
+    await within(section).findByText("An");
+    expect(
+      (
+        within(section).getByRole("switch", {
+          name: "E-Mails für Bestellungen, die Mitglieder erfassen",
+        }) as HTMLInputElement
+      ).checked,
+    ).toBe(true);
+    // The next change sends the revision the server answered with.
+    fireEvent.click(within(section).getByRole("switch"));
+    await waitFor(() =>
+      expect(client.saveBuyerMailConfiguration).toHaveBeenLastCalledWith(
+        actionId,
+        expect.objectContaining({
+          expectedRevision: 4,
+          internalOrderMails: false,
+        }),
+      ),
+    );
+    // The action's own revision is not involved.
+    expect(client.setCharityActionDetails).not.toHaveBeenCalled();
+  });
+
+  it("shows the changed switches after a conflict and the server's message", async () => {
+    const client = fakeClient();
+    client.saveBuyerMailConfiguration.mockRejectedValue(
+      new ApiError(409, {
+        code: "buyer_mail_configuration_conflict",
+        message:
+          "Die Einstellungen wurden inzwischen geändert. Bitte den aktuellen Stand laden.",
+        requestId: "req-9",
+      }),
+    );
+    await renderPage("#overview/edit", client);
+    const section = await screen.findByTestId("buyer-mail-section");
+    client.getBuyerMailConfiguration.mockResolvedValue({
+      ...buyerMails,
+      internalOrderMails: true,
+      revision: 4,
+    });
+    fireEvent.click(within(section).getByRole("switch"));
+    expect(
+      await within(section).findByText(
+        /Die Einstellungen wurden inzwischen geändert\./,
+      ),
+    ).toBeTruthy();
+    await waitFor(() =>
+      expect(
+        (within(section).getByRole("switch") as HTMLInputElement).checked,
+      ).toBe(true),
+    );
+  });
+
+  it("offers no buyer mail switches for an action without orders", async () => {
+    const client = fakeClient(management({ capabilities: ["acquisition"] }));
+    await renderPage("#overview/edit", client);
+    await screen.findByTestId("action-edit-forms");
+    expect(screen.queryByTestId("buyer-mail-section")).toBeNull();
+    expect(client.getBuyerMailConfiguration).not.toHaveBeenCalled();
   });
 
   it("is read-only when archived: no edit, no next step", async () => {

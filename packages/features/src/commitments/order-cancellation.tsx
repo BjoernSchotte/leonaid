@@ -54,18 +54,6 @@ export function invoiceToCancel(record: CommitmentRecordResponse) {
     : null;
 }
 
-/**
- * True when the server sends the buyer a cancellation notice: orders from
- * the public form whose buyer address still exists (application/order_mails).
- */
-export function notifiesBuyer(record: CommitmentRecordResponse): boolean {
-  const { commitment } = record;
-  return (
-    commitment.source === "public_form" &&
-    Boolean(commitment.buyer.email?.trim())
-  );
-}
-
 const draftKey = (commitmentId: string) => `order-cancellation:${commitmentId}`;
 const commandStorageKey = (commitmentId: string) =>
   `leonaid.order-cancellation.${commitmentId}`;
@@ -273,7 +261,8 @@ export function OrderCancellationDialog({
               />
             </Field>
             <StatusMessage tone="info">
-              {notifiesBuyer(record)
+              {/* The server decides who gets a notice (buyerMailDue). */}
+              {record.buyerMailDue
                 ? "Der Besteller erhält eine E-Mail über die Stornierung, ohne Grund und Notiz."
                 : "LeonAid benachrichtigt den Besteller nicht automatisch. Bitte informieren Sie ihn selbst über die Stornierung."}
             </StatusMessage>

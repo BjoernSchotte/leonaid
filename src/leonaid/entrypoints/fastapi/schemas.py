@@ -1373,6 +1373,12 @@ class CommitmentResponse(TransportModel):
     delivery_window_id: UUID | None = None
     delivery_window_snapshot: dict[str, str] | None = None
     delivery_contact: DeliveryContactRequest | None = None
+    public_reference: str = Field(
+        description=(
+            "The order number the buyer can quote (`LA-…`). Every order has "
+            "one, whatever its source."
+        )
+    )
     buyer: CommitmentBuyerResponse
     invoice_recipient: CommitmentInvoiceRecipientResponse | None
     lines: list[CommitmentLineResponse]
@@ -1444,6 +1450,14 @@ class CommitmentRecordResponse(TransportModel):
         default=False,
         description="Marked delivered on the delivery board; blocks cancellation.",
     )
+    buyer_mail_due: bool = Field(
+        description=(
+            "Cancelling this order now sends the buyer a cancellation notice: "
+            "the buyer has an e-mail address and the order came through the "
+            "public form or the action sends mails for orders that members "
+            "enter. False for a cancelled order."
+        )
+    )
 
 
 class CancelCommitmentRequest(TransportModel):
@@ -1456,6 +1470,64 @@ class CommitmentCancellationResultResponse(TransportModel):
     commitment: CommitmentResponse
     cancellation: CommitmentCancellationResponse
     replayed: bool
+
+
+BuyerMailKindValue = Literal["confirmation", "cancellation"]
+
+
+class BuyerMailConfigurationRequest(TransportModel):
+    expected_revision: int = Field(ge=1)
+    internal_order_mails: bool = Field(
+        description=(
+            "Confirmation and cancellation notice for orders that members "
+            "and acquirers enter."
+        )
+    )
+    delivery_day_mail: bool = Field(
+        description="The mail on the delivery day; needs the `delivery` capability."
+    )
+    delivery_day_send_time: str = Field(
+        pattern=r"^\d{2}:\d{2}$",
+        description="Local time of the action, `HH:MM`, from 05:00 to 12:00.",
+        examples=["07:00"],
+    )
+
+
+class BuyerMailConfigurationResponse(TransportModel):
+    action_id: UUID
+    internal_order_mails: bool
+    delivery_day_mail: bool
+    delivery_day_send_time: str = Field(pattern=r"^\d{2}:\d{2}$", examples=["07:00"])
+    revision: int = Field(ge=1)
+
+
+class BuyerMailStatusResponse(TransportModel):
+    kind: BuyerMailKindValue
+    state: Literal["not_due", "queued", "sent", "failed", "skipped"]
+    sent_at: datetime | None = Field(
+        description="When the mail of this kind was last sent, if ever."
+    )
+    reason: (
+        Literal[
+            "no_email",
+            "switched_off",
+            "order_draft",
+            "order_cancelled",
+            "not_requested",
+            "not_sent",
+            "recipient_limit",
+            "delivery_failed",
+        ]
+        | None
+    ) = Field(description="Set for `not_due`, `skipped` and `failed`.")
+    can_resend: bool = Field(
+        description="`resendBuyerMail` is allowed for this kind now."
+    )
+
+
+class BuyerMailListResponse(TransportModel):
+    commitment_id: UUID
+    mails: list[BuyerMailStatusResponse]
 
 
 class CommitmentCurrencyTotalResponse(TransportModel):

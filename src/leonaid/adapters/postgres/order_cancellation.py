@@ -24,9 +24,12 @@ from uuid import UUID, uuid4
 import asyncpg
 
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
-from leonaid.adapters.postgres.delivery_board import order_link, order_reference
+from leonaid.adapters.postgres.delivery_board import order_link
 from leonaid.adapters.postgres.invoice_payment_state import ACTIVE_PAID_MINOR_SQL
-from leonaid.adapters.postgres.order_mails import insert_order_mail_event
+from leonaid.adapters.postgres.order_mails import (
+    insert_order_mail_event,
+    internal_order_mails_enabled,
+)
 from leonaid.adapters.postgres.invoice_settlements import (
     AsyncpgInvoiceSettlementRepository,
 )
@@ -384,9 +387,15 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
             ),
             occurred_at,
         )
-        if mail_links is not None and mail_due(order):
-            # The buyer of a public order learns about the cancellation; one
-            # notice per order, since a cancelled order cannot be reopened.
+        if mail_links is not None and mail_due(
+            order,
+            internal_order_mails=await internal_order_mails_enabled(
+                connection, action_id
+            ),
+        ):
+            # The buyer learns about the cancellation (``mail_not_due_reason``
+            # says which orders); one notice per order, since a cancelled
+            # order cannot be reopened.
             await insert_order_mail_event(
                 connection,
                 order_mail_event(
@@ -403,10 +412,7 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
                 connection,
                 action_id=action_id,
                 commitment_id=commitment_id,
-                title=(
-                    "Nachliefern: Bestellung "
-                    f"{order_reference(commitment_id, order.public_reference)}"
-                ),
+                title=(f"Nachliefern: Bestellung {order.public_reference}"),
                 description=(
                     f"Bestellung öffnen: {order_link(action_id, commitment_id)}"
                 ),

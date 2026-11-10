@@ -21,6 +21,7 @@ from leonaid.domain.commitments import (
     Money,
     Offering,
     UnitQuantity,
+    order_number,
 )
 from leonaid.domain.errors import DomainInvariantError
 
@@ -160,13 +161,14 @@ def test_commitment_sources_keep_buyer_recipient_and_lines_separate(
         delivery_recipient=(
             delivery() if source is CommitmentSource.PUBLIC_FORM else None
         ),
-        public_reference=(
-            "LA-80000000000040008000000000000099"
-            if source is CommitmentSource.PUBLIC_FORM
-            else None
-        ),
     )
 
+    # Every order has an order number, whatever its source.
+    assert commitment.public_reference == "LA-80000000000040008000000000000099"
+    assert commitment.public_reference == order_number(commitment.id)
+    with pytest.raises(DomainInvariantError) as captured:
+        replace(commitment, public_reference="LA-7F3K2")
+    assert captured.value.code == "commitment_public_reference_invalid"
     assert commitment.buyer.display_name == "Musterwerk GmbH"
     assert commitment.invoice_recipient is not None
     assert commitment.invoice_recipient.recipient_name == "Musterwerk Rechnungseingang"

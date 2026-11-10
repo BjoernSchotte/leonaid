@@ -59,6 +59,7 @@ function order(
   extra: Partial<CommitmentResponse> = {},
 ): CommitmentRecordResponse {
   return {
+    buyerMailDue: false,
     capturedByDisplayName: "Anna Akquise",
     createdAt: `2026-11-0${id.slice(-1)}T09:00:00Z`,
     commitment: {
@@ -80,6 +81,7 @@ function order(
         recipientName: buyer,
         streetLine1: "Löwenweg 12",
       },
+      publicReference: `LA-${id.toUpperCase().padStart(32, "0")}`,
       lines: [
         {
           boxCount: 2,
@@ -171,6 +173,18 @@ const identity: CurrentIdentityResponse = {
 function fakeClient() {
   return {
     listCommitments: vi.fn(async () => list),
+    listBuyerMails: vi.fn(async (_action: string, commitmentId: string) => ({
+      commitmentId,
+      mails: [
+        {
+          canResend: false,
+          kind: "confirmation",
+          reason: "switched_off",
+          sentAt: null,
+          state: "not_due",
+        },
+      ],
+    })),
     getDeliveryConfiguration: vi.fn(async () => ({
       actionId,
       enabled: false,
@@ -892,8 +906,33 @@ describe("order cancellation", () => {
     ).toBeNull();
   });
 
-  it("tells that the buyer of a public order gets an e-mail", async () => {
-    const publicOrder = order("c4", "Café Mitte", "review_ready", {
+  it("tells that the buyer gets an e-mail when the server says so", async () => {
+    // The server decides (buyerMailDue); here an order a member entered,
+    // in an action that sends mails for such orders.
+    const notified = {
+      ...order("c4", "Café Mitte", "review_ready", {
+        buyer: {
+          displayName: "Café Mitte",
+          email: "kasse@cafe-mitte.leonaid.invalid",
+          partyKind: "company",
+          twentyId: "t-c4",
+        },
+        source: "admin",
+      }),
+      buyerMailDue: true,
+    };
+    const { client } = clientWith([notified]);
+    await renderPage("?view=all&open=c4", client);
+    fireEvent.click(await screen.findByTestId("open-order-cancellation"));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain(
+      "Der Besteller erhält eine E-Mail über die Stornierung, ohne Grund und Notiz.",
+    );
+    expect(dialog.textContent).not.toContain("nicht automatisch");
+  });
+
+  it("does not copy the rule: a public order without buyerMailDue is not announced", async () => {
+    const erased = order("c4", "Café Mitte", "review_ready", {
       buyer: {
         displayName: "Café Mitte",
         email: "kasse@cafe-mitte.leonaid.invalid",
@@ -902,14 +941,13 @@ describe("order cancellation", () => {
       },
       source: "public_form",
     });
-    const { client } = clientWith([publicOrder]);
+    const { client } = clientWith([erased]);
     await renderPage("?view=all&open=c4", client);
     fireEvent.click(await screen.findByTestId("open-order-cancellation"));
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog.textContent).toContain(
-      "Der Besteller erhält eine E-Mail über die Stornierung, ohne Grund und Notiz.",
+      "LeonAid benachrichtigt den Besteller nicht automatisch.",
     );
-    expect(dialog.textContent).not.toContain("nicht automatisch");
   });
 
   it("names the open invoice it cancels with the order", async () => {
@@ -1062,5 +1100,153 @@ describe("order cancellation", () => {
       .querySelector('[data-order-id="c1"]')!
       .closest("li") as HTMLElement;
     expect(row.querySelector(".is-struck")).toBeTruthy();
+  });
+});
+
+describe("order number and buyer mails in the order pane", () => {
+  type Mail = Awaited<
+    ReturnType<LeonAidApiClient["listBuyerMails"]>
+  >["mails"][number];
+
+  function clientWithMails(mails: Mail[]) {
+    const client = fakeClient();
+    const listBuyerMails = vi.fn(
+      async (_action: string, commitmentId: string) => ({
+        commitmentId,
+        mails,
+      }),
+    );
+    const resendBuyerMail = vi.fn(
+      async (
+        _action: string,
+        _commitmentId: string,
+        kind: Mail["kind"],
+        _options?: unknown,
+      ): Promise<Mail> => ({
+        canResend: false,
+        kind,
+        reason: null,
+        sentAt: "2026-11-05T10:15:00Z",
+        state: "queued",
+      }),
+    );
+    Object.assign(client, { listBuyerMails, resendBuyerMail });
+    return { client, listBuyerMails, resendBuyerMail };
+  }
+
+  it("shows the order number and finds the order by it", async () => {
+    await renderPage("?view=all&open=c1");
+    const pane = await screen.findByRole("complementary");
+    expect(pane.textContent).toContain(
+      "BestellnummerLA-000000000000000000000000000000C1",
+    );
+    cleanup();
+    await renderPage("?view=all&q=LA-000000000000000000000000000000C3");
+    expect(rowNames().join(" ")).toContain("Autohaus Nord");
+    expect(rowNames().join(" ")).not.toContain("Musterwerk GmbH");
+  });
+
+  it("says why no mail is due and offers no resend", async () => {
+    const { client, listBuyerMails } = clientWithMails([
+      {
+        canResend: false,
+        kind: "confirmation",
+        reason: "switched_off",
+        sentAt: null,
+        state: "not_due",
+      },
+    ]);
+    await renderPage("?view=all&open=c1", client);
+    const block = await screen.findByTestId("buyer-mails");
+    await within(block).findByText("Bestellbestätigung");
+    expect(listBuyerMails).toHaveBeenCalledWith(actionId, "c1");
+    expect(block.textContent).toContain("Nicht fällig");
+    expect(block.textContent).toContain(
+      "E-Mails für Bestellungen, die Mitglieder erfassen, sind in der Aktion ausgeschaltet.",
+    );
+    expect(within(block).queryByRole("button")).toBeNull();
+  });
+
+  it("sends a sent mail again once, with an idempotency key", async () => {
+    const { client, listBuyerMails, resendBuyerMail } = clientWithMails([
+      {
+        canResend: true,
+        kind: "confirmation",
+        reason: null,
+        sentAt: "2026-11-04T08:30:00Z",
+        state: "sent",
+      },
+      {
+        canResend: false,
+        kind: "cancellation",
+        reason: "recipient_limit",
+        sentAt: null,
+        state: "failed",
+      },
+    ]);
+    await renderPage("?view=all&open=c1", client);
+    const block = await screen.findByTestId("buyer-mails");
+    const button = await within(block).findByTestId(
+      "buyer-mail-resend-confirmation",
+    );
+    expect(block.textContent).toContain("Gesendet am 04.11.2026, 09:30");
+    expect(block.textContent).toContain("Fehlgeschlagen");
+    expect(block.textContent).toContain(
+      "An dieses Postfach gingen in der letzten Stunde zu viele E-Mails.",
+    );
+    // Only where the server allows it.
+    expect(
+      within(block).queryByTestId("buyer-mail-resend-cancellation"),
+    ).toBeNull();
+    const calls = listBuyerMails.mock.calls.length;
+    fireEvent.click(button);
+    await screen.findByText("Bestellbestätigung wird erneut gesendet.");
+    expect(resendBuyerMail).toHaveBeenCalledTimes(1);
+    expect(resendBuyerMail).toHaveBeenCalledWith(
+      actionId,
+      "c1",
+      "confirmation",
+      {
+        headers: {
+          "Idempotency-Key": expect.stringMatching(/^buyer-mail-resend:/),
+        },
+      },
+    );
+    // The block reloads, and the key is used up.
+    expect(listBuyerMails.mock.calls.length).toBeGreaterThan(calls);
+    expect(
+      window.sessionStorage.getItem(
+        "leonaid.buyer-mail-resend.c1.confirmation",
+      ),
+    ).toBeNull();
+  });
+
+  it("shows the server's refusal of a resend", async () => {
+    const { client, resendBuyerMail } = clientWithMails([
+      {
+        canResend: true,
+        kind: "confirmation",
+        reason: null,
+        sentAt: "2026-11-04T08:30:00Z",
+        state: "sent",
+      },
+    ]);
+    resendBuyerMail.mockRejectedValue(
+      new ApiError(409, {
+        code: "buyer_mail_already_queued",
+        message: "Diese E-Mail wartet bereits auf den Versand.",
+        requestId: "req-1",
+      }),
+    );
+    await renderPage("?view=all&open=c1", client);
+    const block = await screen.findByTestId("buyer-mails");
+    fireEvent.click(
+      await within(block).findByTestId("buyer-mail-resend-confirmation"),
+    );
+    expect(
+      await within(block).findByText(
+        /Diese E-Mail wartet bereits auf den Versand\./,
+      ),
+    ).toBeTruthy();
   });
 });

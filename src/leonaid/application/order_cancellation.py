@@ -8,7 +8,9 @@ In one transaction the order becomes ``cancelled``, leaves the delivery board,
 an open "Nachliefern" task closes, and an issued, unpaid invoice is cancelled
 under ADR-0009. The invoice part changes a financial record, so it needs a
 confirmed fresh login, like the invoice journal's own cancellation. The buyer
-of a public order gets a cancellation notice (``application.order_mails``).
+gets a cancellation notice when ``order_mails.mail_not_due_reason`` says so:
+always for an order of the public form, for an order a member entered only
+while the action has ``internal_order_mails`` on.
 """
 
 from __future__ import annotations

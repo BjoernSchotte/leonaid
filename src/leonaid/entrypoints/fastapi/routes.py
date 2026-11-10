@@ -7,7 +7,7 @@ import hashlib
 import json
 from collections.abc import Iterable
 from dataclasses import fields, replace
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from typing import Annotated, Literal, cast
 from urllib.parse import quote
@@ -126,6 +126,9 @@ from leonaid.application.invoice_deliveries import (
     InvoiceDeliveryService,
 )
 from leonaid.application.invoice_settlements import InvoiceSettlementService
+from leonaid.application.buyer_mails import BuyerMailService, BuyerMailStatus
+from leonaid.application.order_mails import OrderMailKind
+from leonaid.domain.buyer_mails import BuyerMailConfiguration
 from leonaid.application.order_cancellation import (
     OrderCancellationRequest,
     OrderCancellationService,
@@ -305,6 +308,11 @@ from leonaid.entrypoints.fastapi.schemas import (
     CompleteFreshLoginRequest,
     CompleteLoginRequest,
     ConfirmEmailChangeRequest,
+    BuyerMailConfigurationRequest,
+    BuyerMailConfigurationResponse,
+    BuyerMailKindValue,
+    BuyerMailListResponse,
+    BuyerMailStatusResponse,
     CommitmentBuyerResponse,
     CommitmentCaptureContextResponse,
     CommitmentCurrencyTotalResponse,
@@ -602,6 +610,10 @@ def invoice_delivery_service(request: Request) -> InvoiceDeliveryService:
         InvoiceDeliveryService,
         request.app.state.invoice_delivery_service,
     )
+
+
+def buyer_mail_service(request: Request) -> BuyerMailService:
+    return cast(BuyerMailService, request.app.state.buyer_mail_service)
 
 
 def order_cancellation_service(request: Request) -> OrderCancellationService:
@@ -1511,6 +1523,7 @@ def commitment_response(commitment: Commitment) -> CommitmentResponse:
         action_id=commitment.action_id,
         source=commitment.source.value,
         status=commitment.status.value,
+        public_reference=commitment.public_reference,
         buyer=CommitmentBuyerResponse(
             party_kind=commitment.buyer.party_kind.value,
             twenty_id=commitment.buyer.twenty_id,
@@ -1612,6 +1625,7 @@ def commitment_record_response(
             else None
         ),
         delivered=record.delivered,
+        buyer_mail_due=record.buyer_mail_due,
     )
 
 
@@ -4128,6 +4142,83 @@ async def cancel_commitment(
     )
 
 
+def buyer_mail_status_response(status: BuyerMailStatus) -> BuyerMailStatusResponse:
+    return BuyerMailStatusResponse(
+        kind=status.kind.value,
+        state=status.state.value,
+        sent_at=status.sent_at,
+        reason=status.reason.value if status.reason is not None else None,
+        can_resend=status.can_resend,
+    )
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/commitments/{commitment_id}/buyer-mails",
+    operation_id="listBuyerMails",
+    response_model=BuyerMailListResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["commitments"],
+)
+async def list_buyer_mails(
+    action_id: UUID,
+    commitment_id: UUID,
+    request: Request,
+    response: Response,
+) -> BuyerMailListResponse:
+    """The mails to the buyer of one order: one entry per kind that applies.
+
+    The confirmation always, the cancellation notice once the order is
+    cancelled. Managers only.
+    """
+    actor = await identity_service(request).authenticate(session_token(request))
+    statuses = await buyer_mail_service(request).statuses(
+        actor, action_id, commitment_id
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    return BuyerMailListResponse(
+        commitment_id=commitment_id,
+        mails=[buyer_mail_status_response(status) for status in statuses],
+    )
+
+
+@router.post(
+    (
+        "/api/v1/actions/{action_id}/commitments/{commitment_id}/buyer-mails/"
+        "{kind}/resend"
+    ),
+    operation_id="resendBuyerMail",
+    response_model=BuyerMailStatusResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["commitments"],
+)
+async def resend_buyer_mail(
+    action_id: UUID,
+    commitment_id: UUID,
+    kind: BuyerMailKindValue,
+    request: Request,
+    response: Response,
+) -> BuyerMailStatusResponse:
+    """Send a mail to the buyer again.
+
+    Allowed for a mail that was sent or that failed. Answers 409 while the
+    mail waits in the queue or is not due (no address, cancelled order for a
+    confirmation, switched off). The worker applies the limit per mailbox.
+    Idempotent per `Idempotency-Key`.
+    """
+    actor = await identity_service(request).authenticate(session_token(request))
+    result = await buyer_mail_service(request).resend(
+        actor,
+        action_id,
+        commitment_id,
+        OrderMailKind(kind),
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return buyer_mail_status_response(result)
+
+
 @router.get(
     "/api/v1/actions/{action_id}/invoice-context",
     operation_id="getInvoiceContext",
@@ -5514,6 +5605,77 @@ async def save_delivery_configuration(
     result = await service.save(actor, configuration, request_id=request_id(request))
     response.headers["Cache-Control"] = "private, no-store"
     return delivery_configuration_response(result)
+
+
+def buyer_mail_configuration_response(
+    configuration: BuyerMailConfiguration,
+) -> BuyerMailConfigurationResponse:
+    return BuyerMailConfigurationResponse(
+        action_id=configuration.action_id,
+        internal_order_mails=configuration.internal_order_mails,
+        delivery_day_mail=configuration.delivery_day_mail,
+        delivery_day_send_time=f"{configuration.delivery_day_send_time:%H:%M}",
+        revision=configuration.revision,
+    )
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/buyer-mail-configuration",
+    operation_id="getBuyerMailConfiguration",
+    response_model=BuyerMailConfigurationResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def get_buyer_mail_configuration(
+    action_id: UUID, request: Request, response: Response
+) -> BuyerMailConfigurationResponse:
+    """The action's switches for mails to buyers. Managers only."""
+    actor = await identity_service(request).authenticate(session_token(request))
+    result = await buyer_mail_service(request).configuration(actor, action_id)
+    response.headers["Cache-Control"] = "private, no-store"
+    return buyer_mail_configuration_response(result)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/buyer-mail-configuration",
+    operation_id="saveBuyerMailConfiguration",
+    response_model=BuyerMailConfigurationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def save_buyer_mail_configuration(
+    action_id: UUID,
+    body: BuyerMailConfigurationRequest,
+    request: Request,
+    response: Response,
+) -> BuyerMailConfigurationResponse:
+    """Change the switches in any status of the action.
+
+    Answers 409 for a stale `expectedRevision` and when `deliveryDayMail` is
+    set for an action without the `delivery` capability.
+    """
+    actor = await identity_service(request).authenticate(session_token(request))
+    try:
+        send_time = time.fromisoformat(body.delivery_day_send_time)
+    except ValueError:
+        raise DomainInvariantError(
+            "buyer_mail_send_time_invalid",
+            "Die Uhrzeit der Liefertags-E-Mail muss zwischen 05:00 und "
+            "12:00 Uhr liegen.",
+        ) from None
+    result = await buyer_mail_service(request).save_configuration(
+        actor,
+        BuyerMailConfiguration(
+            action_id=action_id,
+            internal_order_mails=body.internal_order_mails,
+            delivery_day_mail=body.delivery_day_mail,
+            delivery_day_send_time=send_time,
+            revision=body.expected_revision,
+        ),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    return buyer_mail_configuration_response(result)
 
 
 @router.put(
