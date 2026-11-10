@@ -30,6 +30,7 @@ from pydantic import SecretStr
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.sponsor_search import AsyncpgSponsorSearchIndex
 from leonaid.adapters.twenty.gateway import TwentyCrmGateway, TwentyGatewaySettings
+from leonaid.application.activities import CRM_PARTY_GONE_LABEL
 from leonaid.application.crm import (
     CompanyData,
     CompanyUpdate,
@@ -145,8 +146,13 @@ class Api:
             params={"scope": scope, "limit": 100},
         )
 
-    async def open_hit(self, user_id: UUID, hit: Mapping[str, str]) -> None:
-        """Open the hit through the endpoint behind its target page."""
+    async def open_hit(
+        self, user_id: UUID, hit: Mapping[str, str], *, gone: bool = False
+    ) -> None:
+        """Open the hit through the endpoint behind its target page.
+
+        ``gone``: Twenty no longer has the party; the row says so.
+        """
 
         web = f"/admin/acquisition?action={ACTION_ID}&open={hit['id']}"
         app = f"/app/sponsors?action={ACTION_ID}&assignment={hit['id']}"
@@ -169,7 +175,8 @@ class Api:
         check(item is not None, f"Board does not show the hit {hit['href']}")
         assert item is not None
         check(
-            item["partyDisplayName"] == hit["title"],
+            item["partyDisplayName"]
+            == (CRM_PARTY_GONE_LABEL if gone else hit["title"]),
             "The hit's title is not the sponsor's name on its board",
         )
         detail = await self.request(
@@ -571,6 +578,74 @@ def delete_company_in_twenty(company_id: UUID) -> None:
         admin.close()
 
 
+async def prove_boards_with_a_gone_party(
+    stack: Stack, company_id: UUID, token: str
+) -> None:
+    """One party deleted in Twenty does not close the boards of the action.
+
+    Its assignments stay listed, named as gone and without contact data; the
+    other rows are untouched. The search hit (still in the index until the
+    full pass) opens that row, and a manager can still hand it over.
+    """
+
+    for user_id, scope in (
+        (KLARA_ID, "action"),
+        (SIMONE_ID, "action"),
+        (ANNA_ID, "personal"),
+    ):
+        board = await stack.api.board(user_id, scope)
+        check(
+            board.status_code == 200,
+            f"The {scope} board fails with a party deleted in Twenty: "
+            f"{board.status_code}",
+        )
+        items = board.json()["workItems"]
+        gone = [item for item in items if item["partyId"] == str(company_id)]
+        others = [item for item in items if item["partyId"] != str(company_id)]
+        check(bool(gone), f"The {scope} board dropped the gone party's assignment")
+        check(bool(others), f"The {scope} board lost its other rows")
+        for item in gone:
+            check(
+                item["partyDisplayName"] == CRM_PARTY_GONE_LABEL
+                and all(
+                    item[field] is None
+                    for field in ("city", "postalCode", "contactName", "email", "phone")
+                ),
+                f"A gone party is not shown as gone: {item!r}",
+            )
+        check(
+            all(item["partyDisplayName"] != CRM_PARTY_GONE_LABEL for item in others),
+            "A party that Twenty still has is shown as gone",
+        )
+    # The hits still carry the indexed name; each opens its row on the board.
+    for user_id in (KLARA_ID, ANNA_ID):
+        hits = await stack.api.sponsor_hits(user_id, token)
+        check(bool(hits), "The sponsor left the search before the full pass")
+        for hit in hits:
+            await stack.api.open_hit(user_id, hit, gone=True)
+    # A manager can still hand the assignment over.
+    hit = (await stack.api.sponsor_hits(ANNA_ID, token))[0]
+    current = await stack.api.request(
+        KLARA_ID,
+        "GET",
+        f"/api/v1/actions/{ACTION_ID}/acquisition/assignments/{hit['id']}",
+    )
+    current.raise_for_status()
+    handed = await stack.api.request(
+        KLARA_ID,
+        "POST",
+        f"/api/v1/actions/{ACTION_ID}/acquisition/assignments/{hit['id']}/handover",
+        body={
+            "revision": current.json()["assignment"]["revision"],
+            "targetAcquirerUserId": str(BERND_ID),
+        },
+    )
+    check(
+        handed.status_code == 200,
+        f"A gone party's assignment cannot be handed over: {handed.text}",
+    )
+
+
 async def prove_delete(stack: Stack, company_id: UUID, name: str, token: str) -> None:
     """Polling cannot see a delete in Twenty; the full pass removes the entry."""
 
@@ -597,6 +672,7 @@ async def prove_delete(stack: Stack, company_id: UUID, name: str, token: str) ->
         entry is not None and entry["display_name"] == name,
         "The changed pass was expected to miss the delete",
     )
+    await prove_boards_with_a_gone_party(stack, company_id, token)
     full = await stack.run(force_full=True)
     check(
         full.mode == "full" and full.complete and full.deleted >= 2,
@@ -711,10 +787,10 @@ async def prove_rate_limit(stack: Stack, twenty: httpx.AsyncClient) -> None:
 async def remove_proof_assignments(
     connection: asyncpg.Connection[Any], company_id: UUID | None
 ) -> None:
-    """The proof's sponsor is gone from Twenty; its assignments must go too.
+    """The proof's sponsor is gone from Twenty; its assignments go too.
 
-    The boards read every assigned party from Twenty and refuse an action
-    with a party that Twenty no longer has.
+    They would stay on the Golden boards as "Im CRM nicht mehr vorhanden"
+    for whoever borrows the stack next.
     """
 
     if company_id is None:
