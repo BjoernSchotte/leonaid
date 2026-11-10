@@ -1,6 +1,8 @@
 # ADR-0004: Rechnungsprofil, Freigabe und unveränderliche Belegdaten
 
-- Status: für den PoC angenommen
+- Status: für den PoC angenommen; der Nummernkreis „pro Aktion und Präfix“
+  und der offene Korrekturbeleg sind durch
+  [ADR-0015](ADR-0015-document-series.md) ersetzt
 - Datum: 2026-07-27
 - Entscheider: Produktverantwortlicher und Implementierung
 - Fachliche Freigabe für einen Produktivbetrieb: rechtlicher Träger und

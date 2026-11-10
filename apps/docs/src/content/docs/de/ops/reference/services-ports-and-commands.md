@@ -4,8 +4,8 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 21
-reviewedRevision: 21
+contentRevision: 22
+reviewedRevision: 22
 verifiedAgainst: b1c08d3c04dbf7a46d1bb477753e36ad369a6fec
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -54,8 +54,8 @@ Referenz abweicht.
 
 ## Worker-Aufbewahrung
 
-Der Worker betreibt neben `outbox`, `survey_sweep`, `push_follow_ups` und der PostgreSQL-Probe
-eine Schleife `retention`. Einmal pro `OUTBOX_RETENTION_INTERVAL_SECONDS`
+Der Worker betreibt neben `outbox`, `survey_sweep`, `sponsor_search_sync`,
+`push_follow_ups` und der PostgreSQL-Probe eine Schleife `retention`. Einmal pro `OUTBOX_RETENTION_INTERVAL_SECONDS`
 (Standard `3600`) löscht sie Outbox-Jobs, die vor mehr als
 `OUTBOX_RETENTION_DAYS` (Standard `30`) Tagen erfolgreich abgeschlossen
 wurden, sowie Rate-Limit-Versuche, die älter als zwei Tage sind. Sie löscht
@@ -144,6 +144,40 @@ Worker beim Start mit `worker.configuration.invalid`. Der Proxy öffnet
 `/e2e-tiles/` auf dem eigenen Host. Seiten der Mitglieder-Apps dürfen nach dem
 Gerätestandort fragen (`geolocation=(self)`): Die Karte der Ausfahrer zeigt ihn
 erst nach deren Zustimmung, und er bleibt im Browser.
+
+## Suchindex der Sponsoren
+
+Die Suche der Verwaltung findet Sponsoren über die Tabelle
+`sponsor_search_entry` im Core. Sie hält von jeder Firma oder Person aus
+Twenty, die eine Akquise-Zuordnung hat, nur Name und Ort. Die Worker-Schleife
+`sponsor_search_sync` hält sie aktuell:
+
+- Alle 15 Minuten liest sie die in Twenty geänderten Firmen und Personen
+  und aktualisiert die vorhandenen Einträge. Sie liest ab dem Beginn des
+  letzten vollständigen Laufs (minus 5 Minuten, mindestens 30 Minuten,
+  höchstens 26 Stunden zurück); fehlgeschlagene Läufe verlieren so nichts.
+- Einmal pro Nacht, nach 03:00 Uhr Ortszeit, liest sie jede zugeordnete
+  Firma und Person neu (50 pro Anfrage), ergänzt fehlende Einträge und löscht
+  Einträge ohne Zuordnung oder ohne Datensatz in Twenty. Nach dem Upgrade
+  auf diese Version läuft dieser Durchlauf sofort beim ersten Start und füllt
+  den Index für die bestehenden Zuordnungen.
+- Ein Lauf sendet höchstens 30 Anfragen an Twenty und endet bei der ersten
+  Antwort `429`. Ein unvollständiger nächtlicher Durchlauf setzt nach einer
+  Minute an derselben Stelle fort.
+
+Ohne `TWENTY_INTEGRATION_API_KEY` ruht die Schleife. Beendet ein CRM-Fehler
+einen Lauf (Twenty nicht erreichbar, Schlüssel abgelehnt, `429`), bleibt die
+Schleife gesund; sie wartet dann eine Minute und verdoppelt die Pause nach
+jedem weiteren Fehler bis auf 15 Minuten. Die Metrik
+`leonaid_worker_sponsor_search_last_success_age_seconds` nennt das Alter des
+letzten vollständigen Laufs, `leonaid_worker_sponsor_search_crm_errors_total`
+zählt die Fehlläufe. Nach 24 Stunden ohne vollständigen Lauf meldet das
+Pilot-Monitoring `LeonAidSponsorSearchStale` (P2); der Alarm erscheint auch
+unter **System**. Jeder Lauf mit Anfragen schreibt das Ereignis
+`worker.sponsor_search.synced` mit Art (`full` oder `changed`), Zahl der
+Anfragen, geschriebenen und gelöschten Einträgen, `rateLimited`, `crmError`
+und `failedRuns`; Namen stehen nie im Log. Mehrere Worker stimmen sich über eine
+Datenbanksperre ab, es läuft immer nur einer.
 
 ## Clubname
 

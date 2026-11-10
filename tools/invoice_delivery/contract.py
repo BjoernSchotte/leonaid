@@ -634,6 +634,144 @@ async def assert_resend(
     )
 
 
+async def assert_cancellation_sent(
+    connection: asyncpg.Connection[Any],
+    state_path: Path,
+) -> None:
+    """After the browser cancelled the order with "Stornorechnung gleich
+    senden" (tests/e2e/order-cancellation-send.spec.mjs).
+
+    The order cancellation issued the cancellation invoice and queued its
+    mail while the PDF was still to be rendered. The mail job waits for the
+    render job without using attempts, then sends: one more mail, with the
+    cancellation invoice as its attachment.
+    """
+
+    state = read_state(state_path)
+    invoice_id = state["invoiceId"]
+    headers = session_headers(token_for("admin", ADMIN_ID))
+    async with (
+        httpx.AsyncClient(
+            base_url=require_env("API_BASE_URL").rstrip("/"),
+            timeout=30,
+        ) as api,
+        httpx.AsyncClient(
+            base_url=require_env("MAIL_TEST_API_URL").rstrip("/"),
+            timeout=10,
+        ) as mailpit,
+    ):
+        number = str(
+            await connection.fetchval(
+                """
+                SELECT invoice_cancellation.number
+                FROM commitment_cancellation
+                JOIN invoice_cancellation
+                  ON invoice_cancellation.id
+                     = commitment_cancellation.invoice_cancellation_id
+                WHERE commitment_cancellation.commitment_id = $1
+                """,
+                COMMITMENT_ID,
+            )
+        )
+        if number != "KT26-0005":
+            raise ContractFailure(
+                f"The order cancellation issued no cancellation invoice: {number}"
+            )
+        delivery: dict[str, Any] | None = None
+        deadline = time.monotonic() + 120
+        while time.monotonic() < deadline:
+            listing = await api.get(
+                f"/api/v1/actions/{ACTION_ID}/invoices", headers=headers
+            )
+            listing.raise_for_status()
+            record = next(
+                item
+                for item in listing.json()["items"]
+                if item["invoice"]["id"] == invoice_id
+            )
+            deliveries = record["cancellationDeliveries"]
+            if len(deliveries) != 1 or len(record["deliveries"]) != 2:
+                raise ContractFailure(
+                    "Invoice and cancellation deliveries are not kept apart"
+                )
+            if deliveries[0]["status"] == "sent":
+                delivery = deliveries[0]
+                break
+            if deliveries[0]["status"] == "failed":
+                raise ContractFailure(f"Cancellation delivery failed: {deliveries[0]}")
+            await asyncio.sleep(0.5)
+        if delivery is None:
+            raise ContractFailure("The cancellation invoice was not sent")
+        subject = f"Stornorechnung {number} zur Rechnung KT26-0004 · Krapfentaxi 2026"
+        if (
+            delivery["kind"] != "invoice_cancellation"
+            or delivery["subject"] != subject
+            or not delivery["messageId"]
+        ):
+            raise ContractFailure(f"Cancellation delivery is wrong: {delivery}")
+        messages = await mailpit_messages(mailpit)
+        if len(messages) != 3:
+            raise ContractFailure(
+                f"Expected one more mail for the cancellation invoice: {len(messages)}"
+            )
+        summary = next(
+            (
+                item
+                for item in messages
+                if f"<{item.get('MessageID')}>" == delivery["messageId"]
+            ),
+            None,
+        )
+        if summary is None:
+            raise ContractFailure("Mailpit has no mail with the delivery's Message-ID")
+        raw = await mailpit.get(f"/api/v1/message/{summary['ID']}/raw")
+        raw.raise_for_status()
+    message = BytesParser(policy=policy.default).parsebytes(raw.content)
+    plain = message.get_body(preferencelist=("plain",))
+    attachments = list(message.iter_attachments())
+    payload = attachments[0].get_payload(decode=True) if len(attachments) == 1 else None
+    row = await connection.fetchrow(
+        """
+        SELECT document.sha256, document.sent_at, document.filename,
+               invoice.status AS invoice_status
+        FROM generated_document AS document
+        JOIN invoice ON invoice.id = document.invoice_id
+        WHERE document.id = $1
+          AND document.document_type = 'invoice_cancellation_pdf'
+        """,
+        UUID(str(delivery["generatedDocumentId"])),
+    )
+    if (
+        row is None
+        or str(message["To"]).casefold() != EXPECTED_RECIPIENT
+        or str(message["Subject"]) != subject
+        or plain is None
+        or (
+            "anbei erhalten Sie die Stornorechnung zu Ihrer Rechnung KT26-0004. "
+            "Die Rechnung ist damit aufgehoben."
+        )
+        not in " ".join(plain.get_content().split())
+        or "Aus der Rechnung KT26-0004 ist kein Betrag mehr zu zahlen."
+        not in " ".join(plain.get_content().split())
+        or len(attachments) != 1
+        or attachments[0].get_content_type() != "application/pdf"
+        or attachments[0].get_filename() != f"Stornorechnung-{number}.pdf"
+        or not isinstance(payload, bytes)
+        or hashlib.sha256(payload).hexdigest() != str(row["sha256"])
+        or row["sent_at"] is None
+        or row["invoice_status"] != "cancelled"
+        # Waiting for the PDF is no failed attempt: sent at the first one.
+        or delivery["attempts"] != 1
+    ):
+        raise ContractFailure(
+            "The cancellation mail or its PDF differs from the stored document"
+        )
+    print(
+        f"invoice-delivery-contract: the order cancellation issued {number}, the "
+        "worker rendered it, the mail waited for it and carries exactly that PDF"
+    )
+
+
 async def run(arguments: argparse.Namespace) -> None:
     connection = await asyncpg.connect(require_env("CORE_DATABASE_URL"), timeout=10)
     try:
@@ -649,6 +787,8 @@ async def run(arguments: argparse.Namespace) -> None:
             await queue_resend(connection, arguments.state)
         elif arguments.command == "assert-resend":
             await assert_resend(connection, arguments.state)
+        elif arguments.command == "assert-cancellation-sent":
+            await assert_cancellation_sent(connection, arguments.state)
         else:
             raise ContractFailure(f"Unknown command: {arguments.command}")
     finally:
@@ -669,6 +809,7 @@ def parser() -> argparse.ArgumentParser:
         "assert-delivered",
         "queue-resend",
         "assert-resend",
+        "assert-cancellation-sent",
     ):
         command = commands.add_parser(command_name)
         command.add_argument("state", type=Path)

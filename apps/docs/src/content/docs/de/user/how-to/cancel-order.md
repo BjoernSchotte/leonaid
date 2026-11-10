@@ -4,9 +4,9 @@ description: Eine noch nicht gelieferte Bestellung mit Grund stornieren, samt of
 docId: DOC-P047
 audience: [user]
 diataxis: how-to
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: e0a3533c57747a914cde695a334e31fb90ffbc60
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: 176b94f63b8ff6dbd9deadb71b9ab507ee53989b
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -45,7 +45,14 @@ Menge und Betrag zählen sie nicht mehr mit.
   Rechnung ausgestellt oder versendet und unbezahlt, nennt der Dialog sie mit
   ihrer Nummer. Sie wird zusammen mit der Bestellung storniert: Nummer, Daten
   und PDF bleiben unverändert erhalten, der Status wechselt auf **Storniert**.
-  Weil dabei ein Beleg geändert wird, bestätigst du deine Anmeldung
+  LeonAid stellt dazu eine **Stornorechnung** mit eigener Nummer aus. Du
+  findest sie unter **Rechnungen** bei der Rechnung und kannst sie dort
+  herunterladen und per E-Mail senden (siehe
+  [Rechnung stornieren](/de/user/how-to/cancel-invoice/)). Wurde die Rechnung
+  per E-Mail versendet, bietet der Dialog **Stornorechnung gleich senden** an;
+  das Häkchen ist gesetzt. Die Stornorechnung geht dann an dieselbe Adresse,
+  sobald sie erzeugt ist. Ohne Häkchen sendest du sie später bei der Rechnung.
+  Weil dabei ein Beleg entsteht, bestätigst du deine Anmeldung
   gegebenenfalls erneut. Grund und Notiz bleiben dabei erhalten; nach der
   Anmeldung öffnet sich der Dialog wieder, und du bestätigst noch einmal.
 - **Besteller:** Kam die Bestellung über das öffentliche Bestellformular,
@@ -67,7 +74,11 @@ Menge und Betrag zählen sie nicht mehr mit.
   Teilzahlung, bittet der Dialog, sie erst zurückzubuchen. Öffne die Rechnung
   unter **Rechnungen** und wähle bei der Zahlung **Zurückbuchen**. Sind alle
   Zahlungen zurückgebucht, kannst du die Bestellung stornieren. LeonAid bucht
-  keine Erstattungen.
+  keine Erstattungen. Hat der Sponsor wirklich gezahlt und soll die Zahlung
+  erfasst bleiben, storniere zuerst die Rechnung: Das geht auch mit Zahlung,
+  und LeonAid merkt die offene Erstattung vor (siehe
+  [Rechnung stornieren](/de/user/how-to/cancel-invoice/)). Danach lässt sich
+  auch die Bestellung stornieren.
 - **Inzwischen geändert:** Hat jemand die Bestellung gleichzeitig bearbeitet,
   lehnt der Server ab, und die Liste lädt neu. Prüfe den aktuellen Stand und
   storniere dann erneut; dein Grund bleibt im Dialog stehen.

@@ -274,6 +274,7 @@ def test_worker_registers_every_existing_handler_once() -> None:
         "knowledge",
         "inbox",
         "actions",
+        "acquisition",
         "invoicing",
         "mail",
         "push",
@@ -281,7 +282,7 @@ def test_worker_registers_every_existing_handler_once() -> None:
     assert collect_handlers(modules) == {}
     assert [
         loop.name for loop in background_loops("postgresql://unused", frozenset())
-    ] == ["survey_sweep", "push_follow_ups"]
+    ] == ["survey_sweep", "sponsor_search_sync", "push_follow_ups"]
 
 
 def test_worker_handler_set_is_unchanged() -> None:
@@ -300,6 +301,7 @@ def test_worker_handler_set_is_unchanged() -> None:
 
     assert sorted(handlers) == [
         "charity_action.progress.recorded.v1",
+        "document.render.requested.v1",
         "inbox.contact_link.v1",
         "invoice.document.render.requested.v1",
         "invoice.mail.send.requested.v1",
@@ -371,9 +373,10 @@ def test_switched_off_module_has_no_routes_navigation_or_loops(
         "inbox",
     }
     assert any(path.startswith("/api/v1/task") for path in paths)
-    # Push is core: its loop runs whatever modules are switched off.
+    # Core loops keep running; the module's own loop is gone.
     assert [loop.name for loop in background_loops("postgresql://unused", off)] == [
-        "push_follow_ups"
+        "sponsor_search_sync",
+        "push_follow_ups",
     ]
     assert module_switch_problems(off) == []
     assert module_switch_problems(frozenset({"mail"})) == [

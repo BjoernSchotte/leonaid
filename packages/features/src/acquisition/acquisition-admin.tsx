@@ -1,16 +1,20 @@
 import { ClockAlert, Contact, Search, Users } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type {
   AcquisitionActivityWorkItemResponse,
   CurrentIdentityResponse,
   LeonAidApiClient,
 } from "@leonaid/api-client";
-import { Button, EmptyState, Icon, StatusMessage } from "@leonaid/ui";
+import { Button, EmptyState, Icon, Modal, StatusMessage } from "@leonaid/ui";
 
 import { CampaignEditorLink } from "../action-admin/campaign-editor-link";
-import { useActionInUrl } from "../action-admin/action-location";
+import {
+  requestedUnlistedAction,
+  useActionInUrl,
+} from "../action-admin/action-location";
+import { AssignmentDetail, assignmentStatusLabels } from "./assignment-detail";
 
 type AssignmentFilter =
   | "all"
@@ -34,13 +38,28 @@ interface AcquisitionAdminPageProps {
   readonly identity: CurrentIdentityResponse;
 }
 
-const statusLabels = {
-  committed: "Zugesagt",
-  contacted: "Kontaktiert",
-  declined: "Abgesagt",
-  handed_over: "Übergeben",
-  open: "Offen",
-} as const;
+const statusLabels = assignmentStatusLabels;
+
+const ASSIGNMENT_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The assignment a link asks to open (`?open=<id>`, e.g. a search hit). */
+function requestedAssignment(): string | null {
+  const value = new URLSearchParams(window.location.search).get("open");
+  return value && ASSIGNMENT_ID.test(value) ? value : null;
+}
+
+/** Keeps `?open=` in step with the detail, without a history entry. */
+function replaceOpenInUrl(assignmentId: string | null) {
+  const url = new URL(window.location.href);
+  if (assignmentId) url.searchParams.set("open", assignmentId);
+  else url.searchParams.delete("open");
+  window.history.replaceState(
+    window.history.state,
+    "",
+    `${url.pathname}${url.search}${url.hash}`,
+  );
+}
 
 function formatDue(item: AcquisitionActivityWorkItemResponse) {
   if (!item.dueAt) return "Nicht terminiert";
@@ -57,7 +76,7 @@ export function AcquisitionAdminPage({
   client,
   identity,
 }: AcquisitionAdminPageProps) {
-  const memberships = useMemo(
+  const memberActions = useMemo(
     () => [
       ...new Map(
         identity.actionMemberships
@@ -66,6 +85,32 @@ export function AcquisitionAdminPage({
       ).values(),
     ],
     [identity.actionMemberships],
+  );
+  // A system admin manages every action. A search hit links to
+  // ?action=<id>; keep that action selectable for the whole visit.
+  const [unlistedActionId] = useState(() =>
+    requestedUnlistedAction(
+      memberActions,
+      identity.globalRoles.includes("system_admin"),
+    ),
+  );
+  const unlistedAction = useQuery({
+    enabled: Boolean(unlistedActionId),
+    queryFn: () => client.getCharityAction(unlistedActionId!),
+    queryKey: ["charity-action", unlistedActionId],
+  });
+  const memberships = useMemo(
+    () =>
+      unlistedActionId
+        ? [
+            {
+              actionId: unlistedActionId,
+              actionName: unlistedAction.data?.name ?? "Charity-Aktion",
+            },
+            ...memberActions,
+          ]
+        : memberActions,
+    [memberActions, unlistedAction.data?.name, unlistedActionId],
   );
   const query = new URLSearchParams(window.location.search);
   const requestedAction = query.get("action");
@@ -76,10 +121,16 @@ export function AcquisitionAdminPage({
       "",
   );
   useActionInUrl(actionId);
+  // The assignment whose detail is open. A link may ask for one of any
+  // status, so it wins over a `?status=` in the same link.
+  const [openId, setOpenId] = useState(requestedAssignment);
+  // The row stays marked after its detail closes, so the eye finds it again.
+  const [markedId, setMarkedId] = useState(openId);
   const [filter, setFilter] = useState<AssignmentFilter>(
-    ["open", "contacted", "committed", "declined", "handed_over"].includes(
-      requestedStatus ?? "",
-    )
+    !openId &&
+      ["open", "contacted", "committed", "declined", "handed_over"].includes(
+        requestedStatus ?? "",
+      )
       ? (requestedStatus as AssignmentFilter)
       : "all",
   );
@@ -117,6 +168,26 @@ export function AcquisitionAdminPage({
           value?.toLocaleLowerCase("de-DE").includes(normalizedSearch),
         );
     }) ?? [];
+  const openItem = openId
+    ? (board.data?.workItems.find((item) => item.assignmentId === openId) ??
+      null)
+    : null;
+  const openMissing = Boolean(openId) && board.isSuccess && !openItem;
+  const openAssignment = useCallback((assignmentId: string | null) => {
+    setOpenId(assignmentId);
+    if (assignmentId) setMarkedId(assignmentId);
+    replaceOpenInUrl(assignmentId);
+  }, []);
+  // Bring the row of the open assignment into view once per assignment: a
+  // link from the search lands on a long table.
+  const openRow = useRef<HTMLTableRowElement | null>(null);
+  const scrolledTo = useRef<string | null>(null);
+  const openRowId = openItem?.assignmentId ?? null;
+  useEffect(() => {
+    if (!openRowId || scrolledTo.current === openRowId) return;
+    scrolledTo.current = openRowId;
+    openRow.current?.scrollIntoView({ block: "center" });
+  }, [openRowId]);
 
   if (memberships.length === 0) {
     return (
@@ -146,6 +217,9 @@ export function AcquisitionAdminPage({
             data-testid="acquisition-admin-action"
             id="acquisition-admin-action"
             onChange={(event) => {
+              // The open assignment belongs to the action that is left.
+              openAssignment(null);
+              setMarkedId(null);
               setActionId(event.target.value);
             }}
             value={actionId}
@@ -234,6 +308,15 @@ export function AcquisitionAdminPage({
         </StatusMessage>
       ) : (
         <>
+          {openMissing ? (
+            <StatusMessage tone="warning">
+              <strong>Zuordnung nicht gefunden</strong>
+              <p data-testid="acquisition-open-missing">
+                Der Link verweist auf eine Zuordnung, die es in dieser
+                Charity-Aktion nicht oder nicht mehr gibt.
+              </p>
+            </StatusMessage>
+          ) : null}
           <p aria-live="polite" className="acq-admin-result-count">
             {visible.length}{" "}
             {visible.length === 1 ? "Zuordnung" : "Zuordnungen"}
@@ -259,12 +342,24 @@ export function AcquisitionAdminPage({
                 <tbody>
                   {visible.map((item) => (
                     <tr
+                      aria-current={
+                        item.assignmentId === markedId ? "true" : undefined
+                      }
                       data-assignment-id={item.assignmentId}
                       data-status={item.status}
                       key={item.assignmentId}
+                      ref={item.assignmentId === openId ? openRow : undefined}
                     >
                       <th scope="row">
-                        <strong>{item.partyDisplayName}</strong>
+                        <button
+                          aria-haspopup="dialog"
+                          className="acq-admin-open"
+                          data-testid="acquisition-admin-open"
+                          onClick={() => openAssignment(item.assignmentId)}
+                          type="button"
+                        >
+                          {item.partyDisplayName}
+                        </button>
                         <span>
                           {[item.postalCode, item.city]
                             .filter(Boolean)
@@ -309,6 +404,25 @@ export function AcquisitionAdminPage({
           )}
         </>
       )}
+      <Modal
+        footer={
+          <Button onClick={() => openAssignment(null)} variant="secondary">
+            Schließen
+          </Button>
+        }
+        onClose={() => openAssignment(null)}
+        open={Boolean(openItem)}
+        size="lg"
+        title={openItem?.partyDisplayName ?? ""}
+      >
+        {openItem ? (
+          <AssignmentDetail
+            actionId={actionId}
+            client={client}
+            item={openItem}
+          />
+        ) : null}
+      </Modal>
     </div>
   );
 }

@@ -59,6 +59,9 @@ class IdleQueue:
     async def fail(self, **_: Any) -> None:
         raise AssertionError("nothing was claimed")
 
+    async def defer(self, **_: Any) -> None:
+        raise AssertionError("nothing was claimed")
+
 
 class Idle:
     async def handle(self, event: ClaimedOutboxEvent) -> None:

@@ -39,6 +39,8 @@ EXPECTED_TABLES = {
     "commitment_cancellation",
     "commitment_line",
     "consent_record",
+    "document_number",
+    "document_series",
     "generated_document",
     "inbox_case",
     "inbox_case_comment",
@@ -66,6 +68,8 @@ EXPECTED_TABLES = {
     "public_action_alias",
     "site_binding",
     "site_host",
+    "sponsor_search_entry",
+    "sponsor_search_sync",
     "privacy_erasure_case",
     "suppression_entry",
     "task",
@@ -183,6 +187,16 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
             raise SchemaError(
                 "legacy invoice was not fully migrated to the new snapshot contract"
             )
+        # ADR-0015: the migration registered the numbers issued before it.
+        registered = await connection.fetchval(
+            """
+            SELECT count(*) FROM document_number
+            WHERE kind = 'invoice'
+              AND number IN ('LEGACY-0001', 'LEGACY-0002')
+            """
+        )
+        if registered != 2:
+            raise SchemaError("0063 did not register the legacy invoice numbers")
         invoice_dates = {
             str(row["number"]): (row["issued_on"], row["due_on"])
             for row in await connection.fetch(
@@ -573,6 +587,53 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
     )
     if preserved_number != "KT26-0001":
         raise SchemaError("cancellation replaced the issued invoice number")
+    # ADR-0015: every issued number is registered once for the installation,
+    # so a cancellation invoice cannot take the number of an invoice.
+    registered = await connection.fetchval(
+        "SELECT kind FROM document_number WHERE number = 'KT26-0001'"
+    )
+    if registered != "invoice":
+        raise SchemaError("the invoice number was not registered")
+    await expect_database_error(
+        lambda: connection.execute(
+            """
+            INSERT INTO invoice_cancellation (
+                id, action_id, invoice_id, original_status, reason_snapshot,
+                requested_by_user_id, idempotency_key, number, issued_on,
+                issued_at, issued_by_user_id, snapshot, document_version
+            )
+            SELECT
+                '97000000-0000-4000-8000-000000000001', action_id, id,
+                'issued', 'Schema-Nachweis: Nummer bereits vergeben',
+                approved_by_user_id, 'schema:cancellation-number', number,
+                issued_on, issued_at, approved_by_user_id, '{}'::jsonb, 1
+            FROM invoice
+            WHERE number = 'KT26-0001'
+            """
+        ),
+        "cancellation invoice with the number of an invoice",
+        sqlstate="23505",
+        constraint="document_number_pkey",
+    )
+    await expect_database_error(
+        lambda: connection.execute(
+            """
+            INSERT INTO invoice_cancellation (
+                id, action_id, invoice_id, original_status, reason_snapshot,
+                requested_by_user_id, idempotency_key, number
+            )
+            SELECT
+                '97000000-0000-4000-8000-000000000001', action_id, id,
+                'issued', 'Schema-Nachweis: Beleg unvollständig',
+                approved_by_user_id, 'schema:cancellation-partial', 'KT26-0009'
+            FROM invoice
+            WHERE number = 'KT26-0001'
+            """
+        ),
+        "cancellation invoice number without date and snapshot",
+        sqlstate="23514",
+        constraint="ck_invoice_cancellation_document",
+    )
     await expect_database_error(
         lambda: connection.execute(
             """

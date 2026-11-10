@@ -4,9 +4,9 @@ description: Verified limits of the current LeonAid development and pilot state.
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 8
-reviewedRevision: 8
-verifiedAgainst: 5e94339473f2439e5532a5408069a974ca7f5ca0
+contentRevision: 10
+reviewedRevision: 10
+verifiedAgainst: b1c08d3c04dbf7a46d1bb477753e36ad369a6fec
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -53,8 +53,26 @@ general production approval.
   enter send no e-mail. The campaign link points to the campaign page on the
   public host; own campaign domains follow with stage 2. The sender is the
   configured system address, not the club.
+- The search (**Suchen und Befehle**) finds sponsors by name and city only,
+  and only if they are assigned to an acquirer in a campaign (see
+  [Find things with the search](/en/user/how-to/find-with-search/)). E-mail,
+  phone and street cannot be searched. A change in the CRM reaches the search
+  after up to about 15 minutes; a sponsor deleted in the CRM leaves the search
+  only in the following night. Until then its result opens the assignment,
+  which is then named "Im CRM nicht mehr vorhanden" and shows no contact data.
+  The acquisition app has no search of its own.
 - An issued invoice and its PDF are never overwritten. Corrections use a
   cancellation and a new transaction.
+- A cancellation issues a cancellation invoice ("Stornorechnung") with its
+  own number of the invoice number series. Only a full cancellation exists: no
+  partial cancellation and no corrected invoice that replaces lines. An order
+  has one invoice; a corrected invoice needs a new order. Invoices cancelled
+  before this feature have no cancellation invoice until someone issues it.
+  The wording of the cancellation invoice is a proposal and has no legal
+  review yet.
+- Payments of a cancelled invoice stay recorded and cannot be reversed.
+  LeonAid books no refund; "Erstattung erledigt" is only a marker. It can be
+  taken back with a reason.
 - Partial payments and overpayments are recorded as separate payment entries
   and can be reversed with a reason. An overpayment is only shown; the refund
   happens outside LeonAid. Bank reconciliation and dunning are missing.

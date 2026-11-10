@@ -274,6 +274,7 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
                 request_hash=hashlib.sha256(inner_key.encode("utf-8")).hexdigest(),
                 request_id=request_id,
                 occurred_at=occurred_at,
+                send_document=request.send_invoice_cancellation,
             )
             invoice_cancellation_id = invoice_cancellation.id
 
@@ -491,7 +492,8 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
         row = await connection.fetchrow(
             """
             SELECT cancellation.*, account.display_name AS requested_by_name,
-                invoice.number AS invoice_number
+                invoice.number AS invoice_number,
+                invoice_cancellation.number AS invoice_cancellation_number
             FROM commitment_cancellation AS cancellation
             JOIN user_account AS account
               ON account.id = cancellation.requested_by_user_id
@@ -522,4 +524,9 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
                 else None
             ),
             requested_by_display_name=str(row["requested_by_name"]),
+            invoice_cancellation_number=(
+                str(row["invoice_cancellation_number"])
+                if row["invoice_cancellation_number"] is not None
+                else None
+            ),
         )

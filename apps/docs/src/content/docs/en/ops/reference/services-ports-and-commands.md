@@ -4,8 +4,8 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 21
-reviewedRevision: 21
+contentRevision: 22
+reviewedRevision: 22
 verifiedAgainst: b1c08d3c04dbf7a46d1bb477753e36ad369a6fec
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -53,7 +53,7 @@ this reference differs.
 ## Worker retention
 
 The worker runs a `retention` loop next to `outbox`, `survey_sweep`,
-`push_follow_ups`, and the PostgreSQL probe. Once per `OUTBOX_RETENTION_INTERVAL_SECONDS` (default
+`sponsor_search_sync`, `push_follow_ups`, and the PostgreSQL probe. Once per `OUTBOX_RETENTION_INTERVAL_SECONDS` (default
 `3600`) it deletes outbox jobs that completed successfully more than
 `OUTBOX_RETENTION_DAYS` (default `30`) ago, and rate-limit attempts older than
 two days. It never deletes pending, processing, or dead-letter jobs, nor
@@ -137,6 +137,40 @@ the test stacks load plain tiles from `/e2e-tiles/` on their own host. Pages
 of the member apps may ask for the device location (`geolocation=(self)`): the
 driver's map shows it only after the driver allows it, and it stays in the
 browser.
+
+## Sponsor search index
+
+The back-office search finds sponsors through the Core table
+`sponsor_search_entry`. For every Twenty company or person that has an
+acquisition assignment it holds the name and the city, and nothing else. The
+worker loop `sponsor_search_sync` keeps it current:
+
+- Every 15 minutes it reads the companies and people that changed in Twenty
+  and updates the entries that exist. It reads from the start of the last
+  complete run (minus 5 minutes, at least 30 minutes and at most 26 hours
+  back), so failed runs lose nothing.
+- Once a night, after 03:00 local time, it reads every assigned company and
+  person again (50 per request), adds missing entries and deletes entries
+  without an assignment or without a record in Twenty. After the upgrade to
+  this version this pass runs at once on the first start and fills the index
+  for the existing assignments.
+- One run sends at most 30 requests to Twenty and ends on the first `429`
+  answer. An unfinished nightly pass continues at the same place after one
+  minute.
+
+Without `TWENTY_INTEGRATION_API_KEY` the loop idles. If a CRM error ends a
+run (Twenty not reachable, key refused, `429`), the loop stays healthy; it
+then waits one minute and doubles the pause after each further error, up to
+15 minutes. The metric
+`leonaid_worker_sponsor_search_last_success_age_seconds` gives the age of the
+last complete run, `leonaid_worker_sponsor_search_crm_errors_total` counts
+the failed runs. After 24 hours without a complete run the pilot monitoring
+raises `LeonAidSponsorSearchStale` (P2); the alert also shows under
+**System**. Every run with requests writes the event
+`worker.sponsor_search.synced` with its kind (`full` or `changed`), the
+number of requests, the written and deleted entries, `rateLimited`,
+`crmError` and `failedRuns`; names never appear in the log. Several workers coordinate through
+a database lock, so only one runs at a time.
 
 ## Club name
 

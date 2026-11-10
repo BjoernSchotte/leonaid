@@ -21,12 +21,14 @@ import { InvoiceAdminPage, resetCommandPaletteState } from "@leonaid/features";
 import { HotkeyProvider, ToastProvider } from "@leonaid/ui";
 
 import {
+  localIsoDate,
   parseAmountMinor,
   relativeDay,
   shortDate,
 } from "../../../packages/features/src/invoices/invoice-format";
 import {
   invoiceListStatus,
+  invoiceRows,
   migrateLegacyStatusParam,
 } from "../../../packages/features/src/invoices/invoice-model";
 import { installDialogPolyfill } from "../../../packages/ui/src/test-utils/dialog-polyfill";
@@ -77,6 +79,7 @@ function invoice(
   return {
     buyerDisplayName: overrides.buyer ?? "Bäckerei Kern",
     cancellation: overrides.cancellation ?? null,
+    cancellationDeliveries: [],
     deliveries: overrides.deliveries ?? [],
     openMinor:
       overrides.openMinor ??
@@ -147,6 +150,7 @@ function failedDelivery(invoiceId: string): InvoiceDeliveryResponse {
     generatedDocumentId: `d-${invoiceId}`,
     id: `delivery-${invoiceId}`,
     invoiceId,
+    kind: "invoice",
     lastErrorCode: "mailbox_full",
     lastErrorDetail: "Postfach voll",
     messageId: null,
@@ -158,9 +162,79 @@ function failedDelivery(invoiceId: string): InvoiceDeliveryResponse {
   };
 }
 
+function sentDelivery(invoiceId: string): InvoiceDeliveryResponse {
+  return {
+    ...failedDelivery(invoiceId),
+    canRetry: false,
+    lastErrorCode: null,
+    lastErrorDetail: null,
+    messageId: "<m1@example.org>",
+    sentAt: "2026-10-02T10:01:00Z",
+    status: "sent",
+  };
+}
+
+type Cancellation = NonNullable<InvoiceRecordResponse["cancellation"]>;
+
+/** A cancelled invoice as the current server sends it. */
+function cancelledInvoice(
+  id: string,
+  number: string,
+  cancellation: Partial<Cancellation> = {},
+  cancellationDeliveries: InvoiceDeliveryResponse[] = [],
+): InvoiceRecordResponse {
+  return {
+    ...invoice(id, number, {
+      status: "cancelled",
+      cancellation: {
+        actionId,
+        id: `x-${id}`,
+        invoiceId: id,
+        issuedOn: "2026-10-06",
+        number: "KT26-0009",
+        originalStatus: "issued",
+        reason: "Doppelt erfasst",
+        receivedMinor: 0,
+        refundNote: null,
+        refundOpen: false,
+        refundSettledAt: null,
+        refundSettledByDisplayName: null,
+        refundSettledOn: null,
+        refundWithdrawals: [],
+        replayed: false,
+        requestedAt: "2026-10-06T12:00:00Z",
+        requestedByDisplayName: "Klara Kern",
+        requestedByUserId: "u1",
+        ...cancellation,
+      },
+    }),
+    cancellationDeliveries,
+  };
+}
+
+function cancellationDocumentFor(
+  invoiceId: string,
+  status: "pending" | "available" = "available",
+): GeneratedDocumentRecordResponse {
+  const base = documentFor(invoiceId, "KT26-0004");
+  return {
+    ...base,
+    documentNumber: "KT26-0009",
+    document: {
+      ...base.document,
+      availableAt: status === "available" ? "2026-10-06T12:01:00Z" : null,
+      documentType: "invoice_cancellation_pdf",
+      filename: "Stornorechnung-KT26-0009.pdf",
+      id: `dx-${invoiceId}`,
+      status,
+    },
+  };
+}
+
 function documentFor(invoiceId: string, number: string) {
   return {
     buyerDisplayName: "Bäckerei Kern",
+    documentNumber: null,
     invoiceNumber: number,
     document: {
       actionId,
@@ -215,8 +289,17 @@ const records: InvoiceRecordResponse[] = [
       actionId,
       id: "x1",
       invoiceId: "i-cancelled",
+      issuedOn: null,
+      number: null,
       originalStatus: "issued",
       reason: "Doppelt erfasst",
+      receivedMinor: 0,
+      refundNote: null,
+      refundOpen: false,
+      refundSettledAt: null,
+      refundSettledByDisplayName: null,
+      refundSettledOn: null,
+      refundWithdrawals: [],
       replayed: false,
       requestedAt: "2026-10-06T12:00:00Z",
       requestedByDisplayName: "Klara Kern",
@@ -251,12 +334,14 @@ function identity(
 function fakeClient(
   manage: boolean,
   items: readonly InvoiceRecordResponse[] = records,
+  extraDocuments: readonly GeneratedDocumentRecordResponse[] = [],
+  mayIssue: boolean = manage,
 ) {
   const context: InvoiceContextResponse = {
     actionId,
     actionName: "Adventskalender 2026",
     endsOn: "2026-12-24",
-    mayIssue: manage,
+    mayIssue,
     mayManageSettlements: manage,
     profile: null,
     startsOn: "2026-10-01",
@@ -272,16 +357,27 @@ function fakeClient(
     })),
     listActionDocuments: vi.fn(async () => ({
       actionId,
-      items: items.map((record) =>
-        documentFor(record.invoice.id, record.invoice.number),
-      ),
+      // Newest first, as the server lists them.
+      items: [
+        ...extraDocuments,
+        ...items.map((record) =>
+          documentFor(record.invoice.id, record.invoice.number),
+        ),
+      ],
       reference: {},
     })),
     recordInvoicePayment: vi.fn(async () => ({})),
     reverseInvoicePayment: vi.fn(async () => ({})),
-    cancelInvoice: vi.fn(async () => ({})),
+    cancelInvoice: vi.fn(async (): Promise<Partial<Cancellation>> => ({})),
     retryInvoiceDelivery: vi.fn(async () => ({})),
     sendInvoice: vi.fn(async () => ({})),
+    sendInvoiceCancellation: vi.fn(async () => ({})),
+    retryInvoiceCancellationDelivery: vi.fn(async () => ({})),
+    issueInvoiceCancellationDocument: vi.fn(
+      async (): Promise<Partial<Cancellation>> => ({ number: "KT26-0011" }),
+    ),
+    settleInvoiceCancellationRefund: vi.fn(async () => ({})),
+    withdrawInvoiceCancellationRefund: vi.fn(async () => ({})),
     downloadGeneratedDocument: vi.fn(async () => new Blob()),
   };
   return client;
@@ -290,8 +386,11 @@ function fakeClient(
 async function renderPage(
   options: {
     manage?: boolean;
+    /** Server right `mayIssue` when it differs from `manage`. */
+    mayIssue?: boolean;
     url?: string;
     items?: readonly InvoiceRecordResponse[];
+    documents?: readonly GeneratedDocumentRecordResponse[];
   } = {},
 ) {
   window.history.replaceState(
@@ -299,7 +398,12 @@ async function renderPage(
     "",
     options.url ?? `/admin/invoices?action=${actionId}`,
   );
-  const client = fakeClient(options.manage ?? true, options.items);
+  const client = fakeClient(
+    options.manage ?? true,
+    options.items,
+    options.documents,
+    options.mayIssue,
+  );
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -554,6 +658,17 @@ describe("InvoiceAdminPage", () => {
     const dialog = await screen.findByRole("alertdialog", {
       name: "KT26-0003 stornieren?",
     });
+    expect(dialog.textContent).toContain(
+      "LeonAid stellt dazu eine Stornorechnung aus",
+    );
+    expect(dialog.textContent).toContain(
+      "erfassen Sie danach eine neue Bestellung und stellen deren Rechnung aus",
+    );
+    // Never sent and nothing received: no send option, no refund note.
+    expect(
+      within(dialog).queryByTestId("send-cancellation-with-cancel"),
+    ).toBeNull();
+    expect(within(dialog).queryByTestId("cancellation-received")).toBeNull();
     fireEvent.change(within(dialog).getByTestId("cancellation-reason"), {
       target: { value: "kurz" },
     });
@@ -576,6 +691,403 @@ describe("InvoiceAdminPage", () => {
         }),
       }),
     );
+  });
+
+  it("offers to send the cancellation invoice when the invoice was sent", async () => {
+    const sent = invoice("i-sent", "KT26-0012", {
+      deliveries: [sentDelivery("i-sent")],
+    });
+    const client = await renderPage({ items: [sent] });
+    client.cancelInvoice.mockResolvedValueOnce({ number: "KT26-0013" });
+    const pane = await openRow("KT26-0012");
+    fireEvent.click(pane.getByTestId("open-cancellation-form"));
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "KT26-0012 stornieren?",
+    });
+    const checkbox = within(dialog).getByRole("checkbox", {
+      name: "Stornorechnung gleich senden",
+    }) as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+    expect(dialog.textContent).toContain("per E-Mail an einkauf@example.org");
+    fireEvent.change(within(dialog).getByTestId("cancellation-reason"), {
+      target: { value: "Sponsor hat doppelt bestellt" },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByTestId("cancel-invoice"));
+    });
+    expect(client.cancelInvoice).toHaveBeenCalledWith(
+      actionId,
+      "i-sent",
+      { reason: "Sponsor hat doppelt bestellt", sendCancellation: true },
+      expect.anything(),
+    );
+    expect(
+      await screen.findByText(
+        "KT26-0012 storniert. Stornorechnung KT26-0013 ausgestellt.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("cancels without sending when the box is unchecked", async () => {
+    const sent = invoice("i-sent", "KT26-0012", {
+      deliveries: [sentDelivery("i-sent")],
+    });
+    const client = await renderPage({ items: [sent] });
+    const pane = await openRow("KT26-0012");
+    fireEvent.click(pane.getByTestId("open-cancellation-form"));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(
+      within(dialog).getByTestId("send-cancellation-with-cancel"),
+    );
+    fireEvent.change(within(dialog).getByTestId("cancellation-reason"), {
+      target: { value: "Sponsor hat doppelt bestellt" },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByTestId("cancel-invoice"));
+    });
+    expect(client.cancelInvoice).toHaveBeenCalledWith(
+      actionId,
+      "i-sent",
+      { reason: "Sponsor hat doppelt bestellt", sendCancellation: false },
+      expect.anything(),
+    );
+  });
+
+  it("hides the send option from a manager who may not send", async () => {
+    const sent = invoice("i-sent", "KT26-0012", {
+      deliveries: [sentDelivery("i-sent")],
+    });
+    await renderPage({ items: [sent], mayIssue: false });
+    const pane = await openRow("KT26-0012");
+    fireEvent.click(pane.getByTestId("open-cancellation-form"));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(
+      within(dialog).queryByTestId("send-cancellation-with-cancel"),
+    ).toBeNull();
+  });
+
+  it("explains the refund when the invoice to cancel received money", async () => {
+    const paid = settled("i-paid2", "KT26-0014", [
+      entry("p-g", 14_400, "2026-10-04"),
+    ]);
+    await renderPage({
+      items: [paid],
+      url: `/admin/invoices?action=${actionId}&view=paid`,
+    });
+    const pane = await openRow("KT26-0014");
+    fireEvent.click(pane.getByTestId("open-cancellation-form"));
+    const dialog = await screen.findByRole("alertdialog");
+    const note = within(dialog).getByTestId("cancellation-received");
+    expect(note.textContent).toMatch(/144,00\s€ eingegangen/);
+    expect(note.textContent).toContain("Die Zahlung bleibt erfasst");
+    expect(note.textContent).toContain("„Erstattung erledigt“");
+  });
+
+  it("shows the cancellation invoice with number, date, PDF and delivery", async () => {
+    const cancelled = cancelledInvoice("i-x", "KT26-0004");
+    const client = await renderPage({
+      items: [cancelled],
+      documents: [cancellationDocumentFor("i-x")],
+      url: `/admin/invoices?action=${actionId}&view=cancelled`,
+    });
+    expect(rowLink("KT26-0004").textContent).toContain(
+      "storniert · Stornorechnung KT26-0009",
+    );
+    expect(rowLink("KT26-0004").parentElement!.textContent).not.toContain(
+      "Erstattung offen",
+    );
+    const pane = await openRow("KT26-0004");
+    const section = within(pane.getByTestId("cancellation-invoice"));
+    expect(section.getByText("KT26-0009")).toBeTruthy();
+    expect(section.getByText("06.10.2026")).toBeTruthy();
+    expect(section.queryByTestId("issue-cancellation-document")).toBeNull();
+    expect(section.queryByTestId("cancellation-refund")).toBeNull();
+    // Each PDF keeps its own row: the invoice's and the cancellation's.
+    expect(pane.getByTestId("invoice-document").textContent).toContain(
+      "Rechnung-KT26-0004.pdf",
+    );
+    expect(section.getByTestId("cancellation-document").textContent).toContain(
+      "Stornorechnung-KT26-0009.pdf",
+    );
+    expect(
+      section.getByTestId("preview-cancellation-document").getAttribute("href"),
+    ).toContain("/documents/dx-i-x/download");
+
+    const delivery = within(pane.getByTestId("cancellation-delivery"));
+    expect(delivery.getByText("Noch nicht versendet")).toBeTruthy();
+    // The cancelled invoice itself is no longer sent.
+    expect(pane.queryByTestId("send-invoice")).toBeNull();
+    await act(async () => {
+      fireEvent.click(delivery.getByTestId("send-cancellation"));
+    });
+    expect(client.sendInvoiceCancellation).toHaveBeenCalledWith(
+      actionId,
+      "i-x",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "Idempotency-Key": expect.stringMatching(
+            /^invoice:cancellation-delivery:/,
+          ),
+        }),
+      }),
+    );
+  });
+
+  it("waits for the PDF of the cancellation invoice before sending", async () => {
+    await renderPage({
+      items: [cancelledInvoice("i-x", "KT26-0004")],
+      documents: [cancellationDocumentFor("i-x", "pending")],
+      url: `/admin/invoices?action=${actionId}&view=cancelled`,
+    });
+    const pane = await openRow("KT26-0004");
+    const pdf = pane.getByTestId("cancellation-document");
+    expect(pdf.getAttribute("data-state")).toBe("pending");
+    expect(pdf.textContent).toContain("wird gerade erzeugt");
+    expect(pane.queryByTestId("send-cancellation")).toBeNull();
+    expect(
+      pane.getByText(/sobald das PDF der Stornorechnung bereitsteht/),
+    ).toBeTruthy();
+  });
+
+  it("retries a failed delivery of the cancellation invoice", async () => {
+    const failed = {
+      ...failedDelivery("i-x"),
+      kind: "invoice_cancellation" as const,
+      subject: "Stornorechnung KT26-0009",
+    };
+    const client = await renderPage({
+      items: [cancelledInvoice("i-x", "KT26-0004", {}, [failed])],
+      documents: [cancellationDocumentFor("i-x")],
+      url: `/admin/invoices?action=${actionId}&view=cancelled`,
+    });
+    const pane = await openRow("KT26-0004");
+    expect(
+      pane.getByText(/Versand der Stornorechnung an .* fehlgeschlagen/),
+    ).toBeTruthy();
+    expect(
+      pane.getByTestId("cancellation-delivery").getAttribute("data-state"),
+    ).toBe("failed");
+    await act(async () => {
+      fireEvent.click(pane.getByTestId("retry-cancellation-delivery"));
+    });
+    expect(client.retryInvoiceCancellationDelivery).toHaveBeenCalledWith(
+      actionId,
+      "i-x",
+      "delivery-i-x",
+    );
+    expect(client.retryInvoiceDelivery).not.toHaveBeenCalled();
+  });
+
+  it("issues the cancellation invoice of an older cancellation", async () => {
+    // records[3] is a cancellation from before the release: no number.
+    const client = await renderPage({
+      url: `/admin/invoices?action=${actionId}&view=cancelled`,
+    });
+    expect(rowLink("KT26-0004").textContent).toContain(
+      "storniert · Doppelt erfasst",
+    );
+    const pane = await openRow("KT26-0004");
+    const section = within(pane.getByTestId("cancellation-invoice"));
+    expect(
+      section.getByText(/bevor LeonAid Stornorechnungen ausgestellt hat/),
+    ).toBeTruthy();
+    expect(pane.queryByTestId("cancellation-delivery")).toBeNull();
+    expect(section.queryByTestId("cancellation-document")).toBeNull();
+    await act(async () => {
+      fireEvent.click(
+        section.getByRole("button", { name: "Stornorechnung ausstellen" }),
+      );
+    });
+    expect(client.issueInvoiceCancellationDocument).toHaveBeenCalledWith(
+      actionId,
+      "i-cancelled",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "Idempotency-Key": expect.stringMatching(
+            /^invoice:cancellation-document:/,
+          ),
+        }),
+      }),
+    );
+    expect(
+      await screen.findByText("Stornorechnung KT26-0011 ausgestellt."),
+    ).toBeTruthy();
+  });
+
+  it("marks an open refund in the list and settles it", async () => {
+    const refundOpen = cancelledInvoice("i-r", "KT26-0004", {
+      originalStatus: "paid",
+      receivedMinor: 7_200,
+      refundOpen: true,
+    });
+    const client = await renderPage({
+      items: [refundOpen],
+      documents: [cancellationDocumentFor("i-r")],
+      url: `/admin/invoices?action=${actionId}&view=cancelled`,
+    });
+    expect(rowLink("KT26-0004").parentElement!.textContent).toContain(
+      "Erstattung offen",
+    );
+    const pane = await openRow("KT26-0004");
+    expect(pane.getByTestId("invoice-refund-open").textContent).toMatch(
+      /Erstattung offen: Erhalten: 72,00\s€/,
+    );
+    expect(
+      pane.getByTestId("cancellation-received-amount").textContent,
+    ).toContain("72,00");
+    expect(pane.getByTestId("cancellation-refund").textContent).toBe(
+      "Erstattung offen",
+    );
+    fireEvent.click(pane.getByRole("button", { name: "Erstattung erledigt" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Erstattung für KT26-0004 erledigt?",
+    });
+    expect(dialog.textContent).toContain("LeonAid bucht keine Erstattung");
+    const date = within(dialog).getByTestId("refund-date") as HTMLInputElement;
+    expect(date.value).toBe(localIsoDate());
+    expect(date.max).toBe(localIsoDate());
+    // Not in the future and not before the invoice existed; a day before
+    // the cancellation is fine (the club may have paid back first).
+    expect(date.min).toBe("2026-10-01");
+    fireEvent.change(date, { target: { value: "2999-01-01" } });
+    fireEvent.click(within(dialog).getByTestId("settle-refund"));
+    expect(
+      within(dialog).getByText(
+        "Das Datum liegt zwischen dem Rechnungsdatum und heute.",
+      ),
+    ).toBeTruthy();
+    expect(client.settleInvoiceCancellationRefund).not.toHaveBeenCalled();
+    fireEvent.change(date, { target: { value: "2026-10-08" } });
+    fireEvent.change(within(dialog).getByTestId("refund-note"), {
+      target: { value: "Rücküberweisung vom Vereinskonto" },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByTestId("settle-refund"));
+    });
+    expect(client.settleInvoiceCancellationRefund).toHaveBeenCalledWith(
+      actionId,
+      "i-r",
+      { settledOn: "2026-10-08", note: "Rücküberweisung vom Vereinskonto" },
+      {
+        headers: {
+          "Idempotency-Key": expect.stringMatching(/^poc095:refund/),
+        },
+      },
+    );
+    expect(
+      await screen.findByText(
+        "Erstattung für KT26-0004 als erledigt vermerkt.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("shows a settled refund with day, person and note", async () => {
+    const settledRefund = cancelledInvoice("i-r", "KT26-0004", {
+      originalStatus: "paid",
+      receivedMinor: 7_200,
+      refundNote: "Rücküberweisung vom Vereinskonto",
+      refundOpen: false,
+      refundSettledAt: "2026-10-08T09:00:00Z",
+      refundSettledByDisplayName: "Finn Finanzen",
+      refundSettledOn: "2026-10-08",
+    });
+    await renderPage({
+      items: [settledRefund],
+      documents: [cancellationDocumentFor("i-r")],
+      url: `/admin/invoices?action=${actionId}&view=cancelled`,
+    });
+    expect(rowLink("KT26-0004").parentElement!.textContent).not.toContain(
+      "Erstattung offen",
+    );
+    const pane = await openRow("KT26-0004");
+    expect(pane.queryByTestId("invoice-refund-open")).toBeNull();
+    expect(pane.queryByTestId("open-refund-form")).toBeNull();
+    expect(pane.getByTestId("cancellation-refund").textContent).toBe(
+      "Erstattung erledigt am 08.10.2026 · Finn Finanzen",
+    );
+    expect(pane.getByText("Rücküberweisung vom Vereinskonto")).toBeTruthy();
+  });
+
+  it("takes a refund marker back with a reason", async () => {
+    const settledRefund = cancelledInvoice("i-r", "KT26-0004", {
+      originalStatus: "paid",
+      receivedMinor: 7_200,
+      refundSettledAt: "2026-10-08T09:00:00Z",
+      refundSettledByDisplayName: "Finn Finanzen",
+      refundSettledOn: "2026-10-08",
+    });
+    const client = await renderPage({
+      items: [settledRefund],
+      documents: [cancellationDocumentFor("i-r")],
+      url: `/admin/invoices?action=${actionId}&view=cancelled`,
+    });
+    const pane = await openRow("KT26-0004");
+    fireEvent.click(pane.getByTestId("open-refund-withdrawal-form"));
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Erstattung für KT26-0004 zurücknehmen?",
+    });
+    // No reason, no command.
+    fireEvent.click(within(dialog).getByTestId("withdraw-refund"));
+    expect(client.withdrawInvoiceCancellationRefund).not.toHaveBeenCalled();
+    fireEvent.change(within(dialog).getByTestId("refund-withdrawal-reason"), {
+      target: { value: "Falsche Rechnung angeklickt" },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByTestId("withdraw-refund"));
+    });
+    expect(client.withdrawInvoiceCancellationRefund).toHaveBeenCalledWith(
+      actionId,
+      "i-r",
+      { reason: "Falsche Rechnung angeklickt" },
+      {
+        headers: {
+          "Idempotency-Key": expect.stringMatching(/^poc095:refund-withdrawal/),
+        },
+      },
+    );
+    expect(
+      await screen.findByText("Erstattung für KT26-0004 ist wieder offen."),
+    ).toBeTruthy();
+  });
+
+  it("shows who set and who withdrew an earlier refund marker", async () => {
+    const reopened = cancelledInvoice("i-r", "KT26-0004", {
+      originalStatus: "paid",
+      receivedMinor: 7_200,
+      refundOpen: true,
+      refundWithdrawals: [
+        {
+          id: "w1",
+          note: null,
+          reason: "Falsche Rechnung angeklickt",
+          settledAt: "2026-10-08T09:00:00Z",
+          settledByDisplayName: "Finn Finanzen",
+          settledOn: "2026-10-08",
+          withdrawnAt: "2026-10-09T10:00:00Z",
+          withdrawnByDisplayName: "Klara Kern",
+        },
+      ],
+    });
+    await renderPage({
+      items: [reopened],
+      documents: [cancellationDocumentFor("i-r")],
+      url: `/admin/invoices?action=${actionId}&view=cancelled`,
+    });
+    const pane = await openRow("KT26-0004");
+    const text = pane.getByTestId("cancellation-refund-withdrawal").textContent;
+    expect(text).toContain("Vermerk vom 08.10.2026 (Finn Finanzen)");
+    expect(text).toContain("von Klara Kern: Falsche Rechnung angeklickt");
+    expect(pane.queryByTestId("open-refund-withdrawal-form")).toBeNull();
+  });
+
+  it("lists a failed mail of the cancellation invoice as failed dispatch", () => {
+    const failed = { ...failedDelivery("i-x"), kind: "invoice_cancellation" };
+    const cancelled = cancelledInvoice("i-x", "KT26-0004", {}, [
+      failed as InvoiceDeliveryResponse,
+    ]);
+    // The invoice's own mail had arrived; what counts now is its cancellation.
+    const [row] = invoiceRows([cancelled], [], "2026-10-10");
+    expect(row!.dispatch).toBe("failed");
   });
 
   it("resends a failed delivery through the explicit retry command", async () => {
@@ -797,5 +1309,26 @@ describe("InvoiceAdminPage", () => {
     expect(pane.queryByTestId("open-cancellation-form")).toBeNull();
     expect(pane.queryByTestId("retry-invoice-delivery")).toBeNull();
     expect(pane.getByTestId("preview-document")).toBeTruthy();
+  });
+
+  it("gives a finance reader no cancellation invoice commands", async () => {
+    const refundOpen = cancelledInvoice("i-r", "KT26-0005", {
+      number: null,
+      issuedOn: null,
+      receivedMinor: 7_200,
+      refundOpen: true,
+    });
+    await renderPage({
+      manage: false,
+      items: [refundOpen],
+      url: `/admin/invoices?action=${actionId}&view=cancelled`,
+    });
+    const pane = await openRow("KT26-0005");
+    expect(pane.getByTestId("invoice-refund-open")).toBeTruthy();
+    expect(pane.queryByTestId("open-refund-form")).toBeNull();
+    expect(pane.queryByTestId("issue-cancellation-document")).toBeNull();
+    expect(pane.getByTestId("cancellation-refund").textContent).toBe(
+      "Erstattung offen",
+    );
   });
 });

@@ -1,8 +1,10 @@
-"""Role-filtered core search across actions, orders, invoices and members.
+"""Role-filtered core search: actions, orders, invoices, sponsors and members.
 
 Module objects (tasks, knowledge pages, materials, inbox cases) are searched by
-their own modules. Sponsors live in Twenty and LeonAid keeps no local copy of
-them, so they are not searched here; a CRM call per keystroke is not an option.
+their own modules. Sponsors live in Twenty; a CRM call per keystroke is not an
+option, so the search reads the local index of their names and cities
+(``leonaid.application.sponsor_search``). A sponsor is found once per
+assignment the account may see.
 
 Every scope comes from the same policies that guard the list endpoints, so a
 result never shows an object the account could not open there.
@@ -23,9 +25,9 @@ from leonaid.application.invoices import may_read_all_invoices, may_read_invoice
 from leonaid.domain.actions import CharityActionStatus
 from leonaid.domain.commitments import CommitmentStatus
 from leonaid.domain.errors import DomainInvariantError
-from leonaid.domain.identity import AccountStatus, IdentityPrincipal
+from leonaid.domain.identity import AccountStatus, ActionRole, IdentityPrincipal
 from leonaid.domain.policies import may_manage_action
-from leonaid.platform.base_paths import ADMIN_BASE
+from leonaid.platform.base_paths import ADMIN_BASE, PWA_BASE
 
 SEARCH_QUERY_MIN_LENGTH = 2
 SEARCH_QUERY_MAX_LENGTH = 80
@@ -37,8 +39,7 @@ class SearchResultType(StrEnum):
     ACTION = "action"
     ORDER = "order"
     INVOICE = "invoice"
-    # Part of the contract for the palette; not produced while sponsors exist
-    # only in Twenty (see module docstring).
+    # One result per acquisition assignment of the sponsor.
     SPONSOR = "sponsor"
     MEMBER = "member"
 
@@ -137,12 +138,24 @@ class SearchScope:
     invoices: ActionScope
     # Members with a current membership in these actions.
     members: ActionScope
+    # Sponsors: every assignment of these actions (managers) ...
+    sponsors: ActionScope = NO_ACTIONS
+    # ... and in these actions the account's own assignments that are not
+    # handed over (acquirers). Never overlaps ``sponsors``.
+    own_sponsors: ActionScope = NO_ACTIONS
 
     @property
     def is_empty(self) -> bool:
         return all(
             part.is_empty
-            for part in (self.actions, self.orders, self.invoices, self.members)
+            for part in (
+                self.actions,
+                self.orders,
+                self.invoices,
+                self.members,
+                self.sponsors,
+                self.own_sponsors,
+            )
         )
 
 
@@ -169,7 +182,9 @@ def search_scope(actor: IdentityPrincipal) -> SearchScope:
     Actions and orders follow the action-management policy of
     ``GET /actions/{id}`` and ``GET /actions/{id}/commitments``, invoices the
     finance read policy of ``GET /actions/{id}/invoices`` and members the
-    scope of the member directory.
+    scope of the member directory. Sponsors follow ``authorized_scope`` of the
+    acquisition policy: managers see every assignment of their actions,
+    acquirers their own that are not handed over.
     """
 
     if not actor.account.can_authenticate:
@@ -194,11 +209,25 @@ def search_scope(actor: IdentityPrincipal) -> SearchScope:
             if member_actions is None
             else ActionScope.of(set(member_actions))
         )
+    own_sponsors = (
+        NO_ACTIONS
+        if managed.all_actions
+        else ActionScope.of(
+            {
+                membership.action_id
+                for membership in actor.action_memberships
+                if membership.role is ActionRole.ACQUIRER
+            }
+            - managed.action_ids
+        )
+    )
     return SearchScope(
         actions=managed,
         orders=managed,
         invoices=invoices,
         members=members,
+        sponsors=managed,
+        own_sponsors=own_sponsors,
     )
 
 
@@ -209,6 +238,8 @@ class SearchCriteria:
     limit: int
     scope: SearchScope
     evaluated_at: datetime
+    # Whose own assignments ``scope.own_sponsors`` means.
+    actor_user_id: UUID
 
 
 @dataclass(frozen=True, slots=True)
@@ -229,6 +260,9 @@ class SearchHit:
     status: str | None = None
     detail: str | None = None
     action_name: str | None = None
+    # Sponsor hits: found as a manager of the action (web admin target), not
+    # as the assignment's acquirer (PWA target).
+    managed: bool = False
 
 
 class SearchRepository(Protocol):
@@ -273,6 +307,16 @@ def _result(hit: SearchHit) -> SearchResult:
             )
             # The member list opens the hit in its pane.
             href = f"{ADMIN_BASE}members?open={hit.id}"
+        case SearchResultType.SPONSOR:
+            # The id is the assignment; the detail is the sponsor's city.
+            context = _context(hit.action_name, hit.detail)
+            href = (
+                # The pipeline scrolls to the assignment and opens its detail.
+                f"{ADMIN_BASE}acquisition?action={hit.action_id}&open={hit.id}"
+                if hit.managed
+                # The acquirer's own sponsor in the acquisition app.
+                else f"{PWA_BASE}sponsors?action={hit.action_id}&assignment={hit.id}"
+            )
         case _:
             raise ValueError(f"Unsupported core search result: {hit.type}")
     return SearchResult(
@@ -289,6 +333,9 @@ def _readable(hit: SearchHit, scope: SearchScope) -> bool:
 
     if hit.type is SearchResultType.MEMBER:
         return not scope.members.is_empty
+    if hit.type is SearchResultType.SPONSOR:
+        allowed = scope.sponsors if hit.managed else scope.own_sponsors
+        return hit.action_id is not None and allowed.allows(hit.action_id)
     allowed = {
         SearchResultType.ACTION: scope.actions,
         SearchResultType.ORDER: scope.orders,
@@ -322,6 +369,7 @@ class SearchService:
                 limit=query.limit,
                 scope=scope,
                 evaluated_at=self._clock(),
+                actor_user_id=actor.account.id,
             )
         )
         ranked = sorted(

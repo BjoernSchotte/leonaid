@@ -27,6 +27,7 @@ from leonaid.application.crm_matching import (
 )
 from leonaid.application.errors import Conflict
 from leonaid.application.policies import concealed_resource
+from leonaid.application.sponsor_search import PartyKey, SponsorParty
 from leonaid.domain.identity import IdentityPrincipal
 
 
@@ -187,9 +188,12 @@ class SponsorResolutionCommand(Protocol):
         outcome: SponsorResolutionOutcome,
         normalized_key: str,
         prior_assignee_ids: tuple[UUID, ...],
+        search_entry: SponsorParty,
         request_id: str,
         occurred_at: datetime,
-    ) -> RecordedAssignment | None: ...
+    ) -> RecordedAssignment | None:
+        """Record the assignment; ``search_entry`` goes into the search index."""
+        ...
 
     async def complete(self, result: SponsorResolution) -> None: ...
 
@@ -401,6 +405,11 @@ class SponsorMatchingService:
                 normalized_key=draft.normalized_key,
                 prior_assignee_ids=tuple(
                     item.user_id for item in candidate.assigned_acquirers
+                ),
+                search_entry=SponsorParty(
+                    key=PartyKey(candidate.party_kind, candidate.twenty_id),
+                    display_name=candidate.display_name,
+                    city=candidate.city,
                 ),
                 request_id=request_id,
                 occurred_at=occurred_at,

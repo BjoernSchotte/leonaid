@@ -214,6 +214,13 @@ test("charity admin books partial and full payments and reverses an entry", asyn
     await cancelDialog
       .getByTestId("cancellation-reason")
       .fill(cancellationReason);
+    await expect(cancelDialog).toContainText(
+      "LeonAid stellt dazu eine Stornorechnung aus",
+    );
+    await page.screenshot({
+      path: `${artifactDirectory}/invoice-cancellation-dialog.png`,
+      fullPage: true,
+    });
     await cancelDialog.getByTestId("cancel-invoice").click();
     await expect(cancelDialog).toBeHidden();
     await expect(cancellation).toHaveAttribute("data-settlement", "cancelled");
@@ -227,11 +234,100 @@ test("charity admin books partial and full payments and reverses an entry", asyn
       "data-state",
       "available",
     );
+    // The cancel command issued the cancellation invoice: it has a number of
+    // the invoice series at once; its PDF is rendered by the worker later.
+    const cancellationInvoice = cancellation.getByTestId(
+      "cancellation-invoice",
+    );
+    await expect(cancellationInvoice).toHaveAttribute("data-state", "issued");
+    await expect(cancellationInvoice).toContainText(/KT26-\d{4}/);
+    await expect(
+      cancellation.getByTestId("cancellation-document"),
+    ).toHaveAttribute("data-state", /pending|available/);
+    await expect(
+      page.getByText(/Stornorechnung KT26-\d{4} ausgestellt\./),
+    ).toBeVisible();
     await expect(page.getByTestId("invoice-open-total")).toContainText("0,00");
+    await cancellationInvoice.scrollIntoViewIfNeeded();
     await page.screenshot({
       path: `${artifactDirectory}/invoice-cancellation.png`,
       fullPage: true,
     });
+
+    await expectNoSeriousAccessibilityViolations(page);
+
+    // KT26-0003 was cancelled before cancellation invoices existed and had
+    // received money: the refund is open and the document is still to issue.
+    await closeInvoice(page);
+    const older = await openInvoice(page, { number: "KT26-0003" });
+    const olderInvoice = older.getByTestId("cancellation-invoice");
+    await expect(olderInvoice).toHaveAttribute("data-state", "missing");
+    await expect(older.getByTestId("invoice-refund-open")).toContainText(
+      "Erstattung offen",
+    );
+    await olderInvoice.scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: `${artifactDirectory}/invoice-cancellation-older.png`,
+      fullPage: true,
+    });
+    await older.getByTestId("issue-cancellation-document").click();
+    await expect(olderInvoice).toHaveAttribute("data-state", "issued");
+    await expect(olderInvoice).toContainText(/KT26-\d{4}/);
+    await older.getByTestId("open-refund-form").click();
+    const refundDialog = page.getByRole("dialog", {
+      name: /Erstattung für KT26-0003 erledigt\?/,
+    });
+    await expect(refundDialog).toBeVisible();
+    await refundDialog
+      .getByTestId("refund-note")
+      .fill("Rücküberweisung vom Vereinskonto");
+    await page.screenshot({
+      path: `${artifactDirectory}/invoice-refund-dialog.png`,
+      fullPage: true,
+    });
+    await refundDialog.getByTestId("settle-refund").click();
+    await expect(refundDialog).toBeHidden();
+    await expect(older.getByTestId("invoice-refund-open")).toHaveCount(0);
+    await expect(older.getByTestId("cancellation-refund")).toContainText(
+      "Erstattung erledigt am",
+    );
+    await olderInvoice.scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: `${artifactDirectory}/invoice-refund-settled.png`,
+      fullPage: true,
+    });
+
+    // A wrong click does not stay: the marker is taken back with a reason,
+    // the refund is open again, and the record keeps both people.
+    await older.getByTestId("open-refund-withdrawal-form").click();
+    const withdrawalDialog = page.getByRole("alertdialog", {
+      name: /Erstattung für KT26-0003 zurücknehmen\?/,
+    });
+    await expect(withdrawalDialog).toBeVisible();
+    await withdrawalDialog
+      .getByTestId("refund-withdrawal-reason")
+      .fill("Falsche Rechnung angeklickt");
+    await withdrawalDialog.getByTestId("withdraw-refund").click();
+    await expect(withdrawalDialog).toBeHidden();
+    await expect(older.getByTestId("invoice-refund-open")).toContainText(
+      "Erstattung offen",
+    );
+    await expect(
+      older.getByTestId("cancellation-refund-withdrawal"),
+    ).toContainText("Falsche Rechnung angeklickt");
+    await olderInvoice.scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: `${artifactDirectory}/invoice-refund-withdrawn.png`,
+      fullPage: true,
+    });
+    await older.getByTestId("open-refund-form").click();
+    await page
+      .getByRole("dialog", { name: /Erstattung für KT26-0003 erledigt\?/ })
+      .getByTestId("settle-refund")
+      .click();
+    await expect(older.getByTestId("cancellation-refund")).toContainText(
+      "Erstattung erledigt am",
+    );
 
     await expectNoSeriousAccessibilityViolations(page);
     expect(pageErrors).toEqual([]);

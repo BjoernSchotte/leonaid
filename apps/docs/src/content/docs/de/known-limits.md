@@ -4,9 +4,9 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 8
-reviewedRevision: 8
-verifiedAgainst: 5e94339473f2439e5532a5408069a974ca7f5ca0
+contentRevision: 10
+reviewedRevision: 10
+verifiedAgainst: b1c08d3c04dbf7a46d1bb477753e36ad369a6fec
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -55,8 +55,26 @@ allgemeine Produktionsfreigabe.
   Akquisiteuren lösen keine E-Mail aus. Der Link zur Aktion zeigt auf die
   Aktionsseite des öffentlichen Hosts; eigene Kampagnen-Domains folgen mit
   Stufe 2. Absender ist die konfigurierte Systemadresse, nicht der Club.
+- Die Suche (**Suchen und Befehle**) findet Sponsoren nur über Name und Ort
+  und nur, wenn sie in einer Aktion einem Akquisiteur zugeordnet sind (siehe
+  [Mit der Suche finden](/de/user/how-to/find-with-search/)). E-Mail, Telefon
+  und Straße sind nicht durchsuchbar. Eine Änderung im CRM erreicht die Suche
+  nach bis zu etwa 15 Minuten; ein im CRM gelöschter Sponsor verschwindet erst
+  in der folgenden Nacht. Bis dahin öffnet sein Treffer die Zuordnung, die
+  dann „Im CRM nicht mehr vorhanden“ heißt und keine Kontaktdaten zeigt.
+  Die Akquise-App hat keine eigene Suche.
 - Ein gespeicherter Rechnungsbeleg und sein PDF werden nicht nachträglich
   überschrieben. Korrekturen erfolgen durch Storno und einen neuen Vorgang.
+- Ein Storno stellt eine Stornorechnung mit eigener Nummer aus dem
+  Nummernkreis der Rechnungen aus. Es gibt nur das vollständige Storno: kein
+  Teilstorno und keine Korrekturrechnung, die Positionen ersetzt. Zu einer
+  Bestellung gibt es eine Rechnung; eine korrigierte Rechnung braucht eine neue
+  Bestellung. Rechnungen, die vor dieser Funktion storniert wurden, haben keine
+  Stornorechnung, bis jemand sie ausstellt. Der Wortlaut der Stornorechnung ist
+  ein Vorschlag und rechtlich noch nicht geprüft.
+- Zahlungen einer stornierten Rechnung bleiben erfasst und lassen sich nicht
+  zurückbuchen. LeonAid bucht keine Erstattung; „Erstattung erledigt“ ist nur
+  ein Vermerk. Er lässt sich mit Grund zurücknehmen.
 - Teil- und Überzahlungen werden als einzelne Zahlungseinträge erfasst und
   bei Bedarf begründet zurückgebucht. Eine Überzahlung wird nur angezeigt; die
   Erstattung läuft außerhalb von LeonAid. Bankabgleich und Mahnwesen fehlen.

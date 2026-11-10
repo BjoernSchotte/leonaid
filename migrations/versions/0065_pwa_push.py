@@ -1,7 +1,7 @@
 """Push notifications of the PWA: flag `pwa.push`, subscriptions, preferences.
 
 Revision ID: 0065_pwa_push
-Revises: 0061_delivery_geo_regeocode
+Revises: 0063_document_series
 
 specs/mails-documents-donations-push §10, ADR-0017. `push_subscription` holds
 one row per device and session: the endpoint of the browser vendor's push
@@ -23,7 +23,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "0065_pwa_push"
-down_revision: str | None = "0061_delivery_geo_regeocode"
+down_revision: str | None = "0063_document_series"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 DATA_MIGRATION_REFERENCE = (

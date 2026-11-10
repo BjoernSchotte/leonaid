@@ -39,8 +39,12 @@ export function cancellationBlock(
   if (record.delivered) {
     return "Die Bestellung ist bereits geliefert und kann nicht mehr storniert werden.";
   }
-  // Active (not reversed) payment entries, ADR-0014.
-  if ((record.invoice?.paidMinor ?? 0) > 0) {
+  // Active (not reversed) payment entries, ADR-0014. A cancelled invoice is
+  // closed: its payments stay and its refund is tracked with the invoice.
+  if (
+    record.invoice?.status !== "cancelled" &&
+    (record.invoice?.paidMinor ?? 0) > 0
+  ) {
     return `Zur Rechnung ${record.invoice!.number} ist eine Zahlung erfasst. Buchen Sie die Zahlung in der Rechnung erst zurück (Zahlung zurückbuchen), dann können Sie die Bestellung stornieren.`;
   }
   return null;
@@ -64,6 +68,22 @@ export function notifiesBuyer(record: CommitmentRecordResponse): boolean {
     commitment.source === "public_form" &&
     Boolean(commitment.buyer.email?.trim())
   );
+}
+
+/**
+ * What reaches the buyer by e-mail: the cancellation notice of a public
+ * order, the cancellation invoice when it is sent with the cancellation,
+ * both, or nothing.
+ */
+export function buyerNotice(notice: boolean, cancellationInvoice: boolean) {
+  if (notice) {
+    return cancellationInvoice
+      ? "Der Besteller erhält eine E-Mail über die Stornierung, ohne Grund und Notiz. Die Stornorechnung geht in einer eigenen E-Mail an den Rechnungsempfänger."
+      : "Der Besteller erhält eine E-Mail über die Stornierung, ohne Grund und Notiz.";
+  }
+  return cancellationInvoice
+    ? "Der Rechnungsempfänger erhält die Stornorechnung per E-Mail. Eine eigene Nachricht über die Stornierung der Bestellung sendet LeonAid nicht."
+    : "LeonAid benachrichtigt den Besteller nicht automatisch. Bitte informieren Sie ihn selbst über die Stornierung.";
 }
 
 const draftKey = (commitmentId: string) => `order-cancellation:${commitmentId}`;
@@ -131,6 +151,14 @@ export function OrderCancellationDialog({
   const storageKey = commandStorageKey(commitment.id);
   const block = cancellationBlock(record);
   const invoice = invoiceToCancel(record);
+  // The cancellation invoice goes where the invoice went: offered when the
+  // invoice reached its recipient by e-mail (status `sent`). The address is
+  // the one frozen on the invoice, which the server sends to; the order's
+  // own recipient may have changed since.
+  const recipientEmail = invoice?.recipientEmail;
+  const offerSend = invoice?.status === "sent" && Boolean(recipientEmail);
+  const [send, setSend] = useState(true);
+  const sendInvoiceCancellation = offerSend && send;
 
   const cancellation = useMutation({
     mutationFn: () =>
@@ -141,6 +169,7 @@ export function OrderCancellationDialog({
           expectedVersion: commitment.deliveryCompletionVersion,
           reason: reason.trim(),
           note: note.trim() || null,
+          ...(offerSend ? { sendInvoiceCancellation } : {}),
         },
         {
           headers: {
@@ -165,10 +194,13 @@ export function OrderCancellationDialog({
     onSuccess(result) {
       forgetCommandKey(storageKey);
       const invoiceNumber = result.cancellation.invoiceNumber;
+      const cancellationNumber = result.cancellation.invoiceCancellationNumber;
       toast?.show({
         title: "Bestellung storniert.",
         description: invoiceNumber
-          ? `Rechnung ${invoiceNumber} ist ebenfalls storniert.`
+          ? cancellationNumber
+            ? `Rechnung ${invoiceNumber} ist ebenfalls storniert. Stornorechnung ${cancellationNumber} wurde ausgestellt.`
+            : `Rechnung ${invoiceNumber} ist ebenfalls storniert.`
           : undefined,
         tone: "success",
       });
@@ -239,9 +271,33 @@ export function OrderCancellationDialog({
               <StatusMessage tone="warning">
                 <strong>Rechnung {invoice.number} wird mitstorniert.</strong>{" "}
                 Sie bleibt mit Nummer, Daten und PDF unverändert erhalten und
-                ist danach als storniert markiert. Dafür bestätigen Sie Ihre
-                Anmeldung gegebenenfalls erneut.
+                ist danach als storniert markiert. LeonAid stellt dazu eine
+                Stornorechnung aus. Dafür bestätigen Sie Ihre Anmeldung
+                gegebenenfalls erneut.
               </StatusMessage>
+            ) : null}
+            {offerSend ? (
+              <div className="field">
+                <label className="checkbox">
+                  <input
+                    checked={send}
+                    data-testid="send-invoice-cancellation-with-order"
+                    disabled={cancellation.isPending}
+                    onChange={(event) => {
+                      // Another body is another command: a new key.
+                      forgetCommandKey(storageKey);
+                      setSend(event.target.checked);
+                    }}
+                    type="checkbox"
+                  />
+                  Stornorechnung gleich senden
+                </label>
+                <p className="field-hint">
+                  Die Stornorechnung geht als PDF per E-Mail an {recipientEmail}
+                  , sobald sie erzeugt ist. Ohne Häkchen senden Sie sie später
+                  unter „Rechnungen“.
+                </p>
+              </div>
             ) : null}
             <Field
               error={reasonError}
@@ -273,9 +329,7 @@ export function OrderCancellationDialog({
               />
             </Field>
             <StatusMessage tone="info">
-              {notifiesBuyer(record)
-                ? "Der Besteller erhält eine E-Mail über die Stornierung, ohne Grund und Notiz."
-                : "LeonAid benachrichtigt den Besteller nicht automatisch. Bitte informieren Sie ihn selbst über die Stornierung."}
+              {buyerNotice(notifiesBuyer(record), sendInvoiceCancellation)}
             </StatusMessage>
           </>
         )}

@@ -92,6 +92,16 @@ groups:
         annotations:
           summary: "The public TLS certificate expires in less than 14 days"
           runbook_url: "https://github.com/BjoernSchotte/leonaid/blob/main/infra/observability/RUNBOOKS.md#tls"
+      - alert: LeonAidSponsorSearchStale
+        expr: leonaid_worker_sponsor_search_last_success_age_seconds > 86400 and on() leonaid_maintenance_mode == 0
+        for: 15s
+        labels:
+          severity: P2
+          owner: pilot-operations
+          category: application
+        annotations:
+          summary: "The sponsor search index was not synced with the CRM for 24 hours"
+          runbook_url: "https://github.com/BjoernSchotte/leonaid/blob/main/infra/observability/RUNBOOKS.md#sponsor-search"
       - alert: LeonAidApiErrors
         expr: increase(leonaid_api_errors_total[5m]) >= 3 and on() leonaid_maintenance_mode == 0
         labels:

@@ -289,7 +289,7 @@ describe("command palette sources", () => {
     );
     expect(outcome.allFailed).toBe(false);
     expect(outcome.failed).toEqual([
-      "Aktionen, Bestellungen, Rechnungen und Mitglieder",
+      "Aktionen, Bestellungen, Rechnungen, Sponsoren und Mitglieder",
     ]);
   });
 });

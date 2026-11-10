@@ -71,6 +71,36 @@ entrypoint alone as proof of migration: both commands must exit with code 0,
 the expected target schema must exist and the business contract must still
 pass unchanged.
 
+## Release note: document series (migration `0063_document_series`)
+
+The migration moves the invoice counter from every action's profile to one
+series per prefix (ADR-0015). Deploy order, as `./leonaid pilot-release` does
+it:
+
+1. Maintenance mode on: no API or worker of the previous release writes an
+   invoice any more.
+2. Backup, then the migration (`alembic upgrade` to the manifest's head). It
+   also locks `invoice` and `invoice_cancellation` while it copies the issued
+   numbers into the registry.
+3. API and worker of the new release start; maintenance mode off.
+
+Do not migrate while processes of the previous release still serve writes:
+they would count from the old per-action counter. If that happened anyway,
+the new release does not get stuck: the next allocation moves the series on to
+the next number that no document holds. Before the release, list invoices in actions
+without a profile (they still cancel; the query shows what to expect):
+
+```sql
+SELECT invoice.number FROM invoice
+WHERE NOT EXISTS (
+    SELECT 1 FROM invoice_profile
+    WHERE invoice_profile.action_id = invoice.action_id
+);
+```
+
+The downgrade refuses when a cancellation invoice, a refund marker or a
+withdrawn refund marker exists.
+
 ## Rollback boundaries
 
 - **Twenty:** After the first instance or workspace migration step, no older

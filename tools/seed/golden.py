@@ -1369,6 +1369,33 @@ async def seed_operational_golden(
     offers = {str(item["id"]): item for item in dataset["offers"]}
     companies = {str(item["id"]): item for item in dataset["companies"]}
     persons = {str(item["id"]): item for item in dataset["persons"]}
+    # The sponsor search index of the seeded assignments, as the worker's
+    # sync would write it from the same Twenty records: name and city only.
+    for assignment in dataset["assignments"]:
+        party = companies.get(str(assignment["companyId"]))
+        if party is not None:
+            kind, name, city = "company", str(party["name"]), party["city"]
+        else:
+            party = persons[str(assignment["personId"])]
+            kind = "person"
+            name, city = f"{party['givenName']} {party['familyName']}", None
+        await connection.execute(
+            """
+            INSERT INTO sponsor_search_entry (
+                party_kind, twenty_id, display_name, city, synced_at
+            )
+            VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+            ON CONFLICT (party_kind, twenty_id) DO UPDATE
+            SET display_name = EXCLUDED.display_name,
+                city = EXCLUDED.city,
+                synced_at = EXCLUDED.synced_at,
+                erased_at = NULL
+            """,
+            kind,
+            party["id"],
+            name,
+            city,
+        )
     people_by_company: dict[str, list[JsonObject]] = {}
     for person in dataset["persons"]:
         company_id = person.get("companyId")
@@ -1652,6 +1679,22 @@ async def seed_operational_golden(
             "Lions Hilfswerk LeonAid Golden e.V.",
             "DE89370400440532013000",
             "COBADEFFXXX",
+        )
+        # The installation's invoice series (ADR-0015): the golden invoices
+        # below carry the numbers before it. A re-seed deletes the invoices
+        # issued since and puts the counter back.
+        await connection.execute(
+            """
+            INSERT INTO document_series (kind, prefix, next_number, width)
+            VALUES ('invoice', $1, $2, $3)
+            ON CONFLICT (kind, prefix) DO UPDATE
+            SET next_number = EXCLUDED.next_number,
+                width = EXCLUDED.width,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            profile["numberPrefix"],
+            profile["nextNumber"],
+            profile["numberWidth"],
         )
 
     invoice_status = {

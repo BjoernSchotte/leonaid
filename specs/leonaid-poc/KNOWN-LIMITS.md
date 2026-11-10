@@ -124,19 +124,79 @@ Punkte sind keine stillschweigenden Produktzusagen.
   das Material-Modul (Upload mit Versionen). Ein allgemeines DMS mit
   Volltextsuche fehlt.
 - listmonk und Canva sind nicht Teil des Core-PoC.
-- Core search (`GET /api/v1/search`) finds actions, orders, invoices and
-  members. It does not find sponsors: they live only in Twenty, and the
-  search does not call the CRM per keystroke. The `sponsor` result type is
-  reserved for a later local sponsor index.
+- Core search (`GET /api/v1/search`) finds actions, orders, invoices,
+  sponsors and members. Sponsors come from a local index
+  (`sponsor_search_entry`: name and city only), not from a CRM call per
+  keystroke. Limits of the sponsor search:
+  - Only parties with an acquisition assignment are found, one hit per
+    assignment the account may see (managers: every assignment of their
+    actions; acquirers: their own that are not handed over). E-mail, phone
+    and street are not in the index and cannot be searched.
+  - The index follows Twenty by polling (no webhook): a name or city changed
+    in Twenty arrives within about 15 minutes. The changed pass reads from
+    the last complete one, so failed or missed runs lose nothing; after an
+    outage of more than 26 hours the nightly pass catches up. A party
+    deleted in Twenty
+    leaves the index with the nightly full pass (after 03:00 local time).
+    Until then the hit still appears under the old name. Its target opens:
+    the acquisition boards list an assignment whose party Twenty no longer
+    has as "Im CRM nicht mehr vorhanden", without contact data, and it can
+    still be handed over, and a manager can close it as declined in the
+    detail of the web pipeline. Recording a contact for it is refused.
+  - The worker loop `sponsor_search_sync` spends at most 30 CRM requests per
+    run and stops on the first 429. The gateway counts its 100 requests a
+    minute per process, so API and worker together can still exceed Twenty's
+    limit. A full pass reads 50 parties per request; a large stock is read
+    over several runs, one minute apart.
+  - A CRM failure does not make the worker unready. After a failed run the
+    loop waits one minute and doubles the pause up to 15 minutes. The
+    operator's signal is the alert `LeonAidSponsorSearchStale` (P2, no
+    completed pass for 24 hours); it needs the pilot monitoring stack.
+  - A privacy erasure leaves a marker without name and city for every party
+    of the subject's orders and consent records, also for the company of an
+    order whose contact person asked for the erasure. The sync never writes
+    over the marker. It ends when a new assignment is created for that
+    party (sponsor capture or assignment by a manager; a handover does not
+    count): the party is then searchable again with what the CRM holds.
+    The nightly pass deletes the marker when Twenty no longer has the party
+    or its last assignment is gone. Deleting the party in Twenty stays a
+    manual step (see the erasure limits).
+  - The acquisition PWA has no search. An acquirer's hit in the web admin
+    opens the sponsor in the PWA.
 - Orders can be cancelled until they are delivered (`cancelCommitment`):
   they leave the delivery board, an open "Nachliefern" task closes and an
   issued, unpaid invoice is cancelled under ADR-0009 (status `cancelled`,
-  number, snapshot and PDF unchanged). Not implemented: a separately
-  numbered cancellation document (Stornorechnung) with its own PDF; its
-  number and link contract is an open decision for Björn (ADR-0004/0009
-  defer it). An active (not reversed) payment entry blocks the
-  cancellation until it is reversed ("Zurückbuchen" in the invoice pane);
-  LeonAid books no refunds. A cancelled order cannot be reopened.
+  number, snapshot and PDF unchanged). An active (not reversed) payment
+  entry on a live invoice blocks the cancellation until it is reversed
+  ("Zurückbuchen" in the invoice pane) or the invoice itself is cancelled.
+  A cancelled order cannot be reopened.
+- Cancelling an invoice issues a cancellation invoice (Stornorechnung,
+  ADR-0015) in the same transaction, for both cancel paths: its own number
+  from the invoice series, its own PDF (`invoice_cancellation_pdf`) and the
+  number and date of the invoice it cancels. Limits:
+  - Full cancellation only. No partial cancellation and no corrected invoice
+    that replaces lines. An order has one invoice (`uq_invoice_commitment`),
+    so a corrected invoice needs a new order.
+  - Payments of a cancelled invoice stay recorded and cannot be reversed.
+    LeonAid books no refund: "Erstattung erledigt" is a marker. A manager
+    can take it back with a reason ("Erstattung zurücknehmen"); the record
+    keeps who set and who withdrew it.
+  - Invoices cancelled before this stage have no cancellation invoice until a
+    manager issues it ("Stornorechnung ausstellen"); it then carries the
+    number and date of that day.
+  - The cancellation invoice shares the invoice series and prefix. A prefix
+    of its own is an open decision for Björn (P5 of
+    `specs/mails-documents-donations-push/PLAN.md`).
+  - Its wording is a proposal ("LEGAL REVIEW PENDING",
+    `infra/pilot/LEGAL-CONFIGURATION-RUNBOOK.md`); nothing in the UI edits it.
+- Document numbers come from one series per document kind and prefix for the
+  installation (`document_series`, ADR-0015), no longer from a counter per
+  action. An action gets its invoice profile from the active legal
+  configuration; without one no profile exists and issuing answers
+  `invoice_profile_missing`. A cancellation never fails for a missing
+  profile: it then numbers from the active legal configuration's prefix or,
+  without one, from the series of the invoice's own number.
+  `invoice_profile.next_number` is unused and goes with the next release.
 - Buyer mails (`application/order_mails.py`): a public-form order sends one
   plain-text order confirmation, and its cancellation one cancellation
   notice, through the outbox (`order.confirmation.mail.v1`,
