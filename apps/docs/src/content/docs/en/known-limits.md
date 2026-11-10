@@ -4,9 +4,9 @@ description: Verified limits of the current LeonAid development and pilot state.
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 7
-reviewedRevision: 7
-verifiedAgainst: e0a3533c57747a914cde695a334e31fb90ffbc60
+contentRevision: 8
+reviewedRevision: 8
+verifiedAgainst: dd69fcf4fed541649862cc2ed3c869415a3813d6
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -40,6 +40,16 @@ general production approval.
   configured system address, not the club.
 - An issued invoice and its PDF are never overwritten. Corrections use a
   cancellation and a new transaction.
+- A cancellation issues a cancellation invoice ("Stornorechnung") with its
+  own number of the invoice number series. Only a full cancellation exists: no
+  partial cancellation and no corrected invoice that replaces lines. An order
+  has one invoice; a corrected invoice needs a new order. Invoices cancelled
+  before this feature have no cancellation invoice until someone issues it.
+  The wording of the cancellation invoice is a proposal and has no legal
+  review yet.
+- Payments of a cancelled invoice stay recorded and cannot be reversed.
+  LeonAid books no refund; "Erstattung erledigt" is only a marker and cannot
+  be taken back.
 - Partial payments and overpayments are recorded as separate payment entries
   and can be reversed with a reason. An overpayment is only shown; the refund
   happens outside LeonAid. Bank reconciliation and dunning are missing.

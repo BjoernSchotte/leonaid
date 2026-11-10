@@ -4,9 +4,9 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 7
-reviewedRevision: 7
-verifiedAgainst: e0a3533c57747a914cde695a334e31fb90ffbc60
+contentRevision: 8
+reviewedRevision: 8
+verifiedAgainst: dd69fcf4fed541649862cc2ed3c869415a3813d6
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -41,6 +41,16 @@ allgemeine Produktionsfreigabe.
   Stufe 2. Absender ist die konfigurierte Systemadresse, nicht der Club.
 - Ein gespeicherter Rechnungsbeleg und sein PDF werden nicht nachträglich
   überschrieben. Korrekturen erfolgen durch Storno und einen neuen Vorgang.
+- Ein Storno stellt eine Stornorechnung mit eigener Nummer aus dem
+  Nummernkreis der Rechnungen aus. Es gibt nur das vollständige Storno: kein
+  Teilstorno und keine Korrekturrechnung, die Positionen ersetzt. Zu einer
+  Bestellung gibt es eine Rechnung; eine korrigierte Rechnung braucht eine neue
+  Bestellung. Rechnungen, die vor dieser Funktion storniert wurden, haben keine
+  Stornorechnung, bis jemand sie ausstellt. Der Wortlaut der Stornorechnung ist
+  ein Vorschlag und rechtlich noch nicht geprüft.
+- Zahlungen einer stornierten Rechnung bleiben erfasst und lassen sich nicht
+  zurückbuchen. LeonAid bucht keine Erstattung; „Erstattung erledigt“ ist nur
+  ein Vermerk und lässt sich nicht zurücknehmen.
 - Teil- und Überzahlungen werden als einzelne Zahlungseinträge erfasst und
   bei Bedarf begründet zurückgebucht. Eine Überzahlung wird nur angezeigt; die
   Erstattung läuft außerhalb von LeonAid. Bankabgleich und Mahnwesen fehlen.

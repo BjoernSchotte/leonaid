@@ -919,5 +919,39 @@
         "Offline-Erfassung in der Akquise-App"
       ]
     }
+  ],
+  "DOC-P053": [
+    {
+      "file": "packages/features/src/invoices/invoice-dialogs.tsx",
+      "contains": [
+        "Grund der Stornierung",
+        "Stornieren",
+        "Stornorechnung gleich senden",
+        "LeonAid stellt dazu eine Stornorechnung aus",
+        "Erstattung erledigt",
+        "Erstattet am",
+        "Notiz"
+      ]
+    },
+    {
+      "file": "packages/features/src/invoices/invoice-detail.tsx",
+      "contains": [
+        "Stornorechnung",
+        "Stornorechnung ausstellen",
+        "Stornorechnung senden",
+        "Versand der Stornorechnung",
+        "Erneut senden",
+        "Erstattung offen",
+        "Erstattung erledigt am"
+      ]
+    },
+    {
+      "file": "packages/features/src/invoices/invoice-admin.tsx",
+      "contains": ["storniert · Stornorechnung", "Erstattung"]
+    },
+    {
+      "file": "src/leonaid/adapters/typst/invoice_cancellation_renderer.py",
+      "contains": ["Die Erstattung erfolgt gesondert."]
+    }
   ]
 }

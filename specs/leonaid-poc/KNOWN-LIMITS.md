@@ -90,12 +90,36 @@ Punkte sind keine stillschweigenden Produktzusagen.
 - Orders can be cancelled until they are delivered (`cancelCommitment`):
   they leave the delivery board, an open "Nachliefern" task closes and an
   issued, unpaid invoice is cancelled under ADR-0009 (status `cancelled`,
-  number, snapshot and PDF unchanged). Not implemented: a separately
-  numbered cancellation document (Stornorechnung) with its own PDF; its
-  number and link contract is an open decision for Björn (ADR-0004/0009
-  defer it). An active (not reversed) payment entry blocks the
-  cancellation until it is reversed ("Zurückbuchen" in the invoice pane);
-  LeonAid books no refunds. A cancelled order cannot be reopened.
+  number, snapshot and PDF unchanged). An active (not reversed) payment
+  entry on a live invoice blocks the cancellation until it is reversed
+  ("Zurückbuchen" in the invoice pane) or the invoice itself is cancelled.
+  A cancelled order cannot be reopened.
+- Cancelling an invoice issues a cancellation invoice (Stornorechnung,
+  ADR-0015) in the same transaction, for both cancel paths: its own number
+  from the invoice series, its own PDF (`invoice_cancellation_pdf`) and the
+  number and date of the invoice it cancels. Limits:
+  - Full cancellation only. No partial cancellation and no corrected invoice
+    that replaces lines. An order has one invoice (`uq_invoice_commitment`),
+    so a corrected invoice needs a new order.
+  - Payments of a cancelled invoice stay recorded and cannot be reversed.
+    LeonAid books no refund: "Erstattung erledigt" is a marker a manager sets
+    once; it cannot be changed or taken back.
+  - Invoices cancelled before this stage have no cancellation invoice until a
+    manager issues it ("Stornorechnung ausstellen"); it then carries the
+    number and date of that day.
+  - The cancellation invoice shares the invoice series and prefix. A prefix
+    of its own is an open decision for Björn (P5 of
+    `specs/mails-documents-donations-push/PLAN.md`).
+  - Its wording is a proposal ("LEGAL REVIEW PENDING",
+    `infra/pilot/LEGAL-CONFIGURATION-RUNBOOK.md`); nothing in the UI edits it.
+  - The cancel dialog of an order does not offer to send the cancellation
+    invoice; it is sent from the invoice.
+- Document numbers come from one series per document kind and prefix for the
+  installation (`document_series`, ADR-0015), no longer from a counter per
+  action. An action gets its invoice profile from the active legal
+  configuration; without one no profile exists and issuing answers
+  `invoice_profile_missing`. `invoice_profile.next_number` is unused and goes
+  with the next release.
 - Buyer mails (`application/order_mails.py`): a public-form order sends one
   plain-text order confirmation, and its cancellation one cancellation
   notice, through the outbox (`order.confirmation.mail.v1`,

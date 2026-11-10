@@ -97,7 +97,9 @@ ausweist. Null bleibt null.
 ### Nur das vollständige Storno
 
 Es gibt kein Teilstorno und keine Korrekturrechnung, die Positionen ersetzt
-(D-C3). Eine Korrektur heißt weiterhin: stornieren, dann neu ausstellen.
+(D-C3). Eine Korrektur heißt weiterhin: stornieren, dann neu ausstellen. Zu
+einer Bestellung gibt es eine Rechnung (`uq_invoice_commitment`); die neue
+Rechnung gehört deshalb zu einer neuen Bestellung.
 
 Zahlungen einer stornierten Rechnung bleiben erfasst und lassen sich nicht
 zurückbuchen (ADR-0014). LeonAid bucht keine Erstattung. Hat die Rechnung
@@ -105,6 +107,11 @@ Geld erhalten, nennt die Stornorechnung den Betrag und den Satz „Die
 Erstattung erfolgt gesondert.“. Die Rechnungsliste zeigt „Erstattung offen“,
 bis eine berechtigte Person „Erstattung erledigt“ mit Datum vermerkt. Der
 Vermerk ist einmalig und wird protokolliert.
+
+`cancelCommitment` lehnt weiter ab, solange eine nicht stornierte Rechnung
+eine Zahlung trägt. Ist die Rechnung bereits storniert, blockiert ihre Zahlung
+die Bestellung nicht mehr: Sie ließe sich nicht mehr zurückbuchen, und die
+Bestellung bliebe sonst für immer offen.
 
 ### Ältere Stornos erhalten keinen erfundenen Beleg
 
