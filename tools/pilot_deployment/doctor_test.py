@@ -128,7 +128,8 @@ def main() -> None:
             write_environment(environment_path, push_values)
             rejected(
                 label,
-                lambda push_values=push_values: validate_environment(
+                # Called at once by rejected(), before the next round.
+                lambda: validate_environment(
                     push_values,
                     root=root,
                     env_file=environment_path,
