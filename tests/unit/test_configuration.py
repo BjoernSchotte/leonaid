@@ -11,6 +11,7 @@ from leonaid.configuration import (
     Settings,
     load_link_settings,
     load_map_settings,
+    load_push_settings,
     load_settings,
 )
 
@@ -499,3 +500,61 @@ def test_link_settings_give_the_worker_the_hosts_of_the_api(monkeypatch) -> None
     monkeypatch.delenv("LEONAID_PUBLIC_BASE_URL")
     with raises(ConfigurationError, match="LEONAID_PUBLIC_BASE_URL:missing"):
         load_link_settings()
+
+
+def test_push_is_unconfigured_without_the_vapid_key(monkeypatch) -> None:
+    """specs/mails-documents-donations-push §10: no key, "not configured"."""
+    monkeypatch.setenv("LEONAID_ENV", "production")
+    # Compose passes unset variables as empty strings.
+    monkeypatch.setenv("LEONAID_VAPID_PRIVATE_KEY", " ")
+    monkeypatch.setenv("LEONAID_VAPID_SUBJECT", "")
+    settings = load_push_settings()
+    assert settings.configured is False
+    assert settings.signer() is None
+    assert settings.safe_summary() == {"webPush": "unconfigured"}
+    monkeypatch.delenv("LEONAID_VAPID_PRIVATE_KEY")
+    monkeypatch.setenv("LEONAID_VAPID_SUBJECT", "mailto:betrieb@lions-musterstadt.de")
+    assert load_push_settings().configured is False
+
+
+def test_push_settings_name_a_wrong_key_or_subject_without_its_value(
+    monkeypatch,
+) -> None:
+    key = "yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw"
+    monkeypatch.setenv("LEONAID_ENV", "local")
+    monkeypatch.setenv("LEONAID_VAPID_PRIVATE_KEY", key)
+    monkeypatch.setenv("LEONAID_VAPID_SUBJECT", "mailto:push@leonaid.invalid")
+    settings = load_push_settings()
+    assert settings.configured is True
+    signer = settings.signer()
+    assert signer is not None
+    # The public key of RFC 8291's example sender belongs to this scalar.
+    assert signer.public_key == (
+        "BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIg"
+        "Dll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8"
+    )
+    assert key not in repr(settings)
+    assert settings.safe_summary() == {"webPush": "configured"}
+
+    monkeypatch.setenv("LEONAID_VAPID_SUBJECT", "")
+    with raises(ConfigurationError, match="LEONAID_VAPID_SUBJECT:missing") as error:
+        load_push_settings()
+    assert key not in str(error.value)
+    monkeypatch.setenv("LEONAID_VAPID_SUBJECT", "push@leonaid.invalid")
+    with raises(ConfigurationError, match="LEONAID_VAPID_SUBJECT:invalid"):
+        load_push_settings()
+    monkeypatch.setenv("LEONAID_VAPID_SUBJECT", "mailto:push@leonaid.invalid")
+    monkeypatch.setenv("LEONAID_VAPID_PRIVATE_KEY", "c2hvcnQ")
+    with raises(ConfigurationError, match="LEONAID_VAPID_PRIVATE_KEY:invalid") as error:
+        load_push_settings()
+    assert "c2hvcnQ" not in str(error.value)
+
+    # Production: the push services must be able to reach the operator.
+    monkeypatch.setenv("LEONAID_VAPID_PRIVATE_KEY", key)
+    monkeypatch.setenv("LEONAID_ENV", "production")
+    for subject in ("mailto:push@leonaid.invalid", "https://example.org/contact"):
+        monkeypatch.setenv("LEONAID_VAPID_SUBJECT", subject)
+        with raises(ConfigurationError, match="LEONAID_VAPID_SUBJECT:not_public"):
+            load_push_settings()
+    monkeypatch.setenv("LEONAID_VAPID_SUBJECT", "mailto:betrieb@lions-musterstadt.de")
+    assert load_push_settings().configured is True

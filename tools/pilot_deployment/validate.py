@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import json
 import re
 import sys
@@ -125,6 +127,64 @@ def validate_public_url(value: str, label: str) -> None:
         )
     ):
         raise DeploymentContractError(f"{label} is not a production HTTPS URL")
+
+
+# Order of the P-256 group; a VAPID private key is a scalar in [1, n-1].
+P256_ORDER = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551
+
+
+def vapid_problem(private_key: str, subject: str) -> str | None:
+    """What is wrong with the Web Push settings, or None (ADR-0017).
+
+    Both empty means push is "not configured", which is allowed. With a key
+    the subject must be a contact the push services can reach.
+    """
+    if not private_key:
+        return None
+    if is_placeholder(private_key):
+        return "LEONAID_VAPID_PRIVATE_KEY is a placeholder"
+    try:
+        scalar = base64.b64decode(
+            private_key + "=" * (-len(private_key) % 4), altchars=b"-_", validate=True
+        )
+    except (binascii.Error, ValueError):
+        scalar = b""
+    if len(scalar) != 32 or not 1 <= int.from_bytes(scalar, "big") < P256_ORDER:
+        return "LEONAID_VAPID_PRIVATE_KEY is no P-256 private key"
+    if subject.startswith("mailto:"):
+        # The domain of the address must be a public one, like a URL's host.
+        address = subject.removeprefix("mailto:")
+        local, _, domain = address.rpartition("@")
+        well_formed = bool(local and domain) and parseaddr(address)[1] == address
+        contact = f"https://{domain}" if well_formed else ""
+    else:
+        contact = subject
+    try:
+        validate_public_url(contact, "LEONAID_VAPID_SUBJECT")
+    except DeploymentContractError:
+        return "LEONAID_VAPID_SUBJECT is no public mailto: or https: contact"
+    return None
+
+
+def validate_push(
+    api_environment: dict[str, Any], worker_environment: dict[str, Any]
+) -> None:
+    """The API publishes the key the worker signs with; both must match."""
+    key = str(api_environment.get("LEONAID_VAPID_PRIVATE_KEY") or "")
+    subject = str(api_environment.get("LEONAID_VAPID_SUBJECT") or "")
+    problem = vapid_problem(key, subject)
+    if problem is not None:
+        raise DeploymentContractError(problem)
+    for name, value in (
+        ("LEONAID_VAPID_PRIVATE_KEY", key),
+        ("LEONAID_VAPID_SUBJECT", subject if key else ""),
+    ):
+        if key and str(worker_environment.get(name) or "") != value:
+            raise DeploymentContractError(f"API and worker use different {name}")
+    if not key and worker_environment.get("LEONAID_VAPID_PRIVATE_KEY"):
+        raise DeploymentContractError(
+            "API and worker use different LEONAID_VAPID_PRIVATE_KEY"
+        )
 
 
 def positive_number(value: object) -> bool:
@@ -401,6 +461,7 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
     validate_mail_egress(services, networks)
     validate_twenty_admin_access(services, networks, api_environment, admin_port)
     validate_twenty_mail(services, worker_environment)
+    validate_push(api_environment, worker_environment)
     validate_hosts(services, api_environment, isolated_test_mode=isolated_test_mode)
     if CMS_SERVICE in services:
         validate_cms(services, api_environment)

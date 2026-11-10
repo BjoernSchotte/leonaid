@@ -1764,26 +1764,29 @@ class Proof:
             job["status"] for job in await self.jobs(limited["id"], DELIVERY_DAY)
         ] == ["completed"]
         # The mailbox is not over the limit now (the proof's worker ran
-        # with a limit of 0): the neutral reason, with "Senden".
+        # with a limit of 0): failed with the neutral reason, with "Senden".
         assert (await self.mails(limited["id"]))["delivery_day"] == {
             "kind": "delivery_day",
-            "state": "skipped",
+            "state": "failed",
             "sentAt": None,
             "reason": "not_sent",
             "canResend": True,
         }
-        # Ten order mails to this mailbox within the hour: now the order
-        # names the mailbox as the reason.
+        # Ten order mails to this mailbox within the hour before the
+        # status is read (its clock: 09:40 on the delivery day): now the
+        # order names the mailbox as the reason. An hour later it does not.
         address = self.data.email("day-limit")
         fillers = [uuid4() for _ in range(10)]
         for filler in fillers:
             await self.db.execute(
                 "INSERT INTO mail_delivery (id, idempotency_key, message_id,"
-                " recipient_sha256, status) VALUES ($1, $2, $3, $4, 'sent')",
+                " recipient_sha256, status, sent_at)"
+                " VALUES ($1, $2, $3, $4, 'sent', $5)",
                 filler,
                 f"order-confirmation-mail:{filler}",
                 f"<{filler.hex}@buyer-mails.leonaid.invalid>",
                 recipient_sha256(address),
+                at(9, 30),
             )
         try:
             assert (await self.mails(limited["id"]))["delivery_day"] == {
@@ -1793,6 +1796,10 @@ class Proof:
                 "reason": "recipient_limit",
                 "canResend": True,
             }
+            self.now = at(10, 31)
+            later = (await self.mails(limited["id"]))["delivery_day"]
+            assert (later["state"], later["reason"]) == ("failed", "not_sent")
+            self.now = at(9, 40)
         finally:
             await self.db.execute(
                 "DELETE FROM mail_delivery WHERE id = ANY($1::uuid[])", fillers
@@ -2072,8 +2079,9 @@ class Proof:
             } == {
                 "cancelled": ("skipped", "order_cancelled"),
                 "missed": ("skipped", "delivery_recorded"),
-                # Due at 09:40, but its job ended without a mail.
-                "late": ("skipped", "not_sent"),
+                # Due at 09:40, but its job ended without a mail: the buyer
+                # got nothing.
+                "late": ("failed", "not_sent"),
             }
             await self.missed_without_a_job(early)
             await self.over_the_mailbox_limit()

@@ -26,6 +26,7 @@ export const FEATURE_FLAGS = {
   deliveryTours: "delivery.tours",
   previewNotice: "admin.preview_notice",
   pwaOfflineQueue: "pwa.offline_queue",
+  pwaPush: "pwa.push",
   systemStatusPanel: "admin.system_status_panel",
 } as const;
 
@@ -55,6 +56,7 @@ function featureConfiguration(
     [FEATURE_FLAGS.deliveryTours]: configured(FEATURE_FLAGS.deliveryTours),
     [FEATURE_FLAGS.previewNotice]: configured(FEATURE_FLAGS.previewNotice),
     [FEATURE_FLAGS.pwaOfflineQueue]: configured(FEATURE_FLAGS.pwaOfflineQueue),
+    [FEATURE_FLAGS.pwaPush]: configured(FEATURE_FLAGS.pwaPush),
     [FEATURE_FLAGS.systemStatusPanel]: configured(
       FEATURE_FLAGS.systemStatusPanel,
     ),

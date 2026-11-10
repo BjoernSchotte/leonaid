@@ -73,6 +73,12 @@ Sie haben nach der Datenschutz-Grundverordnung das Recht auf Auskunft (Art. 15),
  * offline queue, read cache and identity summary of the acquisition app.
  * Text proposed by Claude Code for Björn Schotte's review; the legal
  * configuration's four-eyes flow activates it.
+ *
+ * The section "Benachrichtigungen auf deinem Gerät" is the proposal of
+ * specs/mails-documents-donations-push/PLAN.md, Appendix A.4 (P4), in the
+ * "Du" of this notice. Core stores the address and the two keys, nothing
+ * about the browser. LEGAL REVIEW PENDING: the flag `pwa.push` may
+ * be switched on only once the active notice carries this section.
  */
 export const MEMBER_PRIVACY_NOTICE_TEMPLATE = `## Mitgliederbereich und Akquise-App
 
@@ -96,4 +102,10 @@ Die Daten liegen nur auf diesem Gerät, verschlüsselt im Speicher des Browsers.
 
 Die App sendet Einträge, sobald du wieder online bist, und löscht sie danach sofort vom Gerät; das gilt auch für die Rechnungs- und Lieferadresse einer Bestellung. Ein Eintrag, der 14 Tage lang nicht gesendet werden konnte, gilt als abgelaufen und wird zwei Tage später gelöscht. Die Sponsorenliste zeigt die App nach 7 Tagen nicht mehr an und löscht sie nach 14 Tagen. Endet deine Mitarbeit in einer Aktion oder schaltet der Club die Akquise dort ab, kann die App deren Einträge nicht mehr senden: Du kannst sie noch lesen und verwerfen; bis dahin bleiben sie auf dem Gerät.
 
-Wenn du dich abmeldest, in der Akquise-App oder im Verwaltungsbereich, löscht die App alle Daten, die sie auf dem Gerät gespeichert hat. Endet deine Sitzung, löscht sie die Kurzform deiner Anmeldung und die Sponsorenliste; noch nicht gesendete Einträge bleiben, bis du dich wieder anmeldest, längstens bis zu den oben genannten Fristen. Meldet sich auf dem Gerät eine andere Person an, löscht die App deine Daten, bevor sie deren Arbeitsbereich zeigt. Wenn du die Website-Daten im Browser löschst oder die App entfernst, sind die Daten ebenfalls gelöscht.`;
+Wenn du dich abmeldest, in der Akquise-App oder im Verwaltungsbereich, löscht die App alle Daten, die sie auf dem Gerät gespeichert hat. Endet deine Sitzung, löscht sie die Kurzform deiner Anmeldung und die Sponsorenliste; noch nicht gesendete Einträge bleiben, bis du dich wieder anmeldest, längstens bis zu den oben genannten Fristen. Meldet sich auf dem Gerät eine andere Person an, löscht die App deine Daten, bevor sie deren Arbeitsbereich zeigt. Wenn du die Website-Daten im Browser löschst oder die App entfernst, sind die Daten ebenfalls gelöscht.
+
+## Benachrichtigungen auf deinem Gerät
+
+[[Diesen Abschnitt nur behalten, wenn Benachrichtigungen in der Akquise-App aktiv sind; sonst den ganzen Abschnitt löschen. Danach diese Zeile löschen.]]
+
+Schaltest du in der App Benachrichtigungen ein, speichert LeonAid für dein Gerät eine Adresse des Benachrichtigungsdienstes deines Browsers oder Betriebssystems (Google, Apple, Mozilla oder Microsoft) und zwei Schlüssel. Über diesen Dienst senden wir verschlüsselte Hinweise, zum Beispiel „3 Wiedervorlagen sind fällig“. Die Hinweise enthalten keine Namen, Adressen oder Beträge. Der Dienst erfährt, dass und wann dein Gerät einen Hinweis von LeonAid erhält, aber nicht dessen Inhalt. Rechtsgrundlage ist deine Einwilligung (Art. 6 Abs. 1 Buchst. a DSGVO). Du kannst sie jederzeit in der App unter „Benachrichtigungen“ widerrufen; LeonAid löscht die Adresse dann sofort. Sie wird auch gelöscht, wenn du dich auf dem Gerät abmeldest oder der Dienst sie als ungültig meldet.`;

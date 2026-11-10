@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, time, timedelta, timezone
 from enum import StrEnum
 from typing import Protocol
@@ -28,6 +28,7 @@ from leonaid.application.order_mails import (
     KEY_PREFIXES,
     RESEND_MARKER,
     RECIPIENT_LIMIT,
+    RECIPIENT_WINDOW,
     MailNotDueReason,
     OrderMailKind,
     OrderMailLinkResolver,
@@ -124,8 +125,10 @@ class BuyerMailLedger:
     # the switch).
     delivery_day_eligible_since: datetime | None = None
     # Order mails that went to the buyer's mailbox within the limit's window
-    # (``RECIPIENT_WINDOW``), as the worker counts them.
-    recent_order_mails: int = 0
+    # (``RECIPIENT_WINDOW``), as the worker counts them. ``None`` while
+    # nobody counted: the status service counts only when the number decides
+    # something (``mailbox_count_matters``).
+    recent_order_mails: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -289,6 +292,26 @@ def confirmation_on_completion(
     return BuyerMailReason(reason.value) if reason is not None else None
 
 
+def mailbox_count_matters(ledger: BuyerMailLedger, *, now: datetime) -> bool:
+    """The status needs the buyer's recent mails: only for a delivery-day
+    mail that is due and whose newest job completed without a mail, where
+    the count tells "mailbox over the limit" from "not sent"."""
+
+    kind = OrderMailKind.DELIVERY_DAY
+    if kind not in applicable_kinds(ledger) or _not_due(kind, ledger, now) is not None:
+        return False
+    latest = last_sequence(kind, ledger)
+    if latest is None:
+        return False
+    order = ledger.commitment
+    if any(_sequence(kind, order, key) == latest for key, _ in ledger.sent):
+        return False
+    return any(
+        job.status == "completed" and _sequence(kind, order, job.key) == latest
+        for job in ledger.jobs
+    )
+
+
 def buyer_mail_status(
     kind: OrderMailKind, ledger: BuyerMailLedger, *, now: datetime
 ) -> BuyerMailStatus:
@@ -350,22 +373,25 @@ def buyer_mail_status(
         return BuyerMailStatus(
             kind, BuyerMailState.FAILED, sent_at=sent_at, reason=not_due
         )
-    if (
-        kind is OrderMailKind.DELIVERY_DAY
-        and due
-        and ledger.recent_order_mails >= RECIPIENT_LIMIT
-    ):
-        # Completed without a ledger row, the mail is due and the mailbox is
-        # over the limit now: the worker completes a delivery-day job over
-        # the limit instead of dead-lettering it. Once the mailbox is under
-        # the limit again, or when the job ended for another reason (a
-        # switch or a tick taken back after it ran), the neutral "not sent"
-        # below applies; a manager can send the mail in both cases.
+    if kind is OrderMailKind.DELIVERY_DAY and due:
+        # Completed without a ledger row although the mail is due: the buyer
+        # got nothing, so the mail failed and stays failed until a manager
+        # sends it. The worker ends a delivery-day job this way when the
+        # mailbox is over the limit (no dead letter on the delivery
+        # morning). The reason names the mailbox only while it is over the
+        # limit now; afterwards, and when the job ended for another reason
+        # (a switch or a tick taken back after it ran), it is the neutral
+        # "not sent".
+        over_limit = (ledger.recent_order_mails or 0) >= RECIPIENT_LIMIT
         return BuyerMailStatus(
             kind,
             BuyerMailState.FAILED,
             sent_at=sent_at,
-            reason=BuyerMailReason.RECIPIENT_LIMIT,
+            reason=(
+                BuyerMailReason.RECIPIENT_LIMIT
+                if over_limit
+                else BuyerMailReason.NOT_SENT
+            ),
             can_resend=True,
         )
     # Completed without a ledger row: the worker found nothing to send.
@@ -463,6 +489,11 @@ class BuyerMailRepository(Protocol):
         self, *, action_id: UUID, commitment_id: UUID
     ) -> BuyerMailLedger: ...
 
+    async def recent_order_mails(self, *, address: str, since: datetime) -> int:
+        """Order mails sent since the moment to this address or another
+        address of the same mailbox, as the worker's limit counts them."""
+        ...
+
     async def resend(
         self,
         *,
@@ -531,6 +562,15 @@ class BuyerMailService:
             action_id=action_id, commitment_id=commitment_id
         )
         now = self._clock()
+        address = (ledger.commitment.buyer.email or "").strip()
+        if address and mailbox_count_matters(ledger, now=now):
+            # The same clock as the status, the same count as the worker.
+            ledger = replace(
+                ledger,
+                recent_order_mails=await self._repository.recent_order_mails(
+                    address=address, since=now - RECIPIENT_WINDOW
+                ),
+            )
         return BuyerMailOverview(
             statuses=buyer_mail_statuses(ledger, now=now),
             draft=ledger.commitment.status is CommitmentStatus.DRAFT,

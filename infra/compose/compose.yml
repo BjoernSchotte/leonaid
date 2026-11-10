@@ -199,6 +199,10 @@ services:
       LEONAID_SECRET_KEY: ${LEONAID_SECRET_KEY}
       LEONAID_ORDER_SUBMISSION_KEY: ${LEONAID_ORDER_SUBMISSION_KEY:-}
       LEONAID_SESSION_ENCRYPTION_KEY: ${LEONAID_SESSION_ENCRYPTION_KEY}
+      # Web Push (ADR-0017): the API hands the public half of the key to the
+      # browsers. Empty = push "not configured".
+      LEONAID_VAPID_PRIVATE_KEY: ${LEONAID_VAPID_PRIVATE_KEY:-}
+      LEONAID_VAPID_SUBJECT: ${LEONAID_VAPID_SUBJECT:-}
       # Admin base URL: member mails (login, invitation, e-mail change).
       LEONAID_PUBLIC_BASE_URL: ${LEONAID_ADMIN_BASE_URL:-https://localhost:${LEONAID_HTTPS_PORT:-8443}}
       # Public base URL: survey invitations. Empty = the admin base URL.
@@ -335,6 +339,10 @@ services:
       MAIL_SMTP_VERIFY_CERTIFICATES: ${MAIL_SMTP_VERIFY_CERTIFICATES:-true}
       MAIL_SMTP_CA_FILE: ${MAIL_SMTP_CA_FILE:-}
       LEONAID_SESSION_ENCRYPTION_KEY: ${LEONAID_SESSION_ENCRYPTION_KEY}
+      # Web Push (ADR-0017): the worker signs and sends the pushes. Test
+      # stacks have no egress, so a push there ends as a failed attempt.
+      LEONAID_VAPID_PRIVATE_KEY: ${LEONAID_VAPID_PRIVATE_KEY:-}
+      LEONAID_VAPID_SUBJECT: ${LEONAID_VAPID_SUBJECT:-}
       OUTBOX_MAX_ATTEMPTS: "5"
       OUTBOX_BASE_BACKOFF_SECONDS: "5"
       OUTBOX_CLAIM_LEASE_SECONDS: "300"

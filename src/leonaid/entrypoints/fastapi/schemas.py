@@ -283,6 +283,7 @@ FeatureFlagKeyValue = Literal[
     "admin.preview_notice",
     "pwa.offline_queue",
     "delivery.tours",
+    "pwa.push",
 ]
 
 

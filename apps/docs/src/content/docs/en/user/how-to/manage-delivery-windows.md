@@ -154,9 +154,9 @@ any more. Each order gets the e-mail for its window once.
 At most ten order e-mails go to one mailbox per hour. If a buyer has more
 orders under the same address on the delivery day (for example a member who
 ordered for colleagues), the first ten e-mails go out. The other orders show
-the row as **Fehlgeschlagen** (failed) with the note about the mailbox while
-the mailbox is full, and as **Nicht gesendet** (not sent) after that. Send
-them later in the order with **Senden**. This raises no alert.
+the row as **Fehlgeschlagen** (failed): with the note about the mailbox
+while it is full, and after that with the note that the e-mail did not go
+out. Send them later in the order with **Senden**. This raises no alert.
 
 If LeonAid could not send an e-mail before its window ended (e-mail delivery
 disturbed, LeonAid not running), it is not sent any more. The order then

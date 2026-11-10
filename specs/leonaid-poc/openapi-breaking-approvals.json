@@ -182,6 +182,15 @@
         "property-newly-required:CommitmentResponse.publicReference"
       ],
       "rationale": "Bundle stage 1 (specs/mails-documents-donations-push §3): every order gets an order number and the order record says whether a buyer mail is due. CommitmentResponse.publicReference and CommitmentRecordResponse.buyerMailDue are new and always present, so the generator marks them required. The bundle also adds the buyer-mail operations and enum values on new schemas (not breaking). No field is removed or narrowed and no request field becomes required on an existing operation. The only clients are the generated client and the apps of this repository, regenerated in the same change. Ratified by the lead under Björn's standing delegation on 2026-11-10 (E-046). Approval is bound to these exact contract hashes and changes."
+    },
+    {
+      "oldSha256": "06180428f779839c6a506d6f1c87b0dec4b0e3f35d908d4ffa320bc6559a2a0e",
+      "newSha256": "f1642939669b1c512ffcb0381ef7441abc9067f05a954db4e5ea2dec0e342fc4",
+      "changes": [
+        "property-type-changed:FeatureFlagAdminResponse.key",
+        "property-type-changed:FeatureFlagEvaluationResponse.key"
+      ],
+      "rationale": "Bundle stage 8 (specs/mails-documents-donations-push §10, ADR-0017): the feature flag pwa.push joins the flag keys, so the key enum of FeatureFlagAdminResponse and FeatureFlagEvaluationResponse gains one value, which the checker reports as a type change. The push operations and their schemas are new (not breaking). No field is removed or narrowed and no request field becomes required on an existing operation. The only clients are the generated client and the apps of this repository, regenerated in the same change. Ratified by the lead under Björn's standing delegation on 2026-11-10 (E-047). Approval is bound to these exact contract hashes and changes."
     }
   ]
 }

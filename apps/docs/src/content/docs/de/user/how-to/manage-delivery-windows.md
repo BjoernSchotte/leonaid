@@ -157,10 +157,10 @@ Bestellung bekommt die E-Mail für ihr Fenster einmal.
 An dasselbe Postfach gehen höchstens zehn Bestell-E-Mails pro Stunde. Hat ein
 Käufer am Liefertag mehr Bestellungen unter derselben Adresse (zum Beispiel
 ein Mitglied, das für Kollegen bestellt hat), gehen die ersten zehn E-Mails
-hinaus. Die übrigen Bestellungen zeigen die Zeile als **Fehlgeschlagen** mit
-dem Hinweis auf das Postfach, solange das Postfach voll ist, danach als
-**Nicht gesendet**. Sende sie später in der Bestellung mit **Senden**. Ein
-Alarm entsteht dadurch nicht.
+hinaus. Die übrigen Bestellungen zeigen die Zeile als **Fehlgeschlagen**:
+mit dem Hinweis auf das Postfach, solange es voll ist, danach mit dem
+Hinweis, dass die E-Mail nicht hinausgegangen ist. Sende sie später in der
+Bestellung mit **Senden**. Ein Alarm entsteht dadurch nicht.
 
 Konnte LeonAid eine E-Mail nicht senden, bevor ihr Fenster endete (Versand
 gestört, LeonAid lief nicht), geht sie nicht mehr hinaus. Die Bestellung

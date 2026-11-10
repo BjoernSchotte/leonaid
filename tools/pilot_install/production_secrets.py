@@ -26,7 +26,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from tools.dx.generate_secrets import generate_identifier, generate_password, parse_env
+from tools.dx.generate_secrets import (
+    generate_identifier,
+    generate_p256_private_key,
+    generate_password,
+    parse_env,
+)
 from tools.pilot_deployment.validate import (
     DeploymentContractError,
     is_placeholder,
@@ -64,6 +69,8 @@ GENERATORS: dict[str, Callable[[], str]] = {
         "__RANDOM_SECRET_KEY__": lambda: generate_password(40),
         # EmDash's versioned key format: prefix plus 32 random bytes.
         "__RANDOM_EMDASH_KEY__": lambda: "emdash_enc_v1_" + secrets.token_urlsafe(32),
+        # The VAPID key of Web Push: a P-256 scalar as base64url (ADR-0017).
+        "__RANDOM_P256_PRIVATE_KEY__": generate_p256_private_key,
     }.items()
 }
 PLACEHOLDER = re.compile(r"__[A-Z0-9_]+__")

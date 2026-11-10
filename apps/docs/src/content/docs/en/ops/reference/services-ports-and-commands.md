@@ -4,8 +4,8 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 23
-reviewedRevision: 23
+contentRevision: 24
+reviewedRevision: 24
 verifiedAgainst: 62502ee563a1d1e95e675e8040a6e6fcb6cea887
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -53,7 +53,7 @@ this reference differs.
 ## Worker retention
 
 The worker runs a `retention` loop next to `outbox`, `survey_sweep`,
-`sponsor_search_sync`, and the PostgreSQL probe. Once per `OUTBOX_RETENTION_INTERVAL_SECONDS` (default
+`sponsor_search_sync`, `push_follow_ups`, and the PostgreSQL probe. Once per `OUTBOX_RETENTION_INTERVAL_SECONDS` (default
 `3600`) it deletes outbox jobs that completed successfully more than
 `OUTBOX_RETENTION_DAYS` (default `30`) ago, and rate-limit attempts older than
 two days. It never deletes pending, processing, or dead-letter jobs, nor
@@ -92,6 +92,45 @@ and asks again after 30 seconds. Delivery-day e-mails leave no dead letter
 for a full mailbox (more than ten order e-mails per hour to one address) and
 none for a window that is over: the job completes, and the order shows the
 e-mail as failed.
+
+## Notifications of the acquisition app
+
+The worker sends Web Push (ADR-0017) while the feature flag `pwa.push` is on
+and `LEONAID_VAPID_PRIVATE_KEY` is set. The job `push.notification.v1` sends
+one notification of one kind to all registered devices of a member (at most
+ten) at once, at most one per kind in 15 minutes; what arrives in that time
+is sent by a later job with the sum. A job carries a member, a kind and a
+count only. It ends by itself after at most 15 seconds, a single request
+after 10 seconds.
+
+Notifications are a hint. A job does not fail because a device or a push
+service was out of reach (timeout, 429, 5xx): a later job tries the devices
+not reached after 1 minute and once more after 10 minutes; then the worker
+gives the message up. No dead letter and no alert result. When a push
+service answers 404 or 410, the worker deletes the device. When it refuses
+the message (400, 401, 403, 413), the worker does not try again. Every
+message that did not reach a device writes one log line
+`worker.push.undelivered` with `kind`, `host` (the push service's name, for
+example `fcm.googleapis.com` or `notify.windows.com`; never the path),
+`status` (HTTP status, empty when nobody answered), `outcome` (`unavailable`
+or `rejected`), `attempt` and `deviceRemoved`. 401 or 403 for all devices of
+one service point at the VAPID key or `LEONAID_VAPID_SUBJECT`. A device for
+which the push service did not take five messages in a row, on at least
+three different days, is deleted. Only a refusal of the push service counts
+(400, 401, 403, 413): when the worker reaches nobody (no egress, DNS,
+timeout) or the service answers 429 or 5xx, the log says so, but it does
+not count against the device. Devices registered with an
+earlier VAPID key are deleted too.
+
+The `push_follow_ups` loop runs every five minutes. Between 08:00 and 20:00
+club time (Europe/Berlin) it creates one job a day per member with follow-ups
+due or overdue; a worker that was down at 08:00 catches up until 20:00. The
+same loop deletes devices whose session has expired or that belong to an
+earlier VAPID key. Logs carry only the
+number of members (`worker.push.follow_ups`). The worker's readiness names
+the loop as `push_follow_ups`. Key, contact and the hosts it reaches are
+described under
+[Requirements and configuration](../requirements-and-configuration/).
 
 ## Geocoding of delivery addresses
 

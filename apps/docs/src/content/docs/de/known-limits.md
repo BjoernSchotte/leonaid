@@ -4,9 +4,9 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 12
-reviewedRevision: 12
-verifiedAgainst: 44a1e8cd5085ea1ac8be745dfaf7059945f955c2
+contentRevision: 13
+reviewedRevision: 13
+verifiedAgainst: 62502ee563a1d1e95e675e8040a6e6fcb6cea887
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -26,6 +26,22 @@ allgemeine Produktionsfreigabe.
   je Fahrer und Liefertag. Der öffentliche Nominatim-Dienst und die
   OSM-Kacheln unterliegen deren Nutzungsbedingungen; bei hohem Aufkommen ist
   ein eigener Anbieter zu konfigurieren.
+- Benachrichtigungen der Akquise-App (Feature-Flag `pwa.push`, siehe
+  [Benachrichtigungen einschalten](/de/user/how-to/switch-on-notifications/))
+  haben Grenzen: Die Zustellung über die Push-Dienste von Google, Mozilla,
+  Apple und Microsoft ist nicht automatisch getestet, nur das Senden an einen
+  entschlüsselnden Empfänger und die Anzeige im Browser; die Prüfung auf
+  einem echten Android-Telefon und iPhone ist Handarbeit. iPhone und iPad
+  brauchen LeonAid auf dem Home-Bildschirm. Es gibt vier Arten
+  (Wiedervorlagen einmal am Tag ab 8 Uhr, neue Bestellungen, Aufgaben,
+  Lieferungen), höchstens eine Benachrichtigung je Art in 15 Minuten, keine
+  Ruhezeiten und keine Einstellung je Gerät. Eine Benachrichtigung nennt nur
+  Art und Anzahl. Sie ist ein Hinweis ohne Zustellgarantie. Nach dem
+  Abmelden schaltet das Mitglied das Gerät neu ein; nach 90 Tagen ohne Öffnen
+  der App kommt nichts mehr, bis sie wieder geöffnet wird. Ein Mitglied kann
+  höchstens zehn Geräte anmelden. Ein neuer `LEONAID_VAPID_PRIVATE_KEY`
+  beendet alle Anmeldungen; jedes Gerät meldet sich beim nächsten Öffnen der
+  App von selbst neu an.
 - `finance_reader` darf Belege nur lesen. Der gepflegte Demo-Benutzer Finn
   Finanzen beweist genau diesen Lesezugriff. Zahlungen und Storno benötigen
   `finance_manager` oder den Charity-Admin der betroffenen Aktion.

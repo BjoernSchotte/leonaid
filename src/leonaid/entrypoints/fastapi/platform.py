@@ -63,6 +63,7 @@ from leonaid.bootstrap.api import (
     build_delivery_board_service,
     build_delivery_tour_service,
     build_order_cancellation_service,
+    build_push_service,
     build_inbox_service,
     build_knowledge_service,
     build_material_service,
@@ -139,10 +140,12 @@ from leonaid.configuration import (
     Settings,
     load_map_settings,
     load_module_settings,
+    load_push_settings,
     load_settings,
 )
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.platform import PlatformIdentity
+from leonaid.entrypoints.fastapi.push import router as push_router
 from leonaid.entrypoints.fastapi.routes import router
 from leonaid.entrypoints.fastapi.site_hosts import (
     action_router as action_url_router,
@@ -444,6 +447,12 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.delivery_tour_service = build_delivery_tour_service(
             pool, application.state.feature_flag_service, load_map_settings()
+        )
+        application.state.push_service = build_push_service(
+            pool,
+            application.state.feature_flag_service,
+            disabled_modules,
+            load_push_settings(),
         )
         legal_configuration_repository = AsyncpgLegalConfigurationRepository(pool)
         application.state.legal_configuration_service = LegalConfigurationService(
@@ -848,6 +857,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         core=(
             router,
             site_host_router,
+            push_router,
             public_site_router,
             site_host_infrastructure_router,
             action_url_router,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
@@ -25,7 +25,6 @@ from leonaid.application.errors import Conflict, ResourceNotFound
 from leonaid.application.order_mails import (
     EVENT_TYPES,
     KEY_PREFIXES,
-    RECIPIENT_WINDOW,
     OrderMailKind,
     OrderMailLinks,
     mailbox_key,
@@ -168,6 +167,15 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
             )
             return await self._configuration(connection, action_id)
 
+    async def recent_order_mails(self, *, address: str, since: datetime) -> int:
+        async with self._pool.acquire() as connection:
+            return await count_recent_order_mails(
+                connection,
+                recipient_sha256=recipient_sha256(address),
+                mailbox=mailbox_key(address),
+                since=since,
+            )
+
     async def ledger(self, *, action_id: UUID, commitment_id: UUID) -> BuyerMailLedger:
         async with self._pool.acquire() as connection:
             # One snapshot for the order, its jobs and the ledger rows.
@@ -271,19 +279,8 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
         commitment = await AsyncpgCommitmentRepository._get(
             connection, commitment_id, replayed=False
         )
-        address = (commitment.buyer.email or "").strip()
         return BuyerMailLedger(
             commitment=commitment,
-            recent_order_mails=(
-                await count_recent_order_mails(
-                    connection,
-                    recipient_sha256=recipient_sha256(address),
-                    mailbox=mailbox_key(address),
-                    since=datetime.now(timezone.utc) - RECIPIENT_WINDOW,
-                )
-                if address
-                else 0
-            ),
             internal_order_mails=bool(row["internal_order_mails"]),
             previous_status=(
                 CommitmentStatus(str(row["previous_status"]))

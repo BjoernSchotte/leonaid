@@ -671,17 +671,51 @@ def test_a_delivery_day_job_over_the_mailbox_limit_shows_as_failed() -> None:
         )
         assert resend_refusal(DELIVERY_DAY, value, now=during) is None
         assert next_sequence(DELIVERY_DAY, value) == 1
-    # Under the limit (again), or a job that ended for another reason (a
-    # switch or a tick taken back after it ran): "not sent", with "Senden".
-    for recent in (0, 9):
+    # Under the limit (again, after the hour), not counted, or a job that
+    # ended for another reason (a switch or a tick taken back after it ran):
+    # the buyer still got nothing, so the row stays failed, with the neutral
+    # reason and "Senden".
+    for recent in (0, 9, None):
         value = replace(ended, recent_order_mails=recent)
         assert buyer_mail_status(DELIVERY_DAY, value, now=during) == BuyerMailStatus(
             DELIVERY_DAY,
-            BuyerMailState.SKIPPED,
+            BuyerMailState.FAILED,
             reason=BuyerMailReason.NOT_SENT,
             can_resend=True,
         )
         assert resend_refusal(DELIVERY_DAY, value, now=during) is None
+    # The count is asked for only when it decides something.
+    assert subject.mailbox_count_matters(ended, now=during)
+    for value, moment in (
+        # Not due: before the day, after the window, delivered.
+        (ended, NOW),
+        (ended, datetime(2026, 2, 14, 11, 0, tzinfo=BERLIN)),
+        (replace(ended, drop_state="delivered"), during),
+        # No job, a waiting one, a failed one, a sent one.
+        (ledger(delivery_day_mail=True), during),
+        (
+            ledger(delivery_day_mail=True, jobs=(BuyerMailJob(day_key(), "pending"),)),
+            during,
+        ),
+        (
+            ledger(
+                delivery_day_mail=True,
+                jobs=(BuyerMailJob(day_key(), "dead_letter", "smtp_unavailable"),),
+            ),
+            during,
+        ),
+        (
+            ledger(
+                delivery_day_mail=True,
+                jobs=(BuyerMailJob(day_key(), "completed"),),
+                sent=((day_key(), DELIVERY_MORNING),),
+            ),
+            during,
+        ),
+        # An order without a delivery-day mail at all.
+        (ledger(jobs=(BuyerMailJob(key(), "completed"),)), during),
+    ):
+        assert not subject.mailbox_count_matters(value, now=moment)
     # A full mailbox never turns a mail that is not due into a failure.
     delivered = replace(
         ledger(

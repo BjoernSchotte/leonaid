@@ -277,11 +277,12 @@ def test_worker_registers_every_existing_handler_once() -> None:
         "acquisition",
         "invoicing",
         "mail",
+        "push",
     ]
     assert collect_handlers(modules) == {}
     assert [
         loop.name for loop in background_loops("postgresql://unused", frozenset())
-    ] == ["survey_sweep", "sponsor_search_sync"]
+    ] == ["survey_sweep", "sponsor_search_sync", "push_follow_ups"]
 
 
 def test_worker_handler_set_is_unchanged() -> None:
@@ -308,6 +309,7 @@ def test_worker_handler_set_is_unchanged() -> None:
         "order.cancellation.mail.v1",
         "order.confirmation.mail.v1",
         "order.delivery_day.mail.v1",
+        "push.notification.v1",
         "survey.delete.v1",
         "survey.export.render.v1",
         "survey.invitation.send.v1",
@@ -374,7 +376,8 @@ def test_switched_off_module_has_no_routes_navigation_or_loops(
     assert any(path.startswith("/api/v1/task") for path in paths)
     # Core loops keep running; the module's own loop is gone.
     assert [loop.name for loop in background_loops("postgresql://unused", off)] == [
-        "sponsor_search_sync"
+        "sponsor_search_sync",
+        "push_follow_ups",
     ]
     assert module_switch_problems(off) == []
     assert module_switch_problems(frozenset({"mail"})) == [

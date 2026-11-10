@@ -67,9 +67,32 @@ class MemoryCacheStorage {
   }
 }
 
+interface ShownNotification {
+  readonly title: string;
+  readonly options: {
+    readonly body: string;
+    readonly data: { readonly path: string };
+    readonly icon: string;
+    readonly tag: string;
+  };
+}
+
+/** An open window of the app, as the worker's Clients API lists it. */
+interface WindowStub {
+  readonly url: string;
+  readonly messages: unknown[];
+  focused: boolean;
+  /** A focus without a real click is refused by the browser. */
+  readonly refuseFocus?: boolean;
+}
+
 interface WorkerEvent {
   readonly request?: Request;
   readonly data?: unknown;
+  readonly notification?: {
+    readonly data?: unknown;
+    readonly close: () => void;
+  };
   readonly ports?: readonly { postMessage: (message: unknown) => void }[];
   respondWith?: (response: Promise<Response> | Response) => void;
   waitUntil: (promise: Promise<unknown>) => void;
@@ -79,6 +102,9 @@ function loadWorker(network: (request: Request) => Promise<Response>) {
   const listeners = new Map<string, (event: WorkerEvent) => void>();
   const storage = new MemoryCacheStorage();
   const state = { onLine: true };
+  const notifications: ShownNotification[] = [];
+  const windows: WindowStub[] = [];
+  const opened: string[] = [];
   const source = readFileSync(
     resolve(__dirname, "../public/sw.js"),
     "utf8",
@@ -86,9 +112,31 @@ function loadWorker(network: (request: Request) => Promise<Response>) {
   const self = {
     addEventListener: (type: string, listener: (event: WorkerEvent) => void) =>
       listeners.set(type, listener),
-    clients: { claim: async () => undefined },
+    clients: {
+      claim: async () => undefined,
+      matchAll: async () =>
+        windows.map((window) => ({
+          focus: async () => {
+            if (window.refuseFocus) throw new TypeError("no user activation");
+            window.focused = true;
+          },
+          postMessage: (message: unknown) => window.messages.push(message),
+          url: window.url,
+        })),
+      openWindow: async (url: string) => {
+        opened.push(url);
+      },
+    },
     location: new URL(`${ORIGIN}${BASE}sw.js`),
     navigator: state,
+    registration: {
+      showNotification: async (
+        title: string,
+        options: ShownNotification["options"],
+      ) => {
+        notifications.push({ options, title });
+      },
+    },
     skipWaiting: () => undefined,
   };
   runInNewContext(source, {
@@ -119,7 +167,40 @@ function loadWorker(network: (request: Request) => Promise<Response>) {
     return dispatch("fetch", { request });
   }
 
-  return { dispatch, navigate, state, storage };
+  /** A push as the browser hands it over: its data, or none. */
+  async function push(data: unknown) {
+    const text = typeof data === "string" ? data : JSON.stringify(data);
+    await dispatch("push", {
+      data:
+        data === undefined ? null : { json: () => JSON.parse(text) as unknown },
+    });
+    return notifications.at(-1);
+  }
+
+  async function click(path: unknown) {
+    let closed = false;
+    await dispatch("notificationclick", {
+      notification: {
+        close: () => {
+          closed = true;
+        },
+        data: path === undefined ? undefined : { path },
+      },
+    });
+    return closed;
+  }
+
+  return {
+    click,
+    dispatch,
+    navigate,
+    notifications,
+    opened,
+    push,
+    state,
+    storage,
+    windows,
+  };
 }
 
 describe("service worker", () => {
@@ -248,5 +329,143 @@ describe("service worker", () => {
     expect(requests).toEqual([`${BASE}sponsors`]);
     // The network failed: the shell answers instead.
     expect(await answer?.text()).toBe(`cached ${BASE}`);
+  });
+});
+
+describe("service worker push notifications", () => {
+  let worker: ReturnType<typeof loadWorker>;
+
+  beforeEach(() => {
+    worker = loadWorker(async () => {
+      throw new TypeError("offline");
+    });
+  });
+
+  it("writes the text on the device from kind and count", async () => {
+    const texts: [string, number, string][] = [
+      ["follow_ups", 1, "1 Wiedervorlage ist fällig."],
+      ["follow_ups", 3, "3 Wiedervorlagen sind fällig."],
+      ["feed", 1, "Es gibt eine neue Bestellung unter „Neues“."],
+      ["feed", 4, "Es gibt 4 neue Bestellungen unter „Neues“."],
+      ["tasks", 1, "Dir wurde eine Aufgabe zugewiesen."],
+      ["tasks", 2, "Dir wurden 2 Aufgaben zugewiesen."],
+      ["delivery", 1, "Dir wurde eine Lieferung zugewiesen."],
+      ["delivery", 12, "Dir wurden 12 Lieferungen zugewiesen."],
+      ["test", 1, "Benachrichtigungen funktionieren auf diesem Gerät."],
+    ];
+    for (const [kind, count, body] of texts) {
+      const shown = await worker.push({ count, kind, path: `${BASE}tasks` });
+      expect(shown).toEqual({
+        options: {
+          badge: `${BASE}icons/icon-192.svg`,
+          body,
+          data: { path: `${BASE}tasks` },
+          icon: `${BASE}icons/icon-192.svg`,
+          lang: "de",
+          renotify: true,
+          // One notification per kind: the newer one replaces the older.
+          tag: `leonaid-${kind}`,
+        },
+        title: "LeonAid",
+      });
+    }
+    expect(worker.notifications).toHaveLength(texts.length);
+  });
+
+  it("shows a notification for every push, also one it cannot read", async () => {
+    // A browser ends a subscription whose pushes show nothing.
+    const unreadable = [
+      undefined,
+      "not json",
+      { count: 1, kind: "orders", path: `${BASE}orders` },
+      { count: 0, kind: "feed", path: `${BASE}activities` },
+      { count: "3", kind: "feed", path: `${BASE}activities` },
+      { kind: "feed", path: `${BASE}activities` },
+      { count: 1, kind: "constructor", path: `${BASE}activities` },
+      null,
+    ];
+    for (const data of unreadable) {
+      const shown = await worker.push(data);
+      expect(shown?.options.body).toBe("Es gibt Neues in LeonAid.");
+      expect(shown?.options.data).toEqual({ path: BASE });
+      expect(shown?.options.tag).toBe("leonaid-news");
+    }
+    expect(worker.notifications).toHaveLength(unreadable.length);
+  });
+
+  it("never leads out of the app", async () => {
+    for (const path of [
+      "https://attacker.example/",
+      "//attacker.example/app/",
+      "/admin/",
+      "/apps",
+      42,
+      undefined,
+    ]) {
+      const shown = await worker.push({ count: 1, kind: "feed", path });
+      expect(shown?.options.data).toEqual({ path: BASE });
+      // A stored notification of an older worker is checked again.
+      expect(await worker.click(path)).toBe(true);
+      expect(worker.opened.at(-1)).toBe(BASE);
+    }
+  });
+
+  it("opens the app at the target when no window is open", async () => {
+    worker.windows.push({
+      focused: false,
+      messages: [],
+      // Another page of the origin is not the app.
+      url: `${ORIGIN}/admin/`,
+    });
+    expect(await worker.click(`${BASE}activities?view=contacts`)).toBe(true);
+    expect(worker.opened).toEqual([`${BASE}activities?view=contacts`]);
+    expect(worker.windows[0]?.messages).toEqual([]);
+  });
+
+  it("moves the open app to the target and brings it forward", async () => {
+    const open: WindowStub = {
+      focused: false,
+      messages: [],
+      url: `${ORIGIN}${BASE}sponsors`,
+    };
+    worker.windows.push(open);
+    await worker.click(`${BASE}delivery`);
+    expect(open.messages).toEqual([
+      { path: `${BASE}delivery`, type: "PUSH_NAVIGATE" },
+    ]);
+    expect(open.focused).toBe(true);
+    expect(worker.opened).toEqual([]);
+  });
+
+  it("still moves the app when the browser refuses the focus", async () => {
+    const open: WindowStub = {
+      focused: false,
+      messages: [],
+      refuseFocus: true,
+      url: `${ORIGIN}${BASE}`,
+    };
+    worker.windows.push(open);
+    await worker.click(`${BASE}tasks`);
+    expect(open.messages).toEqual([
+      { path: `${BASE}tasks`, type: "PUSH_NAVIGATE" },
+    ]);
+    expect(worker.opened).toEqual([]);
+  });
+
+  it("carries the paths Core sends for each kind", () => {
+    // domain/push.py names the target of each kind; the worker only
+    // accepts paths of the app, so both must agree on the base.
+    const domain = readFileSync(
+      resolve(__dirname, "../../../src/leonaid/domain/push.py"),
+      "utf8",
+    );
+    for (const kind of ["follow_ups", "feed", "tasks", "delivery"]) {
+      expect(domain).toContain(`${kind.toUpperCase()} = "${kind}"`);
+    }
+    expect(domain).toContain('TEST_KIND: Final = "test"');
+    const source = readFileSync(resolve(__dirname, "../public/sw.js"), "utf8");
+    for (const kind of ["follow_ups", "feed", "tasks", "delivery", "test"]) {
+      expect(source).toMatch(new RegExp(`\\b${kind}: \\(`));
+    }
   });
 });

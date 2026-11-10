@@ -25,6 +25,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from leonaid.application.links import LinkBuilder
 from leonaid.adapters.site_host_checks import HostCheckSettings
+from leonaid.adapters.web_push import VapidSigner
 from leonaid.domain.site_hosts import ConfiguredHosts
 
 
@@ -823,6 +824,74 @@ class MapSettings(BaseSettings):
         return f"LeonAid ({self.public_base_url_value.strip().rstrip('/')})"
 
 
+class PushSettings(BaseSettings):
+    """Web Push keys of the installation (ADR-0017).
+
+    ``LEONAID_VAPID_PRIVATE_KEY`` is a P-256 private key as the base64url of
+    its 32-octet scalar; ``./leonaid bootstrap`` and the pilot secret
+    generation create it. ``LEONAID_VAPID_SUBJECT`` is the operator's
+    contact (``mailto:`` or ``https:``) that the push services read from
+    each push. Without the key push notifications are "not configured":
+    the API says so and the worker sends nothing.
+    """
+
+    model_config = SettingsConfigDict(
+        case_sensitive=True,
+        extra="ignore",
+        populate_by_name=True,
+    )
+
+    environment: str = Field(default="local", alias="LEONAID_ENV")
+    vapid_private_key: SecretStr | None = Field(
+        default=None, alias="LEONAID_VAPID_PRIVATE_KEY"
+    )
+    vapid_subject: str = Field(default="", alias="LEONAID_VAPID_SUBJECT")
+
+    @field_validator("vapid_private_key", mode="before")
+    @classmethod
+    def blank_key_is_unconfigured(cls, value: object) -> object:
+        # Compose passes unset variables as empty strings.
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @model_validator(mode="after")
+    def key_and_subject_fit(self) -> PushSettings:
+        if self.vapid_private_key is None:
+            return self
+        subject = self.vapid_subject.strip()
+        if not subject:
+            raise ConfigurationError("LEONAID_VAPID_SUBJECT:missing")
+        try:
+            VapidSigner(self.vapid_private_key.get_secret_value(), subject)
+        except ValueError as error:
+            name = "SUBJECT" if "subject" in str(error) else "PRIVATE_KEY"
+            raise ConfigurationError(f"LEONAID_VAPID_{name}:invalid") from None
+        if self.environment == "production":
+            host = (
+                subject.rsplit("@", 1)[-1]
+                if subject.startswith("mailto:")
+                else urlparse(subject).hostname
+            )
+            if _is_forbidden_public_host(host):
+                raise ConfigurationError("LEONAID_VAPID_SUBJECT:not_public")
+        return self
+
+    @property
+    def configured(self) -> bool:
+        return self.vapid_private_key is not None
+
+    def signer(self) -> VapidSigner | None:
+        if self.vapid_private_key is None:
+            return None
+        return VapidSigner(
+            self.vapid_private_key.get_secret_value(), self.vapid_subject
+        )
+
+    def safe_summary(self) -> dict[str, str]:
+        return {"webPush": "configured" if self.configured else "unconfigured"}
+
+
 class ModuleSettings(BaseSettings):
     """Per-installation module switches, shared by the API and the worker.
 
@@ -976,6 +1045,19 @@ def load_map_settings() -> MapSettings:
         )
         raise ConfigurationError(
             "LeonAid map configuration is invalid: " + ", ".join(diagnostics)
+        ) from None
+
+
+def load_push_settings() -> PushSettings:
+    try:
+        return PushSettings()
+    except ConfigurationError as error:
+        raise ConfigurationError(
+            f"LeonAid push configuration is invalid: {error}"
+        ) from None
+    except ValidationError:
+        raise ConfigurationError(
+            "LeonAid push configuration is invalid: LEONAID_VAPID_PRIVATE_KEY"
         ) from None
 
 

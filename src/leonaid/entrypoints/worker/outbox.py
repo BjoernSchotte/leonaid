@@ -25,6 +25,7 @@ from leonaid.configuration import (
     load_mail_transport_settings,
     load_map_settings,
     load_module_settings,
+    load_push_settings,
     load_retention_settings,
 )
 from leonaid.domain.outbox import OutboxState
@@ -62,6 +63,7 @@ def configuration_problems() -> list[str]:
         load_retention_settings,
         load_map_settings,
         load_link_settings,
+        load_push_settings,
     ):
         try:
             load()
@@ -164,7 +166,10 @@ async def execute(arguments: argparse.Namespace) -> int:
             return 0
         raise RuntimeError(f"Unbekannter Worker-Befehl: {arguments.command}")
     finally:
-        await pool.close()
+        try:
+            await worker.close()
+        finally:
+            await pool.close()
 
 
 def _json_state(state: OutboxState) -> dict[str, object]:
