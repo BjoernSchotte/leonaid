@@ -714,19 +714,51 @@ class Proof:
                 written = await repository._insert_numbered(
                     connection, commitment=twin, occurred_at=moment
                 )
-                assert written.public_reference == order_number(twin_id)
+                # The number after the refused one.
+                assert written.public_reference == order_number(twin_id, 1)
                 assert written.public_reference != order["publicReference"]
                 assert await stored(connection) == written.public_reference
             finally:
                 await transaction.rollback()
+            # The real race: the public order runs in repeatable read, and
+            # another order takes its number after its snapshot. It cannot
+            # see that order, so asking "is the number free" again would
+            # hand it the same number every time. It moves on instead.
+            racer = replace(twin, public_reference=order_number(twin_id))
+            transaction = connection.transaction(isolation="repeatable_read")
+            await transaction.start()
+            try:
+                assert await connection.fetchval("SELECT 1") == 1
+                await self.db.execute(
+                    "UPDATE commitment SET public_reference = $2 WHERE id = $1",
+                    UUID(order["id"]),
+                    order_number(twin_id),
+                )
+                assert not await connection.fetchval(
+                    "SELECT EXISTS (SELECT 1 FROM commitment "
+                    "WHERE public_reference = $1)",
+                    order_number(twin_id),
+                )
+                written = await repository._insert_numbered(
+                    connection, commitment=racer, occurred_at=moment
+                )
+                assert written.public_reference == order_number(twin_id, 1)
+                assert await stored(connection) == written.public_reference
+            finally:
+                await transaction.rollback()
+                await self.db.execute(
+                    "UPDATE commitment SET public_reference = $2 WHERE id = $1",
+                    UUID(order["id"]),
+                    order["publicReference"],
+                )
             # Every candidate taken at the same moment: a conflict the form
             # can repeat, and the transaction of the order is still usable.
-            real = public_orders_adapter.free_order_number
+            real = public_orders_adapter.free_order_number_from
 
-            async def always_taken(*_: object) -> str:
-                return str(order["publicReference"])
+            async def always_taken(*_: object) -> tuple[str, int]:
+                return str(order["publicReference"]), 0
 
-            public_orders_adapter.free_order_number = always_taken
+            public_orders_adapter.free_order_number_from = always_taken
             transaction = connection.transaction()
             await transaction.start()
             try:
@@ -741,7 +773,7 @@ class Proof:
                 assert await stored(connection) is None
                 assert await connection.fetchval("SELECT 1") == 1
             finally:
-                public_orders_adapter.free_order_number = real
+                public_orders_adapter.free_order_number_from = real
                 await transaction.rollback()
         # Another unique violation is not swallowed as a taken number.
         same_id = replace(twin, id=UUID(order["id"]))
@@ -1288,12 +1320,13 @@ class Proof:
 
     async def too_late(self) -> None:
         """No confirmation after the delivery or after the window, for an
-        order of any origin, and never silently (R1): the job fails for good
-        with the reason, so it shows in the order and with the failed mails."""
+        order of any origin, and never silently (R1): the order shows it as
+        failed with the reason. The job itself completes: a dead letter that
+        no retry can clear would keep the dead-letter alert on for good."""
 
         window_end = self.data.window_starts_at + timedelta(hours=2)
         # A job that runs after the window (worker down, late retry): nothing
-        # is sent and the job is dead-lettered.
+        # is sent and the job completes.
         slow = await self.order("slow")
         # The same for an order from the public form.
         public = await self.order("slow-public")
@@ -1305,7 +1338,7 @@ class Proof:
         for order in (slow, public):
             assert (
                 await self.work(order["id"], OrderMailKind.CONFIRMATION, now=window_end)
-                == "order_mail_late_window_over"
+                == "completed"
             )
         assert len(self.sent) == sent
         assert [
@@ -1316,14 +1349,46 @@ class Proof:
                 "WHERE aggregate_id = $1",
                 UUID(order["id"]),
             )
-        ] == [("dead_letter", "order_mail_late_window_over")] * 2
+        ] == [("completed", None)] * 2
+        # A confirmation the mailbox limit dead-lettered and an operator
+        # retries after the window leaves the dead letters the same way.
+        limited = await self.order("slow-limited")
+        assert (
+            await self.work(
+                limited["id"], OrderMailKind.CONFIRMATION, recipient_limit=0
+            )
+            == "order_mail_recipient_limit"
+        )
+        assert (
+            await self.db.fetchval(
+                "SELECT status FROM outbox_event WHERE aggregate_id = $1",
+                UUID(limited["id"]),
+            )
+            == "dead_letter"
+        )
+        await self.db.execute(
+            "UPDATE outbox_event SET status = 'pending', dead_lettered_at = NULL "
+            "WHERE aggregate_id = $1",
+            UUID(limited["id"]),
+        )
+        assert (
+            await self.work(limited["id"], OrderMailKind.CONFIRMATION, now=window_end)
+            == "completed"
+        )
+        assert len(self.sent) == sent
+        late_orders = [UUID(item["id"]) for item in (slow, public, limited)]
+        assert (
+            await self.db.fetchval(
+                "SELECT count(*) FROM outbox_event "
+                "WHERE aggregate_id = ANY($1::uuid[]) AND status = 'dead_letter'",
+                late_orders,
+            )
+            == 0
+        )
         # Queued, then ticked off on the delivery board: nothing.
         ticked = await self.order("ticked")
         await self.record_drop(ticked["id"], "delivered")
-        assert (
-            await self.work(ticked["id"], OrderMailKind.CONFIRMATION)
-            == "order_mail_late_delivery_recorded"
-        )
+        assert await self.work(ticked["id"], OrderMailKind.CONFIRMATION) == "completed"
         assert len(self.sent) == sent
         assert (await self.mails(ticked["id"]))["confirmation"] == {
             "kind": "confirmation",
@@ -1351,10 +1416,10 @@ class Proof:
         )
         assert await self.work(done["id"], OrderMailKind.CONFIRMATION) == "completed"
         assert len(self.sent) == sent + 1
-        # After the window the status says so, also for the failed job.
+        # After the window the status says so: the buyer got nothing.
         self.now = window_end
         try:
-            for order in (slow, public):
+            for order in (slow, public, limited):
                 assert (await self.mails(order["id"]))["confirmation"] == {
                     "kind": "confirmation",
                     "state": "failed",
@@ -1367,7 +1432,7 @@ class Proof:
             assert self.error(over) == "buyer_mail_not_due"
         finally:
             self.now = None
-        # Before the window the failed job is no dead end.
+        # Before the window a job that ended without a mail is no dead end.
         assert (await self.mails(slow["id"]))["confirmation"]["canResend"] is True
 
         # Two completions of one draft with different keys at the same time

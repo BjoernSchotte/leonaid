@@ -35,7 +35,22 @@ async def free_order_number(
     candidate take turns; the unique constraint stays the last word.
     """
 
-    for attempt in range(ORDER_NUMBER_ATTEMPTS):
+    number, _ = await free_order_number_from(connection, commitment_id, 0)
+    return number
+
+
+async def free_order_number_from(
+    connection: asyncpg.Connection[Any], commitment_id: UUID, first_attempt: int
+) -> tuple[str, int]:
+    """Like ``free_order_number``, starting at ``first_attempt``; also says
+    which attempt the number comes from.
+
+    A writer whose transaction cannot see the order that took its number
+    (repeatable read) would be handed the same number again. It passes the
+    attempt after the refused one instead.
+    """
+
+    for attempt in range(first_attempt, first_attempt + ORDER_NUMBER_ATTEMPTS):
         candidate = order_number(commitment_id, attempt)
         await connection.execute(
             "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
@@ -45,5 +60,5 @@ async def free_order_number(
             "SELECT EXISTS (SELECT 1 FROM commitment WHERE public_reference = $1)",
             candidate,
         ):
-            return candidate
+            return candidate, attempt
     raise RuntimeError("No free order number was found.")

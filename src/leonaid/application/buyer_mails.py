@@ -29,7 +29,7 @@ from leonaid.application.order_mails import (
     OrderMailLinkResolver,
     OrderMailLinks,
     confirmation_not_due_reason,
-    late_reason,
+    LATE_REASONS,
     mail_not_due_reason,
 )
 from leonaid.application.policies import require_action_manager
@@ -169,15 +169,19 @@ class BuyerMailOverview:
 
 
 def _failure_reason(error_code: str | None) -> BuyerMailReason:
-    """Why a dead-lettered job failed: the mailbox limit, a confirmation the
-    worker reached too late (with the reason it was late), or the delivery."""
+    """Why a dead-lettered job failed: the mailbox limit or the delivery."""
 
     if error_code == RECIPIENT_LIMIT_ERROR:
         return BuyerMailReason.RECIPIENT_LIMIT
-    late = late_reason(error_code)
-    if late is not None:
-        return BuyerMailReason(late.value)
     return BuyerMailReason.DELIVERY_FAILED
+
+
+# A job is only queued while its mail is due. So a job that ended without a
+# mail while the confirmation is late now was reached too late by the worker
+# (an outage past the delivery window, a retry after it): the buyer got
+# nothing, and the order says so. The job itself is completed, not a dead
+# letter, because no retry could ever clear it.
+_LATE = frozenset(BuyerMailReason(reason.value) for reason in LATE_REASONS)
 
 
 def confirmation_on_completion(
@@ -246,6 +250,11 @@ def buyer_mail_status(
             sent_at=sent_at,
             reason=_failure_reason(job.error_code),
             can_resend=due,
+        )
+    if not_due in _LATE:
+        # Completed without a ledger row and late: the buyer got nothing.
+        return BuyerMailStatus(
+            kind, BuyerMailState.FAILED, sent_at=sent_at, reason=not_due
         )
     # Completed without a ledger row: the worker found nothing to send.
     return BuyerMailStatus(
