@@ -33,8 +33,12 @@ def cancellation_render_payload(
     original_issued_on = date_label(document.original_issued_on)
     original = f"{document.original_number} vom {original_issued_on}"
     if document.refund_due:
+        # The sentence follows the agreed wording (spec Appendix A.2), which
+        # writes the amount with the euro sign; the table keeps the currency
+        # code of the invoice it reverses.
         received = money_label(
-            document.received.amount_minor, document.received.currency
+            document.received.amount_minor,
+            "€" if document.received.currency == "EUR" else document.received.currency,
         )
         closing = (
             f"Auf die Rechnung {document.original_number} haben wir {received} "

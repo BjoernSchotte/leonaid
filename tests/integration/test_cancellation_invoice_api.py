@@ -28,6 +28,13 @@ import asyncpg
 import httpx
 
 from leonaid.adapters.postgres.dashboard import AsyncpgDashboardRepository
+from leonaid.adapters.postgres.document_series import (
+    allocate_document_number,
+    series_of_issued_number,
+)
+from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
+from leonaid.application.outbox import OutboxClaimLost
+from leonaid.domain.document_series import DocumentSeriesKind
 from leonaid.adapters.postgres.invoice_deliveries import (
     AsyncpgInvoiceDeliveryRepository,
 )
@@ -603,6 +610,8 @@ class Proof:
         await self.first_use_of_a_prefix_at_the_same_moment()
         await self.counter_behind_an_issued_number_heals_itself()
         await self.cancel_without_profile_or_legal_configuration()
+        await self.a_number_belongs_to_the_longest_known_prefix()
+        await self.deferred_job_keeps_its_attempt()
         await self.numbers_are_unique_and_final()
         await self.every_action_with_invoicing_gets_a_profile()
 
@@ -1351,6 +1360,18 @@ class Proof:
         record = await self.record("paid")
         assert record["cancellation"]["refundOpen"] is True
         assert len(record["cancellation"]["refundWithdrawals"]) == 1
+        # The history is append-only in the database itself.
+        for statement in (
+            "UPDATE invoice_refund_withdrawal SET reason_snapshot = "
+            "'Nachträglich geändert' WHERE id = $1",
+            "DELETE FROM invoice_refund_withdrawal WHERE id = $1",
+        ):
+            try:
+                async with self.db.transaction():
+                    await self.db.execute(statement, UUID(entry["id"]))
+            except asyncpg.IntegrityConstraintViolationError:
+                continue
+            raise AssertionError(f"the withdrawal history was changed: {statement}")
         cancellation_id = UUID(record["cancellation"]["id"])
         assert (
             await self.db.fetchval(
@@ -1395,6 +1416,12 @@ class Proof:
             self.key(),
         )
         assert response.status_code == 201, response.text
+        # The dialog decides on the address the server sends to: the one
+        # frozen on the invoice, shown with the order's invoice.
+        assert (
+            order["invoice"]["recipientEmail"]
+            == (self.data.recipient("order_send")["email"])
+        )
         record = await self.record("order_send")
         assert len(record["cancellationDeliveries"]) == 1
         delivery = record["cancellationDeliveries"][0]
@@ -1637,6 +1664,132 @@ class Proof:
                 self.data.legal_version,
             )
         assert await self.next_number() == serial + 3
+
+    async def a_number_belongs_to_the_longest_known_prefix(self) -> None:
+        """Two series where one prefix starts the other: `<P>` and `<P>2026`.
+        The numbers of the longer one must not count for the shorter one."""
+
+        short = f"{self.data.tag}R"
+        long = f"{short}2026"
+        async with self.db.transaction():
+            for prefix, number in ((long, 8), (short, 1)):
+                await self.db.execute(
+                    "INSERT INTO document_series (kind, prefix, next_number, width) "
+                    "VALUES ('invoice', $1, $2, 4)",
+                    prefix,
+                    number,
+                )
+            # Number 7 of the long series; read as a number of the short
+            # one it would be 20260007.
+            await self.db.execute(
+                "INSERT INTO document_number (number, kind) VALUES ($1, 'invoice')",
+                f"{long}0007",
+            )
+        pool = await asyncpg.create_pool(
+            os.environ["CORE_DATABASE_URL"], min_size=1, max_size=1
+        )
+        try:
+            async with pool.acquire() as connection:
+                assert await series_of_issued_number(
+                    connection,
+                    kind=DocumentSeriesKind.INVOICE,
+                    number=f"{long}0007",
+                ) == (long, 4)
+                # No series matches: the digits at the end are the serial.
+                assert await series_of_issued_number(
+                    connection,
+                    kind=DocumentSeriesKind.INVOICE,
+                    number=f"{self.data.tag}Q-0042",
+                ) == (f"{self.data.tag}Q-", 4)
+                async with connection.transaction():
+                    # The short series' own number 1 is taken: the heal moves
+                    # it on by one, not past 20260007.
+                    await connection.execute(
+                        "INSERT INTO document_number (number, kind) "
+                        "VALUES ($1, 'invoice')",
+                        f"{short}0001",
+                    )
+                    number = await allocate_document_number(
+                        connection,
+                        kind=DocumentSeriesKind.INVOICE,
+                        prefix=short,
+                        width=4,
+                        occurred_at=datetime.now(timezone.utc),
+                    )
+                    assert number == f"{short}0002", number
+                    await connection.execute(
+                        "INSERT INTO document_number (number, kind) "
+                        "VALUES ($1, 'invoice')",
+                        number,
+                    )
+        finally:
+            await pool.close()
+
+    async def deferred_job_keeps_its_attempt(self) -> None:
+        """`AsyncpgOutboxQueue.defer` against PostgreSQL: the attempt is
+        given back, the job waits, and a stale claim changes nothing."""
+
+        event_id, claim, stale = uuid4(), uuid4(), uuid4()
+        claimed_at = datetime.now(timezone.utc)
+        await self.db.execute(
+            """
+            INSERT INTO outbox_event (
+                id, aggregate_type, aggregate_id, event_type, idempotency_key,
+                payload, status, attempts, available_at, created_at,
+                claimed_at, claimed_by, claim_token, last_attempt_at
+            )
+            VALUES ($1, 'invoice_delivery', $2, $3, $4, '{}'::jsonb,
+                    'processing', 3, $5, $5, $5, 'series-proof', $6, $5)
+            """,
+            event_id,
+            uuid4(),
+            "series-proof.deferred.v1",
+            f"series-proof-defer:{event_id}",
+            claimed_at,
+            claim,
+        )
+        later = claimed_at + timedelta(seconds=5)
+        pool = await asyncpg.create_pool(
+            os.environ["CORE_DATABASE_URL"], min_size=1, max_size=1
+        )
+        try:
+            queue = AsyncpgOutboxQueue(pool)
+            try:
+                await queue.defer(
+                    event_id=event_id, claim_token=stale, available_at=later
+                )
+            except OutboxClaimLost:
+                pass
+            else:
+                raise AssertionError("a stale claim deferred the job")
+            untouched = await self.db.fetchrow(
+                "SELECT status, attempts, available_at, claim_token "
+                "FROM outbox_event WHERE id = $1",
+                event_id,
+            )
+            assert tuple(untouched) == ("processing", 3, claimed_at, claim), untouched
+            await queue.defer(event_id=event_id, claim_token=claim, available_at=later)
+            deferred = await self.db.fetchrow(
+                "SELECT status, attempts, available_at, claim_token, claimed_by, "
+                "dead_lettered_at, last_error_code FROM outbox_event WHERE id = $1",
+                event_id,
+            )
+            # Two real failures before stay counted; this claim does not.
+            assert tuple(deferred) == ("pending", 2, later, None, None, None, None), (
+                deferred
+            )
+            # Deferring again without a claim is refused too.
+            try:
+                await queue.defer(
+                    event_id=event_id, claim_token=claim, available_at=later
+                )
+            except OutboxClaimLost:
+                pass
+            else:
+                raise AssertionError("a job without a claim was deferred")
+        finally:
+            await pool.close()
+            await self.db.execute("DELETE FROM outbox_event WHERE id = $1", event_id)
 
     async def numbers_are_unique_and_final(self) -> None:
         row = await self.cancellation_row("unpaid")

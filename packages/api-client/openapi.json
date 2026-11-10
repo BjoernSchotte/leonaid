@@ -3489,6 +3489,18 @@
             "title": "Paymentrecorded",
             "type": "boolean"
           },
+          "recipientEmail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The e-mail address frozen on the invoice. Its cancellation invoice is sent there; it can differ from the order's current invoice recipient.",
+            "title": "Recipientemail"
+          },
           "status": {
             "enum": [
               "issued",
@@ -3504,6 +3516,7 @@
           "id",
           "number",
           "status",
+          "recipientEmail",
           "paymentRecorded"
         ],
         "title": "CommitmentInvoiceSummaryResponse",

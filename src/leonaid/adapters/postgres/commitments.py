@@ -410,6 +410,8 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                     invoice.id AS invoice_id,
                     invoice.number AS invoice_number,
                     invoice.status AS invoice_status,
+                    NULLIF(btrim(invoice.recipient_snapshot ->> 'email'), '')
+                        AS invoice_recipient_email,
                     {ACTIVE_PAID_MINOR_SQL} AS invoice_paid_minor,
                     COALESCE(delivery.state = 'delivered', false) AS delivered,
                     cancellation.id AS cancellation_id,
@@ -926,6 +928,11 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 status=InvoiceStatus(str(header["invoice_status"])),
                 payment_recorded=int(header["invoice_paid_minor"] or 0) > 0,
                 paid_minor=int(header["invoice_paid_minor"] or 0),
+                recipient_email=(
+                    str(header["invoice_recipient_email"])
+                    if header["invoice_recipient_email"] is not None
+                    else None
+                ),
             )
             if header["invoice_id"] is not None
             else None

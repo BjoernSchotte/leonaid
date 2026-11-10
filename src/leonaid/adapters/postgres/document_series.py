@@ -18,16 +18,56 @@ from leonaid.domain.document_series import (
     DocumentSeries,
     DocumentSeriesKind,
     format_document_number,
+    series_of_number,
 )
 
-# The numeric tail of a number of the prefix $2, or NULL when it has none.
+# The numeric tail of a number of the prefix $2, or NULL when the number is
+# not of that prefix. A number belongs to the longest known series prefix it
+# starts with: with the series "RE" and "RE2026", "RE20260001" is number 1 of
+# "RE2026", not number 20260001 of "RE".
 _SERIAL_SQL = """
     CASE
         WHEN left(number, char_length($2)) = $2
          AND substring(number FROM char_length($2) + 1) ~ '^[0-9]{1,18}$'
+         AND NOT EXISTS (
+             SELECT 1 FROM document_series AS longer
+             WHERE char_length(longer.prefix) > char_length($2)
+               AND left(number, char_length(longer.prefix)) = longer.prefix
+               AND substring(number FROM char_length(longer.prefix) + 1)
+                   ~ '^[0-9]{1,18}$'
+         )
         THEN substring(number FROM char_length($2) + 1)::bigint
     END
 """
+
+
+async def series_of_issued_number(
+    connection: asyncpg.Connection[Any],
+    *,
+    kind: DocumentSeriesKind,
+    number: str,
+) -> tuple[str, int]:
+    """Prefix and width of the series an issued number belongs to.
+
+    The longest known series prefix of that kind the number starts with;
+    only when no series matches, the digits at the number's end.
+    """
+
+    row = await connection.fetchrow(
+        """
+        SELECT prefix, width FROM document_series
+        WHERE kind = $1
+          AND left($2::text, char_length(prefix)) = prefix
+          AND substring($2::text FROM char_length(prefix) + 1) ~ '^[0-9]{1,18}$'
+        ORDER BY char_length(prefix) DESC
+        LIMIT 1
+        """,
+        kind.value,
+        number,
+    )
+    if row is None:
+        return series_of_number(number)
+    return str(row["prefix"]), int(row["width"])
 
 
 async def ensure_series(
@@ -135,8 +175,10 @@ async def allocate_document_number(
     # The counter can be behind an issued number: an invoice written by the
     # previous release after the migration, or one restored or inserted by
     # hand. Such a number would be refused by the registry on every try. The
-    # counter then moves past the highest registered number of the prefix;
-    # no gap follows, those numbers exist.
+    # counter then moves past the highest registered number of the prefix.
+    # After the previous release issued the next numbers in a row, no gap
+    # follows. A number written by hand further up leaves the numbers below
+    # it unused: a gap, traceable to that row, never a duplicate.
     if await connection.fetchval(
         "SELECT EXISTS (SELECT 1 FROM document_number WHERE number = $1)", number
     ):

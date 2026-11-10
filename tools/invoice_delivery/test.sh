@@ -224,8 +224,39 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --entrypoint python \
   api tools/invoice_delivery/contract.py assert-resend /proof/state.json
 
-# "Stornorechnung gleich senden": the cancel command queues the mail, the
-# worker renders the cancellation invoice and then sends it.
+# "Stornorechnung gleich senden" in the order dialog, in a real browser: the
+# order cancellation queues the mail, the worker renders the cancellation
+# invoice and then sends it.
+docker run --rm \
+  --network "${project}_edge" \
+  --env CI=1 \
+  --env HOME=/tmp \
+  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
+  --env COMMITMENT_ID=80000000-0000-4000-8000-000000000002 \
+  --env-file "$proof/sessions.env" \
+  --volume "$root:/workspace:ro" \
+  --volume "$proof:/proof" \
+  --workdir /workspace \
+  --user "$(id -u):$(id -g)" \
+  "$PLAYWRIGHT_IMAGE" \
+  node_modules/.bin/playwright test \
+  --config=tests/e2e/pwa.config.mjs \
+  order-cancellation-send.spec.mjs \
+  --project=chromium-1440 \
+  --output=/tmp/leonaid-order-cancellation-results \
+  --trace=retain-on-failure \
+  --reporter=line
+
+for screenshot in \
+  order-cancellation-send-dialog.png \
+  order-cancellation-sent.png; do
+  if [ ! -s "$proof/$screenshot" ]; then
+    echo "invoice-delivery-test: ERROR: browser proof is missing: $screenshot" >&2
+    exit 1
+  fi
+done
+
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --env API_BASE_URL=http://api:8000 \
@@ -234,10 +265,11 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --volume "$proof:/proof" \
   --workdir /repo \
   --entrypoint python \
-  api tools/invoice_delivery/contract.py cancel-and-send /proof/state.json
+  api tools/invoice_delivery/contract.py assert-cancellation-sent /proof/state.json
 
 mkdir -p "$root/.artifacts/poc094"
-cp "$proof"/invoice-delivery-*.png "$root/.artifacts/poc094/"
+cp "$proof"/invoice-delivery-*.png "$proof"/order-cancellation-*.png \
+  "$root/.artifacts/poc094/"
 
 echo "invoice-delivery-test: OK: real SMTP outage, visible retry,"
 echo "invoice-delivery-test:     MIME/PDF hash, deliberate resend and the"

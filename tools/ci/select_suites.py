@@ -513,6 +513,7 @@ RULES: tuple[Rule, ...] = (
             "tools/invoice_delivery/**",
             "tools/invoice_settlements/**",
             "tests/e2e/invoice-delivery.spec.mjs",
+            "tests/e2e/order-cancellation-send.spec.mjs",
             "tests/e2e/invoice-settlements.spec.mjs",
             "tests/e2e/invoices-keyboard.spec.mjs",
         ),

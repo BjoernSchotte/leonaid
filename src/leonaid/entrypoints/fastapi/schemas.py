@@ -1410,6 +1410,13 @@ class CommitmentInvoiceSummaryResponse(TransportModel):
     id: UUID
     number: str
     status: Literal["issued", "sent", "paid", "cancelled"]
+    recipient_email: str | None = Field(
+        description=(
+            "The e-mail address frozen on the invoice. Its cancellation "
+            "invoice is sent there; it can differ from the order's current "
+            "invoice recipient."
+        ),
+    )
     payment_recorded: bool = Field(
         description="An active payment entry is booked; it blocks the order cancellation."
     )

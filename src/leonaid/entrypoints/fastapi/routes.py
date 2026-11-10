@@ -1611,6 +1611,7 @@ def commitment_record_response(
                 status=invoice.status.value,
                 payment_recorded=invoice.payment_recorded,
                 paid_minor=invoice.paid_minor,
+                recipient_email=invoice.recipient_email,
             )
             if invoice is not None
             else None

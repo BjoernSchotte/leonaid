@@ -634,15 +634,17 @@ async def assert_resend(
     )
 
 
-async def cancel_and_send(
+async def assert_cancellation_sent(
     connection: asyncpg.Connection[Any],
     state_path: Path,
 ) -> None:
-    """Cancel the sent invoice with "Stornorechnung gleich senden".
+    """After the browser cancelled the order with "Stornorechnung gleich
+    senden" (tests/e2e/order-cancellation-send.spec.mjs).
 
-    The cancel command issues the cancellation invoice and queues its mail
-    while the PDF is still to be rendered. The worker renders it, then sends
-    it: one more mail, with the cancellation invoice as its attachment.
+    The order cancellation issued the cancellation invoice and queued its
+    mail while the PDF was still to be rendered. The mail job waits for the
+    render job without using attempts, then sends: one more mail, with the
+    cancellation invoice as its attachment.
     """
 
     state = read_state(state_path)
@@ -658,24 +660,23 @@ async def cancel_and_send(
             timeout=10,
         ) as mailpit,
     ):
-        cancelled = await api.post(
-            f"/api/v1/actions/{ACTION_ID}/invoices/{invoice_id}/cancellation",
-            headers={
-                **headers,
-                "Idempotency-Key": "poc094:cancellation:send-with-cancel-v1",
-            },
-            json={
-                "reason": "Sponsor hat die Bestellung zurückgezogen",
-                "sendCancellation": True,
-            },
-        )
-        if cancelled.status_code != 201:
-            raise ContractFailure(
-                f"Cancel with delivery failed: {cancelled.status_code} {cancelled.text}"
+        number = str(
+            await connection.fetchval(
+                """
+                SELECT invoice_cancellation.number
+                FROM commitment_cancellation
+                JOIN invoice_cancellation
+                  ON invoice_cancellation.id
+                     = commitment_cancellation.invoice_cancellation_id
+                WHERE commitment_cancellation.commitment_id = $1
+                """,
+                COMMITMENT_ID,
             )
-        number = str(cancelled.json()["number"])
+        )
         if number != "KT26-0005":
-            raise ContractFailure(f"Unexpected cancellation number: {number}")
+            raise ContractFailure(
+                f"The order cancellation issued no cancellation invoice: {number}"
+            )
         delivery: dict[str, Any] | None = None
         deadline = time.monotonic() + 120
         while time.monotonic() < deadline:
@@ -759,13 +760,15 @@ async def cancel_and_send(
         or hashlib.sha256(payload).hexdigest() != str(row["sha256"])
         or row["sent_at"] is None
         or row["invoice_status"] != "cancelled"
+        # Waiting for the PDF is no failed attempt: sent at the first one.
+        or delivery["attempts"] != 1
     ):
         raise ContractFailure(
             "The cancellation mail or its PDF differs from the stored document"
         )
     print(
-        f"invoice-delivery-contract: cancel with delivery issued {number}, the "
-        "worker rendered it and one mail carries exactly that PDF"
+        f"invoice-delivery-contract: the order cancellation issued {number}, the "
+        "worker rendered it, the mail waited for it and carries exactly that PDF"
     )
 
 
@@ -784,8 +787,8 @@ async def run(arguments: argparse.Namespace) -> None:
             await queue_resend(connection, arguments.state)
         elif arguments.command == "assert-resend":
             await assert_resend(connection, arguments.state)
-        elif arguments.command == "cancel-and-send":
-            await cancel_and_send(connection, arguments.state)
+        elif arguments.command == "assert-cancellation-sent":
+            await assert_cancellation_sent(connection, arguments.state)
         else:
             raise ContractFailure(f"Unknown command: {arguments.command}")
     finally:
@@ -806,7 +809,7 @@ def parser() -> argparse.ArgumentParser:
         "assert-delivered",
         "queue-resend",
         "assert-resend",
-        "cancel-and-send",
+        "assert-cancellation-sent",
     ):
         command = commands.add_parser(command_name)
         command.add_argument("state", type=Path)

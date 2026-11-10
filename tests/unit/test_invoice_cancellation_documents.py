@@ -191,9 +191,11 @@ def test_render_payload_names_received_money_and_the_refund() -> None:
     payload = cancellation_render_payload(document(received_minor=7_200))
 
     assert payload["closing"] == (
-        "Auf die Rechnung KT26-0017 haben wir 72,00 EUR erhalten. "
+        "Auf die Rechnung KT26-0017 haben wir 72,00 € erhalten. "
         "Die Erstattung erfolgt gesondert."
     )
+    # The table keeps the currency code of the invoice it reverses.
+    assert payload["gross"] == "-108,00 EUR"
 
 
 def test_package_lines_print_their_unit_on_both_documents() -> None:

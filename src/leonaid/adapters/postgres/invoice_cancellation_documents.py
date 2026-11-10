@@ -15,12 +15,15 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
-from leonaid.adapters.postgres.document_series import allocate_document_number
+from leonaid.adapters.postgres.document_series import (
+    allocate_document_number,
+    series_of_issued_number,
+)
 from leonaid.adapters.postgres.invoice_payment_state import ACTIVE_PAID_MINOR_SQL
 from leonaid.adapters.postgres.invoices import AsyncpgInvoiceRepository
 from leonaid.application.errors import ResourceNotFound
 from leonaid.domain.commitments import Money
-from leonaid.domain.document_series import DocumentSeriesKind, series_of_number
+from leonaid.domain.document_series import DocumentSeriesKind
 from leonaid.domain.documents import DOCUMENT_RENDER_REQUESTED, GeneratedDocumentType
 from leonaid.domain.invoice_cancellation_documents import InvoiceCancellationDocument
 
@@ -107,7 +110,9 @@ async def cancellation_series(
             """
         )
     if row is None:
-        return series_of_number(invoice_number)
+        return await series_of_issued_number(
+            connection, kind=DocumentSeriesKind.INVOICE, number=invoice_number
+        )
     return str(row["number_prefix"]), int(row["number_width"])
 
 

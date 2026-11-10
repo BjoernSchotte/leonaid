@@ -136,8 +136,10 @@ export function OrderCancellationDialog({
   const block = cancellationBlock(record);
   const invoice = invoiceToCancel(record);
   // The cancellation invoice goes where the invoice went: offered when the
-  // invoice reached its recipient by e-mail (status `sent`).
-  const recipientEmail = commitment.invoiceRecipient?.email;
+  // invoice reached its recipient by e-mail (status `sent`). The address is
+  // the one frozen on the invoice, which the server sends to; the order's
+  // own recipient may have changed since.
+  const recipientEmail = invoice?.recipientEmail;
   const offerSend = invoice?.status === "sent" && Boolean(recipientEmail);
   const [send, setSend] = useState(true);
   const sendInvoiceCancellation = offerSend && send;

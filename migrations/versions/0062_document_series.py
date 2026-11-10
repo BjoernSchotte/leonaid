@@ -45,11 +45,21 @@ DATA_MIGRATION_REFERENCE = (
 )
 BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
-# The numeric tail of a number of one prefix, or NULL when it has none.
+# The numeric tail of a number of one prefix, or NULL when it is not of that
+# prefix. A number belongs to the longest prefix in use that it starts with:
+# with the prefixes "RE" and "RE2026", "RE20260001" counts for "RE2026" only.
 SERIAL_OF = """
     CASE
         WHEN left({number}, char_length({prefix})) = {prefix}
          AND substring({number} FROM char_length({prefix}) + 1) ~ '^[0-9]{{1,18}}$'
+         AND NOT EXISTS (
+             SELECT 1 FROM invoice_profile AS longer
+             WHERE char_length(longer.number_prefix) > char_length({prefix})
+               AND left({number}, char_length(longer.number_prefix))
+                   = longer.number_prefix
+               AND substring({number} FROM char_length(longer.number_prefix) + 1)
+                   ~ '^[0-9]{{1,18}}$'
+         )
         THEN substring({number} FROM char_length({prefix}) + 1)::bigint
     END
 """
@@ -236,6 +246,30 @@ def upgrade() -> None:
         );
         CREATE INDEX ix_invoice_refund_withdrawal_cancellation
             ON invoice_refund_withdrawal (invoice_cancellation_id, withdrawn_at);
+
+        -- Append-only: a withdrawal is never changed and never deleted on
+        -- its own. It only goes with its cancellation (seed and test data;
+        -- no command deletes a cancellation).
+        CREATE FUNCTION protect_invoice_refund_withdrawal()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+            IF TG_OP = 'DELETE' AND NOT EXISTS (
+                SELECT 1 FROM invoice_cancellation
+                WHERE id = OLD.invoice_cancellation_id
+            ) THEN
+                RETURN OLD;
+            END IF;
+            RAISE EXCEPTION 'refund withdrawals are append-only'
+                USING ERRCODE = 'integrity_constraint_violation';
+        END;
+        $$;
+
+        CREATE TRIGGER invoice_refund_withdrawal_append_only
+        BEFORE UPDATE OR DELETE ON invoice_refund_withdrawal
+        FOR EACH ROW
+        EXECUTE FUNCTION protect_invoice_refund_withdrawal();
         """
     )
     # A profile for every action with invoicing (spec §5.3). It copies the
@@ -314,6 +348,7 @@ def downgrade() -> None:
           AND series.next_number > profile.next_number;
 
         DROP TABLE invoice_refund_withdrawal;
+        DROP FUNCTION protect_invoice_refund_withdrawal();
         DROP TRIGGER invoice_cancellation_document_immutable
             ON invoice_cancellation;
         DROP FUNCTION protect_invoice_cancellation_document();

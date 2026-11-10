@@ -82,6 +82,9 @@ class OrderInvoiceState:
     payment_recorded: bool
     # Sum of the active (not reversed) payment entries, ADR-0014.
     paid_minor: int = 0
+    # The e-mail address frozen on the invoice: where its cancellation
+    # invoice would be sent. It can differ from the order's current one.
+    recipient_email: str | None = None
 
     @property
     def needs_cancellation(self) -> bool:

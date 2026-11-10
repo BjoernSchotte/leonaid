@@ -189,7 +189,7 @@ Closing line when nothing was received:
 
 Closing line when payments were received:
 
-> Auf die Rechnung KT26-0017 haben wir 72,00 EUR erhalten. Die Erstattung
+> Auf die Rechnung KT26-0017 haben wir 72,00 € erhalten. Die Erstattung
 > erfolgt gesondert.
 
 Cover mail:

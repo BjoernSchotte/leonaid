@@ -800,6 +800,7 @@ describe("order cancellation", () => {
     number,
     paidMinor: paymentRecorded ? 3000 : 0,
     paymentRecorded,
+    recipientEmail: null as string | null,
     // A partial payment leaves the invoice open (ADR-0014).
     status: "issued" as const,
   });
@@ -942,16 +943,15 @@ describe("order cancellation", () => {
   });
 
   it("offers to send the cancellation invoice when the invoice was mailed", async () => {
+    // The address is the one frozen on the invoice: the order's own
+    // recipient has none here, and the server sends to the invoice's.
     const mailed = {
       ...rows[2]!,
-      commitment: {
-        ...rows[2]!.commitment,
-        invoiceRecipient: {
-          ...rows[2]!.commitment.invoiceRecipient!,
-          email: "einkauf@example.org",
-        },
+      invoice: {
+        ...issuedInvoice("KT26-0001"),
+        recipientEmail: "einkauf@example.org",
+        status: "sent" as const,
       },
-      invoice: { ...issuedInvoice("KT26-0001"), status: "sent" as const },
     };
     const { client, cancel } = clientWith([mailed]);
     await renderPage("?view=all&open=c3", client);
@@ -973,9 +973,21 @@ describe("order cancellation", () => {
     });
   });
 
-  it("does not offer to send for an invoice that was never mailed", async () => {
+  it("does not offer to send when the invoice itself has no address", async () => {
+    // The order got an address later; the sent invoice has none. Offering
+    // the send would make the server refuse the whole cancellation.
     const { client, cancel } = clientWith([
-      { ...rows[2]!, invoice: issuedInvoice("KT26-0001") },
+      {
+        ...rows[2]!,
+        commitment: {
+          ...rows[2]!.commitment,
+          invoiceRecipient: {
+            ...rows[2]!.commitment.invoiceRecipient!,
+            email: "neu@example.org",
+          },
+        },
+        invoice: { ...issuedInvoice("KT26-0001"), status: "sent" as const },
+      },
     ]);
     await renderPage("?view=all&open=c3", client);
     fireEvent.click(await screen.findByTestId("open-order-cancellation"));
