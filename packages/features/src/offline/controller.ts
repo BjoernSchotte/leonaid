@@ -393,6 +393,11 @@ export class QueueController {
    * One move of the driver's order, through the queue (§9). A pending
    * order of the same action and day that was not sent yet takes the new
    * order; back at the order it started from it is deleted.
+   *
+   * `everSent`: the order already went out once (an online save that got no
+   * answer) and may be at Core. It becomes an entry of its own, never merged,
+   * so later moves queue behind it and take the revision Core returns for it
+   * (`rebaseTourEntries`).
    */
   queueTourOrder(draft: {
     readonly actionId: string;
@@ -401,16 +406,19 @@ export class QueueController {
     readonly fromOrder: readonly string[];
     readonly commitmentIds: readonly string[];
     readonly expectedRevision: string;
+    readonly everSent?: boolean;
   }): Promise<TourWriteOutcome> {
     const now = this.#options.now?.() ?? new Date();
     return this.#tourWrite((entries) => {
-      const pending = entries.find(
-        (entry): entry is TourOrderEntry =>
-          entry.kind === "tour-order" &&
-          sameAction(entry.actionId, draft.actionId) &&
-          entry.request.day === draft.day &&
-          replaceable(entry),
-      );
+      const pending = draft.everSent
+        ? undefined
+        : entries.find(
+            (entry): entry is TourOrderEntry =>
+              entry.kind === "tour-order" &&
+              sameAction(entry.actionId, draft.actionId) &&
+              entry.request.day === draft.day &&
+              replaceable(entry),
+          );
       if (pending) {
         if (sameOrder(draft.commitmentIds, pending.fromOrder)) {
           return { delete: pending.entryId };
@@ -436,6 +444,7 @@ export class QueueController {
           assignmentId: "",
           base: {},
           fromOrder: [...draft.fromOrder],
+          ...(draft.everSent ? { everSent: true } : {}),
           kind: "tour-order",
           party: {
             displayName: draft.displayName,

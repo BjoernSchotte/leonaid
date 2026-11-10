@@ -60,6 +60,7 @@ import {
   saveTour,
   withDrop,
   withQueuedWrites,
+  type CachedTour,
 } from "../offline/tour-cache";
 import { TaskOrderHandle, TaskOrdering } from "../tasks/task-ordering";
 import {
@@ -281,6 +282,48 @@ function orderedWindows(tour: DeliveryTourResponse) {
       .sort((a, b) => a.effectiveRank - b.effectiveRank)
       .map((stop) => stop.drop.commitmentId),
   }));
+}
+
+/**
+ * The device copy with the order and revision of an own save; stops and
+ * windows stay as the copy keeps them (purged, minimized).
+ */
+function withSavedOrder(
+  copy: CachedTour,
+  saved: DeliveryTourResponse,
+): CachedTour {
+  const tour = copy.tour.tour;
+  if (!tour || tour.day !== saved.day) return copy;
+  const stops = new Map(
+    saved.windows.flatMap((window) =>
+      window.stops.map((stop) => [stop.drop.commitmentId, stop] as const),
+    ),
+  );
+  return {
+    ...copy,
+    tour: {
+      ...copy.tour,
+      tour: {
+        ...tour,
+        driverOrderedAt: saved.driverOrderedAt,
+        revision: saved.revision,
+        windows: tour.windows.map((window) => ({
+          ...window,
+          stops: window.stops.map((stop) => {
+            const next = stops.get(stop.drop.commitmentId);
+            return next
+              ? {
+                  ...stop,
+                  driverRank: next.driverRank,
+                  effectiveRank: next.effectiveRank,
+                  newForDriver: next.newForDriver,
+                }
+              : stop;
+          }),
+        })),
+      },
+    },
+  };
 }
 
 /** The stop ids of a tour in the order it shows. */
@@ -595,17 +638,51 @@ export function MyTourPage({
         expectedRevision: revision,
       }),
     revisionOf: (saved) => saved.revision,
-    onSaved: (_key, saved, context) =>
+    onSaved: (_key, saved, context) => {
       queries.setQueryData<MyTourResponse>(context.queryKey, (current) =>
         current?.tour?.day === saved.day
           ? { ...current, tour: saved }
           : current,
-      ),
+      );
+      // Offline meanwhile: the device copy takes Core's answer too, so the
+      // saved order stays on screen and later moves build on it.
+      const deviceKey = ["my-tour-device", context.actionId];
+      const shown = queries.getQueryData<CachedTour | null>(deviceKey);
+      if (!shown) return;
+      const patched = withSavedOrder(shown, saved);
+      if (patched === shown) return;
+      queries.setQueryData(deviceKey, patched);
+      if (deviceStore?.open) {
+        void saveTour(
+          deviceStore,
+          context.actionId,
+          patched.tour,
+          new Date(patched.fetchedAt),
+        ).catch(() => undefined);
+      }
+    },
     onFailed: (_key, error, context) => {
       toast?.show({ title: errorText(error), tone: "error" });
       if (isStale(error)) {
         void queries.invalidateQueries({ queryKey: context.queryKey });
       }
+    },
+    // No answer from Core (network gone, gateway error): the order goes to
+    // the offline queue as one that may be at Core already (§9).
+    divert: async (_key, error, draft) => {
+      if (!queue || !isNetworkFailure(error)) return false;
+      await queueOrder(
+        {
+          commitmentIds: draft.ids,
+          day: draft.context.day,
+          everSent: true,
+          expectedRevision: draft.revision,
+          fromOrder: draft.confirmed,
+        },
+        draft.baseline,
+        { offlineText: true, silent: draft.silent, undo: draft.undo },
+      );
+      return true;
     },
     savedText: () => copy.saved,
     undoneText: () => copy.undone,
@@ -817,28 +894,34 @@ export function MyTourPage({
   /** The toast of the last queued move; the next move replaces it. */
   const orderToast = useRef<string | null>(null);
   /**
-   * Offline (or while an earlier move of the day still waits): the order
-   * goes to the queue; a newer move replaces an unsent one (§9).
+   * One order into the queue, with its toast; "Rückgängig" goes back to
+   * `before`, the order the driver saw before the move.
    */
-  const moveQueued = (
-    current: DeliveryTourResponse,
-    next: readonly string[],
+  const queueOrder = (
+    request: {
+      readonly commitmentIds: readonly string[];
+      readonly day: string;
+      readonly expectedRevision: string;
+      readonly fromOrder: readonly string[];
+      readonly everSent?: boolean;
+    },
     before: readonly string[],
-    undo = false,
+    {
+      offlineText,
+      silent = false,
+      undo = false,
+    }: { offlineText: boolean; silent?: boolean; undo?: boolean },
   ) => {
-    if (!queue) return;
-    void queue
+    if (!queue) return Promise.resolve();
+    return queue
       .queueTourOrder({
+        ...request,
         actionId,
-        commitmentIds: next,
-        day: current.day,
-        displayName: shortDay(current.day),
-        expectedRevision: current.revision,
-        fromOrder: before,
+        displayName: shortDay(request.day),
       })
       .then(
         (outcome) => {
-          if (outcome === "unchanged") return;
+          if (outcome === "unchanged" || silent) return;
           // Cleared: back at the order Core has, nothing is to be sent.
           const back = undo || outcome === "cleared";
           if (orderToast.current) toast?.dismiss(orderToast.current);
@@ -846,7 +929,7 @@ export function MyTourPage({
             toast?.show({
               title: back
                 ? copy.queued.orderUndone
-                : queued
+                : offlineText
                   ? copy.queued.order
                   : copy.queued.orderSending,
               tone: "success",
@@ -859,14 +942,47 @@ export function MyTourPage({
                     // Core meanwhile, with a new revision.
                     run: () => {
                       const shown = latest.current?.tour;
-                      if (!shown || shown.day !== current.day) return;
-                      moveQueued(shown, before, shownOrder(shown), true);
+                      if (!shown || shown.day !== request.day) return;
+                      void moveQueued(shown, before, shownOrder(shown), true);
                     },
                   },
             }) ?? null;
         },
-        () => toast?.show({ title: copy.queued.failed, tone: "error" }),
+        () => {
+          toast?.show({ title: copy.queued.failed, tone: "error" });
+        },
       );
+  };
+  /**
+   * Offline (or while an earlier move of the day still waits): the order
+   * goes to the queue; a newer move replaces an unsent one (§9). A save of
+   * the day still running first: the move builds on what it returns, so
+   * the driver's own order never counts as the planner's change.
+   */
+  const moveQueued = async (
+    current: DeliveryTourResponse,
+    next: readonly string[],
+    before: readonly string[],
+    undo = false,
+  ) => {
+    if (!queue) return;
+    const offlineText = queued;
+    // The copy or answer the move was made on, and when Core gave it.
+    const baseAt = cachedTour
+      ? Date.parse(cachedTour.fetchedAt)
+      : tourQuery.dataUpdatedAt;
+    const own = await autosave.settle(orderKey(actionId, current.day));
+    const fresh = own && own.at > baseAt ? own : null;
+    await queueOrder(
+      {
+        commitmentIds: next,
+        day: current.day,
+        expectedRevision: fresh?.revision ?? current.revision,
+        fromOrder: fresh?.order ?? shownOrder(current),
+      },
+      before,
+      { offlineText, undo },
+    );
   };
 
   const moveStopTo = (
@@ -884,7 +1000,7 @@ export function MyTourPage({
           entry.kind === "tour-order" && entry.request.day === tour.day,
       )
     ) {
-      moveQueued(tour, next, order);
+      void moveQueued(tour, next, order);
     } else {
       autosave.move(orderKey(actionId, tour.day), next, order, tour.revision, {
         actionId,

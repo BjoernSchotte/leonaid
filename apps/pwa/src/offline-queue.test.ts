@@ -896,6 +896,56 @@ describe("driver queue kinds (delivery-state, tour-order)", () => {
     expect(await store.list()).toEqual([]);
   });
 
+  it("an order that may be at Core stays its own entry; the next move follows it with Core's revision", async () => {
+    const sent: { ids: readonly string[]; revision: string }[] = [];
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    const store = new MemoryQueueStore();
+    // Its own user: the page's list of sent entries is per user.
+    const queue = new QueueController({
+      send: async (entry) => {
+        if (entry.kind !== "tour-order") throw new Error("only orders");
+        sent.push({
+          ids: entry.request.commitmentIds,
+          revision: entry.request.expectedRevision,
+        });
+        return {
+          kind: "tour-order",
+          response: tour(entry.request.commitmentIds, `r${sent.length + 1}`),
+        };
+      },
+      store,
+      userId: "driver-ever-sent",
+    });
+    stops.push(queue.start());
+    const reconnect = async () => {
+      online.mockReturnValue(true);
+      await queue.sendNow();
+    };
+    // An online save without answer: it may have reached Core.
+    await queue.queueTourOrder({
+      actionId: ACTION,
+      commitmentIds: ["c2", "c1", "c3"],
+      day: TODAY,
+      displayName: "Sa 07.11.",
+      everSent: true,
+      expectedRevision: "r1",
+      fromOrder: ["c1", "c2", "c3"],
+    });
+    await move(queue, ["c2", "c1", "c3"], ["c3", "c2", "c1"]);
+    const entries = await store.list();
+    expect(entries.map((entry) => entry.everSent ?? false)).toEqual([
+      true,
+      false,
+    ]);
+    await reconnect();
+    // The later move takes the revision Core returned for the first.
+    expect(sent).toEqual([
+      { ids: ["c2", "c1", "c3"], revision: "r1" },
+      { ids: ["c3", "c2", "c1"], revision: "r2" },
+    ]);
+    expect(await store.list()).toEqual([]);
+  });
+
   it("tour-order conflict after an appended stop shows Vom Planer geändert and keeps the server order", async () => {
     const { queue, reconnect, store } = offlineQueue(async () => {
       // The planner appended c4: the driver's ids no longer match the tour.

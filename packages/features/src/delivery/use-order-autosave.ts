@@ -26,6 +26,28 @@ export interface OrderAutosaveOptions<T, C> {
    * why and reload when the tour changed meanwhile.
    */
   readonly onFailed: (key: string, error: unknown, context: C) => void;
+  /**
+   * A save that failed: true when the page kept the order another way (the
+   * offline queue after a network failure). Then it is no failure: no
+   * `onFailed`, and moves behind it still go out. `ids` is the burst's
+   * latest order, `revision` and `confirmed` the revision and order Core
+   * had when it was sent, `baseline` the order before its first move.
+   */
+  readonly divert?: (
+    key: string,
+    error: unknown,
+    draft: {
+      readonly ids: readonly string[];
+      readonly revision: string;
+      readonly confirmed: readonly string[];
+      readonly baseline: readonly string[];
+      readonly context: C;
+      /** No toast: an undo replaced this save on screen. */
+      readonly silent: boolean;
+      /** The save was an undo: its toast offers no "Rückgängig". */
+      readonly undo: boolean;
+    },
+  ) => Promise<boolean>;
   readonly savedText: (key: string, context: C) => string;
   readonly undoneText: (key: string, context: C) => string;
   readonly delayMs?: number;
@@ -38,6 +60,8 @@ interface Burst<C> {
   readonly context: C;
   /** The revision the next save sends; moves on with each own save. */
   revision: string;
+  /** Core's order at `revision`: the baseline, then each saved order. */
+  confirmed: readonly string[];
   ids: readonly string[];
   /** Bumped by each move; a save only settles the burst if none followed. */
   seq: number;
@@ -61,6 +85,8 @@ interface Burst<C> {
    * running one shows no toast.
    */
   cancelled: boolean;
+  /** Cancelled by an undo (not by a reset): see the save's failure path. */
+  superseded: boolean;
 }
 
 /**
@@ -84,8 +110,15 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
   const [saver] = useState(() => {
     const bursts = new Map<string, Burst<C>>();
     const chains = new Map<string, Promise<void>>();
-    /** The revision the last own save of each tour returned. */
-    const revisions = new Map<string, string>();
+    /** What the last own save of each tour returned, and when. */
+    const lastSaved = new Map<
+      string,
+      {
+        readonly revision: string;
+        readonly order: readonly string[];
+        readonly at: number;
+      }
+    >();
     /** Saves of each tour queued or running. */
     const pending = new Map<string, number>();
     /** Failed saves of each tour (shown with onFailed). */
@@ -125,12 +158,17 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
           forget(key, burst);
           return;
         }
-        burst.revision = revisions.get(key) ?? burst.revision;
+        burst.revision = lastSaved.get(key)?.revision ?? burst.revision;
       }
       try {
         const saved = await options.save(key, ids, burst.revision, context);
         burst.revision = options.revisionOf(saved);
-        revisions.set(key, burst.revision);
+        burst.confirmed = ids;
+        lastSaved.set(key, {
+          at: Date.now(),
+          order: ids,
+          revision: burst.revision,
+        });
         burst.sentSeq = seq;
         options.onSaved(key, saved, context);
         // Dropped meanwhile, or a newer move waits for its own save: this
@@ -157,7 +195,29 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
                 },
         });
       } catch (error) {
+        // An undo took over while this save ran without an answer: the
+        // order may be at Core, so it goes to the queue first (silently),
+        // and the undo's order follows it there.
+        if (burst.cancelled && !burst.superseded) return;
+        const divertedSeq = burst.seq;
+        const kept = await (
+          options.divert?.(key, error, {
+            baseline: burst.baseline,
+            confirmed: burst.confirmed,
+            context,
+            ids: burst.superseded ? ids : burst.ids,
+            revision: burst.revision,
+            silent: burst.cancelled,
+            undo: burst.undo,
+          }) ?? Promise.resolve(false)
+        ).catch(() => false);
         if (burst.cancelled) return;
+        if (kept) {
+          // The queue has it; a move made meanwhile follows on its timer.
+          burst.sentSeq = divertedSeq;
+          if (burst.seq === divertedSeq) forget(key, burst);
+          return;
+        }
         count(failures, key, 1);
         forget(key, burst);
         options.onFailed(key, error, context);
@@ -193,6 +253,7 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
         context,
         revision,
         ids: current,
+        confirmed: current,
         seq: 0,
         sentSeq: 0,
         timer: null,
@@ -201,6 +262,7 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
         failuresAtStart: failures.get(key) ?? 0,
         released: false,
         cancelled: false,
+        superseded: false,
       };
       bursts.set(key, burst);
       return burst;
@@ -254,7 +316,10 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
       context: C,
     ) {
       const newer = bursts.get(key);
-      if (newer) forget(key, newer);
+      if (newer) {
+        newer.superseded = true;
+        forget(key, newer);
+      }
       const burst = start(key, saved, revision, context, true, true);
       burst.ids = baseline;
       burst.seq = 1;
@@ -280,6 +345,17 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
       return chains.get(key) ?? Promise.resolve();
     }
 
+    /**
+     * Sends a waiting move of `key` now and resolves once every save of it
+     * is through, with what the last own save returned (null without one).
+     */
+    async function settle(key: string) {
+      const burst = bursts.get(key);
+      if (burst?.timer) void queue(key, burst);
+      await (chains.get(key) ?? Promise.resolve());
+      return lastSaved.get(key) ?? null;
+    }
+
     /** Drops a waiting move unsent; resolves once a running save is through. */
     function cancel(key: string) {
       const burst = bursts.get(key);
@@ -296,7 +372,7 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
       for (const key of [...bursts.keys()]) void release(key);
     };
 
-    return { cancel, flush, move, release, releaseAll };
+    return { cancel, flush, move, release, releaseAll, settle };
   });
 
   useEffect(() => saver.releaseAll, [saver]);
@@ -320,6 +396,7 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
     /** Sends a waiting move now. */
     flush: saver.flush,
     releaseAll: saver.releaseAll,
+    settle: saver.settle,
     cancel: saver.cancel,
   };
 }

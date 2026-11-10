@@ -1074,6 +1074,27 @@ describe("Meine Tour", () => {
     expect(names()).toEqual(["Bäckerei Kern", "Autohaus Nord", "Praxis Süd"]);
   });
 
+  it("without the offline queue a save without answer says so and shows the server's order", async () => {
+    stackRows();
+    const client = fakeClient(myTour());
+    vi.mocked(client.saveMyTourOrder).mockRejectedValueOnce(
+      new TypeError("Failed to fetch"),
+    );
+    await renderTour(client);
+    await keyboardMove("Bäckerei Kern", "ArrowDown");
+    await waitFor(
+      () =>
+        expect(names()).toEqual([
+          "Bäckerei Kern",
+          "Autohaus Nord",
+          "Praxis Süd",
+        ]),
+      { timeout: 3_000 },
+    );
+    expect(screen.queryByText(/Reihenfolge gemerkt/)).toBeNull();
+    expect(screen.queryByText("Reihenfolge gespeichert.")).toBeNull();
+  });
+
   it('conflict 409 shows "Die Tour wurde inzwischen geändert." and refetches', async () => {
     stackRows();
     const client = fakeClient(myTour());
@@ -1238,6 +1259,8 @@ describe("Meine Tour", () => {
   describe("offline queue (§9)", () => {
     /** The device store's cache in memory, as IndexedDB keeps it. */
     class MemoryTourStore implements TourCacheStore {
+      /** As an opened device store: the page writes Core's answer. */
+      readonly open = true;
       readonly records = new Map<
         string,
         { kind: CacheKind; actionId: string; value: unknown; fetchedAt: string }
@@ -1330,6 +1353,194 @@ describe("Meine Tour", () => {
         },
       };
     }
+
+    /** Started online with the queue of §9; the network can go later. */
+    async function renderOnline(client: LeonAidApiClient) {
+      const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+      const device = new MemoryTourStore();
+      const store = new MemoryQueueStore();
+      const queue = new QueueController({
+        send: (entry) => sendEntry(client, entry),
+        store,
+        userId: "anna",
+      });
+      stopQueues.push(queue.start());
+      const runtime: OfflineRuntime = {
+        enabled: true,
+        queue,
+        store: device as unknown as OfflineRuntime["store"],
+      };
+      const queries = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      });
+      const page = (offline: boolean) => (
+        <QueryClientProvider client={queries}>
+          <ToastProvider>
+            <OfflineRuntimeContext.Provider value={runtime}>
+              <MyTourPage
+                actionId={actionId}
+                client={client}
+                offline={offline}
+              />
+            </OfflineRuntimeContext.Provider>
+          </ToastProvider>
+        </QueryClientProvider>
+      );
+      const view = render(page(false));
+      await screen.findByTestId("tour-next-stop");
+      // The page keeps Core's answer on the device.
+      await waitFor(() => expect(device.records.size).toBe(1));
+      return {
+        entries: () => store.list(),
+        /** The network goes; the app tells the page (lifecycle). */
+        goOffline: () => {
+          online.mockReturnValue(false);
+          view.rerender(page(true));
+        },
+        /** The network goes, the page does not know yet. */
+        dropNetwork: () => online.mockReturnValue(false),
+      };
+    }
+
+    const noNetwork = () => new TypeError("Failed to fetch");
+    const threeStops = () =>
+      myTour({
+        windows: [
+          tourWindow("w1", `${DAY}T07:00:00Z`, `${DAY}T09:00:00Z`, [
+            stop(drop("c1", "Bäckerei Kern", "w1"), 1),
+            stop(drop("c2", "Autohaus Nord", "w1"), 2),
+            stop(drop("c3", "Praxis Süd", "w1"), 3),
+          ]),
+        ],
+      });
+
+    it("a move whose save gets no answer goes to the queue and stays on screen", async () => {
+      stackRows();
+      const client = fakeClient(threeStops());
+      const device = await renderOnline(client);
+      vi.mocked(client.saveMyTourOrder).mockRejectedValue(noNetwork());
+      await keyboardMove("Praxis Süd", "ArrowUp");
+      // The network drops during the pause.
+      device.dropNetwork();
+      await screen.findByText(
+        "Reihenfolge gemerkt. Sie wird gesendet, sobald du online bist.",
+        undefined,
+        { timeout: 3_000 },
+      );
+      const entries = await device.entries();
+      expect(entries).toHaveLength(1);
+      const [entry] = entries;
+      expect(entry?.kind === "tour-order" && entry.request).toEqual({
+        commitmentIds: ["c1", "c3", "c2"],
+        day: DAY,
+        expectedRevision: "r1",
+      });
+      // It may be at Core already: a later move queues behind it.
+      expect(entry?.everSent).toBe(true);
+      expect(entry?.kind === "tour-order" && entry.fromOrder).toEqual([
+        "c1",
+        "c2",
+        "c3",
+      ]);
+      expect(names()).toEqual(["Bäckerei Kern", "Praxis Süd", "Autohaus Nord"]);
+      expect(screen.queryByText(/hat nicht geklappt/)).toBeNull();
+    });
+
+    it("an undo behind a save without answer goes to the queue too, not dropped", async () => {
+      stackRows();
+      const client = fakeClient(threeStops());
+      const device = await renderOnline(client);
+      await keyboardMove("Praxis Süd", "ArrowUp");
+      await screen.findByText("Reihenfolge gespeichert.", undefined, {
+        timeout: 3_000,
+      });
+      const undo = screen.getByRole("button", { name: "Rückgängig" });
+      // From the second save on, no answer.
+      let fail: () => void = () => {};
+      const failed = new Promise<void>((resolve) => (fail = resolve));
+      vi.mocked(client.saveMyTourOrder).mockImplementation(async () => {
+        await failed;
+        throw noNetwork();
+      });
+      await keyboardMove("Praxis Süd", "ArrowUp");
+      await pauseOver();
+      device.dropNetwork();
+      fireEvent.click(undo);
+      await act(async () => fail());
+      await waitFor(
+        async () => expect(await device.entries()).toHaveLength(2),
+        { timeout: 3_000 },
+      );
+      const orders = (await device.entries()).map(
+        (entry) => entry.kind === "tour-order" && entry.request.commitmentIds,
+      );
+      expect(orders).toEqual([
+        ["c3", "c1", "c2"],
+        ["c1", "c2", "c3"],
+      ]);
+      // The undo kept its meaning: no undo of the undo.
+      expect(
+        await screen.findByText("Vorherige Reihenfolge wiederhergestellt."),
+      ).toBeTruthy();
+      expect(screen.queryByText(/hat nicht geklappt/)).toBeNull();
+      await waitFor(() =>
+        expect(names()).toEqual([
+          "Bäckerei Kern",
+          "Autohaus Nord",
+          "Praxis Süd",
+        ]),
+      );
+    });
+
+    it("an offline move behind a running save builds on its answer; Rückgängig shows the saved order", async () => {
+      stackRows();
+      const client = fakeClient(threeStops());
+      const device = await renderOnline(client);
+      const releaseSave = holdNextSave(client);
+      await keyboardMove("Praxis Süd", "ArrowUp");
+      await pauseOver();
+      expect(client.saveMyTourOrder).toHaveBeenCalledTimes(1);
+      // Offline while that save runs; the driver moves again.
+      device.goOffline();
+      await screen.findByTestId("tour-offline");
+      await keyboardMove("Bäckerei Kern", "ArrowDown");
+      await releaseSave();
+      await screen.findByText(
+        "Reihenfolge gemerkt. Sie wird gesendet, sobald du online bist.",
+        undefined,
+        { timeout: 3_000 },
+      );
+      const [entry] = await device.entries();
+      // Core's answer (r2, its order), not the copy's revision.
+      expect(entry?.kind === "tour-order" && entry.request).toEqual({
+        commitmentIds: ["c3", "c1", "c2"],
+        day: DAY,
+        expectedRevision: "r2",
+      });
+      expect(entry?.kind === "tour-order" && entry.fromOrder).toEqual([
+        "c1",
+        "c3",
+        "c2",
+      ]);
+      fireEvent.click(
+        within(
+          screen
+            .getByText(
+              "Reihenfolge gemerkt. Sie wird gesendet, sobald du online bist.",
+            )
+            .closest("[role=status], li, div")! as HTMLElement,
+        ).getByRole("button", { name: "Rückgängig" }),
+      );
+      await waitFor(async () => expect(await device.entries()).toEqual([]));
+      // Back at the order the driver saw: the saved one.
+      await waitFor(() =>
+        expect(names()).toEqual([
+          "Bäckerei Kern",
+          "Praxis Süd",
+          "Autohaus Nord",
+        ]),
+      );
+    });
 
     /** The dock remounts per stop: read it fresh on every try. */
     const dockShows = (name: string) =>
