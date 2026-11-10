@@ -249,6 +249,16 @@ def validate_environment(
         raise DoctorError("web_push_settings_invalid")
     if vapid_key:
         secret_values.append(vapid_key)
+        # The env file alone sends no push: the API publishes the key and
+        # the worker signs with it, so both services must get both values
+        # (infra/compose/compose.yml passes them; the pilot file overlays
+        # that one).
+        services = compose_config.get("services", {})
+        for service in ("api", "worker"):
+            environment = services.get(service, {}).get("environment", {})
+            for key in ("LEONAID_VAPID_PRIVATE_KEY", "LEONAID_VAPID_SUBJECT"):
+                if environment.get(key) != values.get(key, ""):
+                    raise DoctorError(f"web_push_not_passed:{service}:{key}")
     if len(secret_values) != len(set(secret_values)):
         raise DoctorError("secrets_not_distinct")
 

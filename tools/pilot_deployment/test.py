@@ -76,7 +76,21 @@ def main() -> None:
     )
     mutations.append(("default secret", changed))
 
-    # Web Push (ADR-0017): the key and the contact, the same in API and worker.
+    # Web Push (ADR-0017): the pilot stack gets the VAPID values from the
+    # env file through infra/compose/compose.yml, which the pilot file
+    # overlays. Both services of the merged production config carry them.
+    for service in ("api", "worker"):
+        environment = config["services"][service]["environment"]
+        if (
+            environment.get("LEONAID_VAPID_PRIVATE_KEY")
+            != "yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw"
+            or environment.get("LEONAID_VAPID_SUBJECT") != "mailto:betrieb@leonaid.org"
+        ):
+            raise AssertionError(
+                f"the pilot config does not pass the VAPID values to {service}"
+            )
+
+    # The key and the contact, the same in API and worker.
     for label, service, key, value in (
         (
             "VAPID key placeholder",
