@@ -47,10 +47,18 @@ from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.sponsor_search import AsyncpgSponsorSearchIndex
 from leonaid.adapters.storage import S3ObjectStorage
 from leonaid.adapters.twenty.gateway import TwentyCrmGateway, TwentyGatewaySettings
-from leonaid.adapters.typst import TypstInvoiceRenderer
+from leonaid.adapters.typst import (
+    TypstInvoiceCancellationRenderer,
+    TypstInvoiceRenderer,
+)
 from leonaid.application.delivery_day_mails import DeliveryDayMailSweep
 from leonaid.application.delivery_geo import GeocodingJob
-from leonaid.application.documents import InvoiceDocumentStorageHandler
+from leonaid.application.documents import DocumentStorageHandler
+from leonaid.application.invoice_cancellation_documents import (
+    InvoiceCancellationDocumentSource,
+)
+from leonaid.application.invoice_documents import InvoiceDocumentSource
+from leonaid.domain.documents import DOCUMENT_RENDER_EVENTS, GeneratedDocumentType
 from leonaid.application.feature_flags import FeatureFlagService
 from leonaid.application.links import LinkBuilder
 from leonaid.application.crm import CrmGateway
@@ -320,12 +328,27 @@ def _action_handlers(
 def _invoice_handlers(
     dependencies: HandlerDependencies,
 ) -> dict[str, OutboxEventHandler]:
+    documents = AsyncpgGeneratedDocumentRepository(dependencies.pool)
+    # One handler for every document kind; the type picks its source. A new
+    # kind adds its source here and uses ``document.render.requested.v1``.
+    render = DocumentStorageHandler(
+        repository=documents,
+        sources={
+            GeneratedDocumentType.INVOICE_PDF: InvoiceDocumentSource(
+                snapshots=documents,
+                renderer=TypstInvoiceRenderer(),
+            ),
+            GeneratedDocumentType.INVOICE_CANCELLATION_PDF: (
+                InvoiceCancellationDocumentSource(
+                    documents=documents,
+                    renderer=TypstInvoiceCancellationRenderer(),
+                )
+            ),
+        },
+        storage=dependencies.storage,
+    )
     return {
-        "invoice.document.render.requested.v1": InvoiceDocumentStorageHandler(
-            repository=AsyncpgGeneratedDocumentRepository(dependencies.pool),
-            renderer=TypstInvoiceRenderer(),
-            storage=dependencies.storage,
-        ),
+        **{event_type: render for event_type in sorted(DOCUMENT_RENDER_EVENTS)},
         "invoice.mail.send.requested.v1": InvoiceSmtpHandler(
             repository=AsyncpgInvoiceDeliveryRepository(dependencies.pool),
             storage=dependencies.storage,

@@ -4,9 +4,9 @@ description: Eine noch nicht gelieferte Bestellung mit Grund stornieren, samt of
 docId: DOC-P047
 audience: [user]
 diataxis: how-to
-contentRevision: 6
-reviewedRevision: 6
-verifiedAgainst: 54507e7edf12d3edd483cd304204649acb8ce1fa
+contentRevision: 8
+reviewedRevision: 8
+verifiedAgainst: 5e59806760df3f5458ede2ff555e7ef8272275f1
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -45,7 +45,14 @@ Menge und Betrag zählen sie nicht mehr mit.
   Rechnung ausgestellt oder versendet und unbezahlt, nennt der Dialog sie mit
   ihrer Nummer. Sie wird zusammen mit der Bestellung storniert: Nummer, Daten
   und PDF bleiben unverändert erhalten, der Status wechselt auf **Storniert**.
-  Weil dabei ein Beleg geändert wird, bestätigst du deine Anmeldung
+  LeonAid stellt dazu eine **Stornorechnung** mit eigener Nummer aus. Du
+  findest sie unter **Rechnungen** bei der Rechnung und kannst sie dort
+  herunterladen und per E-Mail senden (siehe
+  [Rechnung stornieren](/de/user/how-to/cancel-invoice/)). Wurde die Rechnung
+  per E-Mail versendet, bietet der Dialog **Stornorechnung gleich senden** an;
+  das Häkchen ist gesetzt. Die Stornorechnung geht dann an dieselbe Adresse,
+  sobald sie erzeugt ist. Ohne Häkchen sendest du sie später bei der Rechnung.
+  Weil dabei ein Beleg entsteht, bestätigst du deine Anmeldung
   gegebenenfalls erneut. Grund und Notiz bleiben dabei erhalten; nach der
   Anmeldung öffnet sich der Dialog wieder, und du bestätigst noch einmal.
 - **Besteller:** Der Dialog sagt vor dem Stornieren, ob der Besteller eine
@@ -63,6 +70,11 @@ Menge und Betrag zählen sie nicht mehr mit.
   Sagt der Dialog, dass LeonAid nicht benachrichtigt, informiere den
   Besteller selbst.
 
+  Sendest du die Stornorechnung gleich mit, nennt der Dialog auch sie: Sie
+  geht in einer eigenen E-Mail an den Rechnungsempfänger. Die E-Mail über die
+  Stornierung nennt die stornierte Rechnung, enthält die Stornorechnung aber
+  nicht.
+
 ## Wenn es nicht geht
 
 - **Bereits geliefert:** Eine als geliefert abgehakte Bestellung lässt sich
@@ -73,7 +85,11 @@ Menge und Betrag zählen sie nicht mehr mit.
   Teilzahlung, bittet der Dialog, sie erst zurückzubuchen. Öffne die Rechnung
   unter **Rechnungen** und wähle bei der Zahlung **Zurückbuchen**. Sind alle
   Zahlungen zurückgebucht, kannst du die Bestellung stornieren. LeonAid bucht
-  keine Erstattungen.
+  keine Erstattungen. Hat der Sponsor wirklich gezahlt und soll die Zahlung
+  erfasst bleiben, storniere zuerst die Rechnung: Das geht auch mit Zahlung,
+  und LeonAid merkt die offene Erstattung vor (siehe
+  [Rechnung stornieren](/de/user/how-to/cancel-invoice/)). Danach lässt sich
+  auch die Bestellung stornieren.
 - **Inzwischen geändert:** Hat jemand die Bestellung gleichzeitig bearbeitet,
   lehnt der Server ab, und die Liste lädt neu. Prüfe den aktuellen Stand und
   storniere dann erneut; dein Grund bleibt im Dialog stehen.
@@ -84,7 +100,9 @@ Ein Storno ist endgültig. Eine stornierte Bestellung lässt sich nicht wieder
 ## E-Mails für Bestellungen, die Mitglieder erfassen
 
 Bestellungen aus dem öffentlichen Formular erhalten Bestellbestätigung und
-Stornohinweis immer. Für Bestellungen aus der Akquise und aus der Verwaltung
+Stornohinweis ohne Schalter. Für sie gilt aber dieselbe Regel wie für alle
+Bestellungen: Eine Bestätigung, die zu spät käme, geht nicht mehr hinaus
+(siehe unten). Für Bestellungen aus der Akquise und aus der Verwaltung
 schaltest du die E-Mails je Aktion ein:
 
 1. Öffne im Backoffice **Aktionen**, wähle die Aktion und dann
@@ -109,8 +127,19 @@ dorthin gehen. Kläre mit dem Käufer, ob sie stimmt.
 
 Eine Bestätigung, die zu spät käme, sendet LeonAid nicht: nicht nach der
 abgehakten Lieferung, nicht nach dem Ende des Lieferfensters und nicht mehr,
-wenn die Aktion abgeschlossen ist. Wer also eine Bestellung erst nachträglich
-erfasst oder abschließt, löst keine Bestätigung aus.
+wenn die Aktion abgeschlossen ist. Das gilt für Bestellungen jeder Herkunft,
+auch für die aus dem öffentlichen Formular. Wer also eine Bestellung erst
+nachträglich erfasst oder abschließt, löst keine Bestätigung aus. Das
+Formular **Angaben ergänzen** sagt das vor dem Speichern: Statt der
+E-Mails nennt es den Grund, aus dem keine Bestätigung mehr hinausgeht.
+
+Anders ist es, wenn eine Bestätigung rechtzeitig angelegt war und LeonAid sie
+erst zu spät senden konnte, zum Beispiel weil der E-Mail-Versand über das
+Lieferfenster hinaus gestört war. Dann hat der Käufer nichts bekommen. Die
+Bestellung zeigt die Bestätigung als **Fehlgeschlagen** mit dem Grund, und
+der System-Admin sieht sie in der Betriebsübersicht bei den fehlgeschlagenen
+E-Mails. Gesendet wird sie nicht mehr; sprich den Käufer bei Bedarf direkt
+an.
 
 Bestellungen, die vor dem Einschalten erfasst wurden, bestätigt LeonAid nicht
 von selbst. Du kannst die Bestätigung in der Bestellung einzeln senden (siehe

@@ -2,7 +2,8 @@
 
 - Status: für den PoC angenommen; Zahlungsteil ersetzt durch
   [ADR-0014](ADR-0014-invoice-partial-payments.md) (Teil- und
-  Überzahlungen), Stornoteil gilt weiter
+  Überzahlungen), Stornoteil gilt weiter; den Beleg zum Storno regelt
+  [ADR-0015](ADR-0015-document-series.md)
 - Datum: 2026-07-27
 - Entscheider: Produktverantwortlicher und Implementierung
 - Referenz: Produkt- und Architekturvorschlag, Kapitel 7.1 und 7.3

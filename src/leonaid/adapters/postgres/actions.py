@@ -41,6 +41,7 @@ from leonaid.domain.actions import (
 )
 
 
+from leonaid.adapters.postgres.invoice_profiles import ensure_invoice_profiles
 from leonaid.adapters.postgres.identity import (
     actor_still_manages,
     lock_admin_access,
@@ -200,6 +201,8 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                         action.presentation_theme,
                     )
                     await self._insert_capabilities(connection, action)
+                    if ActionCapability.INVOICING in action.capabilities:
+                        await ensure_invoice_profiles(connection, action_id=action.id)
                     await self._insert_beneficiaries(connection, action, occurred_at)
                     if configuration is not None:
                         await self._insert_configuration(
@@ -783,6 +786,10 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                     action.id,
                 )
                 await self._insert_capabilities(connection, action)
+                if ActionCapability.INVOICING in action.capabilities:
+                    # A profile stays when the capability goes: issued
+                    # invoices and their cancellations still need it.
+                    await ensure_invoice_profiles(connection, action_id=action.id)
                 if had_delivery != (ActionCapability.DELIVERY in action.capabilities):
                     await self._sync_delivery_capability(connection, action)
                 await self._audit(

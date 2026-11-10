@@ -23,6 +23,7 @@ from leonaid.domain.sessions import (
 SIMONE_ID = UUID("10000000-0000-4000-8000-000000000001")
 KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 ANNA_ID = UUID("10000000-0000-4000-8000-000000000004")
+PROFILELESS_ACTION_ID = UUID("97530000-0000-4000-8000-000000000001")
 SESSION_NAMESPACE = UUID("35cd44c4-6106-4f7f-84c9-ced1d57cb044")
 
 
@@ -186,6 +187,32 @@ async def prepare(connection: asyncpg.Connection[Any]) -> None:
     await connection.execute("DELETE FROM legal_configuration_version")
     await connection.execute(
         "DELETE FROM audit_event WHERE entity_type = 'legal_configuration'"
+    )
+    # An action with invoicing that has no profile yet, as every action
+    # created before a legal configuration was active: the activation must
+    # give it one (spec mails-documents-donations-push §5.3).
+    await connection.execute(
+        "DELETE FROM invoice_profile WHERE action_id = $1", PROFILELESS_ACTION_ID
+    )
+    await connection.execute(
+        """
+        INSERT INTO charity_action (
+            id, carrier_name, name, purpose, status, starts_on, ends_on,
+            archive_slug
+        )
+        VALUES ($1, 'Legal proof', 'Aktion ohne Rechnungsprofil', 'Proof',
+                'draft', '2026-01-01', '2099-12-31', 'legal-proof-profileless')
+        ON CONFLICT (id) DO NOTHING
+        """,
+        PROFILELESS_ACTION_ID,
+    )
+    await connection.execute(
+        """
+        INSERT INTO charity_action_capability (action_id, capability)
+        VALUES ($1, 'invoicing')
+        ON CONFLICT DO NOTHING
+        """,
+        PROFILELESS_ACTION_ID,
     )
     tokens = await seed_sessions(connection)
     async with httpx.AsyncClient(
@@ -472,6 +499,37 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
     ):
         raise ContractFailure(
             "Invoice profile was not bound atomically to the active version"
+        )
+    # ADR-0015: the activated prefix has its series for the installation.
+    # No number with the prefix "KT" exists yet (the golden invoices carry
+    # "KT26-"), so it starts at 1 with the configured width.
+    series = await connection.fetchrow(
+        """
+        SELECT next_number, width FROM document_series
+        WHERE kind = 'invoice' AND prefix = 'KT'
+        """
+    )
+    if series is None or (int(series["next_number"]), int(series["width"])) != (1, 5):
+        raise ContractFailure("The activated prefix has no invoice series")
+    created = await connection.fetchrow(
+        """
+        SELECT legal_configuration_version_id, legal_name, number_prefix,
+               confirmed_at, iban
+        FROM invoice_profile
+        WHERE action_id = $1
+        """,
+        PROFILELESS_ACTION_ID,
+    )
+    if (
+        created is None
+        or created["legal_configuration_version_id"] != active_version_id
+        or created["legal_name"] != "Golden Förderverein e. V."
+        or created["number_prefix"] != "KT"
+        or created["confirmed_at"] is None
+        or created["iban"] is None
+    ):
+        raise ContractFailure(
+            "An action with invoicing got no invoice profile on activation"
         )
     approval = await connection.fetchrow(
         """

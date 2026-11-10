@@ -141,6 +141,11 @@ Once the campaign is completed or archived, no delivery-day e-mail goes out
 any more. Each order gets the e-mail for its window once. At most ten order
 e-mails go to one mailbox per hour.
 
+If LeonAid could not send an e-mail before its window ended (e-mail delivery
+disturbed), it is not sent any more. The order then shows the row as
+**Fehlgeschlagen** (failed), and the system admin sees it among the failed
+e-mails in the operations overview.
+
 For questions the e-mail names only what the legal configuration holds: the
 club's e-mail address and, if entered, the phone number of the imprint.
 

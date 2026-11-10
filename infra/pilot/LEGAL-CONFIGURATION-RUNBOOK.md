@@ -170,3 +170,50 @@ Notes:
 - The driver note (`Hinweis für den Fahrer`) is covered by access and erasure
   like the delivery contact.
 - Check the retention wording against the active retention periods.
+
+## Cancellation invoice: wording (before a real club relies on it)
+
+**LEGAL REVIEW PENDING – Freigabe durch Björn erforderlich (P2).** Cancelling
+an invoice issues a cancellation invoice ("Stornorechnung", ADR-0015). Its
+texts are fixed in the template
+`src/leonaid/adapters/typst/templates/invoice-cancellation-v1.typ`, in
+`adapters/typst/invoice_cancellation_renderer.py` and in the cover mail
+(`application/invoice_deliveries.py`). They are proposals from
+`specs/mails-documents-donations-push/PLAN.md` Appendix A.2. The club's tax
+adviser should read them once before a real club sends such a document.
+
+Title and reference:
+
+> **Stornorechnung KT26-0042**
+> zur Rechnung KT26-0017 vom 28.11.2026
+
+Introduction:
+
+> Mit dieser Stornorechnung heben wir die Rechnung KT26-0017 vom 28.11.2026
+> vollständig auf. Die Beträge der Rechnung werden mit umgekehrtem Vorzeichen
+> ausgewiesen.
+
+Closing line when nothing was received:
+
+> Aus der Rechnung KT26-0017 ist kein Betrag mehr zu zahlen.
+
+Closing line when payments were received:
+
+> Auf die Rechnung KT26-0017 haben wir 72,00 € erhalten. Die Erstattung
+> erfolgt gesondert.
+
+Cover mail:
+
+> Betreff: Stornorechnung KT26-0042 zur Rechnung KT26-0017 · Krapfentaxi 2026
+>
+> anbei erhalten Sie die Stornorechnung zu Ihrer Rechnung KT26-0017. Die
+> Rechnung ist damit aufgehoben.
+
+Notes for the review:
+
+- The cancellation invoice takes the next number of the invoice number series
+  (D-C1). Whether it shall carry a prefix of its own is open (P5).
+- It repeats issuer, recipient, tax case and tax note of the invoice. The
+  reason of the cancellation is internal and is not printed.
+- A change of the wording is a new template version; documents already issued
+  keep their PDF.

@@ -4,9 +4,9 @@ description: Verified limits of the current LeonAid development and pilot state.
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 10
-reviewedRevision: 10
-verifiedAgainst: 54507e7edf12d3edd483cd304204649acb8ce1fa
+contentRevision: 12
+reviewedRevision: 12
+verifiedAgainst: 5e59806760df3f5458ede2ff555e7ef8272275f1
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -39,7 +39,10 @@ general production approval.
   Käufer**); an order is then confirmed once, as soon as it is ready for
   review. Orders without an e-mail address of the buyer and drafts get no
   e-mail, nor do orders that become ready for review only after the
-  delivery, after the delivery window or after the campaign was completed.
+  delivery, after the delivery window or after the campaign was completed;
+  this also holds for orders from the public form. If LeonAid could send a
+  confirmation that was created in time only after that (delivery
+  disturbed), it is not sent any more and the order shows it as failed.
   The campaign's managers confirm orders from before the switch was set one
   by one in the order (**Senden**). The address is the sponsor's from the
   CRM. LeonAid does not check that the club's privacy notice names these
@@ -65,6 +68,16 @@ general production approval.
   The acquisition app has no search of its own.
 - An issued invoice and its PDF are never overwritten. Corrections use a
   cancellation and a new transaction.
+- A cancellation issues a cancellation invoice ("Stornorechnung") with its
+  own number of the invoice number series. Only a full cancellation exists: no
+  partial cancellation and no corrected invoice that replaces lines. An order
+  has one invoice; a corrected invoice needs a new order. Invoices cancelled
+  before this feature have no cancellation invoice until someone issues it.
+  The wording of the cancellation invoice is a proposal and has no legal
+  review yet.
+- Payments of a cancelled invoice stay recorded and cannot be reversed.
+  LeonAid books no refund; "Erstattung erledigt" is only a marker. It can be
+  taken back with a reason.
 - Partial payments and overpayments are recorded as separate payment entries
   and can be reversed with a reason. An overpayment is only shown; the refund
   happens outside LeonAid. Bank reconciliation and dunning are missing.

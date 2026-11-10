@@ -1,7 +1,7 @@
 """Buyer mails: an order number for every order and the action's mail switches.
 
-Revision ID: 0063_buyer_mails
-Revises: 0062_sponsor_search_entry
+Revision ID: 0064_buyer_mails
+Revises: 0063_document_series
 
 specs/mails-documents-donations-push §5.1 and §6.1.
 
@@ -36,8 +36,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0063_buyer_mails"
-down_revision: str | None = "0062_sponsor_search_entry"
+revision: str = "0064_buyer_mails"
+down_revision: str | None = "0063_document_series"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 DATA_MIGRATION_REFERENCE = (

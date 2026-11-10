@@ -43,6 +43,9 @@ class OrderCancellationRequest:
     expected_version: str
     reason: str
     note: str | None = None
+    # Also mail the cancellation invoice of the order's invoice to the
+    # invoice recipient ("Stornorechnung gleich senden").
+    send_invoice_cancellation: bool = False
 
     def __post_init__(self) -> None:
         if not VERSION_PATTERN.fullmatch(self.expected_version):
@@ -56,15 +59,19 @@ class OrderCancellationRequest:
     def fingerprint(
         self, *, action_id: UUID, commitment_id: UUID, actor_user_id: UUID
     ) -> str:
+        payload: dict[str, object] = {
+            "actionId": str(action_id),
+            "commitmentId": str(commitment_id),
+            "actorUserId": str(actor_user_id),
+            "expectedVersion": self.expected_version,
+            "reason": self.reason,
+            "note": self.note,
+        }
+        # Only present when set: commands keep the fingerprint they had.
+        if self.send_invoice_cancellation:
+            payload["sendInvoiceCancellation"] = True
         canonical = json.dumps(
-            {
-                "actionId": str(action_id),
-                "commitmentId": str(commitment_id),
-                "actorUserId": str(actor_user_id),
-                "expectedVersion": self.expected_version,
-                "reason": self.reason,
-                "note": self.note,
-            },
+            payload,
             ensure_ascii=False,
             separators=(",", ":"),
             sort_keys=True,

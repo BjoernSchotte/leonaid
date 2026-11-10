@@ -879,7 +879,7 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
       </section>
 
       <Modal
-        description="Die Rechnung bleibt sichtbar und erhält den Stempel „Storniert“. Eine Stornorechnung wird erzeugt."
+        description="Die Rechnung bleibt mit Nummer, Daten und PDF erhalten und wird als storniert markiert. LeonAid stellt dazu eine Stornorechnung mit eigener Nummer aus."
         footer={
           <>
             <Button onClick={() => setModalOpen(false)} variant="ghost">
@@ -888,7 +888,11 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
             <Button
               onClick={() => {
                 setModalOpen(false);
-                toast.show({ title: "KT26-0004 storniert.", tone: "success" });
+                toast.show({
+                  title:
+                    "KT26-0004 storniert. Stornorechnung KT26-0005 ausgestellt.",
+                  tone: "success",
+                });
               }}
               variant="danger"
             >

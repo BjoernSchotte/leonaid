@@ -146,6 +146,11 @@ abgeschlossen oder archiviert, geht keine Liefertags-E-Mail mehr hinaus. Jede
 Bestellung bekommt die E-Mail für ihr Fenster einmal. An dasselbe Postfach
 gehen höchstens zehn Bestell-E-Mails pro Stunde.
 
+Konnte LeonAid eine E-Mail nicht senden, bevor ihr Fenster endete (Versand
+gestört), geht sie nicht mehr hinaus. Die Bestellung zeigt die Zeile dann als
+**Fehlgeschlagen**, und der System-Admin sieht sie in der Betriebsübersicht
+bei den fehlgeschlagenen E-Mails.
+
 Die E-Mail nennt für Rückfragen nur, was in der Rechtskonfiguration steht:
 die E-Mail-Adresse des Clubs und, wenn eingetragen, die Telefonnummer des
 Impressums.

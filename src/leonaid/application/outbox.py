@@ -6,7 +6,7 @@ import asyncio
 import math
 import re
 from collections.abc import Awaitable, Callable, Mapping
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from time import perf_counter
 from typing import Protocol
 from uuid import UUID
@@ -20,6 +20,22 @@ SAFE_ERROR_CODE = re.compile(r"[a-z][a-z0-9_]{0,119}\Z")
 
 class OutboxClaimLost(RuntimeError):
     """The claim expired or another worker took it over; its result is void."""
+
+
+class OutboxDeferred(Exception):
+    """The job cannot run yet and waits; this is not a failure.
+
+    A handler raises it when it depends on another job that is still on its
+    way (a mail whose PDF is being rendered). The job goes back to pending
+    for ``delay`` and the attempt does not count, so waiting never
+    dead-letters. The handler must bound the wait itself: when the thing it
+    waits for has failed, it raises a real error.
+    """
+
+    def __init__(self, code: str, delay: timedelta) -> None:
+        super().__init__(code)
+        self.code = code
+        self.delay = delay
 
 
 class OutboxQueue(Protocol):
@@ -48,6 +64,14 @@ class OutboxQueue(Protocol):
         failed_at: datetime,
         available_at: datetime,
         dead_letter: bool,
+    ) -> None: ...
+
+    async def defer(
+        self,
+        *,
+        event_id: UUID,
+        claim_token: UUID,
+        available_at: datetime,
     ) -> None: ...
 
 
@@ -129,6 +153,21 @@ class OutboxWorker:
                 await handler.handle(event)
         except OutboxClaimLost:
             raise
+        except OutboxDeferred as waiting:
+            await self._queue.defer(
+                event_id=event.id,
+                claim_token=event.claim_token,
+                available_at=self._clock() + waiting.delay,
+            )
+            self._observe(
+                "outbox.job.deferred",
+                event,
+                waiting.code
+                if SAFE_ERROR_CODE.fullmatch(waiting.code)
+                else "job_deferred",
+                self._elapsed_ms(started),
+            )
+            return
         except Exception as error:
             # A timeout leaves the outcome open; handlers with a timeout must
             # be safe to repeat, so the job is retried like any failure.

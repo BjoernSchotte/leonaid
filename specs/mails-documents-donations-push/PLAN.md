@@ -181,8 +181,8 @@ with the action and by migration for existing ones:
   order ("Ihre Bestellung wurde von einem Mitglied des … für Sie
   erfasst."), and it links the privacy notice. There is no consent record
   for these buyers; the legal basis is the contract (§13, P1).
-- The UI helper `notifiesBuyer()` in `order-cancellation.tsx` follows the
-  server: the cancellation dialog reads the fact from the order record
+- The cancellation dialog (`buyerNotice()` in `order-cancellation.tsx`)
+  follows the server: it reads the fact from the order record
   (`buyerMailDue`), not from a copy of the rule.
 
 ### 6.3 Delivery-day mail

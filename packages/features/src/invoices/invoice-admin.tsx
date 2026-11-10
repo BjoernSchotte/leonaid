@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   CircleDot,
   FileText,
+  HandCoins,
   Mail,
   ReceiptEuro,
   TriangleAlert,
@@ -34,7 +35,12 @@ import {
   useActionInUrl,
 } from "../action-admin/action-location";
 import { useContextCommands } from "../command-palette/store";
-import { CancellationDialog, PaymentDialog } from "./invoice-dialogs";
+import {
+  CancellationDialog,
+  PaymentDialog,
+  RefundDialog,
+  RefundWithdrawalDialog,
+} from "./invoice-dialogs";
 import { InvoiceDetail, type InvoiceCommand } from "./invoice-detail";
 import { PaymentReversalDialog } from "./invoice-payment-reversal";
 import {
@@ -45,9 +51,12 @@ import {
 } from "./invoice-format";
 import { DocumentsLedger, PaymentsLedger } from "./invoice-ledgers";
 import {
+  deliveryInProgress,
   INVOICE_DISPATCHES,
+  INVOICE_REFUNDS,
   INVOICE_STATUSES,
   invoiceDispatchLabels,
+  invoiceRefundLabels,
   invoiceRows,
   invoiceSettlement,
   invoiceStatusLabels,
@@ -206,10 +215,10 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
     queryFn: () => client.listInvoices(actionId),
     queryKey: ["invoices", actionId],
     refetchInterval: (query) =>
-      query.state.data?.items.some(({ deliveries }) =>
-        deliveries.some(({ status }) =>
-          ["queued", "sending", "retrying"].includes(status),
-        ),
+      query.state.data?.items.some(
+        ({ deliveries, cancellationDeliveries }) =>
+          deliveries.some(deliveryInProgress) ||
+          (cancellationDeliveries ?? []).some(deliveryInProgress),
       )
         ? 750
         : false,
@@ -454,6 +463,23 @@ function InvoiceList({
             </Badge>
           ) : null,
       },
+      {
+        id: "refund",
+        label: "Erstattung",
+        icon: HandCoins,
+        get: (row) => row.refund,
+        options: INVOICE_REFUNDS.map((value) => ({
+          value,
+          label: invoiceRefundLabels[value],
+        })),
+        groupable: false,
+        chip: (row) =>
+          row.refund === "open" ? (
+            <Badge icon={HandCoins} tone="warn">
+              Erstattung offen
+            </Badge>
+          ) : null,
+      },
     ],
     [],
   );
@@ -535,7 +561,11 @@ function InvoiceList({
       ),
       secondary: (row) => {
         const { invoice, cancellation } = row.record;
-        if (cancellation) return `storniert · ${cancellation.reason}`;
+        if (cancellation) {
+          return cancellation.number
+            ? `storniert · Stornorechnung ${cancellation.number}`
+            : `storniert · ${cancellation.reason}`;
+        }
         const settlement = invoiceSettlement(row.record);
         const latest = settlement.active.at(-1);
         if (settlement.status === "overpaid") {
@@ -564,7 +594,7 @@ function InvoiceList({
   const getId = useCallback((row: InvoiceRow) => row.id, []);
   const searchText = useCallback(
     (row: InvoiceRow) =>
-      `${row.record.invoice.number} ${row.record.buyerDisplayName} ${row.record.invoice.recipient.recipientName} ${invoiceStatusLabels[row.status]} ${row.record.invoice.paymentReference}`,
+      `${row.record.invoice.number} ${row.record.buyerDisplayName} ${row.record.invoice.recipient.recipientName} ${invoiceStatusLabels[row.status]} ${row.record.invoice.paymentReference} ${row.record.cancellation?.number ?? ""} ${row.refund === "open" ? invoiceRefundLabels.open : ""}`,
     [],
   );
   const detailTitle = useCallback(
@@ -630,10 +660,23 @@ function InvoiceList({
         record={dialog?.command === "payment" ? dialogRecord : null}
       />
       <CancellationDialog
+        canManageDelivery={canManageDelivery}
         client={client}
         onChanged={onChanged}
         onClose={closeDialog}
         record={dialog?.command === "cancellation" ? dialogRecord : null}
+      />
+      <RefundDialog
+        client={client}
+        onChanged={onChanged}
+        onClose={closeDialog}
+        record={dialog?.command === "refund" ? dialogRecord : null}
+      />
+      <RefundWithdrawalDialog
+        client={client}
+        onChanged={onChanged}
+        onClose={closeDialog}
+        record={dialog?.command === "refund-withdrawal" ? dialogRecord : null}
       />
       <PaymentReversalDialog
         client={client}

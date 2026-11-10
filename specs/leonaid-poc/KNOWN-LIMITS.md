@@ -125,12 +125,37 @@ pilot-create-system-admin` an (Anmeldemail, kein Passwort).
 - Orders can be cancelled until they are delivered (`cancelCommitment`):
   they leave the delivery board, an open "Nachliefern" task closes and an
   issued, unpaid invoice is cancelled under ADR-0009 (status `cancelled`,
-  number, snapshot and PDF unchanged). Not implemented: a separately
-  numbered cancellation document (Stornorechnung) with its own PDF; its
-  number and link contract is an open decision for Björn (ADR-0004/0009
-  defer it). An active (not reversed) payment entry blocks the
-  cancellation until it is reversed ("Zurückbuchen" in the invoice pane);
-  LeonAid books no refunds. A cancelled order cannot be reopened.
+  number, snapshot and PDF unchanged). An active (not reversed) payment
+  entry on a live invoice blocks the cancellation until it is reversed
+  ("Zurückbuchen" in the invoice pane) or the invoice itself is cancelled.
+  A cancelled order cannot be reopened.
+- Cancelling an invoice issues a cancellation invoice (Stornorechnung,
+  ADR-0015) in the same transaction, for both cancel paths: its own number
+  from the invoice series, its own PDF (`invoice_cancellation_pdf`) and the
+  number and date of the invoice it cancels. Limits:
+  - Full cancellation only. No partial cancellation and no corrected invoice
+    that replaces lines. An order has one invoice (`uq_invoice_commitment`),
+    so a corrected invoice needs a new order.
+  - Payments of a cancelled invoice stay recorded and cannot be reversed.
+    LeonAid books no refund: "Erstattung erledigt" is a marker. A manager
+    can take it back with a reason ("Erstattung zurücknehmen"); the record
+    keeps who set and who withdrew it.
+  - Invoices cancelled before this stage have no cancellation invoice until a
+    manager issues it ("Stornorechnung ausstellen"); it then carries the
+    number and date of that day.
+  - The cancellation invoice shares the invoice series and prefix. A prefix
+    of its own is an open decision for Björn (P5 of
+    `specs/mails-documents-donations-push/PLAN.md`).
+  - Its wording is a proposal ("LEGAL REVIEW PENDING",
+    `infra/pilot/LEGAL-CONFIGURATION-RUNBOOK.md`); nothing in the UI edits it.
+- Document numbers come from one series per document kind and prefix for the
+  installation (`document_series`, ADR-0015), no longer from a counter per
+  action. An action gets its invoice profile from the active legal
+  configuration; without one no profile exists and issuing answers
+  `invoice_profile_missing`. A cancellation never fails for a missing
+  profile: it then numbers from the active legal configuration's prefix or,
+  without one, from the series of the invoice's own number.
+  `invoice_profile.next_number` is unused and goes with the next release.
 - Every order has an order number (`commitment.public_reference`). A new
   order of every source gets `LA-` plus eight characters of an alphabet
   without `0`/`O` and `1`/`I`/`L` (`domain.commitments.order_number`, unique
@@ -180,7 +205,14 @@ pilot-create-system-admin` an (Anmeldemail, kein Passwort).
   was recorded, after the delivery window ended, or in a completed or
   archived action; an order completed late (PWA sync after the window, a
   manager recording a delivery afterwards) is therefore never confirmed by
-  mail. Its text follows the order's status and promises an invoice only in
+  mail. The rule holds for orders of every source, the public form
+  included. A confirmation that was queued while it was due and that the
+  worker reaches too late (worker or SMTP down past the window) is not sent
+  either, but not silently: its job is dead-lettered with
+  `order_mail_late_<reason>`, counts with the failed mails in the operations
+  view, and the order shows it as failed with the reason; an operator's
+  retry fails again. The form "Angaben ergänzen" asks the same rule
+  (`listBuyerMails.completion`) before a manager completes a draft. Its text follows the order's status and promises an invoice only in
   an action with invoicing. A send settles older failed jobs of the same
   mail, and the worker skips a job that a later sent one superseded, so an
   operator's retry cannot mail a buyer twice. Retention deletes completed
@@ -197,7 +229,9 @@ pilot-create-system-admin` an (Anmeldemail, kein Passwort).
   invoiced, have a buyer address and no recorded drop state, in an action
   that is not completed or archived and still has the delivery capability.
   The worker and a manager's send check the same rule; a job that waited
-  past its window sends nothing. A window that ends at or before the send
+  past its window sends nothing and is dead-lettered with
+  `order_mail_late_window_over` (failed in the order's mail status and in
+  the operations view). A window that ends at or before the send
   time of its day never gets the mail, and the order's mail status says so
   (`window_before_send_time`). The mail names window, delivery address and
   quantities only: no arrival time per stop, no driver, no campaign link

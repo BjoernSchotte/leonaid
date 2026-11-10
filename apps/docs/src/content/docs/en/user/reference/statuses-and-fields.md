@@ -4,9 +4,9 @@ description: Reference for campaign, acquisition, order, invoice, and delivery s
 docId: DOC-P017
 audience: [user]
 diataxis: reference
-contentRevision: 4
-reviewedRevision: 4
-verifiedAgainst: 05e19df19f872cc5137477166450e97438ff8348
+contentRevision: 5
+reviewedRevision: 5
+verifiedAgainst: 176b94f63b8ff6dbd9deadb71b9ab507ee53989b
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -42,8 +42,8 @@ window is retained as a snapshot.
 delivered and no payment is recorded on its invoice. The cancellation stores
 the reason, an optional note, the previous status, who cancelled and when. A
 cancelled order stays visible in lists but counts in no total and on no
-delivery board; an open invoice is cancelled with it (see
-[Cancel an order](/en/user/how-to/cancel-order/)).
+delivery board; an open invoice is cancelled with it and gets a cancellation
+invoice (see [Cancel an order](/en/user/how-to/cancel-order/)).
 
 ## Delivery window
 
@@ -63,6 +63,13 @@ Invoices are `issued` (**Ausgestellt**), `sent` (**Versendet**), `paid`
 or sent invoices with a remaining amount as **Offen**, and as **Überfällig**
 after their due date. The status cannot be edited in the list; payment and
 cancellation are explicit commands in the detail pane.
+
+A cancellation issues a **cancellation invoice** ("Stornorechnung"): a
+document of its own with the next number of the invoice number series, which
+names the cancelled invoice. The number series belongs to the whole
+installation. If money had been received for the invoice, it shows
+**Erstattung offen** until someone records **Erstattung erledigt** (see
+[Cancel an invoice](/en/user/how-to/cancel-invoice/)).
 
 Email delivery has separate statuses: `queued`, `sending`, `retrying`,
 `failed`, and `sent`. A delivery failure does not change the invoice. The PDF

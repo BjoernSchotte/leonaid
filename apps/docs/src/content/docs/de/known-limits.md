@@ -4,9 +4,9 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 10
-reviewedRevision: 10
-verifiedAgainst: 54507e7edf12d3edd483cd304204649acb8ce1fa
+contentRevision: 12
+reviewedRevision: 12
+verifiedAgainst: 5e59806760df3f5458ede2ff555e7ef8272275f1
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -40,7 +40,11 @@ allgemeine Produktionsfreigabe.
   (**E-Mails an Käufer**); dann wird eine Bestellung einmal bestätigt, sobald
   sie prüfbereit ist. Bestellungen ohne E-Mail-Adresse des Käufers und Entwürfe
   erhalten keine E-Mail, ebenso Bestellungen, die erst nach der Lieferung,
-  nach dem Lieferfenster oder nach Abschluss der Aktion prüfbereit werden.
+  nach dem Lieferfenster oder nach Abschluss der Aktion prüfbereit werden;
+  das gilt auch für Bestellungen aus dem öffentlichen Formular. Konnte
+  LeonAid eine rechtzeitig angelegte Bestätigung erst danach senden (Versand
+  gestört), geht sie nicht mehr hinaus und steht in der Bestellung als
+  fehlgeschlagen.
   Bestellungen von vor dem Einschalten bestätigt die Aktionsverwaltung
   einzeln in der Bestellung (**Senden**). Die Adresse ist die des Sponsors
   aus dem CRM. LeonAid prüft nicht, ob die Datenschutzerklärung des Clubs
@@ -67,6 +71,16 @@ allgemeine Produktionsfreigabe.
   Die Akquise-App hat keine eigene Suche.
 - Ein gespeicherter Rechnungsbeleg und sein PDF werden nicht nachträglich
   überschrieben. Korrekturen erfolgen durch Storno und einen neuen Vorgang.
+- Ein Storno stellt eine Stornorechnung mit eigener Nummer aus dem
+  Nummernkreis der Rechnungen aus. Es gibt nur das vollständige Storno: kein
+  Teilstorno und keine Korrekturrechnung, die Positionen ersetzt. Zu einer
+  Bestellung gibt es eine Rechnung; eine korrigierte Rechnung braucht eine neue
+  Bestellung. Rechnungen, die vor dieser Funktion storniert wurden, haben keine
+  Stornorechnung, bis jemand sie ausstellt. Der Wortlaut der Stornorechnung ist
+  ein Vorschlag und rechtlich noch nicht geprüft.
+- Zahlungen einer stornierten Rechnung bleiben erfasst und lassen sich nicht
+  zurückbuchen. LeonAid bucht keine Erstattung; „Erstattung erledigt“ ist nur
+  ein Vermerk. Er lässt sich mit Grund zurücknehmen.
 - Teil- und Überzahlungen werden als einzelne Zahlungseinträge erfasst und
   bei Bedarf begründet zurückgebucht. Eine Überzahlung wird nur angezeigt; die
   Erstattung läuft außerhalb von LeonAid. Bankabgleich und Mahnwesen fehlen.

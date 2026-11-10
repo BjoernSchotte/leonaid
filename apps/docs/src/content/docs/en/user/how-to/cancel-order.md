@@ -4,9 +4,9 @@ description: Cancel an order that is not delivered yet, with a reason, including
 docId: DOC-P047
 audience: [user]
 diataxis: how-to
-contentRevision: 6
-reviewedRevision: 6
-verifiedAgainst: 54507e7edf12d3edd483cd304204649acb8ce1fa
+contentRevision: 8
+reviewedRevision: 8
+verifiedAgainst: 5e59806760df3f5458ede2ff555e7ef8272275f1
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -41,9 +41,16 @@ finds all cancelled orders. Quantity and amount totals no longer count them.
 - **Invoice:** without an invoice, nothing else happens. If the invoice is
   issued or sent and unpaid, the dialog names it by number. It is cancelled
   together with the order: number, data and PDF stay unchanged, its status
-  becomes **Storniert**. Because this changes a financial record, you may have
-  to confirm your sign-in again. Reason and note are kept; after the sign-in
-  the dialog opens again and you confirm once more.
+  becomes **Storniert**. LeonAid issues a **cancellation invoice**
+  ("Stornorechnung") with its own number for it. You find it under
+  **Rechnungen** with the invoice and can download it and send it by e-mail
+  there (see [Cancel an invoice](/en/user/how-to/cancel-invoice/)). If the
+  invoice was sent by e-mail, the dialog offers **Stornorechnung gleich
+  senden**; the box is ticked. The cancellation invoice then goes to the same
+  address as soon as it is rendered. Without the tick you send it later from
+  the invoice. Because this creates a financial
+  document, you may have to confirm your sign-in again. Reason and note are
+  kept; after the sign-in the dialog opens again and you confirm once more.
 - **Buyer:** before you cancel, the dialog says whether the buyer gets an
   e-mail. If the order came in through the public order form, the buyer soon
   gets the e-mail **Stornierung Ihrer Bestellung bei …** (your order was
@@ -58,6 +65,11 @@ finds all cancelled orders. Quantity and amount totals no longer count them.
   buyer. A cancelled draft sends nothing. When the dialog says that LeonAid
   does not notify the buyer, tell the buyer yourself.
 
+  If you send the cancellation invoice at once, the dialog names it too: it
+  goes to the invoice recipient in an e-mail of its own. The e-mail about the
+  cancellation names the cancelled invoice but does not contain the
+  cancellation invoice.
+
 ## When it does not work
 
 - **Already delivered:** an order ticked off as delivered cannot be cancelled.
@@ -67,7 +79,11 @@ finds all cancelled orders. Quantity and amount totals no longer count them.
 - **Payment recorded:** if a payment is booked on the invoice, a partial one
   included, the dialog asks you to reverse it first. Open the invoice under
   **Rechnungen** and select **Zurückbuchen** on the payment. Once every payment
-  is reversed, you can cancel the order. LeonAid books no refunds.
+  is reversed, you can cancel the order. LeonAid books no refunds. If the
+  sponsor really paid and the payment shall stay recorded, cancel the invoice
+  first: that works with a payment too, and LeonAid keeps the open refund in
+  view (see [Cancel an invoice](/en/user/how-to/cancel-invoice/)). After that
+  the order can be cancelled as well.
 - **Changed in the meantime:** if someone changed the order at the same time,
   the server refuses and the list reloads. Check the current state and cancel
   again; your reason stays in the dialog.
@@ -77,9 +93,11 @@ order if needed.
 
 ## E-mails for orders that members enter
 
-Orders from the public form always get the order confirmation and the
-cancellation notice. For orders from acquisition and from the back office you
-switch the e-mails on per campaign:
+Orders from the public form get the order confirmation and the cancellation
+notice without a switch. The same rule applies to them as to all orders,
+though: a confirmation that would come too late is not sent any more (see
+below). For orders from acquisition and from the back office you switch the
+e-mails on per campaign:
 
 1. Open **Aktionen** in the back office, select the campaign and then
    **Bearbeiten**.
@@ -102,8 +120,18 @@ buyer that it is right.
 
 LeonAid does not send a confirmation that would come too late: not after the
 delivery was ticked off, not after the delivery window ended, and not once
-the campaign is completed. So an order that is captured or completed
-afterwards triggers no confirmation.
+the campaign is completed. This holds for orders of every origin, also for
+those from the public form. So an order that is captured or completed
+afterwards triggers no confirmation. The form **Angaben ergänzen** says so
+before you save: instead of the e-mails it names the reason why no
+confirmation goes out any more.
+
+It is different when a confirmation was created in time and LeonAid could
+only send it too late, for example because e-mail delivery was disturbed
+until after the delivery window. Then the buyer got nothing. The order shows
+the confirmation as **Fehlgeschlagen** (failed) with the reason, and the
+system admin sees it among the failed e-mails in the operations overview. It
+is not sent any more; contact the buyer directly if needed.
 
 LeonAid does not confirm orders from before you switched the e-mails on by
 itself. You can send the confirmation in the order, one by one (see below).

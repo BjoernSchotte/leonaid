@@ -32,6 +32,7 @@ from leonaid.application.order_mails import (
     OrderMailLinks,
     delivery_day_not_due_reason,
     confirmation_not_due_reason,
+    late_reason,
     mail_not_due_reason,
     order_mail_key,
 )
@@ -197,6 +198,49 @@ def _not_due(
     return BuyerMailReason(reason.value) if reason is not None else None
 
 
+@dataclass(frozen=True, slots=True)
+class BuyerMailOverview:
+    """The mails of one order and, for a draft, what completing it sends."""
+
+    statuses: tuple[BuyerMailStatus, ...]
+    draft: bool
+    # Why completing the draft now would send no confirmation; ``None`` when
+    # it would send one. Only meaningful while ``draft``.
+    confirmation_on_completion: BuyerMailReason | None
+
+
+def _failure_reason(error_code: str | None) -> BuyerMailReason:
+    """Why a dead-lettered job failed: the mailbox limit, a confirmation the
+    worker reached too late (with the reason it was late), or the delivery."""
+
+    if error_code == RECIPIENT_LIMIT_ERROR:
+        return BuyerMailReason.RECIPIENT_LIMIT
+    late = late_reason(error_code)
+    if late is not None:
+        return BuyerMailReason(late.value)
+    return BuyerMailReason.DELIVERY_FAILED
+
+
+def confirmation_on_completion(
+    ledger: BuyerMailLedger, *, now: datetime
+) -> BuyerMailReason | None:
+    """Why completing this draft now would send no confirmation.
+
+    ``None`` when the confirmation would go out. The same rule as the status
+    and the enqueue, judged as if the draft were ready for review.
+    """
+
+    reason = confirmation_not_due_reason(
+        ledger.commitment,
+        internal_order_mails=ledger.internal_order_mails,
+        drop_state=ledger.drop_state,
+        action_status=ledger.action_status,
+        now=now,
+        status=CommitmentStatus.REVIEW_READY,
+    )
+    return BuyerMailReason(reason.value) if reason is not None else None
+
+
 def buyer_mail_status(
     kind: OrderMailKind, ledger: BuyerMailLedger, *, now: datetime
 ) -> BuyerMailStatus:
@@ -244,11 +288,7 @@ def buyer_mail_status(
             kind,
             BuyerMailState.FAILED,
             sent_at=sent_at,
-            reason=(
-                BuyerMailReason.RECIPIENT_LIMIT
-                if job.error_code == RECIPIENT_LIMIT_ERROR
-                else BuyerMailReason.DELIVERY_FAILED
-            ),
+            reason=_failure_reason(job.error_code),
             can_resend=due,
         )
     # Completed without a ledger row: the worker found nothing to send.
@@ -404,12 +444,20 @@ class BuyerMailService:
     async def statuses(
         self, actor: IdentityPrincipal, action_id: UUID, commitment_id: UUID
     ) -> tuple[BuyerMailStatus, ...]:
+        return (await self.overview(actor, action_id, commitment_id)).statuses
+
+    async def overview(
+        self, actor: IdentityPrincipal, action_id: UUID, commitment_id: UUID
+    ) -> BuyerMailOverview:
         require_action_manager(actor, action_id)
-        return buyer_mail_statuses(
-            await self._repository.ledger(
-                action_id=action_id, commitment_id=commitment_id
-            ),
-            now=self._clock(),
+        ledger = await self._repository.ledger(
+            action_id=action_id, commitment_id=commitment_id
+        )
+        now = self._clock()
+        return BuyerMailOverview(
+            statuses=buyer_mail_statuses(ledger, now=now),
+            draft=ledger.commitment.status is CommitmentStatus.DRAFT,
+            confirmation_on_completion=confirmation_on_completion(ledger, now=now),
         )
 
     async def resend(

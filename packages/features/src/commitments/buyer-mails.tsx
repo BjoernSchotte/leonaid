@@ -46,7 +46,7 @@ const stateTones: Readonly<Record<State, Tone>> = {
   skipped: "neutral",
 };
 
-const reasonTexts: Readonly<Record<Reason, string>> = {
+export const reasonTexts: Readonly<Record<Reason, string>> = {
   no_email: "In der Bestellung steht keine E-Mail-Adresse des Käufers.",
   switched_off:
     "E-Mails für Bestellungen, die Mitglieder erfassen, sind in der Aktion ausgeschaltet.",
@@ -73,6 +73,14 @@ const reasonText = (kind: Kind, reason: Reason) =>
     ? "Die E-Mail am Liefertag ist in der Aktion ausgeschaltet."
     : reasonTexts[reason];
 
+export type LateReason = "delivery_recorded" | "window_over" | "action_closed";
+
+/** Why a confirmation would come too late, or did. */
+export const isLateReason = (reason: Reason): reason is LateReason =>
+  reason === "delivery_recorded" ||
+  reason === "window_over" ||
+  reason === "action_closed";
+
 /**
  * The badge. A mail that is due and never went out is "Nicht gesendet",
  * not "Nicht fällig": the button next to it sends it.
@@ -98,6 +106,10 @@ export function buyerMailDetail(mail: BuyerMailStatusResponse): string {
   if (mail.state === "sent") return `Gesendet am ${sent}`;
   const last = sent ? ` Zuletzt gesendet am ${sent}.` : "";
   if (mail.state === "queued") return `Wartet auf den Versand.${last}`;
+  // Queued in time, reached by the worker too late (an outage): the buyer
+  // got nothing, and the mail is not sent any more.
+  if (mail.state === "failed" && mail.reason && isLateReason(mail.reason))
+    return `Die E-Mail kam nicht rechtzeitig hinaus und wird nicht mehr gesendet. ${reasonTexts[mail.reason]}${last}`;
   return `${mail.reason ? reasonText(mail.kind, mail.reason) : stateLabels[mail.state]}${last}`;
 }
 
