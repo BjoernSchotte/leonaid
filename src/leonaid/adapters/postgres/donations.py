@@ -1323,9 +1323,11 @@ class DonationPrivacyContributor:
     and why.
 
     The e-mail of a donor is optional. A donation without one is found
-    through what links it to the subject: the order it came with, or the CRM
-    party of the donor when that party has an order or a consent record under
-    the subject's address.
+    through the subject as a person: the donor is the CRM person that has an
+    order or a consent record under the subject's address, or the donation
+    came with such a person's own order. A company never links donations to
+    a person's request: its donations and those of its other contacts stay
+    out.
     """
 
     async def references(
@@ -1334,31 +1336,42 @@ class DonationPrivacyContributor:
         rows = await cast("asyncpg.Connection[Any]", connection).fetch(
             """
             WITH subject_order AS (
-                SELECT id, twenty_company_id, twenty_person_id
+                SELECT id, twenty_person_id
                 FROM commitment
                 WHERE lower(COALESCE(customer_snapshot ->> 'email', '')) = $1
                    OR lower(
                        COALESCE(invoice_recipient_snapshot ->> 'email', '')
                    ) = $1
-                   OR lower(
-                       COALESCE(delivery_recipient_snapshot ->> 'email', '')
-                   ) = $1
             ),
-            subject_party AS (
-                SELECT twenty_company_id AS twenty_id FROM subject_order
-                UNION SELECT twenty_person_id FROM subject_order
-                UNION SELECT twenty_company_id FROM consent_record
-                      WHERE normalized_recipient = $1
+            subject_person AS (
+                SELECT twenty_person_id AS twenty_id FROM subject_order
                 UNION SELECT twenty_person_id FROM consent_record
                       WHERE normalized_recipient = $1
             )
             SELECT id, action_id, status, number
             FROM donation
             WHERE lower(COALESCE(donor_snapshot ->> 'email', '')) = $1
-               OR commitment_id IN (SELECT id FROM subject_order)
-               OR (donor_snapshot ->> 'twentyId') IN (
-                   SELECT twenty_id::text FROM subject_party
-                   WHERE twenty_id IS NOT NULL
+               -- Only a donation without an address of its own is looked up
+               -- through a link, and only through the subject as a person:
+               -- a company's donations, and those of its other contacts,
+               -- never belong to one person's request.
+               OR (
+                   NULLIF(btrim(COALESCE(donor_snapshot ->> 'email', '')), '')
+                       IS NULL
+                   AND (
+                       (
+                           commitment_id IN (SELECT id FROM subject_order)
+                           AND COALESCE(donor_snapshot ->> 'partyKind', 'person')
+                               = 'person'
+                       )
+                       OR (
+                           donor_snapshot ->> 'partyKind' = 'person'
+                           AND (donor_snapshot ->> 'twentyId') IN (
+                               SELECT twenty_id::text FROM subject_person
+                               WHERE twenty_id IS NOT NULL
+                           )
+                       )
+                   )
                )
             ORDER BY pledged_at, id
             """,

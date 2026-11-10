@@ -1198,60 +1198,97 @@ class Proof:
 
     async def a_donor_without_an_email_address_is_found(self) -> None:
         """The donor's e-mail is optional. A donation without one is found
-        through the CRM party of the donor, when the subject's address is
-        known for that party."""
+        through the subject as a CRM person, never through a company: two
+        contacts of one company and the company itself each donated."""
 
         system = self.sessions["system"]
         company = uuid4()
-        email = f"partei.{self.data.tag.lower()}@donor.leonaid.invalid"
-        body = self.draft("crm_donor", email=False)
-        body["donor"] = {
-            **body["donor"],  # type: ignore[dict-item]
-            "partyKind": "company",
-            "twentyId": str(company),
+        persons = {"a": uuid4(), "b": uuid4()}
+        emails = {
+            name: f"person-{name}.{self.data.tag.lower()}@donor.leonaid.invalid"
+            for name in persons
         }
-        created = await self.charity.post(self.path(self.data.alpha), body, self.key())
-        assert created.status_code == 201, created.text
-        donation = created.json()
-        assert donation["donor"]["email"] is None
-        unknown = await system.post("/api/v1/admin/privacy/lookup", {"email": email})
-        assert unknown.status_code == 200, unknown.text
-        assert unknown.json()["found"] is False
-        # The club knows this address for the same CRM party.
-        await self.db.execute(
-            """
-            INSERT INTO consent_record (
-                id, action_id, commitment_id, twenty_company_id,
-                twenty_person_id, normalized_recipient, purpose, channel,
-                text_version, source, evidence_kind, legal_basis_status,
-                granted_at
+
+        async def donate(name: str, kind: str, twenty_id: UUID) -> str:
+            body = self.draft(name, email=False)
+            body["donor"] = {
+                **body["donor"],  # type: ignore[dict-item]
+                "partyKind": kind,
+                "twentyId": str(twenty_id),
+            }
+            created = await self.charity.post(
+                self.path(self.data.alpha), body, self.key()
             )
-            VALUES ($1, $2, NULL, $3, NULL, $4, 'acquisition', 'email',
-                    'donation-proof-v1', 'acquisition_contact',
-                    'notice_acknowledgement', 'legal_review_pending',
-                    CURRENT_TIMESTAMP)
-            """,
-            uuid4(),
-            self.data.alpha,
-            company,
-            email,
-        )
-        found = await system.post("/api/v1/admin/privacy/lookup", {"email": email})
-        assert found.status_code == 200, found.text
-        references = [
-            item
-            for item in found.json()["references"]
-            if item["referenceType"] == "donation"
-        ]
-        assert [item["id"] for item in references] == [donation["id"]], references
+            assert created.status_code == 201, created.text
+            assert created.json()["donor"]["email"] is None
+            return str(created.json()["id"])
+
+        donations = {
+            "a": await donate("person_a", "person", persons["a"]),
+            "b": await donate("person_b", "person", persons["b"]),
+            "company": await donate("company", "company", company),
+        }
+
+        async def found(email: str) -> list[str]:
+            response = await system.post(
+                "/api/v1/admin/privacy/lookup", {"email": email}
+            )
+            assert response.status_code == 200, response.text
+            return [
+                item["id"]
+                for item in response.json().get("references", [])
+                if item["referenceType"] == "donation"
+            ]
+
+        assert await found(emails["a"]) == []
+        # The club knows each address for the person and for the company
+        # both work for.
+        for name, person in persons.items():
+            for company_id, person_id in ((None, person), (company, None)):
+                await self.db.execute(
+                    """
+                    INSERT INTO consent_record (
+                        id, action_id, commitment_id, twenty_company_id,
+                        twenty_person_id, normalized_recipient, purpose, channel,
+                        text_version, source, evidence_kind, legal_basis_status,
+                        granted_at
+                    )
+                    VALUES ($1, $2, NULL, $3, $4, $5, 'acquisition', 'email',
+                            'donation-proof-v1', 'acquisition_contact',
+                            'notice_acknowledgement', 'legal_review_pending',
+                            CURRENT_TIMESTAMP)
+                    """,
+                    uuid4(),
+                    self.data.alpha,
+                    company_id,
+                    person_id,
+                    emails[name],
+                )
+        # Each person finds the own donation: not the colleague's, and not
+        # the company's, although the address is known for the company too.
+        assert await found(emails["a"]) == [donations["a"]]
+        assert await found(emails["b"]) == [donations["b"]]
         erased = await system.post(
-            "/api/v1/admin/privacy/erasures", {"email": email, "confirmation": email}
+            "/api/v1/admin/privacy/erasures",
+            {"email": emails["a"], "confirmation": emails["a"]},
         )
         assert erased.status_code == 200, erased.text
         assert any(
             "Spenden und ihre Dokumente" in item
             for item in erased.json()["retentionReasons"]
         )
+        # A donation with an address of its own is found by that address
+        # only, whatever CRM person it names.
+        own = self.draft("own_address")
+        own["donor"] = {
+            **own["donor"],  # type: ignore[dict-item]
+            "partyKind": "person",
+            "twentyId": str(persons["b"]),
+        }
+        created = await self.charity.post(self.path(self.data.alpha), own, self.key())
+        assert created.status_code == 201, created.text
+        assert await found(emails["b"]) == [donations["b"]]
+        assert await found(created.json()["donor"]["email"]) == [created.json()["id"]]
 
     async def the_capability_stays_while_donations_exist(self) -> None:
         """Without the capability the donations of an action, their pledges
