@@ -4,15 +4,15 @@ description: Publish a new campaign template as data, choose its theme, and plug
 docId: DOC-P040
 audience: [dev]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 3ffbc7ebf669d360fb6ec7352034e4067d7eb8a4
-reviewer: Björn Schotte
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: b78873c3d34a9438bc885e49874cc00ab875117b
+reviewer: Claude Code (review by Björn Schotte pending)
 ---
 
 Core never branches on a campaign name. Behaviour follows the **capabilities**
-of an action (`acquisition`, `offerings`, `ordering`, `invoicing`, `delivery`),
-and the public look follows its **presentation theme**. A template is the data
+of an action (`acquisition`, `offerings`, `ordering`, `invoicing`, `delivery`,
+`donations`), and the public look follows its **presentation theme**. A template is the data
 that sets both when a charity administrator creates an action.
 
 ## Add a goods-sale template

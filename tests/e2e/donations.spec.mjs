@@ -76,6 +76,9 @@ test("a manager records a donation, gets the pledge and books the payment", asyn
       "Spendenzusage-SP26-0002.pdf",
       { timeout: 60_000 },
     );
+    await expect(
+      detail.getByTestId("donation-pledge-document-metadata"),
+    ).toContainText("Version 1 · erzeugt");
     // No e-mail address was given: the pledge cannot be mailed.
     await expect(
       detail.getByTestId("donation-donor-email-missing"),
