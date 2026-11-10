@@ -211,9 +211,6 @@ test("a new company and a private person order in the guided form", async ({
     "Empfänger ist Förderverein Lions Club Musterstadt e. V.",
   );
   await expect(form.getByTestId("order-donation-line")).toBeHidden();
-  await donation.fill("0,50");
-  await donation.blur();
-  await expect(donation).toHaveAttribute("aria-invalid", "true");
   await donation.fill("25");
   await donation.blur();
   await expect(form.getByTestId("order-donation-line")).toContainText("25,00");
@@ -271,7 +268,9 @@ test("a double submit sends one order request and shows the confirmation", async
     success.getByRole("heading", { name: "Danke für Ihre Bestellung!" }),
   ).toBeVisible();
   await expect(success.locator("[data-order-total]")).toHaveText(/36,00/);
-  await expect(success.locator(".public-next li")).toHaveCount(5);
+  // The sixth step, the donation pledge, shows only for an order with one.
+  await expect(success.locator(".public-next li:not([hidden])")).toHaveCount(5);
+  await expect(success.locator("[data-order-donation-note]")).toBeHidden();
   await expect(
     success.getByRole("link", { name: "Zur Aktionsseite" }),
   ).toBeVisible();

@@ -4909,6 +4909,7 @@ async def list_donations(
         receiving_body_name=listing.receiving_body_name,
         may_manage=listing.may_manage,
         may_send=listing.may_send,
+        donor_search=listing.donor_search,
         receipt_signing=(
             listing.receipt_signing.value if listing.receipt_signing else None
         ),

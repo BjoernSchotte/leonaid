@@ -200,11 +200,19 @@ pilot-create-system-admin` an (Anmeldemail, kein Passwort).
     collective receipt.
   - Only an unpaid donation can be cancelled; a cancellation is final. Donor,
     amount and number cannot be edited.
-  - "Spende erfassen" takes the donor as free text. The CRM donor search of
-    spec §8.7 needs a new CRM read and comes with stage 6.
-  - Donations are recorded in the web admin only. The order forms have no
-    donation block yet (stage 6 of
-    `specs/mails-documents-donations-push/PLAN.md`).
+  - "Spende erfassen" can take the donor from the CRM only among the
+    sponsors of the action (`listAcquisitionParties`: the action needs the
+    acquisition capability, the user manages it). The CRM read carries no
+    street, so the street is typed. There is no search over the whole CRM.
+  - An order can carry an extra donation (1.00 to 10,000.00 EUR) when the
+    action's order form allows it (`allow_donation`), the action has the
+    capability and a receiving body is configured. The donor is the order's
+    invoice recipient. The public form takes no donation without an order.
+    The pledge mail goes out by itself only for a public order; for an order
+    a member recorded a manager sends it.
+  - Krapfentaxi template version 3 has the capability and the form flag.
+    Existing actions keep their copy; a manager switches the flag in the
+    action, the capability only while the action is a draft or scheduled.
   - The donation receipt ("Zuwendungsbestätigung", `donation_receipt_pdf`)
     is the single receipt for a money donation: one valid receipt per paid
     donation, for the amount and the day that arrived. No collective

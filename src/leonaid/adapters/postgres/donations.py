@@ -477,7 +477,12 @@ class AsyncpgDonationRepository:
                         SELECT 1 FROM charity_action_capability
                         WHERE action_id = charity_action.id
                           AND capability = 'donations'
-                    ) AS donations_enabled
+                    ) AS donations_enabled,
+                    EXISTS (
+                        SELECT 1 FROM charity_action_capability
+                        WHERE action_id = charity_action.id
+                          AND capability = 'acquisition'
+                    ) AS acquisition_enabled
                 FROM charity_action WHERE id = $1
                 """,
                 action_id,
@@ -509,6 +514,7 @@ class AsyncpgDonationRepository:
             receiving_body_name=configured[1].legal_name if configured else None,
             may_manage=False,
             may_send=False,
+            donor_search=bool(action["acquisition_enabled"]),
             receipt_signing=configured[1].signing if configured else None,
             receipt_notice_valid_until=(
                 notice_valid_until(configured[1]) if configured else None

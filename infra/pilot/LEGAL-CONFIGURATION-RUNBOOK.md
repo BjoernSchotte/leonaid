@@ -269,6 +269,37 @@ amount that arrived; no receipt when the notice is older than five years
 (§ 60a AO); a receipt signed by hand is never mailed; declaring a receipt
 void needs the original back or the donor's tax office informed.
 
+Order forms with the extra donation show this sentence
+(`apps/public/src/components/PublicOrder.astro`), with the name of the
+receiving body:
+
+> Ihre Spende ist freiwillig und ohne Gegenleistung. Empfänger ist
+> {Körperschaft}. Sie erhalten dafür eine eigene Zahlungsbitte, getrennt von
+> der Rechnung für Ihre Bestellung.
+
+The order confirmation (`application/order_mails.py`) adds a paragraph:
+
+> **Ihre Spende**
+> Sie haben zusätzlich eine Spende von 50,00 € an {Körperschaft} zugesagt.
+> Die Spende ist freiwillig, ohne Gegenleistung und nicht Teil Ihrer
+> Bestellung oder der Rechnung. Die Spendenzusage SP26-0007 mit der
+> Bankverbindung erhalten Sie in einer eigenen E-Mail.
+
+**Privacy policy (P6).** When the receiving body is another legal entity
+than the club, the donor's name, address, amount and day of payment go to
+it. LeonAid does not add this to the privacy policy by itself. Before a real
+club switches the extra donation on, add a section like this one to the
+privacy policy text (part "Datenschutzerklärung" of the legal configuration)
+and have it reviewed:
+
+> **Spenden**
+> Spenden Sie im Rahmen einer Aktion, ist Empfänger Ihrer Spende der
+> {Körperschaft}. Wir übermitteln ihm dazu Ihren Namen, Ihre Anschrift, den
+> Betrag und den Tag der Zahlung. Er stellt Ihnen die Zuwendungsbestätigung
+> aus und bewahrt ein Doppel zehn Jahre auf (§ 50 Abs. 7 EStDV).
+> Rechtsgrundlage ist die Erfüllung der Spendenvereinbarung mit Ihnen und die
+> gesetzliche Aufbewahrungspflicht (Art. 6 Abs. 1 Buchst. b und c DSGVO).
+
 The dev tenant carries a synthetic receiving body ("Förderverein Lions Club
 Musterstadt e. V.") with the machine procedure; it is not a model for a real
 club.

@@ -2275,6 +2275,13 @@ class DonationListResponse(TransportModel):
     )
     may_manage: bool
     may_send: bool
+    donor_search: bool = Field(
+        description=(
+            '"Spende erfassen" can look the donor up among the sponsors of the '
+            "action (`listAcquisitionParties`): the action has the acquisition "
+            "capability and the account manages it."
+        ),
+    )
     receipt_signing: Literal["by_hand", "machine"] | None = Field(
         description=(
             "How the active receiving body signs receipts; null without a "

@@ -8020,6 +8020,11 @@
             "title": "Currency",
             "type": "string"
           },
+          "donorSearch": {
+            "description": "\"Spende erfassen\" can look the donor up among the sponsors of the action (`listAcquisitionParties`): the action has the acquisition capability and the account manages it.",
+            "title": "Donorsearch",
+            "type": "boolean"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/DonationResponse"
@@ -8094,6 +8099,7 @@
           "receivingBodyName",
           "mayManage",
           "maySend",
+          "donorSearch",
           "receiptSigning",
           "receiptNoticeValidUntil",
           "receivedTotalMinor",

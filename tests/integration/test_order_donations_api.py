@@ -576,6 +576,7 @@ class Proof:
         # The donation page links it to its order.
         donations = await self.get(f"/api/v1/actions/{self.data.action}/donations")
         assert donations.status_code == 200, donations.text
+        assert donations.json()["donorSearch"] is False
         listed = donations.json()["items"][0]
         assert listed["commitmentId"] == self.ready_order
         assert listed["source"] == "admin"
