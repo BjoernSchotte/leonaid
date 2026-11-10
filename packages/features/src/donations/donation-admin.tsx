@@ -268,9 +268,7 @@ export function DonationAdminPage({
             <Icon icon={TriangleAlert} size={16} />
             <span>
               {RECEIVING_BODY_MISSING}{" "}
-              <a href={adminHref("legal/donations")}>
-                Zu „Organisation & Recht“
-              </a>
+              <a href={adminHref("legal/donations")}>Zu „Rechtliches“</a>
             </span>
           </div>
         ) : null}

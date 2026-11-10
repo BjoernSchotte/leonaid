@@ -34,7 +34,8 @@ Punkte sind keine stillschweigenden Produktzusagen.
   begründete Rückbuchungen einzelner Einträge (ADR-0014). Eine Überzahlung
   wird nur angezeigt; die Erstattung läuft außerhalb von LeonAid und wird
   nicht gebucht. Bankabgleich, Buchhaltung, E-Rechnung, Mahnwesen, Payment
-  Provider, Spendenzahlungen und Spendenbescheinigungen fehlen.
+  Provider und Spendenbescheinigungen fehlen. Spenden werden als Zusage
+  mit manuell erfasstem Zahlungseingang geführt (ADR-0016, siehe unten).
 - Lieferfenster, Fahrerzuweisung und Abhaken im Lieferboard sind gebaut.
   Tourenplanung, Karte und Navigation fehlen. Die Fenster-Kapazität ist keine
   Zahl: es gibt nur das manuelle Kennzeichen „ausgebucht“
@@ -148,6 +149,27 @@ Punkte sind keine stillschweigenden Produktzusagen.
     `specs/mails-documents-donations-push/PLAN.md`).
   - Its wording is a proposal ("LEGAL REVIEW PENDING",
     `infra/pilot/LEGAL-CONFIGURATION-RUNBOOK.md`); nothing in the UI edits it.
+- Donations are a capability of an action (`donations`, ADR-0016). A
+  donation takes a number from the `donation` series and gets a pledge PDF
+  (`donation_pledge_pdf`, not an invoice). Limits:
+  - No donation without an active legal configuration that has the part
+    "Spenden" (the receiving body): `donation_receiving_body_missing`.
+  - Money donations in EUR only, 1.00 to 1,000,000.00. One payment per
+    donation, of any amount; a second part payment is a second donation. No
+    collective receipt.
+  - Only an unpaid donation can be cancelled; a cancellation is final. Donor,
+    amount and number cannot be edited.
+  - Donations are recorded in the web admin only. The order forms have no
+    donation block and the donation receipt ("Zuwendungsbestätigung") is not
+    issued yet (stages 5 and 6 of
+    `specs/mails-documents-donations-push/PLAN.md`).
+  - A privacy erasure lists the donations of the subject and keeps them, as
+    it keeps issued invoices.
+  - Re-seeding the golden data deletes every donation of the installation,
+    because it replaces the legal configuration they point at.
+  - The wording blocks are proposals ("LEGAL REVIEW PENDING",
+    `packages/features/src/system-admin/legal-templates.ts`); the tax points
+    rest on the implementation's knowledge, not on a looked-up source.
 - Document numbers come from one series per document kind and prefix for the
   installation (`document_series`, ADR-0015), no longer from a counter per
   action. An action gets its invoice profile from the active legal

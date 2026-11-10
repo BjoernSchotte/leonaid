@@ -171,6 +171,48 @@ Notes:
   like the delivery contact.
 - Check the retention wording against the active retention periods.
 
+## Donations: receiving body and wording (before a real club takes donations)
+
+**LEGAL REVIEW PENDING – Freigabe durch Björn erforderlich (P3).** The part
+"Spenden" of the legal configuration names the body that receives donations
+(ADR-0016). The tax points behind it rest on the implementation's knowledge,
+not on a looked-up source. Before a real club records donations, its tax
+adviser should confirm:
+
+- the receiving body, its notice (kind, date, assessment period) and the
+  purposes, word for word as in the notice;
+- that the donation account belongs to the receiving body;
+- the two wording blocks. The UI offers them as proposals ("Vorschlag
+  einsetzen", `packages/features/src/system-admin/legal-templates.ts`), from
+  `specs/mails-documents-donations-push/PLAN.md` Appendix A.3.
+
+Text of the donation pledge (`DONATION_PLEDGE_TEXT_TEMPLATE`):
+
+> Ihre Spende ist freiwillig. Sie erhalten dafür keine Gegenleistung. Dieses
+> Schreiben ist keine Rechnung. Nach Eingang Ihrer Zahlung senden wir Ihnen
+> eine Zuwendungsbestätigung für Ihre Steuererklärung.
+
+The pledge PDF (`donation-pledge-v1.typ`, `donation_pledge_renderer.py`) adds
+fixed sentences around it:
+
+> Vielen Dank für Ihre Spende von 50,00 € für die Aktion „Krapfentaxi 2026“
+> (Lions Club Musterstadt).
+
+> Bitte überweisen Sie den Betrag auf das folgende Konto und geben Sie als
+> Verwendungszweck die Nummer dieser Spendenzusage an.
+
+The cover mail (`application/donations.py`) repeats amount, number and
+"Dieses Schreiben ist keine Rechnung." and is signed with the name of the
+receiving body.
+
+The liability note (`DONATION_RECEIPT_LIABILITY_TEMPLATE`) is stored now and
+printed on the donation receipt from stage 5 on. Compare it with the current
+official sample of the Federal Ministry of Finance before use.
+
+The dev tenant carries a synthetic receiving body ("Förderverein Lions Club
+Musterstadt e. V.") with the machine procedure; it is not a model for a real
+club.
+
 ## Cancellation invoice: wording (before a real club relies on it)
 
 **LEGAL REVIEW PENDING – Freigabe durch Björn erforderlich (P2).** Cancelling

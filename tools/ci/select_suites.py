@@ -539,7 +539,11 @@ RULES: tuple[Rule, ...] = (
     Rule(("tools/outbox/**",), integration("outbox"), "outbox proofs"),
     Rule(("tools/storage/**",), integration("storage"), "storage proofs"),
     Rule(
-        ("tools/documents/**", "tests/e2e/documents.spec.mjs"),
+        (
+            "tools/documents/**",
+            "tests/e2e/documents.spec.mjs",
+            "tests/e2e/donations.spec.mjs",
+        ),
         integration("documents"),
         "document proofs",
     ),

@@ -33,7 +33,7 @@ vor dem Einsatz von seiner Steuerberatung lesen (Spezifikation §13, P3).
 `donations` ist ein neuer Wert von `ActionCapability`, ohne Abhängigkeit von
 anderen Fähigkeiten (D-D1). Eine Aktion kann Spenden annehmen, ohne
 Bestellungen oder Rechnungen zu haben. Die Fähigkeit folgt der bestehenden
-Sperre: Nach „geplant“ ändert sie sich nicht mehr (D-D4). Keine Migration
+Sperre: Sie lässt sich nur im Entwurf und in der Planung ändern (D-D4). Keine Migration
 gibt sie einer bestehenden Aktion oder Vorlage.
 
 ### Die empfangende Körperschaft steht in der Rechtskonfiguration

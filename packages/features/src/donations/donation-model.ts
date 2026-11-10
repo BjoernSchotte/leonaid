@@ -84,7 +84,7 @@ export const MAX_PAYMENT_MINOR = 1_000_000_000;
 export const MIN_REASON = 8;
 
 export const RECEIVING_BODY_MISSING =
-  "In „Organisation & Recht“ fehlt der Teil „Spenden“ mit der empfangenden Körperschaft. Ohne ihn kann keine Spende erfasst werden.";
+  "In „Rechtliches“ fehlt der Teil „Spenden“ mit der empfangenden Körperschaft. Ohne ihn kann keine Spende erfasst werden.";
 
 /** German copy for the refusals of the donation commands. */
 const donationErrors: Readonly<Record<string, string>> = {
@@ -135,3 +135,9 @@ export const donationCommandStorageKey = (
 
 export const donationCreateStorageKey = (actionId: string) =>
   `leonaid.donation-create-command.${actionId}`;
+
+/** Ends a sentence once: a short date ("10.11.") and a name ("e. V.")
+ * already end with a period. */
+export function withPeriod(text: string) {
+  return text.endsWith(".") ? text : `${text}.`;
+}

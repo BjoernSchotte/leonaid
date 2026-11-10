@@ -30,6 +30,7 @@ import {
   MAX_PLEDGE_MINOR,
   MIN_PLEDGE_MINOR,
   MIN_REASON,
+  withPeriod,
 } from "./donation-model";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -173,7 +174,7 @@ function CreateDonationForm({
   return (
     <Modal
       className="inv-dialog"
-      description={`Die Spende erhält sofort eine Nummer und eine Spendenzusage als PDF. Sie geht an ${receivingBodyName}.`}
+      description={`Die Spende erhält sofort eine Nummer und eine Spendenzusage als PDF. ${withPeriod(`Sie geht an ${receivingBodyName}`)}`}
       footer={
         <>
           <Button disabled={create.isPending} onClick={onClose} variant="ghost">

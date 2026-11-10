@@ -45,6 +45,7 @@ import {
   donationSourceLabels,
   donationStatusLabels,
   type DonationRow,
+  withPeriod,
 } from "./donation-model";
 
 export type DonationCommand = "payment" | "withdrawal" | "cancellation";
@@ -125,8 +126,9 @@ export function DonationDetail({
         <div className="inv-stamp-row" data-testid="donation-stamp">
           <span className="stamp tone-ok">Bezahlt</span>
           <span className="small muted">
-            {money(payment.amountMinor)} eingegangen am{" "}
-            {shortDate(payment.receivedOn, today)}.
+            {withPeriod(
+              `${money(payment.amountMinor)} eingegangen am ${shortDate(payment.receivedOn, today)}`,
+            )}
           </span>
         </div>
       ) : null}
@@ -154,7 +156,9 @@ export function DonationDetail({
             </Button>
           }
           consequence="Erfassen Sie den Zahlungseingang, sobald das Geld auf dem Spendenkonto ist."
-          lead={`Zugesagt am ${shortDate(donation.pledgedAt, today)}.`}
+          lead={withPeriod(
+            `Zugesagt am ${shortDate(donation.pledgedAt, today)}`,
+          )}
         />
       ) : null}
 

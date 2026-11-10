@@ -55,7 +55,7 @@ const capabilities: ReadonlyArray<{
   },
   {
     description:
-      "Die Aktion nimmt Spenden mit eigenen Dokumenten entgegen (Spendenzusage; die Zuwendungsbestätigung folgt), getrennt von Rechnungen. Benötigt den Teil „Spenden“ in „Organisation & Recht“.",
+      "Die Aktion nimmt Spenden mit eigenen Dokumenten entgegen (Spendenzusage; die Zuwendungsbestätigung folgt), getrennt von Rechnungen. Benötigt den Teil „Spenden“ in „Rechtliches“.",
     label: "Spenden",
     value: "donations",
   },

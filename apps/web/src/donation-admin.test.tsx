@@ -351,7 +351,7 @@ describe("DonationAdminPage", () => {
     await renderPage({ list: { items: [], receivingBodyName: null } });
     const callout = screen.getByTestId("donation-receiving-body-missing");
     expect(callout.textContent).toContain(
-      "In „Organisation & Recht“ fehlt der Teil „Spenden“ mit der empfangenden Körperschaft. Ohne ihn kann keine Spende erfasst werden.",
+      "In „Rechtliches“ fehlt der Teil „Spenden“ mit der empfangenden Körperschaft. Ohne ihn kann keine Spende erfasst werden.",
     );
     expect(within(callout).getByRole("link").getAttribute("href")).toBe(
       "/admin/legal/donations",
