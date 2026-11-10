@@ -543,7 +543,10 @@ export function rebaseTourEntries(
       entry.sequence > accepted.sequence &&
       partyKey(entry) === partyKey(accepted) &&
       entry.state === "queued" &&
-      !entry.everSent,
+      // An order that may be at Core is rebased too: Core takes an order it
+      // already has without a revision check (idempotent by target order,
+      // and the PUT has no idempotency key). A mark keeps its revision.
+      (!entry.everSent || entry.kind === "tour-order"),
   );
   if (result.kind === "delivery-state") {
     return later.flatMap((entry) =>

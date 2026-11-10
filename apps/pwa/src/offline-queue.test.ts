@@ -26,6 +26,7 @@ import {
   conflictText,
   drainQueue,
   nextSendable,
+  rebaseTourEntries,
   resolutionsFor,
   retention,
   type QueueEntry,
@@ -944,6 +945,46 @@ describe("driver queue kinds (delivery-state, tour-order)", () => {
       { ids: ["c3", "c2", "c1"], revision: "r2" },
     ]);
     expect(await store.list()).toEqual([]);
+  });
+
+  it("two orders that may be at Core replay in turn: the second takes Core's revision", async () => {
+    const accepted = {
+      ...activity(1, "x"),
+      kind: "tour-order",
+      everSent: true,
+      fromOrder: ["c1", "c2", "c3"],
+      party: {
+        displayName: "Sa 07.11.",
+        id: `tour:${ACTION}:${TODAY}`,
+        kind: "person",
+      },
+      request: {
+        commitmentIds: ["c2", "c1", "c3"],
+        day: TODAY,
+        expectedRevision: "r1",
+      },
+    } as unknown as QueueEntry;
+    const later = {
+      ...accepted,
+      entryId: "00000000-0000-4000-8000-000000000002",
+      sequence: 2,
+      request: {
+        commitmentIds: ["c1", "c2", "c3"],
+        day: TODAY,
+        expectedRevision: "r1",
+      },
+    } as unknown as QueueEntry;
+    const rebased = rebaseTourEntries(
+      accepted,
+      { kind: "tour-order", response: tour(["c2", "c1", "c3"], "r2") },
+      [accepted, later],
+    );
+    expect(
+      rebased.map(
+        (entry) =>
+          entry.kind === "tour-order" && entry.request.expectedRevision,
+      ),
+    ).toEqual(["r2"]);
   });
 
   it("tour-order conflict after an appended stop shows Vom Planer geändert and keeps the server order", async () => {

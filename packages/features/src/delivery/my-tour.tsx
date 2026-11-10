@@ -326,6 +326,9 @@ function withSavedOrder(
   };
 }
 
+const sameOrder = (a: readonly string[], b: readonly string[]) =>
+  a.length === b.length && a.every((id, index) => id === b[index]);
+
 /** The stop ids of a tour in the order it shows. */
 function shownOrder(tour: DeliveryTourResponse): string[] {
   return orderedWindows(tour).flatMap((group) => group.ids);
@@ -669,19 +672,39 @@ export function MyTourPage({
     },
     // No answer from Core (network gone, gateway error): the order goes to
     // the offline queue as one that may be at Core already (§9).
+    // The sent order is its own entry (Core takes it again without a
+    // conflict if it got there); a move made while it ran follows it as a
+    // normal entry, which takes the revision Core returns for the first.
     divert: async (_key, error, draft) => {
       if (!queue || !isNetworkFailure(error)) return false;
+      const later = !sameOrder(draft.ids, draft.sent);
       await queueOrder(
         {
-          commitmentIds: draft.ids,
+          commitmentIds: draft.sent,
           day: draft.context.day,
           everSent: true,
           expectedRevision: draft.revision,
           fromOrder: draft.confirmed,
         },
         draft.baseline,
-        { offlineText: true, silent: draft.silent, undo: draft.undo },
+        {
+          offlineText: true,
+          silent: draft.silent || later,
+          undo: draft.undo,
+        },
       );
+      if (later) {
+        await queueOrder(
+          {
+            commitmentIds: draft.ids,
+            day: draft.context.day,
+            expectedRevision: draft.revision,
+            fromOrder: draft.sent,
+          },
+          draft.baseline,
+          { offlineText: true, silent: draft.silent, undo: draft.undo },
+        );
+      }
       return true;
     },
     savedText: () => copy.saved,
@@ -692,7 +715,19 @@ export function MyTourPage({
   const tourKey = tour ? orderKey(actionId, tour.day) : null;
   // The order on screen: a move that is saving, kept to the known stops
   // (the server may add or drop one meanwhile), else the server's.
-  const pending = tourKey ? autosave.orderOf(tourKey) : null;
+  // An offline move waiting for a running save of its day shows at once,
+  // over the save's own order (it is newer).
+  const [queuing, setQueuing] = useState<{
+    readonly day: string;
+    readonly order: readonly string[];
+    readonly seq: number;
+  } | null>(null);
+  const pending =
+    queuing && tour && queuing.day === tour.day
+      ? queuing.order
+      : tourKey
+        ? autosave.orderOf(tourKey)
+        : null;
   const order = useMemo(
     () =>
       pending
@@ -959,30 +994,45 @@ export function MyTourPage({
    * the day still running first: the move builds on what it returns, so
    * the driver's own order never counts as the planner's change.
    */
-  const moveQueued = async (
+  const queuingSeq = useRef(0);
+  /** Offline moves go to the queue one after the other. */
+  const queuingChain = useRef<Promise<void>>(Promise.resolve());
+  const moveQueued = (
     current: DeliveryTourResponse,
     next: readonly string[],
     before: readonly string[],
     undo = false,
   ) => {
-    if (!queue) return;
+    if (!queue) return Promise.resolve();
     const offlineText = queued;
     // The copy or answer the move was made on, and when Core gave it.
     const baseAt = cachedTour
       ? Date.parse(cachedTour.fetchedAt)
       : tourQuery.dataUpdatedAt;
-    const own = await autosave.settle(orderKey(actionId, current.day));
-    const fresh = own && own.at > baseAt ? own : null;
-    await queueOrder(
-      {
-        commitmentIds: next,
-        day: current.day,
-        expectedRevision: fresh?.revision ?? current.revision,
-        fromOrder: fresh?.order ?? shownOrder(current),
-      },
-      before,
-      { offlineText, undo },
-    );
+    // Shows at once; a next move builds on it and queues behind it.
+    const seq = (queuingSeq.current += 1);
+    setQueuing({ day: current.day, order: [...next], seq });
+    const run = queuingChain.current
+      .then(async () => {
+        const own = await autosave.settle(orderKey(actionId, current.day));
+        const fresh = own && own.at > baseAt ? own : null;
+        await queueOrder(
+          {
+            commitmentIds: next,
+            day: current.day,
+            expectedRevision: fresh?.revision ?? current.revision,
+            fromOrder: fresh?.order ?? shownOrder(current),
+          },
+          before,
+          { offlineText, undo },
+        );
+      })
+      // The queue shows it now (or refused it): the local order goes.
+      .finally(() =>
+        setQueuing((shown) => (shown?.seq === seq ? null : shown)),
+      );
+    queuingChain.current = run.catch(() => undefined);
+    return run;
   };
 
   const moveStopTo = (

@@ -1399,8 +1399,92 @@ describe("Meine Tour", () => {
         },
         /** The network goes, the page does not know yet. */
         dropNetwork: () => online.mockReturnValue(false),
+        /** The network is back: the queue replays its entries. */
+        reconnect: async () => {
+          online.mockReturnValue(true);
+          view.rerender(page(false));
+          await act(async () => {
+            window.dispatchEvent(new Event("online"));
+          });
+        },
       };
     }
+
+    /**
+     * Core for order saves, as delivery_tours.py: an order it already has
+     * comes back without a revision check; any other needs the current
+     * revision. `plan` shapes the next calls (no answer, no network).
+     */
+    function fakeCore(client: LeonAidApiClient) {
+      const save = vi.mocked(client.saveMyTourOrder);
+      const real = save.getMockImplementation()!;
+      const state = { order: ["c1", "c2", "c3"], revision: "r1" };
+      const conflicts: DeliveryTourOrderRequest[] = [];
+      const plan: ((
+        apply: () => Promise<DeliveryTourResponse>,
+      ) => Promise<DeliveryTourResponse>)[] = [];
+      const core = async (action: string, body: DeliveryTourOrderRequest) => {
+        const same =
+          body.commitmentIds.length === state.order.length &&
+          body.commitmentIds.every((id, index) => id === state.order[index]);
+        if (same) return (await client.getMyTour(action)).tour!;
+        if (body.expectedRevision !== state.revision) {
+          conflicts.push(body);
+          throw new ApiError(409, {
+            code: "tour_revision_conflict",
+            message: "Die Tour wurde inzwischen geändert.",
+            requestId: "req-core",
+          });
+        }
+        const saved = await real(action, body);
+        state.order = [...body.commitmentIds];
+        state.revision = saved.revision;
+        return saved;
+      };
+      save.mockImplementation(async (action, body) => {
+        const step = plan.shift();
+        const apply = () => core(action, body);
+        return step ? step(apply) : apply();
+      });
+      return {
+        conflicts,
+        state,
+        /** Core applies it, the answer never arrives. */
+        lostAnswer: () => {
+          let release = () => {};
+          const held = new Promise<void>((resolve) => (release = resolve));
+          plan.push(async (apply) => {
+            await apply();
+            await held;
+            throw noNetwork();
+          });
+          return () => act(async () => release());
+        },
+        /** Core applies it once released, and answers. */
+        slow: () => {
+          let release = () => {};
+          const held = new Promise<void>((resolve) => (release = resolve));
+          plan.push(async (apply) => {
+            await held;
+            return apply();
+          });
+          return () => act(async () => release());
+        },
+        /** The request never reaches Core. */
+        unreachable: () =>
+          plan.push(async () => {
+            throw noNetwork();
+          }),
+        /** The next call goes through as usual. */
+        normal: () => plan.push((apply) => apply()),
+      };
+    }
+
+    /** After the replay: nothing left in the queue, not even a conflict. */
+    const replayed = (device: { entries: () => Promise<QueueEntry[]> }) =>
+      waitFor(async () => expect(await device.entries()).toEqual([]), {
+        timeout: 5_000,
+      });
 
     const noNetwork = () => new TypeError("Failed to fetch");
     const threeStops = () =>
@@ -1540,6 +1624,101 @@ describe("Meine Tour", () => {
           "Autohaus Nord",
         ]),
       );
+    });
+
+    it("replay: a move during a save without answer ends at Core as the driver's last order", async () => {
+      stackRows();
+      const client = fakeClient(threeStops());
+      const core = fakeCore(client);
+      const device = await renderOnline(client);
+      const answer = core.lostAnswer();
+      await keyboardMove("Praxis Süd", "ArrowUp");
+      await pauseOver();
+      // Core has X; the driver moves on while no answer comes.
+      await keyboardMove("Bäckerei Kern", "ArrowDown");
+      device.dropNetwork();
+      await answer();
+      await screen.findByText(
+        "Reihenfolge gemerkt. Sie wird gesendet, sobald du online bist.",
+        undefined,
+        { timeout: 3_000 },
+      );
+      const entries = await device.entries();
+      expect(
+        entries.map((entry) => [
+          entry.kind === "tour-order" && entry.request.commitmentIds,
+          entry.everSent ?? false,
+        ]),
+      ).toEqual([
+        [["c1", "c3", "c2"], true],
+        [["c3", "c1", "c2"], false],
+      ]);
+      await device.reconnect();
+      await replayed(device);
+      expect(core.state.order).toEqual(["c3", "c1", "c2"]);
+      expect(core.conflicts).toEqual([]);
+    });
+
+    it("replay: an undo behind a diverted save ends at Core as the order before", async () => {
+      stackRows();
+      const client = fakeClient(threeStops());
+      const core = fakeCore(client);
+      const device = await renderOnline(client);
+      core.normal();
+      await keyboardMove("Praxis Süd", "ArrowUp");
+      await screen.findByText("Reihenfolge gespeichert.", undefined, {
+        timeout: 3_000,
+      });
+      const undo = screen.getByRole("button", { name: "Rückgängig" });
+      const answer = core.lostAnswer();
+      core.unreachable();
+      await keyboardMove("Praxis Süd", "ArrowUp");
+      await pauseOver();
+      device.dropNetwork();
+      fireEvent.click(undo);
+      await answer();
+      await waitFor(
+        async () => expect(await device.entries()).toHaveLength(2),
+        { timeout: 3_000 },
+      );
+      await device.reconnect();
+      await replayed(device);
+      expect(core.state.order).toEqual(["c1", "c2", "c3"]);
+      expect(core.conflicts).toEqual([]);
+    });
+
+    it("replay: two offline moves behind a running save both reach Core", async () => {
+      stackRows();
+      const client = fakeClient(threeStops());
+      const core = fakeCore(client);
+      const device = await renderOnline(client);
+      const release = core.slow();
+      await keyboardMove("Praxis Süd", "ArrowUp");
+      await pauseOver();
+      device.goOffline();
+      await screen.findByTestId("tour-offline");
+      await keyboardMove("Praxis Süd", "ArrowUp");
+      // The first offline move shows at once; the second builds on it.
+      expect(names()).toEqual(["Praxis Süd", "Bäckerei Kern", "Autohaus Nord"]);
+      await keyboardMove("Autohaus Nord", "ArrowUp");
+      expect(names()).toEqual(["Praxis Süd", "Autohaus Nord", "Bäckerei Kern"]);
+      await release();
+      await screen.findByText(
+        "Reihenfolge gemerkt. Sie wird gesendet, sobald du online bist.",
+        undefined,
+        { timeout: 3_000 },
+      );
+      const [entry] = await device.entries();
+      expect(entry?.kind === "tour-order" && entry.request).toEqual({
+        commitmentIds: ["c3", "c2", "c1"],
+        day: DAY,
+        expectedRevision: "r2",
+      });
+      expect(names()).toEqual(["Praxis Süd", "Autohaus Nord", "Bäckerei Kern"]);
+      await device.reconnect();
+      await replayed(device);
+      expect(core.state.order).toEqual(["c3", "c2", "c1"]);
+      expect(core.conflicts).toEqual([]);
     });
 
     /** The dock remounts per stop: read it fresh on every try. */

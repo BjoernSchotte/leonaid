@@ -29,9 +29,10 @@ export interface OrderAutosaveOptions<T, C> {
   /**
    * A save that failed: true when the page kept the order another way (the
    * offline queue after a network failure). Then it is no failure: no
-   * `onFailed`, and moves behind it still go out. `ids` is the burst's
-   * latest order, `revision` and `confirmed` the revision and order Core
-   * had when it was sent, `baseline` the order before its first move.
+   * `onFailed`, and moves behind it still go out. `sent` is the order the
+   * save sent, `ids` the burst's latest (a move may have joined while it
+   * ran), `revision` and `confirmed` the revision and order Core had when
+   * it was sent, `baseline` the order before its first move.
    */
   readonly divert?: (
     key: string,
@@ -42,6 +43,8 @@ export interface OrderAutosaveOptions<T, C> {
       readonly confirmed: readonly string[];
       readonly baseline: readonly string[];
       readonly context: C;
+      /** The order this save sent (may be at Core). */
+      readonly sent: readonly string[];
       /** No toast: an undo replaced this save on screen. */
       readonly silent: boolean;
       /** The save was an undo: its toast offers no "Rückgängig". */
@@ -207,6 +210,7 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
             context,
             ids: burst.superseded ? ids : burst.ids,
             revision: burst.revision,
+            sent: ids,
             silent: burst.cancelled,
             undo: burst.undo,
           }) ?? Promise.resolve(false)
