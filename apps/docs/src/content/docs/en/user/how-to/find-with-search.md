@@ -71,7 +71,9 @@ search cannot find them.
   erasure. The sponsor stays hidden even if it is still in the CRM. Only when
   someone captures it again or a charity admin assigns it again does the
   search find it, with the name the CRM then holds. A handover does not count
-  as a new assignment.
+  as a new assignment. If the sponsor must stay hidden, a system admin has to
+  delete it in the CRM as well after the erasure, before a next campaign
+  assigns it again.
 
 ## If you find nothing
 

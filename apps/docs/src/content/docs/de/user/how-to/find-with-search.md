@@ -70,7 +70,9 @@ finden.
   Löschung verlangt hat. Der Sponsor bleibt verborgen, auch wenn er im CRM noch
   steht. Erst wenn jemand ihn neu erfasst oder ein Charity-Admin ihn neu
   zuordnet, findet die Suche ihn wieder, mit dem Namen, den das CRM dann hat.
-  Eine Übergabe zählt nicht als neue Zuordnung.
+  Eine Übergabe zählt nicht als neue Zuordnung. Soll der Sponsor verborgen
+  bleiben, muss ein System-Admin ihn nach der Löschung auch im CRM löschen,
+  bevor ihn eine nächste Aktion wieder zuordnet.
 
 ## Wenn du nichts findest
 

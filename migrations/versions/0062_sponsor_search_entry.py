@@ -12,8 +12,9 @@ does not copy the name back while the party still exists in Twenty.
 
 ``sponsor_search_sync`` is the single row of the sync loop: when the last full
 pass finished, where an unfinished one continues, and up to when the changed
-pass has read Twenty's changes. Both tables start empty;
-the first worker run fills the index for the existing assignments. The
+pass has read Twenty's changes. The index starts empty and the sync table
+gets its one row; the first worker run fills the index for the existing
+assignments. The
 downgrade drops both: the index is derived data and the sync rebuilds it.
 """
 
@@ -28,7 +29,8 @@ down_revision: str | None = "0061_delivery_geo_regeocode"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 DATA_MIGRATION_REFERENCE = (
-    "Two new empty tables; existing rows are untouched. The worker fills the "
+    "Two new tables; existing rows are untouched. sponsor_search_entry starts "
+    "empty, sponsor_search_sync gets its single row. The worker fills the "
     "index from Twenty for the existing assignments on its first run."
 )
 BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"

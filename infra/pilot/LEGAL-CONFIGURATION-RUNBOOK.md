@@ -124,6 +124,16 @@ approval, the following are still required:
   Twenty/RustFS references;
 - the responsible functional owner accepts a real staging record.
 
+## After a privacy erasure: delete the party in Twenty
+
+The erasure workflow removes the subject's parties from the sponsor search
+and leaves a marker, but it does not delete them in Twenty (manual step,
+`crmDeletion: pending_manual_review`). A new assignment for such a party
+(sponsor capture or assignment by a manager) is a new, deliberate relation:
+it brings the party back into the search with the name Twenty then holds. So
+after an erasure, delete the party in Twenty before the next campaign assigns
+it again.
+
 ## Delivery tours: privacy paragraphs (before the flag goes on)
 
 **Entwurf – Freigabe durch Björn erforderlich.** The two paragraphs below are
