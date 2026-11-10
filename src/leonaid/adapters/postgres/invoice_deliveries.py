@@ -31,6 +31,7 @@ DOCUMENT_TYPES = {
     InvoiceDeliveryKind.INVOICE_CANCELLATION: (
         GeneratedDocumentType.INVOICE_CANCELLATION_PDF
     ),
+    InvoiceDeliveryKind.DONATION_PLEDGE: GeneratedDocumentType.DONATION_PLEDGE_PDF,
 }
 KINDS = {document_type.value: kind for kind, document_type in DOCUMENT_TYPES.items()}
 MAIL_DELIVERY_NAMESPACE = UUID("8a30d44c-d313-4cc6-af6a-237af95a4d4c")
@@ -569,6 +570,7 @@ class AsyncpgInvoiceDeliveryRepository:
                     SELECT
                         delivery.action_id,
                         delivery.invoice_id,
+                        delivery.donation_id,
                         delivery.generated_document_id,
                         document.document_type
                     FROM invoice_delivery AS delivery
@@ -657,7 +659,11 @@ class AsyncpgInvoiceDeliveryRepository:
                     entity_id=delivery_id,
                     request_id=f"invoice-delivery:{delivery_id}",
                     payload={
-                        "invoiceId": str(delivery["invoice_id"]),
+                        **(
+                            {"invoiceId": str(delivery["invoice_id"])}
+                            if delivery["invoice_id"] is not None
+                            else {"donationId": str(delivery["donation_id"])}
+                        ),
                         "messageId": message_id,
                         "kind": kind.value,
                     },
@@ -820,6 +826,7 @@ class AsyncpgInvoiceDeliveryRepository:
             sent_at=sent_at,
             can_retry=outbox_status == "dead_letter" and sent_at is None,
             kind=KINDS[str(row["document_type"])],
+            donation_id=row["donation_id"],
         )
 
     @staticmethod

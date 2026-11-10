@@ -8,6 +8,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
+from leonaid.domain.donations import ReceivingBody
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.invoices import (
     InvoiceIssuerSnapshot,
@@ -46,6 +47,7 @@ LATER_OPTIONAL_FIELDS = frozenset(
         "imprint_content_responsible_address",
         "privacy_policy_text",
         "member_privacy_notice_text",
+        "donations",
     }
 )
 # Template texts mark what the club must still fill in as [[...]].
@@ -160,9 +162,28 @@ class LegalConfigurationDraft:
     # The full privacy policy (/datenschutz) and the members' notice in it.
     privacy_policy_text: str | None = None
     member_privacy_notice_text: str | None = None
+    # The part "Spenden": the body that receives donations and signs
+    # receipts. Optional: a club without donations activates without it, and
+    # then no donation can be recorded anywhere (ADR-0016, D-D6).
+    donations: ReceivingBody | None = None
 
     def __post_init__(self) -> None:
         self._normalize_imprint()
+        if self.donations is not None:
+            if self.donations.legal_form not in {form.value for form in LegalForm}:
+                raise DomainInvariantError(
+                    "donation_body_legal_form_invalid",
+                    "Die Rechtsform der empfangenden Körperschaft ist unbekannt.",
+                )
+            # Every document kind has its own series; a number says which
+            # kind it is (ADR-0015).
+            prefixes = (self.number_prefix, *self.donations.series_prefixes())
+            if len(set(prefixes)) != len(prefixes):
+                raise DomainInvariantError(
+                    "legal_number_prefixes_not_distinct",
+                    "Rechnungen, Spendenzusagen und Zuwendungsbestätigungen "
+                    "benötigen je ein eigenes Präfix.",
+                )
         for field_name, label, (minimum, maximum) in (
             ("privacy_policy_text", "Datenschutzerklärung", PRIVACY_POLICY_LIMITS),
             (
@@ -391,6 +412,7 @@ class LegalConfigurationDraft:
                     *self._imprint_texts(),
                     self.privacy_policy_text,
                     self.member_privacy_notice_text,
+                    *(self.donations.texts() if self.donations else ()),
                 )
                 if value is not None
             ).casefold()
@@ -433,6 +455,7 @@ class LegalConfigurationDraft:
                     self.public_order_notice_text,
                     self.public_order_legal_basis,
                     *self._imprint_texts(),
+                    *(self.donations.texts() if self.donations else ()),
                 )
             ):
                 blockers.append("template_placeholder_open")

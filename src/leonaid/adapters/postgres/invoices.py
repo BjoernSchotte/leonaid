@@ -180,6 +180,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 LEFT JOIN mail_delivery AS mail
                   ON mail.outbox_event_id = event.id
                 WHERE delivery.action_id = $1
+                  AND delivery.invoice_id IS NOT NULL
                 ORDER BY delivery.requested_at DESC, delivery.id
                 """,
                 action_id,

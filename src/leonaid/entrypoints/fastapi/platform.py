@@ -114,6 +114,8 @@ from leonaid.application.identity import (
     IdentityQueryService,
 )
 from leonaid.application.invoice_deliveries import InvoiceDeliveryService
+from leonaid.adapters.postgres.donations import AsyncpgDonationRepository
+from leonaid.application.donations import DonationService
 from leonaid.application.invoice_settlements import InvoiceSettlementService
 from leonaid.application.invoices import InvoiceService
 from leonaid.application.invitations import InvitationService
@@ -427,6 +429,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.invoice_settlement_service = InvoiceSettlementService(
             AsyncpgInvoiceSettlementRepository(pool)
+        )
+        application.state.donation_service = DonationService(
+            AsyncpgDonationRepository(pool)
         )
         # The buyer's order mails link the campaign and the legal pages. The
         # campaign link is the permanent edition URL on the campaign host

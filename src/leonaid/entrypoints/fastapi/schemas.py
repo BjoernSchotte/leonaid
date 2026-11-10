@@ -462,6 +462,69 @@ class LegalRetentionRequest(TransportModel):
     audit_days: int = Field(ge=1, le=36_500)
 
 
+ExemptionNoticeKindValue = Literal[
+    "freistellungsbescheid", "koerperschaftsteuer_anlage", "feststellung_60a"
+]
+
+
+class ReceivingBodyRequest(TransportModel):
+    """The part "Spenden": the body that receives donations (ADR-0016)."""
+
+    legal_name: str = Field(min_length=2, max_length=200)
+    street_line_1: str = Field(min_length=2, max_length=200)
+    postal_code: str = Field(min_length=2, max_length=20)
+    city: str = Field(min_length=2, max_length=120)
+    country_code: str = Field(default="DE", pattern=r"^[A-Z]{2}$")
+    legal_form: LegalFormValue
+    tax_office: str = Field(min_length=3, max_length=120)
+    tax_number: str = Field(min_length=7, max_length=26)
+    notice_kind: ExemptionNoticeKindValue
+    notice_date: date
+    assessment_period_from: int | None = Field(default=None, ge=1990, le=2200)
+    assessment_period_to: int | None = Field(default=None, ge=1990, le=2200)
+    purposes: str = Field(min_length=5, max_length=600)
+    bank_account_holder: str = Field(min_length=2, max_length=200)
+    iban: str = Field(min_length=15, max_length=40)
+    bic: str | None = Field(default=None, max_length=11)
+    signatory_name: str = Field(min_length=3, max_length=120)
+    signatory_function: str = Field(min_length=2, max_length=120)
+    signing: Literal["by_hand", "machine"]
+    machine_notified_on: date | None = None
+    pledge_prefix: str = Field(min_length=1, max_length=24)
+    receipt_prefix: str = Field(min_length=1, max_length=24)
+    number_width: int = Field(ge=3, le=8)
+    pledge_text: str = Field(min_length=40, max_length=2_000)
+    receipt_liability_text: str = Field(min_length=40, max_length=3_000)
+
+
+class ReceivingBodyResponse(TransportModel):
+    legal_name: str
+    street_line_1: str
+    postal_code: str
+    city: str
+    country_code: str
+    legal_form: LegalFormValue
+    tax_office: str
+    tax_number: str
+    notice_kind: ExemptionNoticeKindValue
+    notice_date: date
+    assessment_period_from: int | None
+    assessment_period_to: int | None
+    purposes: str
+    bank_account_holder: str
+    iban: str
+    bic: str | None
+    signatory_name: str
+    signatory_function: str
+    signing: Literal["by_hand", "machine"]
+    machine_notified_on: date | None
+    pledge_prefix: str
+    receipt_prefix: str
+    number_width: int
+    pledge_text: str
+    receipt_liability_text: str
+
+
 class SaveLegalConfigurationDraftRequest(TransportModel):
     expected_revision: int = Field(ge=1)
     issuer: LegalIssuerRequest
@@ -501,6 +564,13 @@ class SaveLegalConfigurationDraftRequest(TransportModel):
     )
     privacy_policy_text: str | None = Field(default=None, max_length=60_000)
     member_privacy_notice_text: str | None = Field(default=None, max_length=30_000)
+    donations: ReceivingBodyRequest | None = Field(
+        default=None,
+        description=(
+            'The part "Spenden". Null: the club takes no donations. Omitted '
+            "by a client from before this field: the previous value is kept."
+        ),
+    )
 
 
 class ApproveLegalConfigurationRequest(TransportModel):
@@ -561,6 +631,7 @@ class LegalConfigurationValuesResponse(TransportModel):
     imprint_content_responsible_address: str | None = None
     privacy_policy_text: str | None = None
     member_privacy_notice_text: str | None = None
+    donations: ReceivingBodyResponse | None
 
 
 class LegalConfigurationVersionResponse(TransportModel):
@@ -822,6 +893,7 @@ ActionCapabilityValue = Literal[
     "ordering",
     "invoicing",
     "delivery",
+    "donations",
 ]
 CharityActionStatusValue = Literal[
     "draft",
@@ -1854,6 +1926,131 @@ class DashboardResponse(TransportModel):
     generated_at: datetime
 
 
+class DonationDonorRequest(TransportModel):
+    name: str = Field(min_length=2, max_length=200)
+    street_line_1: str = Field(min_length=2, max_length=200)
+    postal_code: str = Field(min_length=2, max_length=20)
+    city: str = Field(min_length=2, max_length=120)
+    country_code: str = Field(default="DE", pattern=r"^[A-Z]{2}$")
+    email: str | None = Field(default=None, max_length=320)
+    party_kind: Literal["company", "person"] | None = None
+    twenty_id: UUID | None = None
+
+
+class CreateDonationRequest(TransportModel):
+    donor: DonationDonorRequest
+    pledged_minor: int = Field(ge=100, le=100_000_000)
+    note: str | None = Field(default=None, max_length=500)
+
+
+class RecordDonationPaymentRequest(TransportModel):
+    amount_minor: int = Field(ge=1, le=1_000_000_000)
+    received_on: date
+    note: str | None = Field(default=None, max_length=500)
+
+
+class DonationReasonRequest(TransportModel):
+    reason: str = Field(min_length=8, max_length=500)
+
+
+class DonationDonorResponse(TransportModel):
+    name: str
+    street_line_1: str
+    postal_code: str
+    city: str
+    country_code: str
+    email: str | None
+    party_kind: Literal["company", "person"] | None
+    twenty_id: UUID | None
+
+
+class DonationPaymentResponse(TransportModel):
+    amount_minor: int = Field(ge=1)
+    received_on: date
+    note: str | None
+    recorded_by_display_name: str | None
+    recorded_at: datetime
+
+
+class DonationPaymentWithdrawalResponse(TransportModel):
+    id: UUID
+    amount_minor: int = Field(ge=1)
+    received_on: date
+    note: str | None
+    recorded_by_display_name: str | None
+    recorded_at: datetime
+    reason: str
+    withdrawn_by_display_name: str | None
+    withdrawn_at: datetime
+
+
+class DonationCancellationResponse(TransportModel):
+    reason: str
+    cancelled_by_display_name: str | None
+    cancelled_at: datetime
+
+
+class DonationDeliveryResponse(TransportModel):
+    id: UUID
+    donation_id: UUID
+    generated_document_id: UUID
+    recipient_email: str
+    subject: str
+    status: Literal["queued", "sending", "retrying", "failed", "sent"]
+    attempts: int = Field(ge=0)
+    last_error_code: str | None
+    last_error_detail: str | None
+    requested_at: datetime
+    sent_at: datetime | None
+    can_retry: bool
+
+
+class DonationPledgeDocumentResponse(TransportModel):
+    id: UUID
+    status: Literal["pending", "available", "deleted"]
+    filename: str | None
+    size_bytes: Annotated[int, Field(ge=1)] | None
+
+
+class DonationResponse(TransportModel):
+    id: UUID
+    action_id: UUID
+    number: str
+    donor: DonationDonorResponse
+    pledged_minor: int = Field(ge=1)
+    currency: str
+    source: Literal["public_form", "admin", "acquisition"]
+    status: Literal["pledged", "paid", "cancelled"]
+    commitment_id: UUID | None
+    note: str | None
+    pledged_at: datetime
+    created_by_display_name: str | None
+    payment: DonationPaymentResponse | None
+    payment_withdrawals: list[DonationPaymentWithdrawalResponse]
+    cancellation: DonationCancellationResponse | None
+    pledge_document: DonationPledgeDocumentResponse | None
+    pledge_deliveries: list[DonationDeliveryResponse]
+    replayed: bool
+
+
+class DonationListResponse(TransportModel):
+    action_id: UUID
+    action_name: str
+    items: list[DonationResponse]
+    receiving_body_name: str | None = Field(
+        description=(
+            "Name of the receiving body of the active legal configuration. "
+            'Null: the part "Spenden" is missing and no donation can be '
+            "recorded."
+        ),
+    )
+    may_manage: bool
+    may_send: bool
+    received_total_minor: int = Field(ge=0)
+    pledged_open_total_minor: int = Field(ge=0)
+    currency: str
+
+
 GeneratedDocumentReferenceKindValue = Literal[
     "action",
     "commitment",
@@ -1870,7 +2067,10 @@ class GeneratedDocumentResponse(TransportModel):
     invoice_id: UUID | None
     twenty_company_id: UUID | None
     twenty_person_id: UUID | None
-    document_type: Literal["invoice_pdf", "invoice_cancellation_pdf"]
+    document_type: Literal[
+        "invoice_pdf", "invoice_cancellation_pdf", "donation_pledge_pdf"
+    ]
+    donation_id: UUID | None
     media_type: str
     filename: str | None
     size_bytes: Annotated[int, Field(ge=1)] | None

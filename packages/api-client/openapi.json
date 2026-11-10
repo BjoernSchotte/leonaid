@@ -1174,7 +1174,8 @@
                 "offerings",
                 "ordering",
                 "invoicing",
-                "delivery"
+                "delivery",
+                "donations"
               ],
               "type": "string"
             },
@@ -2789,7 +2790,8 @@
                 "offerings",
                 "ordering",
                 "invoicing",
-                "delivery"
+                "delivery",
+                "donations"
               ],
               "type": "string"
             },
@@ -4688,7 +4690,8 @@
                 "offerings",
                 "ordering",
                 "invoicing",
-                "delivery"
+                "delivery",
+                "donations"
               ],
               "type": "string"
             },
@@ -4836,6 +4839,38 @@
           "lines"
         ],
         "title": "CreateCommitmentRequest",
+        "type": "object"
+      },
+      "CreateDonationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "donor": {
+            "$ref": "#/components/schemas/DonationDonorRequest"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "pledgedMinor": {
+            "maximum": 100000000.0,
+            "minimum": 100.0,
+            "title": "Pledgedminor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "donor",
+          "pledgedMinor"
+        ],
+        "title": "CreateDonationRequest",
         "type": "object"
       },
       "CreateEmailChangeRequest": {
@@ -7165,6 +7200,721 @@
         "title": "DependencyStatusResponse",
         "type": "object"
       },
+      "DonationCancellationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "cancelledAt": {
+            "format": "date-time",
+            "title": "Cancelledat",
+            "type": "string"
+          },
+          "cancelledByDisplayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelledbydisplayname"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "cancelledByDisplayName",
+          "cancelledAt"
+        ],
+        "title": "DonationCancellationResponse",
+        "type": "object"
+      },
+      "DonationDeliveryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "attempts": {
+            "minimum": 0.0,
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "canRetry": {
+            "title": "Canretry",
+            "type": "boolean"
+          },
+          "donationId": {
+            "format": "uuid",
+            "title": "Donationid",
+            "type": "string"
+          },
+          "generatedDocumentId": {
+            "format": "uuid",
+            "title": "Generateddocumentid",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lastErrorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lasterrorcode"
+          },
+          "lastErrorDetail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lasterrordetail"
+          },
+          "recipientEmail": {
+            "title": "Recipientemail",
+            "type": "string"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "title": "Requestedat",
+            "type": "string"
+          },
+          "sentAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentat"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "sending",
+              "retrying",
+              "failed",
+              "sent"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "donationId",
+          "generatedDocumentId",
+          "recipientEmail",
+          "subject",
+          "status",
+          "attempts",
+          "lastErrorCode",
+          "lastErrorDetail",
+          "requestedAt",
+          "sentAt",
+          "canRetry"
+        ],
+        "title": "DonationDeliveryResponse",
+        "type": "object"
+      },
+      "DonationDonorRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "city": {
+            "maxLength": 120,
+            "minLength": 2,
+            "title": "City",
+            "type": "string"
+          },
+          "countryCode": {
+            "default": "DE",
+            "pattern": "^[A-Z]{2}$",
+            "title": "Countrycode",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          },
+          "partyKind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "company",
+                  "person"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partykind"
+          },
+          "postalCode": {
+            "maxLength": 20,
+            "minLength": 2,
+            "title": "Postalcode",
+            "type": "string"
+          },
+          "streetLine1": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Streetline1",
+            "type": "string"
+          },
+          "twentyId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Twentyid"
+          }
+        },
+        "required": [
+          "name",
+          "streetLine1",
+          "postalCode",
+          "city"
+        ],
+        "title": "DonationDonorRequest",
+        "type": "object"
+      },
+      "DonationDonorResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "city": {
+            "title": "City",
+            "type": "string"
+          },
+          "countryCode": {
+            "title": "Countrycode",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "partyKind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "company",
+                  "person"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partykind"
+          },
+          "postalCode": {
+            "title": "Postalcode",
+            "type": "string"
+          },
+          "streetLine1": {
+            "title": "Streetline1",
+            "type": "string"
+          },
+          "twentyId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Twentyid"
+          }
+        },
+        "required": [
+          "name",
+          "streetLine1",
+          "postalCode",
+          "city",
+          "countryCode",
+          "email",
+          "partyKind",
+          "twentyId"
+        ],
+        "title": "DonationDonorResponse",
+        "type": "object"
+      },
+      "DonationListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "actionName": {
+            "title": "Actionname",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DonationResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "mayManage": {
+            "title": "Maymanage",
+            "type": "boolean"
+          },
+          "maySend": {
+            "title": "Maysend",
+            "type": "boolean"
+          },
+          "pledgedOpenTotalMinor": {
+            "minimum": 0.0,
+            "title": "Pledgedopentotalminor",
+            "type": "integer"
+          },
+          "receivedTotalMinor": {
+            "minimum": 0.0,
+            "title": "Receivedtotalminor",
+            "type": "integer"
+          },
+          "receivingBodyName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Name of the receiving body of the active legal configuration. Null: the part \"Spenden\" is missing and no donation can be recorded.",
+            "title": "Receivingbodyname"
+          }
+        },
+        "required": [
+          "actionId",
+          "actionName",
+          "items",
+          "receivingBodyName",
+          "mayManage",
+          "maySend",
+          "receivedTotalMinor",
+          "pledgedOpenTotalMinor",
+          "currency"
+        ],
+        "title": "DonationListResponse",
+        "type": "object"
+      },
+      "DonationPaymentResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "amountMinor": {
+            "minimum": 1.0,
+            "title": "Amountminor",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "receivedOn": {
+            "format": "date",
+            "title": "Receivedon",
+            "type": "string"
+          },
+          "recordedAt": {
+            "format": "date-time",
+            "title": "Recordedat",
+            "type": "string"
+          },
+          "recordedByDisplayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recordedbydisplayname"
+          }
+        },
+        "required": [
+          "amountMinor",
+          "receivedOn",
+          "note",
+          "recordedByDisplayName",
+          "recordedAt"
+        ],
+        "title": "DonationPaymentResponse",
+        "type": "object"
+      },
+      "DonationPaymentWithdrawalResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "amountMinor": {
+            "minimum": 1.0,
+            "title": "Amountminor",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "receivedOn": {
+            "format": "date",
+            "title": "Receivedon",
+            "type": "string"
+          },
+          "recordedAt": {
+            "format": "date-time",
+            "title": "Recordedat",
+            "type": "string"
+          },
+          "recordedByDisplayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recordedbydisplayname"
+          },
+          "withdrawnAt": {
+            "format": "date-time",
+            "title": "Withdrawnat",
+            "type": "string"
+          },
+          "withdrawnByDisplayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdrawnbydisplayname"
+          }
+        },
+        "required": [
+          "id",
+          "amountMinor",
+          "receivedOn",
+          "note",
+          "recordedByDisplayName",
+          "recordedAt",
+          "reason",
+          "withdrawnByDisplayName",
+          "withdrawnAt"
+        ],
+        "title": "DonationPaymentWithdrawalResponse",
+        "type": "object"
+      },
+      "DonationPledgeDocumentResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "sizeBytes": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sizebytes"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "available",
+              "deleted"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "filename",
+          "sizeBytes"
+        ],
+        "title": "DonationPledgeDocumentResponse",
+        "type": "object"
+      },
+      "DonationReasonRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 8,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "DonationReasonRequest",
+        "type": "object"
+      },
+      "DonationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "cancellation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DonationCancellationResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "commitmentId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commitmentid"
+          },
+          "createdByDisplayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdbydisplayname"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "donor": {
+            "$ref": "#/components/schemas/DonationDonorResponse"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "number": {
+            "title": "Number",
+            "type": "string"
+          },
+          "payment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DonationPaymentResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paymentWithdrawals": {
+            "items": {
+              "$ref": "#/components/schemas/DonationPaymentWithdrawalResponse"
+            },
+            "title": "Paymentwithdrawals",
+            "type": "array"
+          },
+          "pledgeDeliveries": {
+            "items": {
+              "$ref": "#/components/schemas/DonationDeliveryResponse"
+            },
+            "title": "Pledgedeliveries",
+            "type": "array"
+          },
+          "pledgeDocument": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DonationPledgeDocumentResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pledgedAt": {
+            "format": "date-time",
+            "title": "Pledgedat",
+            "type": "string"
+          },
+          "pledgedMinor": {
+            "minimum": 1.0,
+            "title": "Pledgedminor",
+            "type": "integer"
+          },
+          "replayed": {
+            "title": "Replayed",
+            "type": "boolean"
+          },
+          "source": {
+            "enum": [
+              "public_form",
+              "admin",
+              "acquisition"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pledged",
+              "paid",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "actionId",
+          "number",
+          "donor",
+          "pledgedMinor",
+          "currency",
+          "source",
+          "status",
+          "commitmentId",
+          "note",
+          "pledgedAt",
+          "createdByDisplayName",
+          "payment",
+          "paymentWithdrawals",
+          "cancellation",
+          "pledgeDocument",
+          "pledgeDeliveries",
+          "replayed"
+        ],
+        "title": "DonationResponse",
+        "type": "object"
+      },
       "DraftSave": {
         "additionalProperties": false,
         "properties": {
@@ -7761,10 +8511,23 @@
           "documentType": {
             "enum": [
               "invoice_pdf",
-              "invoice_cancellation_pdf"
+              "invoice_cancellation_pdf",
+              "donation_pledge_pdf"
             ],
             "title": "Documenttype",
             "type": "string"
+          },
+          "donationId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Donationid"
           },
           "filename": {
             "anyOf": [
@@ -7880,6 +8643,7 @@
           "twentyCompanyId",
           "twentyPersonId",
           "documentType",
+          "donationId",
           "mediaType",
           "filename",
           "sizeBytes",
@@ -9644,6 +10408,16 @@
             "title": "Consenttextversion",
             "type": "string"
           },
+          "donations": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReceivingBodyResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "eInvoiceDecision": {
             "enum": [
               "pending",
@@ -9863,7 +10637,8 @@
           "taxEvidenceId",
           "privacyEvidenceId",
           "eInvoiceEvidenceId",
-          "activationBlockers"
+          "activationBlockers",
+          "donations"
         ],
         "title": "LegalConfigurationValuesResponse",
         "type": "object"
@@ -13477,7 +14252,8 @@
                 "offerings",
                 "ordering",
                 "invoicing",
-                "delivery"
+                "delivery",
+                "donations"
               ],
               "type": "string"
             },
@@ -14665,6 +15441,405 @@
         "title": "ReadinessResponse",
         "type": "object"
       },
+      "ReceivingBodyRequest": {
+        "additionalProperties": false,
+        "description": "The part \"Spenden\": the body that receives donations (ADR-0016).",
+        "properties": {
+          "assessmentPeriodFrom": {
+            "anyOf": [
+              {
+                "maximum": 2200.0,
+                "minimum": 1990.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessmentperiodfrom"
+          },
+          "assessmentPeriodTo": {
+            "anyOf": [
+              {
+                "maximum": 2200.0,
+                "minimum": 1990.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessmentperiodto"
+          },
+          "bankAccountHolder": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Bankaccountholder",
+            "type": "string"
+          },
+          "bic": {
+            "anyOf": [
+              {
+                "maxLength": 11,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bic"
+          },
+          "city": {
+            "maxLength": 120,
+            "minLength": 2,
+            "title": "City",
+            "type": "string"
+          },
+          "countryCode": {
+            "default": "DE",
+            "pattern": "^[A-Z]{2}$",
+            "title": "Countrycode",
+            "type": "string"
+          },
+          "iban": {
+            "maxLength": 40,
+            "minLength": 15,
+            "title": "Iban",
+            "type": "string"
+          },
+          "legalForm": {
+            "enum": [
+              "registered_association",
+              "unregistered_association",
+              "ggmbh",
+              "gmbh",
+              "cooperative",
+              "foundation",
+              "other"
+            ],
+            "title": "Legalform",
+            "type": "string"
+          },
+          "legalName": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Legalname",
+            "type": "string"
+          },
+          "machineNotifiedOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machinenotifiedon"
+          },
+          "noticeDate": {
+            "format": "date",
+            "title": "Noticedate",
+            "type": "string"
+          },
+          "noticeKind": {
+            "enum": [
+              "freistellungsbescheid",
+              "koerperschaftsteuer_anlage",
+              "feststellung_60a"
+            ],
+            "title": "Noticekind",
+            "type": "string"
+          },
+          "numberWidth": {
+            "maximum": 8.0,
+            "minimum": 3.0,
+            "title": "Numberwidth",
+            "type": "integer"
+          },
+          "pledgePrefix": {
+            "maxLength": 24,
+            "minLength": 1,
+            "title": "Pledgeprefix",
+            "type": "string"
+          },
+          "pledgeText": {
+            "maxLength": 2000,
+            "minLength": 40,
+            "title": "Pledgetext",
+            "type": "string"
+          },
+          "postalCode": {
+            "maxLength": 20,
+            "minLength": 2,
+            "title": "Postalcode",
+            "type": "string"
+          },
+          "purposes": {
+            "maxLength": 600,
+            "minLength": 5,
+            "title": "Purposes",
+            "type": "string"
+          },
+          "receiptLiabilityText": {
+            "maxLength": 3000,
+            "minLength": 40,
+            "title": "Receiptliabilitytext",
+            "type": "string"
+          },
+          "receiptPrefix": {
+            "maxLength": 24,
+            "minLength": 1,
+            "title": "Receiptprefix",
+            "type": "string"
+          },
+          "signatoryFunction": {
+            "maxLength": 120,
+            "minLength": 2,
+            "title": "Signatoryfunction",
+            "type": "string"
+          },
+          "signatoryName": {
+            "maxLength": 120,
+            "minLength": 3,
+            "title": "Signatoryname",
+            "type": "string"
+          },
+          "signing": {
+            "enum": [
+              "by_hand",
+              "machine"
+            ],
+            "title": "Signing",
+            "type": "string"
+          },
+          "streetLine1": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Streetline1",
+            "type": "string"
+          },
+          "taxNumber": {
+            "maxLength": 26,
+            "minLength": 7,
+            "title": "Taxnumber",
+            "type": "string"
+          },
+          "taxOffice": {
+            "maxLength": 120,
+            "minLength": 3,
+            "title": "Taxoffice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "legalName",
+          "streetLine1",
+          "postalCode",
+          "city",
+          "legalForm",
+          "taxOffice",
+          "taxNumber",
+          "noticeKind",
+          "noticeDate",
+          "purposes",
+          "bankAccountHolder",
+          "iban",
+          "signatoryName",
+          "signatoryFunction",
+          "signing",
+          "pledgePrefix",
+          "receiptPrefix",
+          "numberWidth",
+          "pledgeText",
+          "receiptLiabilityText"
+        ],
+        "title": "ReceivingBodyRequest",
+        "type": "object"
+      },
+      "ReceivingBodyResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "assessmentPeriodFrom": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessmentperiodfrom"
+          },
+          "assessmentPeriodTo": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessmentperiodto"
+          },
+          "bankAccountHolder": {
+            "title": "Bankaccountholder",
+            "type": "string"
+          },
+          "bic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bic"
+          },
+          "city": {
+            "title": "City",
+            "type": "string"
+          },
+          "countryCode": {
+            "title": "Countrycode",
+            "type": "string"
+          },
+          "iban": {
+            "title": "Iban",
+            "type": "string"
+          },
+          "legalForm": {
+            "enum": [
+              "registered_association",
+              "unregistered_association",
+              "ggmbh",
+              "gmbh",
+              "cooperative",
+              "foundation",
+              "other"
+            ],
+            "title": "Legalform",
+            "type": "string"
+          },
+          "legalName": {
+            "title": "Legalname",
+            "type": "string"
+          },
+          "machineNotifiedOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machinenotifiedon"
+          },
+          "noticeDate": {
+            "format": "date",
+            "title": "Noticedate",
+            "type": "string"
+          },
+          "noticeKind": {
+            "enum": [
+              "freistellungsbescheid",
+              "koerperschaftsteuer_anlage",
+              "feststellung_60a"
+            ],
+            "title": "Noticekind",
+            "type": "string"
+          },
+          "numberWidth": {
+            "title": "Numberwidth",
+            "type": "integer"
+          },
+          "pledgePrefix": {
+            "title": "Pledgeprefix",
+            "type": "string"
+          },
+          "pledgeText": {
+            "title": "Pledgetext",
+            "type": "string"
+          },
+          "postalCode": {
+            "title": "Postalcode",
+            "type": "string"
+          },
+          "purposes": {
+            "title": "Purposes",
+            "type": "string"
+          },
+          "receiptLiabilityText": {
+            "title": "Receiptliabilitytext",
+            "type": "string"
+          },
+          "receiptPrefix": {
+            "title": "Receiptprefix",
+            "type": "string"
+          },
+          "signatoryFunction": {
+            "title": "Signatoryfunction",
+            "type": "string"
+          },
+          "signatoryName": {
+            "title": "Signatoryname",
+            "type": "string"
+          },
+          "signing": {
+            "enum": [
+              "by_hand",
+              "machine"
+            ],
+            "title": "Signing",
+            "type": "string"
+          },
+          "streetLine1": {
+            "title": "Streetline1",
+            "type": "string"
+          },
+          "taxNumber": {
+            "title": "Taxnumber",
+            "type": "string"
+          },
+          "taxOffice": {
+            "title": "Taxoffice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "legalName",
+          "streetLine1",
+          "postalCode",
+          "city",
+          "countryCode",
+          "legalForm",
+          "taxOffice",
+          "taxNumber",
+          "noticeKind",
+          "noticeDate",
+          "assessmentPeriodFrom",
+          "assessmentPeriodTo",
+          "purposes",
+          "bankAccountHolder",
+          "iban",
+          "bic",
+          "signatoryName",
+          "signatoryFunction",
+          "signing",
+          "machineNotifiedOn",
+          "pledgePrefix",
+          "receiptPrefix",
+          "numberWidth",
+          "pledgeText",
+          "receiptLiabilityText"
+        ],
+        "title": "ReceivingBodyResponse",
+        "type": "object"
+      },
       "RecordAcquisitionActivityRequest": {
         "additionalProperties": false,
         "properties": {
@@ -14794,6 +15969,40 @@
           "activity"
         ],
         "title": "RecordAcquisitionActivityResponse",
+        "type": "object"
+      },
+      "RecordDonationPaymentRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "amountMinor": {
+            "maximum": 1000000000.0,
+            "minimum": 1.0,
+            "title": "Amountminor",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "receivedOn": {
+            "format": "date",
+            "title": "Receivedon",
+            "type": "string"
+          }
+        },
+        "required": [
+          "amountMinor",
+          "receivedOn"
+        ],
+        "title": "RecordDonationPaymentRequest",
         "type": "object"
       },
       "RecordInvoicePaymentRequest": {
@@ -15450,6 +16659,17 @@
             "title": "Consenttextversion",
             "type": "string"
           },
+          "donations": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReceivingBodyRequest"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The part \"Spenden\". Null: the club takes no donations. Omitted by a client from before this field: the previous value is kept."
+          },
           "eInvoiceDecision": {
             "enum": [
               "pending",
@@ -15895,7 +17115,8 @@
                 "offerings",
                 "ordering",
                 "invoicing",
-                "delivery"
+                "delivery",
+                "donations"
               ],
               "type": "string"
             },
@@ -25063,6 +26284,831 @@
         "summary": "Download Generated Document",
         "tags": [
           "documents"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/donations": {
+      "get": {
+        "description": "The donations of an action with the `donations` capability.\n\nRead as invoices. `receivingBodyName` is null while the legal\nconfiguration has no part \"Spenden\"; no donation can be recorded then.",
+        "operationId": "listDonations",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DonationListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "List Donations",
+        "tags": [
+          "donations"
+        ]
+      },
+      "post": {
+        "description": "Record a donation. It gets its number and its pledge document at once.\n\n409 `donation_receiving_body_missing` without the part \"Spenden\" in the\nactive legal configuration, 409 `donation_capability_disabled` without\nthe capability.",
+        "operationId": "createDonation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDonationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DonationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Create Donation",
+        "tags": [
+          "donations"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/donations/{donation_id}/cancellation": {
+      "post": {
+        "description": "Cancel an unpaid donation. 409 `donation_paid` for a paid one.",
+        "operationId": "cancelDonation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "donation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Donation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DonationReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DonationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Cancel Donation",
+        "tags": [
+          "donations"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/donations/{donation_id}/payment": {
+      "post": {
+        "description": "Record the one payment of a donation: what arrived, and when.\n\nThe amount may differ from the pledge. Same gate as recording an invoice\npayment: fresh login and `Idempotency-Key`.",
+        "operationId": "recordDonationPayment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "donation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Donation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordDonationPaymentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DonationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Record Donation Payment",
+        "tags": [
+          "donations"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/donations/{donation_id}/payment/withdrawal": {
+      "post": {
+        "description": "Take the payment back, with a reason; the donation is pledged again.",
+        "operationId": "withdrawDonationPayment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "donation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Donation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DonationReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DonationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Withdraw Donation Payment",
+        "tags": [
+          "donations"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/donations/{donation_id}/pledge/deliveries": {
+      "post": {
+        "description": "Send the donation pledge to the donor by mail (action manager).",
+        "operationId": "sendDonationPledge",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "donation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Donation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DonationDeliveryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Send Donation Pledge",
+        "tags": [
+          "donations"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/donations/{donation_id}/pledge/deliveries/{delivery_id}/retry": {
+      "post": {
+        "operationId": "retryDonationPledgeDelivery",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "donation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Donation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "delivery_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Delivery Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DonationDeliveryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Retry Donation Pledge Delivery",
+        "tags": [
+          "donations"
         ]
       }
     },

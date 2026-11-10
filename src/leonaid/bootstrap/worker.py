@@ -44,7 +44,10 @@ from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.sponsor_search import AsyncpgSponsorSearchIndex
 from leonaid.adapters.storage import S3ObjectStorage
 from leonaid.adapters.twenty.gateway import TwentyCrmGateway, TwentyGatewaySettings
+from leonaid.adapters.postgres.donations import AsyncpgDonationRepository
+from leonaid.application.donations import DonationPledgeDocumentSource
 from leonaid.adapters.typst import (
+    TypstDonationPledgeRenderer,
     TypstInvoiceCancellationRenderer,
     TypstInvoiceRenderer,
 )
@@ -337,6 +340,10 @@ def _invoice_handlers(
                     documents=documents,
                     renderer=TypstInvoiceCancellationRenderer(),
                 )
+            ),
+            GeneratedDocumentType.DONATION_PLEDGE_PDF: DonationPledgeDocumentSource(
+                documents=AsyncpgDonationRepository(dependencies.pool),
+                renderer=TypstDonationPledgeRenderer(),
             ),
         },
         storage=dependencies.storage,
