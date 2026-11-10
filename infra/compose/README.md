@@ -53,7 +53,15 @@ completes the EmDash setup through its normal sign-in; the code comes from the
 local Mailpit. The command then writes `LEONAID_CMS_ENABLED=true` to
 `.env.local`. From then on `./leonaid dev` starts the campaign site too, and
 `./leonaid reset` provisions it again after it removed the data. The command
-is safe to repeat. To leave the CMS out again, set `LEONAID_CMS_ENABLED=false`
+is safe to repeat.
+
+The CMS editor answers on exactly one origin, the admin origin
+(`LEONAID_ADMIN_BASE_URL`, by default `https://localhost:<LEONAID_HTTPS_PORT>`).
+On any other name of the stack (`LEONAID_LAN_HOST`, `LEONAID_REMOTE_HOST`) it
+answers "Invalid CMS origin" (403). To edit from another machine, make that
+name the admin origin, for example
+`LEONAID_ADMIN_BASE_URL=https://myhost.local:28081`, and run `./leonaid dev`.
+Sign-in links in mails then use that name too. To leave the CMS out again, set `LEONAID_CMS_ENABLED=false`
 and stop the service (`docker compose ... --profile emdash stop campaign-site`).
 
 ## Separate admin and public host

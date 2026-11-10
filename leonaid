@@ -4383,6 +4383,22 @@ dev_cms() {
     }
   done
   echo "dev-cms: OK: $dev_project serves the CMS; campaign pages can be created and published"
+  # The editor answers on exactly one origin (specs/multi-domain §6.4). A
+  # stack that is also reached by a LAN or VPN name says so, else that name
+  # only shows "Invalid CMS origin".
+  dev_cms_origin=$(sed -n 's/^LEONAID_ADMIN_BASE_URL=//p' "$root/.env.local" | tail -n 1)
+  dev_cms_port=$(sed -n 's/^LEONAID_HTTPS_PORT=//p' "$root/.env.local" | tail -n 1)
+  dev_cms_origin=${dev_cms_origin:-https://localhost:${dev_cms_port:-8443}}
+  for dev_cms_key in LEONAID_LAN_HOST LEONAID_REMOTE_HOST; do
+    dev_cms_name=$(sed -n "s/^$dev_cms_key=//p" "$root/.env.local" | tail -n 1)
+    case "$dev_cms_name" in ''|127.0.0.1|localhost) continue ;; esac
+    case "$dev_cms_origin" in
+      "https://$dev_cms_name"|"https://$dev_cms_name:"*) ;;
+      *)
+        echo "dev-cms: NOTE: the CMS editor answers only at $dev_cms_origin, not at $dev_cms_name ($dev_cms_key). To edit from there, set LEONAID_ADMIN_BASE_URL=https://$dev_cms_name:${dev_cms_port:-8443} in .env.local and run './leonaid dev'."
+        ;;
+    esac
+  done
 }
 
 validate_reset_target() {
