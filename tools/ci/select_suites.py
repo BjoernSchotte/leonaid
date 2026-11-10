@@ -695,7 +695,9 @@ RULES: tuple[Rule, ...] = (
             "packages/features/src/delivery/**",
             "apps/web/src/delivery-board.test.tsx",
             "apps/web/src/delivery-tours.test.tsx",
+            "apps/web/src/driver-note.test.tsx",
             "apps/web/src/my-tour.test.tsx",
+            "apps/web/src/tour-map.test.tsx",
             "apps/web/src/tour-model.test.ts",
         ),
         e2e("invoices"),
@@ -715,6 +717,32 @@ RULES: tuple[Rule, ...] = (
         ("packages/features/src/activity-feed/**",),
         e2e("public-catalog"),
         "activity feed UI",
+    ),
+    # Flag evaluation: the flag proofs (operations), the flag-gated tours
+    # (invoices) and the PWA's flags, cached for the offline start.
+    Rule(
+        ("packages/features/src/feature-flags/openfeature-provider.tsx",),
+        e2e("operations", "invoices", *PWA),
+        "feature flag provider",
+    ),
+    # The PWA shell, its service worker and offline page.
+    Rule(("apps/pwa/**",), e2e(*PWA), "PWA app"),
+    # The EmDash proofs import the Krapfentaxi intro and assets.
+    Rule(
+        (
+            "apps/public/package.json",
+            "apps/public/src/assets/krapfentaxi/**",
+            "apps/public/src/components/KrapfentaxiIntro.astro",
+        ),
+        e2e("public-orders") | EMDASH,
+        "public Krapfentaxi page",
+    ),
+    Rule(("apps/public/src/pages/surveys/**",), frozenset({"surveys"}), "public surveys"),
+    # The public site: order form, catalog, sign-in and invitation pages.
+    Rule(
+        ("apps/public/**",),
+        e2e("public-orders", "public-catalog", "identity", "membership"),
+        "public site",
     ),
 )
 

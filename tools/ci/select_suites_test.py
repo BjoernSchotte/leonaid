@@ -272,6 +272,8 @@ def main() -> int:
     for path in (
         "packages/features/src/delivery/tours.css",
         "apps/web/src/delivery-tours.test.tsx",
+        "apps/web/src/driver-note.test.tsx",
+        "apps/web/src/tour-map.test.tsx",
         "apps/web/src/tour-model.test.ts",
     ):
         ui = outputs(path)
@@ -303,6 +305,45 @@ def main() -> int:
             and not post(path).full,
             f"offline UI {path}: the offline leaves: {offline}",
         )
+    # The PWA shell, service worker and offline page: the PWA leaves.
+    for path in (
+        "apps/pwa/src/app.tsx",
+        "apps/pwa/public/sw.js",
+        "apps/pwa/public/offline.js",
+        "apps/pwa/public/offline.html",
+    ):
+        pwa = outputs(path)
+        expect(
+            sorted(pwa["e2e"]) == sorted(s.PWA) and not post(path).full,
+            f"PWA app {path}: the PWA leaves: {pwa}",
+        )
+    flags = outputs("packages/features/src/feature-flags/openfeature-provider.tsx")
+    expect(
+        sorted(flags["e2e"]) == sorted(("invoices", "operations", *s.PWA)),
+        f"flag provider: operations, invoices and the PWA leaves: {flags}",
+    )
+    public = outputs("apps/public/src/components/PublicOrder.astro")
+    expect(
+        sorted(public["e2e"])
+        == ["identity", "membership", "public-catalog", "public-orders"]
+        and public["emdash"] == []
+        and not post("apps/public/src/components/PublicOrder.astro").full,
+        f"public site: its leaves, no EmDash: {public}",
+    )
+    intro = outputs("apps/public/src/components/KrapfentaxiIntro.astro")
+    expect(
+        intro["e2e"] == ["public-orders"] and sorted(intro["emdash"]) == sorted(s.EMDASH_GROUPS),
+        f"Krapfentaxi intro: public orders and the EmDash proofs: {intro}",
+    )
+    expect(
+        outputs("apps/public/src/pages/surveys/[surveyId].astro")["surveys"] is True,
+        "public survey page: the survey suites",
+    )
+    # The inbox rule still wins for its public component.
+    expect(
+        outputs("apps/public/src/components/PublicInbox.astro")["e2e"] == ["inbox"],
+        "public inbox component: the inbox leaf",
+    )
     campaign = outputs(
         "apps/campaign-site/emdash-editor-patch.mjs",
         "tools/emdash_spike/auth-patch-proof.mjs",
