@@ -439,8 +439,8 @@ function CancellationForm({
           </StatusMessage>
         ) : null}
         {offerSend ? (
-          <div>
-            <label className="cluster">
+          <div className="field">
+            <label className="checkbox">
               <input
                 checked={send}
                 data-testid="send-cancellation-with-cancel"
@@ -454,7 +454,7 @@ function CancellationForm({
               />
               Stornorechnung gleich senden
             </label>
-            <p className="small muted inv-note">
+            <p className="field-hint">
               Die Stornorechnung geht als PDF per E-Mail an {recipientEmail},
               sobald sie erzeugt ist.
             </p>

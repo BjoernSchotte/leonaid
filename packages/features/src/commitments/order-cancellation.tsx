@@ -261,8 +261,8 @@ export function OrderCancellationDialog({
               </StatusMessage>
             ) : null}
             {offerSend ? (
-              <div>
-                <label className="cluster">
+              <div className="field">
+                <label className="checkbox">
                   <input
                     checked={send}
                     data-testid="send-invoice-cancellation-with-order"
@@ -276,7 +276,7 @@ export function OrderCancellationDialog({
                   />
                   Stornorechnung gleich senden
                 </label>
-                <p className="small muted">
+                <p className="field-hint">
                   Die Stornorechnung geht als PDF per E-Mail an {recipientEmail}
                   , sobald sie erzeugt ist. Ohne Häkchen senden Sie sie später
                   unter „Rechnungen“.

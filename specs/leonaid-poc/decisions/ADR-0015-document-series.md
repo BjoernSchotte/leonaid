@@ -49,13 +49,17 @@ Ein Nummernkreis entsteht, wenn ein Präfix zum ersten Mal gebraucht wird:
 bei der Aktivierung einer Rechtskonfiguration oder bei der ersten Vergabe.
 Er beginnt hinter der höchsten Nummer, die irgendein Beleg mit diesem Präfix
 schon trägt. Ein Präfix, das später wieder verwendet wird, wiederholt also
-keine Nummer. Die Stellenbreite folgt der Rechtskonfiguration.
+keine Nummer. Die Stellenbreite folgt der Rechtskonfiguration. Beginnt ein Präfix mit
+einem anderen (`RE` und `RE2026`), gehört eine Nummer zum längsten bekannten
+Präfix, mit dem sie anfängt.
 
 Steht der Zähler hinter einer schon vergebenen Nummer (eine Rechnung, die
 ein Prozess der Vorversion nach der Migration geschrieben hat, oder ein von
 Hand eingespielter Beleg), rückt die Vergabe ihn in derselben Transaktion
-hinter die höchste registrierte Nummer des Präfixes. Es entsteht keine Lücke:
-diese Nummern existieren. Ohne diese Regel scheiterte jede weitere Freigabe
+hinter die höchste registrierte Nummer des Präfixes. Hat die Vorversion die nächsten Nummern der Reihe vergeben, entsteht keine
+Lücke. Liegt eine von Hand eingespielte Nummer weiter oben, bleiben die
+Nummern darunter unbenutzt: eine Lücke, die sich auf diesen Beleg
+zurückführen lässt, nie eine doppelte Nummer. Ohne diese Regel scheiterte jede weitere Freigabe
 und jedes Storno des Präfixes dauerhaft.
 
 `invoice_profile.next_number` bleibt eine Version lang in der Tabelle. Die
