@@ -33,6 +33,7 @@ import {
   PwaDeliveryPage,
   PwaDriverStart,
   useLeonAidSettledFlag,
+  useLocationHref,
 } from "@leonaid/features";
 import { ToastProvider } from "@leonaid/ui";
 
@@ -1564,19 +1565,15 @@ describe("PWA delivery route", () => {
             identity={identity}
             surface="pwa"
           >
-            <PwaDriverStart
-              delivery={<p>Tour page</p>}
-              fallback={<p>Start page</p>}
-            />
+            <PwaDriverStart fallback={<p>Start page</p>} />
           </FeatureFlagProvider>
         </ToastProvider>
       </QueryClientProvider>
     );
     flags(true);
     const view = render(start());
-    // Never the acquirer start page while the flag loads.
+    // Never the acquirer start page while the flag loads or after.
     expect(screen.queryByText("Start page")).toBeNull();
-    await screen.findByText("Tour page");
     // The URL moves in an effect after the render: wait for it.
     await waitFor(() =>
       expect(`${window.location.pathname}${window.location.search}`).toBe(
@@ -1585,11 +1582,65 @@ describe("PWA delivery route", () => {
     );
     view.unmount();
 
+    expect(screen.queryByText("Start page")).toBeNull();
+    view.unmount();
+
     window.history.replaceState({}, "", "/app/");
     flags(false);
     render(start());
     await screen.findByText("Start page");
     expect(window.location.pathname).toBe("/app/");
+  });
+
+  it("after the driver start moves to the delivery route the tour loads once", async () => {
+    window.history.replaceState({}, "", `/app/?action=${actionId}`);
+    const client = fakeClient(myTour());
+    Object.assign(client, {
+      getFeatureFlagEvaluations: vi.fn(async () => ({
+        flags: [{ enabled: true, key: "delivery.tours" }],
+      })),
+    });
+    // Where the tour page was when it loaded: under the delivery route only.
+    const loadedAt: string[] = [];
+    const load = vi.mocked(client.getMyTour).getMockImplementation()!;
+    vi.mocked(client.getMyTour).mockImplementation(async (...args) => {
+      loadedAt.push(window.location.pathname);
+      return load(...args);
+    });
+    // As the PWA app: the route follows the URL.
+    function Shell() {
+      useLocationHref();
+      return window.location.pathname === "/app/delivery" ? (
+        <PwaDeliveryPage actionId={actionId} client={client} offline={false} />
+      ) : (
+        <PwaDriverStart fallback={<p>Start page</p>} />
+      );
+    }
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <ToastProvider>
+          <FeatureFlagProvider
+            client={client}
+            identity={identity}
+            surface="pwa"
+          >
+            <Shell />
+          </FeatureFlagProvider>
+        </ToastProvider>
+      </QueryClientProvider>,
+    );
+    await screen.findByTestId("tour-next-stop");
+    expect(window.location.pathname).toBe("/app/delivery");
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(client.getMyTour).toHaveBeenCalledTimes(1);
+    expect(loadedAt).toEqual(["/app/delivery"]);
+    window.history.replaceState({}, "", "/");
   });
 
   it("driver standing follows the roles in the selected action", () => {

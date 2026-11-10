@@ -590,14 +590,6 @@ export function App({ client }: AppProps) {
             />
           ) : driverOnly && atStart ? (
             <PwaDriverStart
-              delivery={
-                <PwaDeliveryPage
-                  actionId={driverActionId}
-                  actions={driverActions}
-                  client={client}
-                  offline={!lifecycle.online}
-                />
-              }
               fallback={
                 <RoleDashboardPage
                   client={client}
