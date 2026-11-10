@@ -132,12 +132,20 @@ has at most 10 devices. The row is deleted:
 
 One endpoint is one row. A member may renew the keys of their own row. A
 row of another member moves to the caller only when the submitted keys
-(`p256dh`, `auth`) equal the stored ones, compared in constant time: then
-it is the same browser subscription, a shared device on which another
-member signed in, and the new member's consent is recorded. With other keys
-the API answers 409 `push_device_bound` and changes nothing: knowing an
-endpoint URL is no way to take over or silence another member's device. No
-API response carries an endpoint or keys.
+(`p256dh`, `auth`) equal the stored ones: then it is the same browser
+subscription, a shared device on which another member signed in, and the
+new member's consent is recorded. With other keys the API answers 409
+`push_device_bound` and changes nothing: knowing an endpoint URL is no way
+to take over or silence another member's device. The rule is the `WHERE` of
+the upsert itself, so it also holds for two members who send one new
+endpoint at the same moment. No API response carries an endpoint or keys.
+
+Ownership of an endpoint is first come. When the owner's row is gone
+(session ended, removed after failures, key replaced), someone who knows
+the endpoint could register it first. The owner's browser then gets 409 for
+its own subscription; the app ends that subscription, subscribes again (a
+new endpoint) and registers that. A message appears only if this fails
+too.
 
 After a sign-out the browser's subscription is gone too: the member
 switches the device on again after the next sign-in. A session that ended

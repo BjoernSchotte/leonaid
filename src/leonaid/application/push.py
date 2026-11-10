@@ -339,8 +339,8 @@ class PushService:
         if subscription_id is SubscriptionRefusal.BOUND_TO_ANOTHER_MEMBER:
             raise Conflict(
                 "push_device_bound",
-                "Dieses Gerät ist bereits für ein anderes Konto angemeldet. "
-                "Benachrichtigungen dort ausschalten oder neu anmelden.",
+                "Benachrichtigungen ließen sich auf diesem Gerät nicht "
+                "einschalten. Bitte später erneut versuchen.",
             )
         if isinstance(subscription_id, SubscriptionRefusal):
             raise Conflict(

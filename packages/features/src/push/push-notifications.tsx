@@ -19,6 +19,7 @@ import {
 import {
   browserPushDevice,
   liveSubscription,
+  registerPushDevice,
   type PushDevice,
   type PushPermission,
 } from "./push-device";
@@ -122,7 +123,7 @@ export function PushNotificationsPage({
         // so "eingeschaltet" is never shown for a device no push can reach.
         const subscription = await liveSubscription(device, publicKey);
         const id = subscription
-          ? (await client.savePushSubscription(subscription)).id
+          ? await registerPushDevice(client, device, publicKey, subscription)
           : null;
         if (live) setDeviceState(id ? { id, status: "on" } : { status: "off" });
       } catch (error) {
@@ -151,13 +152,13 @@ export function PushNotificationsPage({
       setPermission(granted);
       if (granted !== "granted") return null;
       const subscription = await device.subscribe(publicKey);
-      return (await client.savePushSubscription(subscription)).id;
+      return registerPushDevice(client, device, publicKey, subscription);
     },
     onError: (error) =>
       setNotice({
         text:
           errorCode(error) === "push_device_bound"
-            ? "Dieses Gerät ist bereits für ein anderes Konto angemeldet. Benachrichtigungen dort ausschalten oder neu anmelden."
+            ? "Benachrichtigungen ließen sich auf diesem Gerät nicht einschalten. Bitte später erneut versuchen."
             : errorCode(error) === "push_device_limit"
               ? "Du hast schon zehn Geräte angemeldet. Schalte Benachrichtigungen zuerst auf einem anderen Gerät aus."
               : error instanceof ApiError && error.status === 429

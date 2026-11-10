@@ -65,6 +65,8 @@ from leonaid.domain.push import (
     PUSH_THROTTLE,
     PushEndpointPolicy,
     PushKind,
+    PushTarget,
+    SubscriptionRefusal,
 )
 from leonaid.domain.sessions import (
     SESSION_COOKIE_NAME,
@@ -1366,6 +1368,73 @@ class Proof:
             f"/api/v1/push/subscriptions/{renewed_id}", headers=self.headers("admin")
         )
         assert removed.status_code == 204
+
+        # The same rule when no row exists yet and two members send one new
+        # endpoint at the same moment. The acquirer's insert is open in a
+        # transaction; the admin's registration is past its read (it saw no
+        # row) and waits in its upsert.
+        raced = Device(self.receiver, "raced-endpoint")
+        other = Device(self.receiver, raced.name)
+        first_id = uuid4()
+        transaction = self.connection.transaction()
+        await transaction.start()
+        await self.connection.execute(
+            "INSERT INTO push_subscription (id, user_id, session_id, endpoint, "
+            "p256dh, auth, vapid_public_key) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            first_id,
+            self.data.users["acquirer"],
+            self.data.sessions["acquirer"],
+            raced.endpoint,
+            public_point(raced.private_key),
+            raced.auth,
+            key,
+        )
+        created = len(await self.audits("push.subscription.created", "admin"))
+
+        def second(device: Device) -> asyncio.Task[Any]:
+            return asyncio.create_task(
+                self.repository.save_subscription(
+                    user_id=self.data.users["admin"],
+                    session_id=self.data.sessions["admin"],
+                    target=PushTarget(
+                        endpoint=device.endpoint,
+                        p256dh=public_point(device.private_key),
+                        auth=device.auth,
+                    ),
+                    vapid_public_key=key,
+                    device_limit=MAX_DEVICES_PER_MEMBER,
+                    request_id="push-proof-race",
+                    occurred_at=self.clock.now,
+                )
+            )
+
+        waiting = second(other)
+        await asyncio.sleep(0.5)
+        assert not waiting.done(), "the second upsert must wait for the first"
+        await transaction.commit()
+        assert (
+            await asyncio.wait_for(waiting, timeout=15)
+            is SubscriptionRefusal.BOUND_TO_ANOTHER_MEMBER
+        )
+        # Exactly one owner, with the first one's keys; no consent event.
+        (row,) = await self.connection.fetch(
+            "SELECT id, user_id, p256dh, auth FROM push_subscription "
+            "WHERE endpoint = $1",
+            raced.endpoint,
+        )
+        assert (row["id"], row["user_id"]) == (first_id, self.data.users["acquirer"])
+        assert bytes(row["p256dh"]) == public_point(raced.private_key)
+        assert bytes(row["auth"]) == raced.auth
+        assert len(await self.audits("push.subscription.created", "admin")) == created
+        # The same moment with the same keys (one browser, two tabs of two
+        # members) ends with one row, moved, and the consent event.
+        assert await asyncio.wait_for(second(raced), timeout=15) == first_id
+        assert (await self.audits("push.subscription.created", "admin"))[-1] == {
+            "movedFromAnotherMember": True
+        }
+        await self.connection.execute(
+            "DELETE FROM push_subscription WHERE id = $1", first_id
+        )
 
     async def held_back_and_flag_off(self, phone: Device) -> None:
         """What was held back while the flag went off is not sent later."""

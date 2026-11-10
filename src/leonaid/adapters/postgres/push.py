@@ -9,7 +9,6 @@ kind and a count, nothing about the record that caused it.
 from __future__ import annotations
 
 import hashlib
-import hmac
 import json
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta
@@ -236,39 +235,31 @@ class AsyncpgPushRepository:
                     "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
                     f"push.devices:{user_id}",
                 )
+                # Read for the device limit and the consent record only. The
+                # rule who may take a row is in the statement below, where
+                # it also holds for two members who send a new endpoint at
+                # the same moment.
                 existing = await connection.fetchrow(
-                    "SELECT id, user_id, p256dh, auth FROM push_subscription "
+                    "SELECT user_id FROM push_subscription "
                     "WHERE endpoint = $1 FOR UPDATE",
                     target.endpoint,
                 )
-                if (
-                    existing is not None
-                    and existing["user_id"] != user_id
-                    and not (
-                        # Both compared, whatever the first says, in
-                        # constant time: the stored keys stay a secret.
-                        hmac.compare_digest(bytes(existing["p256dh"]), target.p256dh)
-                        & hmac.compare_digest(bytes(existing["auth"]), target.auth)
-                    )
-                ):
-                    # Another member's device, named by its endpoint only.
-                    # Knowing the URL is no proof of holding the browser's
-                    # subscription; the keys are. Nothing is changed.
-                    return SubscriptionRefusal.BOUND_TO_ANOTHER_MEMBER
-                if existing is None or existing["user_id"] != user_id:
+                new_for_member = existing is None or existing["user_id"] != user_id
+                if new_for_member:
                     others = await connection.fetchval(
                         "SELECT count(*) FROM push_subscription WHERE user_id = $1",
                         user_id,
                     )
                     if int(others) >= device_limit:
                         return SubscriptionRefusal.DEVICE_LIMIT
-                # One row per endpoint: a device that signs in again moves
-                # its row to the new session; as another member only with
-                # the same keys (checked above). The same member may renew
-                # the keys of their own row.
-                subscription_id = await connection.fetchval(
+                # One row per endpoint. The same member may renew the keys
+                # of their own row. A row of another member moves only with
+                # the stored keys: then it is the same browser subscription
+                # (a shared device on which another member signed in).
+                # Knowing an endpoint URL is no proof of holding it.
+                row = await connection.fetchrow(
                     """
-                    INSERT INTO push_subscription (
+                    INSERT INTO push_subscription AS device (
                         id, user_id, session_id, endpoint, p256dh, auth,
                         vapid_public_key, created_at
                     )
@@ -283,7 +274,12 @@ class AsyncpgPushRepository:
                         failing_since = NULL,
                         failure_days = 0,
                         last_failure_on = NULL
-                    RETURNING id
+                    WHERE device.user_id = EXCLUDED.user_id
+                       OR (
+                           device.p256dh = EXCLUDED.p256dh
+                           AND device.auth = EXCLUDED.auth
+                       )
+                    RETURNING id, (xmax = 0) AS created
                     """,
                     uuid4(),
                     user_id,
@@ -294,24 +290,25 @@ class AsyncpgPushRepository:
                     vapid_public_key,
                     occurred_at,
                 )
-                if existing is None or existing["user_id"] != user_id:
-                    # New for this member: the record of the consent, also
-                    # when the device was another member's before.
+                if row is None:
+                    # Another member's device, other keys. Nothing changed.
+                    return SubscriptionRefusal.BOUND_TO_ANOTHER_MEMBER
+                if new_for_member:
+                    # The record of the consent, also when the device was
+                    # another member's before.
                     await _audit(
                         connection,
                         user_id=user_id,
                         event_type="push.subscription.created",
                         entity_type="push_subscription",
-                        entity_id=subscription_id,
+                        entity_id=row["id"],
                         request_id=request_id,
                         payload=(
-                            {"movedFromAnotherMember": True}
-                            if existing is not None
-                            else {}
+                            {} if row["created"] else {"movedFromAnotherMember": True}
                         ),
                         occurred_at=occurred_at,
                     )
-                return UUID(str(subscription_id))
+                return UUID(str(row["id"]))
 
     async def delete_subscription(
         self,
