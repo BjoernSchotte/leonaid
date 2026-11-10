@@ -83,10 +83,45 @@ Punkte sind keine stillschweigenden Produktzusagen.
   das Material-Modul (Upload mit Versionen). Ein allgemeines DMS mit
   Volltextsuche fehlt.
 - listmonk und Canva sind nicht Teil des Core-PoC.
-- Core search (`GET /api/v1/search`) finds actions, orders, invoices and
-  members. It does not find sponsors: they live only in Twenty, and the
-  search does not call the CRM per keystroke. The `sponsor` result type is
-  reserved for a later local sponsor index.
+- Core search (`GET /api/v1/search`) finds actions, orders, invoices,
+  sponsors and members. Sponsors come from a local index
+  (`sponsor_search_entry`: name and city only), not from a CRM call per
+  keystroke. Limits of the sponsor search:
+  - Only parties with an acquisition assignment are found, one hit per
+    assignment the account may see (managers: every assignment of their
+    actions; acquirers: their own that are not handed over). E-mail, phone
+    and street are not in the index and cannot be searched.
+  - The index follows Twenty by polling (no webhook): a name or city changed
+    in Twenty arrives within about 15 minutes. The changed pass reads from
+    the last complete one, so failed or missed runs lose nothing; after an
+    outage of more than 26 hours the nightly pass catches up. A party
+    deleted in Twenty
+    leaves the index with the nightly full pass (after 03:00 local time).
+    Until then the hit still appears under the old name. Its target opens:
+    the acquisition boards list an assignment whose party Twenty no longer
+    has as "Im CRM nicht mehr vorhanden", without contact data, and it can
+    still be handed over, and a manager can close it as declined in the
+    detail of the web pipeline. Recording a contact for it is refused.
+  - The worker loop `sponsor_search_sync` spends at most 30 CRM requests per
+    run and stops on the first 429. The gateway counts its 100 requests a
+    minute per process, so API and worker together can still exceed Twenty's
+    limit. A full pass reads 50 parties per request; a large stock is read
+    over several runs, one minute apart.
+  - A CRM failure does not make the worker unready. After a failed run the
+    loop waits one minute and doubles the pause up to 15 minutes. The
+    operator's signal is the alert `LeonAidSponsorSearchStale` (P2, no
+    completed pass for 24 hours); it needs the pilot monitoring stack.
+  - A privacy erasure leaves a marker without name and city for every party
+    of the subject's orders and consent records, also for the company of an
+    order whose contact person asked for the erasure. The sync never writes
+    over the marker. It ends when a new assignment is created for that
+    party (sponsor capture or assignment by a manager; a handover does not
+    count): the party is then searchable again with what the CRM holds.
+    The nightly pass deletes the marker when Twenty no longer has the party
+    or its last assignment is gone. Deleting the party in Twenty stays a
+    manual step (see the erasure limits).
+  - The acquisition PWA has no search. An acquirer's hit in the web admin
+    opens the sponsor in the PWA.
 - Orders can be cancelled until they are delivered (`cancelCommitment`):
   they leave the delivery board, an open "Nachliefern" task closes and an
   issued, unpaid invoice is cancelled under ADR-0009 (status `cancelled`,

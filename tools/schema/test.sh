@@ -373,11 +373,11 @@ compose run --rm --no-deps --entrypoint alembic api downgrade "$flag_parent"
 }
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 
-echo "poc021-test: 0062 gives every order a number and every action its mail switches"
+echo "poc021-test: 0063 gives every order a number and every action its mail switches"
 mails_parent=$(sed -n 's/^down_revision: str | None = "\(.*\)"$/\1/p' \
-  "$root/migrations/versions/0062_buyer_mails.py")
+  "$root/migrations/versions/0063_buyer_mails.py")
 [ -n "$mails_parent" ] || {
-  echo "poc021-test: ERROR: 0062 names no down_revision" >&2
+  echo "poc021-test: ERROR: 0063 names no down_revision" >&2
   exit 1
 }
 # The legacy order is an admin order from before order numbers for all.
@@ -387,21 +387,21 @@ buyer_mail_state() {
 }
 state=$(buyer_mail_state)
 [ "$state" = "LA-3DKFX85Y 0 0 " ] || {
-  echo "poc021-test: ERROR: 0062 left an order without a number or an action without switched-off mail settings: $state" >&2
+  echo "poc021-test: ERROR: 0063 left an order without a number or an action without switched-off mail settings: $state" >&2
   exit 1
 }
 if printf '%s\n' "UPDATE commitment SET public_reference = NULL WHERE id = '80000000-0000-4000-8000-000000000001';" | preference_sql 2>/dev/null; then
-  echo "poc021-test: ERROR: 0062 accepted an order without a number" >&2
+  echo "poc021-test: ERROR: 0063 accepted an order without a number" >&2
   exit 1
 fi
 if printf '%s\n' "UPDATE action_buyer_mail_configuration SET delivery_day_send_time = '12:30';" | preference_sql 2>/dev/null; then
-  echo "poc021-test: ERROR: 0062 accepted a send time after noon" >&2
+  echo "poc021-test: ERROR: 0063 accepted a send time after noon" >&2
   exit 1
 fi
 compose run --rm --no-deps --entrypoint alembic api downgrade "$mails_parent"
 state=$(printf '%s\n' "SELECT count(*) FROM commitment WHERE source <> 'public_form' AND public_reference IS NOT NULL; SELECT count(*) FROM pg_constraint WHERE conname = 'ck_commitment_public_reference'; SELECT count(*) FROM information_schema.tables WHERE table_name = 'action_buyer_mail_configuration';" | preference_sql | tr '\n' ' ')
 [ "$state" = "0 1 0 " ] || {
-  echo "poc021-test: ERROR: 0062 downgrade did not restore the old order-number rule: $state" >&2
+  echo "poc021-test: ERROR: 0063 downgrade did not restore the old order-number rule: $state" >&2
   exit 1
 }
 # Before the next upgrade: a public order that already holds the number the
@@ -412,7 +412,7 @@ printf '%s\n' "CREATE TEMP TABLE numbered AS SELECT * FROM commitment WHERE id =
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 state=$(printf '%s\n' "SELECT string_agg(public_reference, ' ' ORDER BY id) FROM commitment WHERE id IN ('80000000-0000-4000-8000-000000000001', '80000000-0000-4000-8000-0000000000b1', '80000000-0000-4000-8000-0000000000b2'); SELECT count(*) FROM commitment WHERE public_reference IS NULL;" | preference_sql | tr '\n' ' ')
 [ "$state" = "LA-NG8RY6CW LA-3DKFX85Y LA-JCJUN4BF 0 " ] || {
-  echo "poc021-test: ERROR: 0062 did not number the orders as the application does: $state" >&2
+  echo "poc021-test: ERROR: 0063 did not number the orders as the application does: $state" >&2
   exit 1
 }
 printf '%s\n' "DELETE FROM commitment WHERE id IN ('80000000-0000-4000-8000-0000000000b1', '80000000-0000-4000-8000-0000000000b2');" | preference_sql

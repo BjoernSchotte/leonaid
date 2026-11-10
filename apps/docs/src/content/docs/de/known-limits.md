@@ -4,8 +4,8 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 8
-reviewedRevision: 8
+contentRevision: 9
+reviewedRevision: 9
 verifiedAgainst: c936ec580b1ef13d6175b551ab34d2f597e2bb2d
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -46,6 +46,14 @@ allgemeine Produktionsfreigabe.
   der Aktion auf ihrer Kampagnen-Domain, sonst auf die Aktionsseite des
   öffentlichen Hosts. Absender ist die konfigurierte Systemadresse, nicht der
   Club.
+- Die Suche (**Suchen und Befehle**) findet Sponsoren nur über Name und Ort
+  und nur, wenn sie in einer Aktion einem Akquisiteur zugeordnet sind (siehe
+  [Mit der Suche finden](/de/user/how-to/find-with-search/)). E-Mail, Telefon
+  und Straße sind nicht durchsuchbar. Eine Änderung im CRM erreicht die Suche
+  nach bis zu etwa 15 Minuten; ein im CRM gelöschter Sponsor verschwindet erst
+  in der folgenden Nacht. Bis dahin öffnet sein Treffer die Zuordnung, die
+  dann „Im CRM nicht mehr vorhanden“ heißt und keine Kontaktdaten zeigt.
+  Die Akquise-App hat keine eigene Suche.
 - Ein gespeicherter Rechnungsbeleg und sein PDF werden nicht nachträglich
   überschrieben. Korrekturen erfolgen durch Storno und einen neuen Vorgang.
 - Teil- und Überzahlungen werden als einzelne Zahlungseinträge erfasst und

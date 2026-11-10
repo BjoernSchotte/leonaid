@@ -60,7 +60,8 @@ const CORE_GROUPS: ReadonlyArray<
   ["member", "Mitglieder"],
 ];
 
-const CORE_SOURCE_LABEL = "Aktionen, Bestellungen, Rechnungen und Mitglieder";
+const CORE_SOURCE_LABEL =
+  "Aktionen, Bestellungen, Rechnungen, Sponsoren und Mitglieder";
 
 /** Trims and collapses inner whitespace, as the core endpoint does. */
 export function normaliseQuery(query: string): string {

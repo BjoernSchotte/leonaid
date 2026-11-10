@@ -611,6 +611,7 @@ RULES: tuple[Rule, ...] = (
             "tools/activity_feed/**",
             "tools/actions/**",
             "tools/templates/**",
+            "tools/sponsor_search/**",
         ),
         integration("acquisition-contracts"),
         "acquisition and action contracts",
@@ -867,6 +868,7 @@ E2E_OWNERS: dict[str, tuple[str, ...]] = {
     "operations": ("operations",),
     "dashboard": ("leitsystem-ui",),
     "search": ("leitsystem-ui",),
+    "sponsor_search": ("leitsystem-ui",),
     "public_orders": ("public-orders",),
 }
 # Leaves that send mail, sync the CRM or deliver invoices through the outbox.

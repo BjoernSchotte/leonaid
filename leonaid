@@ -110,6 +110,8 @@ Commands:
   test-policy       Prove central row-level policies against PostgreSQL/Twenty
   test-matching     Prove deterministic sponsor matching and confirmation
   test-assignments  Prove assignment concurrency, history and handover
+  test-sponsor-search
+                    Prove the sponsor search index against real Twenty
   test-activities   Prove activity history and prioritized reminders
   test-pwa          Prove installable PWA, sponsor lists and responsive UX
   test-tasks        Prove task lists, planning and ordering in web and PWA
@@ -4900,6 +4902,7 @@ case "$command" in
   test-policy) run_feature_tests tools/policy/test.sh ;;
   test-matching) run_feature_tests "tools/testing/acquisition_contracts.sh tools/matching/contract.py" ;;
   test-assignments) run_feature_tests "tools/testing/acquisition_contracts.sh tools/assignments/contract.py" ;;
+  test-sponsor-search) run_feature_tests "tools/testing/acquisition_contracts.sh tools/sponsor_search/contract.py" ;;
   test-activities) run_feature_tests "tools/testing/acquisition_contracts.sh tools/activities/contract.py" ;;
   test-pwa) run_feature_tests tools/pwa/test.sh ;;
   test-tasks) run_feature_tests tools/tasks/test.sh ;;

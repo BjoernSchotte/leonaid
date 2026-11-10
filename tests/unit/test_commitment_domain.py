@@ -226,7 +226,7 @@ def test_commitment_rejects_a_tampered_total() -> None:
 def test_order_numbers_are_short_readable_and_follow_from_the_order_id() -> None:
     order_id = UUID("80000000-0000-4000-8000-000000000001")
 
-    # The same rule as the backfill of migration 0062 (tools/schema/test.sh
+    # The same rule as the backfill of migration 0063 (tools/schema/test.sh
     # asserts these two values after the SQL ran).
     assert order_number(order_id) == "LA-3DKFX85Y"
     assert order_number(order_id, 1) == "LA-NG8RY6CW"

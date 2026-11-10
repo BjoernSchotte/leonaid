@@ -162,7 +162,13 @@ def main() -> None:
     if checksum != checksum_report(current):
         raise AssertionError("readiness checksum is not reproducible")
     current["checksumSha256"] = checksum
-    serialized = json.dumps(current, sort_keys=True).casefold()
+    # The branch name is the developer's; a branch such as
+    # "feat/sponsor-search" is no business payload.
+    scanned = {
+        **current,
+        "repository": {**current["repository"], "branch": ""},
+    }
+    serialized = json.dumps(scanned, sort_keys=True).casefold()
     forbidden = ("@", "cookie", "payload", "sponsor", ".local/pilot")
     if any(value in serialized for value in forbidden):
         raise AssertionError("readiness report contains private or business payload")

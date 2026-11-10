@@ -34,6 +34,7 @@ from leonaid.domain.calendar import INSTALLATION_TIME_ZONE
 from leonaid.domain.captures import bounded_captured_at
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import ActionRole, IdentityPrincipal
+from leonaid.domain.policies import may_manage_action
 from leonaid.domain.privacy import (
     ContactChannel,
     PrivacyPurpose,
@@ -73,6 +74,18 @@ class PartyDetails:
     contact_name: str | None
     email: str | None
     phone: str | None
+
+
+# Shown in place of the name when Twenty no longer has an assigned party.
+CRM_PARTY_GONE_LABEL = "Im CRM nicht mehr vorhanden"
+CRM_PARTY_GONE = PartyDetails(
+    display_name=CRM_PARTY_GONE_LABEL,
+    postal_code=None,
+    city=None,
+    contact_name=None,
+    email=None,
+    phone=None,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -312,9 +325,13 @@ class AcquisitionActivityService:
         party_keys = {
             (assignment.party_kind, assignment.party_id) for assignment in assignments
         } | {(activity.party_kind, activity.party_id) for activity in activities}
+        # One party deleted in Twenty must not close the board for the
+        # action: its rows stay, named as gone and without contact data, so
+        # the assignment can still be handed over or closed.
         party_details = await self._party_details(
             party_keys,
             correlation_prefix=f"activity-board:{action_id}",
+            keep_missing=True,
         )
         assigned_acquirers = await self._assigned_acquirers(
             action_id,
@@ -655,10 +672,17 @@ class AcquisitionActivityService:
         keys: set[tuple[AssignmentPartyKind, UUID]],
         *,
         correlation_prefix: str,
+        keep_missing: bool = False,
     ) -> dict[
         tuple[AssignmentPartyKind, UUID],
         PartyDetails,
     ]:
+        """Name and contact of each party, read from the CRM.
+
+        A party the CRM no longer has is concealed (a write must not reach
+        it); with ``keep_missing`` it is returned as ``CRM_PARTY_GONE``.
+        """
+
         ordered = sorted(keys, key=lambda item: (item[0].value, str(item[1])))
         if not ordered:
             return {}
@@ -707,6 +731,8 @@ class AcquisitionActivityService:
             if party_kind is AssignmentPartyKind.COMPANY:
                 company = companies_by_id.get(party_id)
                 if company is None:
+                    if keep_missing:
+                        return (party_kind, party_id), CRM_PARTY_GONE
                     raise concealed_resource()
                 contacts = sorted(
                     company_contacts.get(party_id, ()),
@@ -742,6 +768,8 @@ class AcquisitionActivityService:
                 )
             person = people_by_id.get(party_id)
             if person is None:
+                if keep_missing:
+                    return (party_kind, party_id), CRM_PARTY_GONE
                 raise concealed_resource()
             return (
                 (party_kind, party_id),
@@ -770,10 +798,9 @@ class AcquisitionActivityService:
 
     @staticmethod
     def _require_charity_admin(actor: IdentityPrincipal, action_id: UUID) -> None:
-        if (
-            actor.account.can_authenticate
-            and ActionRole.CHARITY_ADMIN in actor.roles_for(action_id)
-        ):
+        # The policy of the assignments themselves (authorized_scope): the
+        # action's charity admins and every system admin.
+        if actor.account.can_authenticate and may_manage_action(actor, action_id):
             return
         raise PermissionDenied(
             "charity_admin_required",

@@ -82,7 +82,7 @@ pass unchanged.
 - **LeonAid Core:** After `alembic upgrade head`, no older core is claimed to
   work against the new schema. Core PostgreSQL is restored from the recovery
   point.
-- **Core migration `0062_buyer_mails` (order number for every order):** an
+- **Core migration `0063_buyer_mails` (order number for every order):** an
   application from before this migration fails for certain against the
   migrated database, not only possibly. It refuses every order that a member
   entered, because such an order now has an order number
@@ -92,7 +92,7 @@ pass unchanged.
   Never start the older image against the migrated database. Roll back in
   this order: stop API and worker, restore Core PostgreSQL from the recovery
   point (or, when no order was written since the upgrade, run
-  `alembic downgrade 0061_delivery_geo_regeocode` with the new image, which
+  `alembic downgrade 0062_sponsor_search_entry` with the new image, which
   removes the numbers of internal orders and the buyer-mail settings), then
   start the older image. Order numbers that buyers already received in a
   mail are lost by the downgrade for orders that members entered.
