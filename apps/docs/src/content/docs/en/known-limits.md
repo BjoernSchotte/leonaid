@@ -4,9 +4,9 @@ description: Verified limits of the current LeonAid development and pilot state.
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 9
-reviewedRevision: 9
-verifiedAgainst: 176b94f63b8ff6dbd9deadb71b9ab507ee53989b
+contentRevision: 10
+reviewedRevision: 10
+verifiedAgainst: 38a834b682cdd63daf56fc53a1a92929c0f60797
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -55,6 +55,15 @@ general production approval.
   before this feature have no cancellation invoice until someone issues it.
   The wording of the cancellation invoice is a proposal and has no legal
   review yet.
+- Donations are a capability of their own. A donation gets a number and a
+  donation pledge ("Spendenzusage", a PDF, not an invoice) and can be recorded
+  only while the part **Spenden** with the receiving body is active under
+  **Rechtliches**. Only money donations in euro exist, one payment per
+  donation and no collective receipt; a second part payment is a donation of
+  its own. Only an unpaid donation can be cancelled. Donations are recorded
+  in the back office only, not yet in the order form. LeonAid does not issue
+  the donation receipt yet. The wording blocks are proposals and have no
+  legal review yet (see [Record a donation](/en/user/how-to/record-donation/)).
 - Payments of a cancelled invoice stay recorded and cannot be reversed.
   LeonAid books no refund; "Erstattung erledigt" is only a marker. It can be
   taken back with a reason.

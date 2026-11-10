@@ -4,9 +4,9 @@ description: Pflichtangaben nach § 5 DDG und die Texte der Seite /datenschutz a
 docId: DOC-P048
 audience: [user]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: 38a834b682cdd63daf56fc53a1a92929c0f60797
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -81,6 +81,40 @@ Datenschutz-Kontakt, den Datenschutzhinweis des Bestellformulars mit seiner
 Rechtsgrundlage (Abschnitt „Bestellungen über Aktionsseiten“) und den
 Mitgliederhinweis (Abschnitt „Für Mitglieder“). Der kurze Hinweis direkt am
 Bestellformular bleibt und verlinkt auf die vollständige Seite.
+
+## Empfangende Körperschaft für Spenden
+
+Der Bereich **Spenden** beschreibt die Körperschaft, die Spenden empfängt.
+Sie darf eine andere juristische Person sein als der Rechnungssteller, oft
+der Förderverein. Spendenzusage und Zuwendungsbestätigung zeigen ihre
+Angaben. Der Bereich ist freiwillig: Ein Club ohne Spenden lässt
+**Der Club nimmt Spenden entgegen** ausgeschaltet. Ohne diesen Bereich kann
+in keiner Aktion eine Spende erfasst werden.
+
+1. Schalte **Der Club nimmt Spenden entgegen** ein.
+2. **Empfangende Körperschaft:** Name, Rechtsform und Anschrift.
+3. **Finanzamt und Bescheid:** Finanzamt, Steuernummer, Art und Datum des
+   Bescheids. Bei **Freistellungsbescheid** und **Anlage zum
+   Körperschaftsteuerbescheid** gehört der Veranlagungszeitraum dazu, bei
+   **Feststellungsbescheid nach § 60a AO** nicht.
+4. **Begünstigte Zwecke:** wörtlich wie im Bescheid.
+5. **Spendenkonto:** Kontoinhaber, IBAN und BIC. Es darf ein anderes Konto
+   sein als das der Rechnungen.
+6. **Unterschrift:** Name und Funktion der unterzeichnenden Person und die
+   Art der Unterschrift. **maschinell** gilt nur, wenn die Körperschaft das
+   Verfahren ihrem Finanzamt angezeigt hat; trage dann das Datum der Anzeige
+   ein.
+7. **Nummernkreise:** je ein Präfix für Spendenzusagen und für
+   Zuwendungsbestätigungen. Beide müssen sich voneinander und vom
+   Rechnungspräfix unterscheiden.
+8. **Textbausteine:** der Text der Spendenzusage und der Haftungshinweis der
+   Zuwendungsbestätigung. **Vorschlag einsetzen** füllt einen Vorschlag ein.
+   Er ist rechtlich noch nicht geprüft: Lass ihn von eurer Steuerberatung
+   lesen und vergleiche den Haftungshinweis mit dem aktuellen amtlichen
+   Muster.
+
+Bereits erfasste Spenden behalten die Angaben der Version, die beim Erfassen
+galt.
 
 ## Freigeben und aktivieren
 

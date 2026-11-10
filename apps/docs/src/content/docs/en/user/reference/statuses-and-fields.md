@@ -4,9 +4,9 @@ description: Reference for campaign, acquisition, order, invoice, and delivery s
 docId: DOC-P017
 audience: [user]
 diataxis: reference
-contentRevision: 5
-reviewedRevision: 5
-verifiedAgainst: 176b94f63b8ff6dbd9deadb71b9ab507ee53989b
+contentRevision: 6
+reviewedRevision: 6
+verifiedAgainst: 38a834b682cdd63daf56fc53a1a92929c0f60797
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -74,3 +74,17 @@ installation. If money had been received for the invoice, it shows
 Email delivery has separate statuses: `queued`, `sending`, `retrying`,
 `failed`, and `sent`. A delivery failure does not change the invoice. The PDF
 is independently `pending`, `available`, or `deleted`.
+
+## Donation
+
+Donations are `pledged` (**Offen**), `paid` (**Bezahlt**), or `cancelled`
+(**Storniert**). A donation has a number of the donation pledge series, a
+pledged amount and at most one payment. It is paid with the amount that
+arrived, which may differ from the pledge. Taking back the payment sets it to
+**Offen** again. Only a donation without a payment can be cancelled; a
+cancellation is final (see
+[Record a donation](/en/user/how-to/record-donation/)).
+
+The source is `admin` (**Verwaltung**), `public_form` (**Öffentliches
+Formular**), or `acquisition` (**Akquise**). In this version donations are
+recorded in the back office only.

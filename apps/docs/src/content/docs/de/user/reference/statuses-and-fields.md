@@ -4,9 +4,9 @@ description: Nachschlagewerk für Aktions-, Akquise-, Bestell-, Rechnungs- und L
 docId: DOC-P017
 audience: [user]
 diataxis: reference
-contentRevision: 5
-reviewedRevision: 5
-verifiedAgainst: 176b94f63b8ff6dbd9deadb71b9ab507ee53989b
+contentRevision: 6
+reviewedRevision: 6
+verifiedAgainst: 38a834b682cdd63daf56fc53a1a92929c0f60797
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -74,3 +74,17 @@ Rechnung Geld eingegangen, zeigt sie **Erstattung offen**, bis jemand
 Der E-Mail-Versand besitzt eigene Status: `queued`, `sending`, `retrying`,
 `failed` und `sent`. Ein Versandfehler verändert den Beleg nicht. Das PDF ist
 unabhängig davon `pending`, `available` oder `deleted`.
+
+## Spende
+
+Spenden sind `pledged` (**Offen**), `paid` (**Bezahlt**) oder `cancelled`
+(**Storniert**). Eine Spende hat eine Nummer aus dem Nummernkreis der
+Spendenzusagen, einen zugesagten Betrag und höchstens eine Zahlung. Bezahlt
+ist sie mit dem Betrag, der eingegangen ist; er darf von der Zusage
+abweichen. Eine zurückgenommene Zahlung setzt sie wieder auf **Offen**. Nur
+eine Spende ohne Zahlung lässt sich stornieren; ein Storno ist endgültig
+(siehe [Spende erfassen](/de/user/how-to/record-donation/)).
+
+Die Herkunft ist `admin` (**Verwaltung**), `public_form` (**Öffentliches
+Formular**) oder `acquisition` (**Akquise**). In dieser Version entstehen
+Spenden nur in der Verwaltung.

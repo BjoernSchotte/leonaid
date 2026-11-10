@@ -4,9 +4,9 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 9
-reviewedRevision: 9
-verifiedAgainst: 176b94f63b8ff6dbd9deadb71b9ab507ee53989b
+contentRevision: 10
+reviewedRevision: 10
+verifiedAgainst: 38a834b682cdd63daf56fc53a1a92929c0f60797
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -56,6 +56,16 @@ allgemeine Produktionsfreigabe.
   Bestellung. Rechnungen, die vor dieser Funktion storniert wurden, haben keine
   Stornorechnung, bis jemand sie ausstellt. Der Wortlaut der Stornorechnung ist
   ein Vorschlag und rechtlich noch nicht geprüft.
+- Spenden sind eine eigene Fähigkeit der Aktion. Eine Spende bekommt eine
+  Nummer und eine Spendenzusage (PDF, keine Rechnung) und lässt sich nur
+  erfassen, wenn unter **Rechtliches** der Teil **Spenden** mit der
+  empfangenden Körperschaft aktiv ist. Es gibt nur Geldspenden in Euro, eine
+  Zahlung je Spende und keine Sammelbestätigung; eine zweite Teilzahlung ist
+  eine eigene Spende. Nur eine unbezahlte Spende lässt sich stornieren.
+  Spenden entstehen nur in der Verwaltung, noch nicht im Bestellformular. Die
+  Zuwendungsbestätigung stellt LeonAid noch nicht aus. Die Textbausteine sind
+  Vorschläge und rechtlich noch nicht geprüft (siehe
+  [Spende erfassen](/de/user/how-to/record-donation/)).
 - Zahlungen einer stornierten Rechnung bleiben erfasst und lassen sich nicht
   zurückbuchen. LeonAid bucht keine Erstattung; „Erstattung erledigt“ ist nur
   ein Vermerk. Er lässt sich mit Grund zurücknehmen.
