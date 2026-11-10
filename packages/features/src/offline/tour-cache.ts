@@ -329,6 +329,26 @@ export async function purgeTourCaches(
   }
 }
 
+/**
+ * One request of reads: taken, refused with 422 (out of range), refused
+ * for good otherwise (flag off, no driver role) or to send again later.
+ */
+async function sendReads(
+  send: LeonAidApiClient["recordMyTourReads"],
+  actionId: string,
+  reads: readonly TourRead[],
+): Promise<"taken" | "refused" | "dropped" | "later"> {
+  try {
+    await send(actionId, { reads: reads.map((read) => ({ ...read })) });
+    return "taken";
+  } catch (error) {
+    if (retryLater(error)) return "later";
+    return error instanceof ApiError && error.status === 422
+      ? "refused"
+      : "dropped";
+  }
+}
+
 /** Core cannot take it now; the reads wait for the next sync. */
 function retryLater(error: unknown): boolean {
   if (!(error instanceof ApiError)) return true;
@@ -369,15 +389,23 @@ export async function sendTourReads(
       index += TOUR_READS_PER_REQUEST
     ) {
       const batch = due.slice(index, index + TOUR_READS_PER_REQUEST);
-      try {
-        await send(entry.actionId, {
-          reads: batch.map((read) => ({ ...read })),
-        });
-      } catch (error) {
-        if (retryLater(error)) {
-          stop = true;
-          continue;
+      const outcome = await sendReads(send, entry.actionId, batch);
+      if (outcome === "later") {
+        stop = true;
+        continue;
+      }
+      if (outcome === "refused" && batch.length > 1) {
+        // One read Core's clock puts out of range sinks the whole batch
+        // (the device cannot see that drift, Ruling 27): each read again on
+        // its own; only the refused ones leave unsent.
+        for (const read of batch) {
+          if ((await sendReads(send, entry.actionId, [read])) === "later") {
+            stop = true;
+            break;
+          }
+          done.add(readKey(read));
         }
+        continue;
       }
       for (const read of batch) done.add(readKey(read));
     }

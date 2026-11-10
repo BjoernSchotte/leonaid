@@ -431,6 +431,71 @@ describe("offline reads (§10)", () => {
     expect(store.tour()?.reads).toEqual([]);
   });
 
+  it("a batch refused with 422 goes again read by read; only the refused read is dropped", async () => {
+    const store = new MemoryStore();
+    // Core's clock is behind the device's: the device cannot tell.
+    const ahead = { readAt: NOW.toISOString(), windowId: CLOSED_WINDOW };
+    const good = [0, 1].map((minutes) => ({
+      readAt: new Date(NOW.getTime() - (minutes + 1) * 60_000).toISOString(),
+      windowId: OPEN_WINDOW,
+    }));
+    await store.putCache(
+      ...tourCacheKey(ACTION),
+      cached([openWindow()], [...good, ahead]),
+      NOW.toISOString(),
+    );
+    const taken: MyTourReadsRequest["reads"][number][] = [];
+    const outOfRange = new ApiError(422, {
+      code: "tour_read_out_of_range",
+      message: "",
+      requestId: "",
+    });
+    await sendTourReads(
+      store,
+      async (_actionId, body) => {
+        if (body.reads.some((read) => read.readAt === ahead.readAt)) {
+          throw outOfRange;
+        }
+        taken.push(...body.reads);
+      },
+      NOW,
+    );
+    expect(taken).toEqual(good);
+    expect(store.tour()?.reads).toEqual([]);
+  });
+
+  it("reads sent one by one stop at a network error and keep the rest", async () => {
+    const store = new MemoryStore();
+    const reads = [0, 1, 2].map((minutes) => ({
+      readAt: new Date(NOW.getTime() - minutes * 60_000).toISOString(),
+      windowId: OPEN_WINDOW,
+    }));
+    await store.putCache(
+      ...tourCacheKey(ACTION),
+      cached([openWindow()], reads),
+      NOW.toISOString(),
+    );
+    let calls = 0;
+    await sendTourReads(
+      store,
+      async () => {
+        calls += 1;
+        if (calls === 1) {
+          throw new ApiError(422, {
+            code: "tour_read_out_of_range",
+            message: "",
+            requestId: "",
+          });
+        }
+        if (calls === 3) throw new TypeError("Failed to fetch");
+      },
+      NOW,
+    );
+    // Batch refused, first read taken, network gone at the second.
+    expect(calls).toBe(3);
+    expect(store.tour()?.reads).toEqual(reads.slice(1));
+  });
+
   it("drops a read far ahead of the clock so it never sinks the batch", async () => {
     const store = new MemoryStore();
     const good = { readAt: NOW.toISOString(), windowId: OPEN_WINDOW };
