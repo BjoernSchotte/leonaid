@@ -6,8 +6,9 @@ export const DONATION_MAX_MINOR = 1_000_000;
 export const DONATION_INVALID_MESSAGE =
   "Bitte geben Sie einen Betrag zwischen 1,00 € und 10.000,00 € ein oder lassen Sie das Feld leer.";
 
+// Neutral on purpose: the pledge mail is skipped when the mailbox limit hits.
 export const DONATION_SUCCESS_NOTE =
-  "Ihre Spendenzusage erhalten Sie in einer eigenen E-Mail.";
+  "Die Spendenzusage mit der Bankverbindung erhalten Sie gesondert.";
 
 /** Native check for browsers without script; the range is checked on submit. */
 export const DONATION_INPUT_PATTERN =
