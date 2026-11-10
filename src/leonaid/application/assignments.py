@@ -7,9 +7,10 @@ from datetime import datetime, timezone
 from typing import Protocol
 from uuid import UUID
 
-from leonaid.application.crm import CrmGateway
+from leonaid.application.crm import CrmGateway, CrmPartyKind
 from leonaid.application.errors import Conflict
 from leonaid.application.policies import concealed_resource, require_action_manager
+from leonaid.application.sponsor_search import PartyKey, SponsorParty
 from leonaid.domain.acquisition import (
     AcquisitionAssignment,
     AssignmentHistoryEntry,
@@ -59,9 +60,12 @@ class AssignmentManagementRepository(Protocol):
         party_id: UUID,
         acquirer_user_id: UUID,
         actor_user_id: UUID,
+        search_entry: SponsorParty,
         request_id: str,
         occurred_at: datetime,
-    ) -> AssignmentCreateResult | None: ...
+    ) -> AssignmentCreateResult | None:
+        """Create the assignment; ``search_entry`` goes into the search index."""
+        ...
 
     async def save_assignment(
         self,
@@ -107,7 +111,7 @@ class AssignmentManagementService:
         request_id: str,
     ) -> AssignmentCreateResult:
         require_action_manager(actor, action_id)
-        await self._require_party(
+        party = await self._require_party(
             party_kind,
             party_id,
             correlation_id=f"{request_id}:assignment-party",
@@ -118,6 +122,7 @@ class AssignmentManagementService:
             party_id=party_id,
             acquirer_user_id=acquirer_user_id,
             actor_user_id=actor.account.id,
+            search_entry=party,
             request_id=request_id,
             occurred_at=datetime.now(timezone.utc),
         )
@@ -235,7 +240,9 @@ class AssignmentManagementService:
         party_id: UUID,
         *,
         correlation_id: str,
-    ) -> None:
+    ) -> SponsorParty:
+        """The party as the search index keeps it; concealed when it is gone."""
+
         if party_kind is AssignmentPartyKind.COMPANY:
             company = await self._crm.get_company(
                 party_id,
@@ -243,13 +250,22 @@ class AssignmentManagementService:
             )
             if company is None:
                 raise concealed_resource()
-            return
+            return SponsorParty(
+                key=PartyKey(CrmPartyKind.COMPANY, company.twenty_id),
+                display_name=company.data.name,
+                city=company.data.address.city,
+            )
         person = await self._crm.get_person(
             party_id,
             correlation_id=correlation_id,
         )
         if person is None:
             raise concealed_resource()
+        return SponsorParty(
+            key=PartyKey(CrmPartyKind.PERSON, person.twenty_id),
+            display_name=f"{person.data.given_name} {person.data.family_name}",
+            city=None,
+        )
 
     @staticmethod
     def _require_view(

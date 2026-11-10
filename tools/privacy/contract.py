@@ -15,6 +15,9 @@ from uuid import UUID, uuid5
 import asyncpg
 import httpx
 
+from leonaid.adapters.postgres.sponsor_search import write_sponsor_search_entries
+from leonaid.application.crm import CrmPartyKind
+from leonaid.application.sponsor_search import PartyKey, SponsorParty
 from leonaid.domain.sessions import (
     SESSION_COOKIE_NAME,
     SESSION_LIFETIME,
@@ -26,6 +29,7 @@ KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 ANNA_ID = UUID("10000000-0000-4000-8000-000000000004")
 ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
 COMPANY_ID = UUID("40000000-0000-4000-8000-000000000001")
+FOREIGN_COMPANY_ID = UUID("40000000-0000-4000-8000-000000000002")
 CONSENT_ID = UUID("d0000000-0000-4000-8000-000000000001")
 INVOICE_ID = UUID("90000000-0000-4000-8000-000000000002")
 LEGAL_CONFIGURATION_ID = UUID("94000000-0000-4000-8000-000000000044")
@@ -147,12 +151,29 @@ async def seed_inbox_cases(connection: asyncpg.Connection[Any]) -> None:
         )
 
 
+async def sponsor_search_hits(token: str, query: str) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(
+        base_url=require_env("API_BASE_URL").rstrip("/"),
+        timeout=60,
+    ) as api:
+        response = await api.get(
+            "/api/v1/search", headers=headers(token), params={"q": query}
+        )
+        response.raise_for_status()
+        return [
+            item for item in response.json()["results"] if item["type"] == "sponsor"
+        ]
+
+
 async def prepare(
     connection: asyncpg.Connection[Any],
     baseline_path: Path,
 ) -> None:
     tokens = await seed_sessions(connection)
     await seed_inbox_cases(connection)
+    # Before the erasure the search finds the subject's company by its name.
+    if not await sponsor_search_hits(tokens["klara"], "Musterwerk"):
+        raise ContractFailure("The search does not find the subject's sponsor")
     baseline_path.write_text(
         json.dumps(await immutable_hashes(connection), indent=2) + "\n",
         encoding="utf-8",
@@ -457,6 +478,42 @@ async def assert_result(
         or foreign_case["message"] != INBOX_MESSAGE
     ):
         raise ContractFailure("Erasure changed a foreign inbox case")
+    # The search index: the erased party keeps no name and no city, only
+    # the marker; the sync cannot copy the name back; a foreign party stays.
+    await write_sponsor_search_entries(
+        connection,
+        (
+            SponsorParty(
+                PartyKey(CrmPartyKind.COMPANY, COMPANY_ID),
+                "Musterwerk GmbH",
+                "Beispielstadt",
+            ),
+        ),
+        synced_at=datetime.now(timezone.utc),
+    )
+    index = {
+        row["twenty_id"]: row
+        for row in await connection.fetch(
+            "SELECT * FROM sponsor_search_entry WHERE twenty_id = ANY($1::uuid[])",
+            [COMPANY_ID, FOREIGN_COMPANY_ID],
+        )
+    }
+    erased_entry = index.get(COMPANY_ID)
+    if (
+        erased_entry is None
+        or erased_entry["erased_at"] is None
+        or erased_entry["display_name"] is not None
+        or erased_entry["city"] is not None
+    ):
+        raise ContractFailure("Search index still names the erased sponsor")
+    foreign_entry = index.get(FOREIGN_COMPANY_ID)
+    if foreign_entry is None or foreign_entry["display_name"] is None:
+        raise ContractFailure("Erasure changed a foreign search entry")
+    klara = token_for("klara", KLARA_ID)
+    if await sponsor_search_hits(klara, "Musterwerk"):
+        raise ContractFailure("The search still finds the erased sponsor")
+    if not await sponsor_search_hits(klara, "Sonnenseite"):
+        raise ContractFailure("The search lost a foreign sponsor")
     audit_leak = await connection.fetchval(
         "SELECT count(*) FROM audit_event WHERE payload::text ILIKE '%' || $1 || '%'",
         EMAIL,

@@ -31,6 +31,7 @@ from leonaid.application.assignments import (
     AssignmentHandoverResult,
     AssignmentManagementRepository,
 )
+from leonaid.adapters.postgres.sponsor_search import write_sponsor_search_entries
 from leonaid.application.crm import CrmPartyKind
 from leonaid.application.errors import Conflict
 from leonaid.application.policies import concealed_resource
@@ -42,6 +43,7 @@ from leonaid.application.sponsor_matching import (
     SponsorResolutionCommand,
     SponsorResolutionOutcome,
 )
+from leonaid.application.sponsor_search import SponsorParty
 from leonaid.domain.policies import AcquisitionAccessLevel, AuthorizedPartyScope
 from leonaid.domain.acquisition import (
     AcquisitionAssignment,
@@ -149,6 +151,7 @@ class AsyncpgSponsorResolutionCommand:
         outcome: SponsorResolutionOutcome,
         normalized_key: str,
         prior_assignee_ids: tuple[UUID, ...],
+        search_entry: SponsorParty,
         request_id: str,
         occurred_at: datetime,
     ) -> RecordedAssignment | None:
@@ -160,6 +163,7 @@ class AsyncpgSponsorResolutionCommand:
             outcome=outcome,
             normalized_key=normalized_key,
             prior_assignee_ids=prior_assignee_ids,
+            search_entry=search_entry,
             request_id=request_id,
             occurred_at=occurred_at,
         )
@@ -509,6 +513,7 @@ class AsyncpgAcquisitionPolicyRepository(
         outcome: SponsorResolutionOutcome,
         normalized_key: str,
         prior_assignee_ids: tuple[UUID, ...],
+        search_entry: SponsorParty,
         request_id: str,
         occurred_at: datetime,
     ) -> RecordedAssignment | None:
@@ -667,6 +672,11 @@ class AsyncpgAcquisitionPolicyRepository(
                         ),
                         occurred_at,
                     )
+                # The search finds the sponsor from now on, with the name
+                # the matching just read from the CRM.
+                await write_sponsor_search_entries(
+                    connection, (search_entry,), synced_at=occurred_at
+                )
                 await connection.execute(
                     """
                     INSERT INTO audit_event (
@@ -758,6 +768,7 @@ class AsyncpgAcquisitionPolicyRepository(
         party_id: UUID,
         acquirer_user_id: UUID,
         actor_user_id: UUID,
+        search_entry: SponsorParty,
         request_id: str,
         occurred_at: datetime,
     ) -> AssignmentCreateResult | None:
@@ -865,6 +876,11 @@ class AsyncpgAcquisitionPolicyRepository(
                     raise RuntimeError(
                         "Proaktive Zuordnung konnte nicht ermittelt werden."
                     )
+                # The search finds the sponsor from now on, with the name
+                # the service just read from the CRM.
+                await write_sponsor_search_entries(
+                    connection, (search_entry,), synced_at=occurred_at
+                )
                 row = await self._assignment_record(
                     connection,
                     action_id=action_id,

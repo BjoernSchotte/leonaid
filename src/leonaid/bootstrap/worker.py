@@ -7,6 +7,7 @@ duplicate event types fail at startup.
 
 from __future__ import annotations
 
+import asyncio
 import os
 from dataclasses import dataclass
 from datetime import timedelta
@@ -40,6 +41,7 @@ from leonaid.adapters.postgres.legal_configuration import (
 from leonaid.adapters.postgres.order_mails import AsyncpgOrderMailReader
 from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
 from leonaid.adapters.postgres.pool import create_pool
+from leonaid.adapters.postgres.sponsor_search import AsyncpgSponsorSearchIndex
 from leonaid.adapters.storage import S3ObjectStorage
 from leonaid.adapters.twenty.gateway import TwentyCrmGateway, TwentyGatewaySettings
 from leonaid.adapters.typst import TypstInvoiceRenderer
@@ -54,6 +56,13 @@ from leonaid.application.order_mails import (
     OrderMailKind,
 )
 from leonaid.application.outbox import OutboxEventHandler, OutboxWorker
+from leonaid.application.sponsor_search import (
+    SYNC_CONTINUE_SECONDS,
+    SYNC_INTERVAL_SECONDS,
+    SYNC_REQUEST_BUDGET,
+    SponsorSearchSync,
+    SyncReport,
+)
 from leonaid.bootstrap.registry import (
     ModuleRegistration,
     RegistrationError,
@@ -67,6 +76,7 @@ from leonaid.configuration import (
     load_mail_transport_settings,
     load_module_settings,
 )
+from leonaid.domain.calendar import INSTALLATION_TIME_ZONE
 from leonaid.domain.outbox import ClaimedOutboxEvent, RetryPolicy
 from leonaid.modules.inbox.jobs import (
     INBOX_HANDLER_TIMEOUTS,
@@ -77,7 +87,7 @@ from leonaid.modules.surveys.jobs import (
     survey_handlers,
     survey_sweep,
 )
-from leonaid.platform.background import BackgroundLoop
+from leonaid.platform.background import BackgroundLoop, LoopReporter
 
 
 def observe_job(
@@ -147,6 +157,10 @@ def worker_modules(
             handlers=_action_handlers(dependencies) if dependencies else {},
         ),
         ModuleRegistration(
+            "acquisition",
+            background_loops=(sponsor_search_sync(database_url),),
+        ),
+        ModuleRegistration(
             "invoicing",
             handlers=_invoice_handlers(dependencies) if dependencies else {},
         ),
@@ -154,6 +168,80 @@ def worker_modules(
             "mail",
             handlers=_mail_handlers(dependencies) if dependencies else {},
         ),
+    )
+
+
+SPONSOR_SEARCH_SYNC_LOOP = "sponsor_search_sync"
+# One run sends at most SYNC_REQUEST_BUDGET requests, each bounded by the
+# gateway timeout of five seconds.
+_SPONSOR_SEARCH_RUN_SECONDS = SYNC_REQUEST_BUDGET * 5.0
+
+
+def sponsor_search_sync(database_url: str) -> BackgroundLoop:
+    """Keeps the sponsor search index in step with Twenty.
+
+    Every 15 minutes one bounded run (``SponsorSearchSync``); an unfinished
+    full pass goes on after a minute. A CRM outage or a 429 ends the run and
+    is logged; the loop stays healthy, because Twenty being down is not a
+    fault of the worker. Without an integration key the loop idles. Logged
+    by count only, never with a name.
+    """
+
+    async def run(report: LoopReporter) -> None:
+        while True:
+            pool = None
+            crm = None
+            try:
+                pool = await create_pool(database_url, maximum_size=2)
+                crm = crm_gateway_from_environment()
+                sync = (
+                    SponsorSearchSync(
+                        AsyncpgSponsorSearchIndex(pool),
+                        crm,
+                        zone=INSTALLATION_TIME_ZONE,
+                    )
+                    if crm is not None
+                    else None
+                )
+                while True:
+                    result = (
+                        await sync.run_once()
+                        if sync is not None
+                        else SyncReport(mode="skipped")
+                    )
+                    report.succeeded()
+                    if result.requests or result.deleted:
+                        print(
+                            structured_event(
+                                "worker.sponsor_search.synced",
+                                mode=result.mode,
+                                requests=result.requests,
+                                written=result.written,
+                                deleted=result.deleted,
+                                complete=result.complete,
+                                rateLimited=result.rate_limited,
+                                crmError=result.crm_error,
+                            ),
+                            flush=True,
+                        )
+                    await asyncio.sleep(
+                        SYNC_CONTINUE_SECONDS
+                        if result.continue_soon
+                        else SYNC_INTERVAL_SECONDS
+                    )
+            except Exception as error:
+                # Logged by type and location only, never with party data.
+                await asyncio.sleep(report.failed(error))
+            finally:
+                if crm is not None:
+                    await crm.close()
+                if pool is not None:
+                    await pool.close()
+
+    return BackgroundLoop(
+        SPONSOR_SEARCH_SYNC_LOOP,
+        stall_after_seconds=SYNC_INTERVAL_SECONDS + _SPONSOR_SEARCH_RUN_SECONDS + 150,
+        run=run,
     )
 
 

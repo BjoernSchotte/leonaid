@@ -26,7 +26,9 @@ never belongs in metrics or alerts.
 ## Worker
 
 The worker is ready only while PostgreSQL is reachable and each background
-loop (`outbox`, `survey_sweep`, `retention`) keeps completing iterations.
+loop (`outbox`, `survey_sweep`, `sponsor_search_sync`, `retention`,
+`geocoding`) keeps completing iterations. `sponsor_search_sync` runs every 15
+minutes and counts as stalled after 20; a Twenty outage does not stall it.
 The `retention` loop runs hourly by default and counts as stalled only after
 it missed a sweep by five minutes; it deletes only expired, successfully
 completed and unreferenced outbox jobs and expired rate-limit attempts

@@ -141,10 +141,67 @@ ORDER BY NOT hit.prefix_match, hit.sort_key, hit.id
 LIMIT $5
 """
 
+# One hit per assignment; its id is the assignment. Same rows as
+# ``authorized_scope`` of the acquisition policy: every assignment of a
+# managed action ($3/$4), and in the actions of $6 the assignments of the
+# account $7 that are not handed over. An erased entry has no name and never
+# matches.
+_SPONSORS = r"""
+SELECT * FROM (
+    SELECT
+        assignment.id,
+        assignment.action_id,
+        entry.display_name AS title,
+        lower(entry.display_name) AS sort_key,
+        (
+            entry.display_name ILIKE $2 ESCAPE '\'
+            OR coalesce(entry.city, '') ILIKE $2 ESCAPE '\'
+        ) AS prefix_match,
+        assignment.status,
+        entry.city AS detail,
+        action.name AS action_name,
+        ($3 OR assignment.action_id = ANY($4::uuid[])) AS managed
+    FROM sponsor_search_entry AS entry
+    -- An assignment has exactly one party; equality lets the planner hash.
+    JOIN acquisition_assignment AS assignment
+      ON entry.twenty_id = coalesce(
+            assignment.twenty_company_id, assignment.twenty_person_id
+         )
+     AND entry.party_kind = CASE
+            WHEN assignment.twenty_company_id IS NOT NULL THEN 'company'
+            ELSE 'person'
+         END
+    JOIN charity_action AS action ON action.id = assignment.action_id
+    WHERE (
+        $3
+        OR assignment.action_id = ANY($4::uuid[])
+        OR (
+            assignment.action_id = ANY($6::uuid[])
+            AND assignment.acquirer_user_id = $7
+            AND assignment.status <> 'handed_over'
+        )
+      )
+      -- The pipeline and the app refuse actions without acquisition.
+      AND EXISTS (
+        SELECT 1
+        FROM charity_action_capability AS capability
+        WHERE capability.action_id = assignment.action_id
+          AND capability.capability = 'acquisition'
+      )
+      AND (
+        entry.display_name ILIKE $1 ESCAPE '\'
+        OR entry.city ILIKE $1 ESCAPE '\'
+      )
+) AS hit
+ORDER BY NOT hit.prefix_match, hit.sort_key, hit.id
+LIMIT $5
+"""
+
 _QUERIES: tuple[tuple[SearchResultType, str], ...] = (
     (SearchResultType.ACTION, _ACTIONS),
     (SearchResultType.ORDER, _ORDERS),
     (SearchResultType.INVOICE, _INVOICES),
+    (SearchResultType.SPONSOR, _SPONSORS),
     (SearchResultType.MEMBER, _MEMBERS),
 )
 
@@ -155,6 +212,7 @@ def _scope_for(criteria: SearchCriteria, kind: SearchResultType) -> ActionScope:
         SearchResultType.ACTION: scope.actions,
         SearchResultType.ORDER: scope.orders,
         SearchResultType.INVOICE: scope.invoices,
+        SearchResultType.SPONSOR: scope.sponsors,
         SearchResultType.MEMBER: scope.members,
     }[kind]
 
@@ -173,6 +231,7 @@ def _hit(kind: SearchResultType, position: int, row: asyncpg.Record) -> SearchHi
         action_name=(
             str(row["action_name"]) if row["action_name"] is not None else None
         ),
+        managed=kind is SearchResultType.SPONSOR and bool(row["managed"]),
     )
 
 
@@ -189,7 +248,12 @@ class AsyncpgSearchRepository(SearchRepository):
             ):
                 for kind, query in _QUERIES:
                     scope = _scope_for(criteria, kind)
-                    if scope.is_empty:
+                    own = (
+                        criteria.scope.own_sponsors
+                        if kind is SearchResultType.SPONSOR
+                        else None
+                    )
+                    if scope.is_empty and (own is None or own.is_empty):
                         continue
                     arguments: list[object] = [
                         criteria.contains,
@@ -200,6 +264,13 @@ class AsyncpgSearchRepository(SearchRepository):
                     ]
                     if kind is SearchResultType.MEMBER:
                         arguments.append(criteria.evaluated_at)
+                    if own is not None:
+                        arguments.extend(
+                            [
+                                sorted(own.action_ids, key=str),
+                                criteria.actor_user_id,
+                            ]
+                        )
                     rows = await connection.fetch(query, *arguments)
                     hits.extend(
                         _hit(kind, position, row) for position, row in enumerate(rows)

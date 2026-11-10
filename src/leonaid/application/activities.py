@@ -34,6 +34,7 @@ from leonaid.domain.calendar import INSTALLATION_TIME_ZONE
 from leonaid.domain.captures import bounded_captured_at
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import ActionRole, IdentityPrincipal
+from leonaid.domain.policies import may_manage_action
 from leonaid.domain.privacy import (
     ContactChannel,
     PrivacyPurpose,
@@ -770,10 +771,9 @@ class AcquisitionActivityService:
 
     @staticmethod
     def _require_charity_admin(actor: IdentityPrincipal, action_id: UUID) -> None:
-        if (
-            actor.account.can_authenticate
-            and ActionRole.CHARITY_ADMIN in actor.roles_for(action_id)
-        ):
+        # The policy of the assignments themselves (authorized_scope): the
+        # action's charity admins and every system admin.
+        if actor.account.can_authenticate and may_manage_action(actor, action_id):
             return
         raise PermissionDenied(
             "charity_admin_required",

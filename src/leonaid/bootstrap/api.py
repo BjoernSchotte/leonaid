@@ -11,6 +11,7 @@ from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.application.order_mails import OrderMailLinkResolver
 from leonaid.adapters.postgres.delivery_board import AsyncpgDeliveryBoardRepository
 from leonaid.adapters.postgres.delivery_tours import AsyncpgDeliveryTourRepository
+from leonaid.adapters.postgres.sponsor_search import SponsorSearchPrivacyContributor
 from leonaid.adapters.postgres.order_cancellation import (
     AsyncpgOrderCancellationRepository,
 )
@@ -26,6 +27,7 @@ from leonaid.modules.surveys.adapters.postgres.survey_exports import (
 )
 from leonaid.modules.surveys.adapters.postgres.surveys import AsyncpgSurveyRepository
 from leonaid.application.object_storage import ObjectStorage
+from leonaid.application.privacy import PrivacySubjectContributor
 from leonaid.modules.surveys.api import SurveyExportService, SurveyService
 from leonaid.bootstrap.registry import (
     ModuleRegistration,
@@ -252,6 +254,6 @@ def build_inbox_service(
     )
 
 
-def privacy_contributors() -> tuple[InboxPrivacyContributor, ...]:
-    """Module data the privacy workflow covers, also for switched-off modules."""
-    return (InboxPrivacyContributor(),)
+def privacy_contributors() -> tuple[PrivacySubjectContributor, ...]:
+    """Data outside the core erasure, also of switched-off modules."""
+    return (InboxPrivacyContributor(), SponsorSearchPrivacyContributor())

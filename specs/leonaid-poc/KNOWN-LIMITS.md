@@ -83,10 +83,30 @@ Punkte sind keine stillschweigenden Produktzusagen.
   das Material-Modul (Upload mit Versionen). Ein allgemeines DMS mit
   Volltextsuche fehlt.
 - listmonk und Canva sind nicht Teil des Core-PoC.
-- Core search (`GET /api/v1/search`) finds actions, orders, invoices and
-  members. It does not find sponsors: they live only in Twenty, and the
-  search does not call the CRM per keystroke. The `sponsor` result type is
-  reserved for a later local sponsor index.
+- Core search (`GET /api/v1/search`) finds actions, orders, invoices,
+  sponsors and members. Sponsors come from a local index
+  (`sponsor_search_entry`: name and city only), not from a CRM call per
+  keystroke. Limits of the sponsor search:
+  - Only parties with an acquisition assignment are found, one hit per
+    assignment the account may see (managers: every assignment of their
+    actions; acquirers: their own that are not handed over). E-mail, phone
+    and street are not in the index and cannot be searched.
+  - The index follows Twenty by polling (no webhook): a name or city changed
+    in Twenty arrives within about 15 minutes; a party deleted in Twenty
+    leaves the index with the nightly full pass (after 03:00 local time).
+    Until then the hit still appears, and its target does not open: the
+    acquisition board refuses an action that has an assignment to a party
+    Twenty no longer has.
+  - The worker loop `sponsor_search_sync` spends at most 30 CRM requests per
+    run and stops on the first 429. The gateway counts its 100 requests a
+    minute per process, so API and worker together can still exceed Twenty's
+    limit. A full pass reads 50 parties per request; a large stock is read
+    over several runs, one minute apart.
+  - After a privacy erasure the entry keeps no name or city, only a marker
+    that stops the sync from copying the name back. Deleting the party in
+    Twenty stays a manual step (see the erasure limits).
+  - The acquisition PWA has no search. An acquirer's hit in the web admin
+    opens the sponsor in the PWA.
 - Orders can be cancelled until they are delivered (`cancelCommitment`):
   they leave the delivery board, an open "Nachliefern" task closes and an
   issued, unpaid invoice is cancelled under ADR-0009 (status `cancelled`,

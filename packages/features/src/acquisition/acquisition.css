@@ -303,6 +303,37 @@
   font-weight: 500;
 }
 
+/* The sponsor name opens the assignment's detail. */
+.acq-admin-open {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: none;
+  font: inherit;
+  font-weight: 720;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong, var(--border));
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.acq-admin-open:hover {
+  text-decoration-color: currentcolor;
+}
+
+/* The row whose detail is open (a search hit lands here). */
+.acq-admin-table-wrap tbody tr[aria-current="true"] {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.acq-admin-detail {
+  display: grid;
+  gap: 1.25rem;
+}
+
 .acq-admin-assignees,
 .acq-admin-due {
   display: inline-flex;

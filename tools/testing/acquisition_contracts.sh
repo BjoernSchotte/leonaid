@@ -13,9 +13,12 @@ if [ "$#" -eq 0 ]; then
   # matching and activities use up that budget (activities then waits), and
   # a public order must finish within 8 s. It also needs the Golden Freie
   # Firma still unassigned (assignments assigns it).
+  # sponsor_search last: it ends by spending Twenty's whole minute quota
+  # to prove the stop on a real 429, then waits until the quota is back.
   set -- tools/activity_feed/contract.py tools/matching/contract.py \
     tools/assignments/contract.py tools/activities/contract.py \
-    tools/actions/contract.py tools/templates/contract.py
+    tools/actions/contract.py tools/templates/contract.py \
+    tools/sponsor_search/contract.py
 fi
 if [ -z "${LEONAID_TEST_STACK:-}" ]; then
   # A borrowed shared stack owns every Docker resource of this run.
