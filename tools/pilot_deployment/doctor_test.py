@@ -105,6 +105,50 @@ def main() -> None:
             ),
         )
 
+        # Web Push is optional; a key needs a real contact (ADR-0017).
+        for label, key, value in (
+            (
+                "VAPID subject of the template",
+                "LEONAID_VAPID_SUBJECT",
+                "mailto:operations@example.org",
+            ),
+            (
+                "VAPID key placeholder",
+                "LEONAID_VAPID_PRIVATE_KEY",
+                "__RANDOM_P256_PRIVATE_KEY__",
+            ),
+            (
+                "VAPID key is no P-256 scalar",
+                "LEONAID_VAPID_PRIVATE_KEY",
+                values["LEONAID_SECRET_KEY"],
+            ),
+        ):
+            push_values = dict(values)
+            push_values[key] = value
+            write_environment(environment_path, push_values)
+            rejected(
+                label,
+                lambda push_values=push_values: validate_environment(
+                    push_values,
+                    root=root,
+                    env_file=environment_path,
+                    compose_config=compose_config,
+                    expected_release_commit=expected_commit,
+                ),
+            )
+        without_push = dict(values)
+        without_push["LEONAID_VAPID_PRIVATE_KEY"] = ""
+        without_push["LEONAID_VAPID_SUBJECT"] = ""
+        write_environment(environment_path, without_push)
+        validate_environment(
+            without_push,
+            root=root,
+            env_file=environment_path,
+            compose_config=compose_config,
+            expected_release_commit=expected_commit,
+        )
+        write_environment(environment_path, values)
+
         wrong_commit = "f" * 40
         rejected(
             "wrong release commit",

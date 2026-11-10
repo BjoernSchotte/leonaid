@@ -76,6 +76,59 @@ def main() -> None:
     )
     mutations.append(("default secret", changed))
 
+    # Web Push (ADR-0017): the key and the contact, the same in API and worker.
+    for label, service, key, value in (
+        (
+            "VAPID key placeholder",
+            "api",
+            "LEONAID_VAPID_PRIVATE_KEY",
+            "__RANDOM_P256_PRIVATE_KEY__",
+        ),
+        ("VAPID key is no P-256 scalar", "api", "LEONAID_VAPID_PRIVATE_KEY", "A" * 43),
+        (
+            "worker signs with another VAPID key",
+            "worker",
+            "LEONAID_VAPID_PRIVATE_KEY",
+            "q1dXpw3UpT5VOmu_cf_v6ih07Aems3njxI-JWgLcM94",
+        ),
+        ("worker without the VAPID key", "worker", "LEONAID_VAPID_PRIVATE_KEY", ""),
+        (
+            "VAPID subject of the template",
+            "api",
+            "LEONAID_VAPID_SUBJECT",
+            "mailto:operations@example.org",
+        ),
+        (
+            "VAPID subject .invalid",
+            "api",
+            "LEONAID_VAPID_SUBJECT",
+            "mailto:push@leonaid.invalid",
+        ),
+        ("VAPID subject missing", "api", "LEONAID_VAPID_SUBJECT", ""),
+        (
+            "VAPID subject without a scheme",
+            "api",
+            "LEONAID_VAPID_SUBJECT",
+            "betrieb@leonaid.org",
+        ),
+        (
+            "worker names another VAPID subject",
+            "worker",
+            "LEONAID_VAPID_SUBJECT",
+            "mailto:other@leonaid.org",
+        ),
+    ):
+        changed = copy.deepcopy(config)
+        changed["services"][service]["environment"][key] = value
+        mutations.append((label, changed))
+
+    # Without the key in both services push is "not configured": allowed.
+    unconfigured = copy.deepcopy(config)
+    for service in ("api", "worker"):
+        for key in ("LEONAID_VAPID_PRIVATE_KEY", "LEONAID_VAPID_SUBJECT"):
+            unconfigured["services"][service]["environment"][key] = ""
+    validate(unconfigured)
+
     changed = copy.deepcopy(config)
     changed["services"]["api"]["volumes"].append(
         {

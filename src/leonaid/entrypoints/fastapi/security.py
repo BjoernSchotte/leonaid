@@ -112,6 +112,12 @@ RATE_LIMITS: Final = {
         10,
         timedelta(minutes=10),
     ),
+    # Each test push is a request to a browser vendor's push service.
+    ("POST", "/api/v1/push/test"): RateLimitPolicy(
+        "push.test",
+        5,
+        timedelta(minutes=10),
+    ),
     ("POST", "/api/v1/email-changes/confirm"): RateLimitPolicy(
         "email-change.confirm",
         10,

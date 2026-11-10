@@ -10,7 +10,8 @@ services:
       - ../../.local/dev/caddy.d:/etc/caddy/local.d:ro
       - ../../.local/dev/static:/srv/local-static:ro
   # The dev worker geocodes delivery addresses against the public Nominatim
-  # (specs/krapfentaxi-touren §8.2, D8): a dev-only egress network, like the
+  # (specs/krapfentaxi-touren §8.2, D8) and sends Web Push to the browser
+  # vendors' push services (ADR-0017): a dev-only egress network, like the
   # pilot's `mail-egress`. Test stacks keep their internal-only networks.
   worker:
     networks:

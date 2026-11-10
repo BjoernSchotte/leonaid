@@ -276,11 +276,12 @@ def test_worker_registers_every_existing_handler_once() -> None:
         "actions",
         "invoicing",
         "mail",
+        "push",
     ]
     assert collect_handlers(modules) == {}
     assert [
         loop.name for loop in background_loops("postgresql://unused", frozenset())
-    ] == ["survey_sweep"]
+    ] == ["survey_sweep", "push_follow_ups"]
 
 
 def test_worker_handler_set_is_unchanged() -> None:
@@ -305,6 +306,7 @@ def test_worker_handler_set_is_unchanged() -> None:
         "mail.send.v1",
         "order.cancellation.mail.v1",
         "order.confirmation.mail.v1",
+        "push.notification.v1",
         "survey.delete.v1",
         "survey.export.render.v1",
         "survey.invitation.send.v1",
@@ -369,7 +371,10 @@ def test_switched_off_module_has_no_routes_navigation_or_loops(
         "inbox",
     }
     assert any(path.startswith("/api/v1/task") for path in paths)
-    assert background_loops("postgresql://unused", off) == ()
+    # Push is core: its loop runs whatever modules are switched off.
+    assert [loop.name for loop in background_loops("postgresql://unused", off)] == [
+        "push_follow_ups"
+    ]
     assert module_switch_problems(off) == []
     assert module_switch_problems(frozenset({"mail"})) == [
         "LEONAID_DISABLED_MODULES:Module cannot be switched off: mail"

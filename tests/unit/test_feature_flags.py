@@ -135,9 +135,13 @@ def test_offline_queue_flag_ships_off_and_matches_transport_and_schema() -> None
         Path(__file__).resolve().parents[2]
         / "migrations/versions/0057_pwa_offline_queue_flag.py"
     ).read_text(encoding="utf-8")
-    for key in FeatureFlagKey:
-        if key is not FeatureFlagKey.DELIVERY_TOURS:
-            assert f"'{key.value}'" in migration
+    # The keys that existed with 0057; later flags widen the check again.
+    for key in (
+        FeatureFlagKey.SYSTEM_STATUS_PANEL,
+        FeatureFlagKey.PREVIEW_NOTICE,
+        FeatureFlagKey.PWA_OFFLINE_QUEUE,
+    ):
+        assert f"'{key.value}'" in migration
 
 
 def test_delivery_tours_flag_ships_off_and_matches_transport_and_schema() -> None:
@@ -163,7 +167,41 @@ def test_delivery_tours_flag_ships_off_and_matches_transport_and_schema() -> Non
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    for key in FeatureFlagKey:
-        assert f"'{key.value}'" in module.NEW_KEYS
+    assert "'delivery.tours'" in module.NEW_KEYS
     assert "'delivery.tours'" not in module.OLD_KEYS
     assert "'delivery.tours', false, 1" in inspect.getsource(module.upgrade)
+
+
+def test_push_flag_ships_off_and_matches_transport_and_schema() -> None:
+    """specs/mails-documents-donations-push §10: push starts off (0062).
+
+    0062 is the newest flag migration, so its key check must know every
+    key of the catalog; a later flag moves that assertion to its migration.
+    """
+    from pathlib import Path
+    from typing import get_args
+
+    from leonaid.entrypoints.fastapi.schemas import FeatureFlagKeyValue
+
+    definition = FEATURE_FLAG_DEFINITIONS[FeatureFlagKey.PWA_PUSH]
+    assert definition.key.value == "pwa.push"
+    assert definition.default_enabled is False
+    assert definition.client_safe is True
+    assert "pwa.push" in get_args(FeatureFlagKeyValue)
+    import importlib.util
+    import inspect
+
+    path = Path(__file__).resolve().parents[2] / "migrations/versions/0062_pwa_push.py"
+    spec = importlib.util.spec_from_file_location("migration_0062", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    for key in FeatureFlagKey:
+        assert f"'{key.value}'" in module.NEW_KEYS
+    assert "'pwa.push'" not in module.OLD_KEYS
+    assert "'pwa.push', false, 1" in inspect.getsource(module.upgrade)
+    # The kinds of the schema are the kinds of the domain.
+    from leonaid.domain.push import PushKind
+
+    for kind in PushKind:
+        assert f"'{kind.value}'" in module.KINDS

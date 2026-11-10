@@ -19,6 +19,7 @@ from leonaid.adapters.postgres.delivery import (
 )
 
 from leonaid.adapters.postgres.order_mails import insert_order_mail_event
+from leonaid.adapters.postgres.push import enqueue_push
 from leonaid.application.errors import Conflict, RateLimited, ResourceNotFound
 from leonaid.application.order_mails import (
     OrderMailKind,
@@ -39,6 +40,7 @@ from leonaid.domain.action_templates import (
     OfferingUnit,
     OrderFormConfiguration,
 )
+from leonaid.domain.push import PushKind
 from leonaid.domain.commitments import (
     BuyerSnapshot,
     Commitment,
@@ -541,6 +543,13 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
                 VALUES ($1, $2)
                 """,
                 [(activity_id, user_id) for user_id in recipient_ids],
+            )
+            # A push for the new entry in "Neues", for members who asked.
+            await enqueue_push(
+                connection,
+                user_ids=recipient_ids,
+                kind=PushKind.FEED,
+                occurred_at=occurred_at,
             )
         await connection.execute(
             """

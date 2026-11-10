@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -107,6 +108,12 @@ def environment(
             "__GENERATE_PASSWORD_32__": value[:32],
             "__GENERATE_IDENTIFIER_20__": value[:20].upper(),
             "__GENERATE_EMAIL__": "ci-fixture@leonaid.invalid",
+            # The digest as a P-256 scalar (a public test key, like the rest).
+            "__GENERATE_P256_PRIVATE_KEY__": base64.urlsafe_b64encode(
+                bytes.fromhex(value)
+            )
+            .decode()
+            .rstrip("="),
             # Left unreplaced (and rejected below) for any other key.
             "__HOST_PORT__": str(ports.get(name, "__HOST_PORT__")),
             "__COMPOSE_PROJECT__": compose_project,

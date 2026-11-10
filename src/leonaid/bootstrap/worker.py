@@ -7,12 +7,15 @@ duplicate event types fail at startup.
 
 from __future__ import annotations
 
+import asyncio
 import os
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import asyncpg
+import httpx
 from pydantic import SecretStr
 
 from leonaid.adapters.feature_flags.openfeature import (
@@ -40,9 +43,11 @@ from leonaid.adapters.postgres.legal_configuration import (
 from leonaid.adapters.postgres.order_mails import AsyncpgOrderMailReader
 from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
 from leonaid.adapters.postgres.pool import create_pool
+from leonaid.adapters.postgres.push import AsyncpgPushRepository
 from leonaid.adapters.storage import S3ObjectStorage
 from leonaid.adapters.twenty.gateway import TwentyCrmGateway, TwentyGatewaySettings
 from leonaid.adapters.typst import TypstInvoiceRenderer
+from leonaid.adapters.web_push import WebPushSender
 from leonaid.application.delivery_geo import GeocodingJob
 from leonaid.application.documents import InvoiceDocumentStorageHandler
 from leonaid.application.feature_flags import FeatureFlagService
@@ -54,6 +59,7 @@ from leonaid.application.order_mails import (
     OrderMailKind,
 )
 from leonaid.application.outbox import OutboxEventHandler, OutboxWorker
+from leonaid.application.push import FollowUpPushJob, PushNotificationHandler
 from leonaid.bootstrap.registry import (
     ModuleRegistration,
     RegistrationError,
@@ -64,10 +70,13 @@ from leonaid.bootstrap.registry import (
 )
 from leonaid.configuration import (
     MapSettings,
+    PushSettings,
     load_mail_transport_settings,
     load_module_settings,
+    load_push_settings,
 )
 from leonaid.domain.outbox import ClaimedOutboxEvent, RetryPolicy
+from leonaid.domain.push import PUSH_EVENT_TYPE, PushEndpointPolicy
 from leonaid.modules.inbox.jobs import (
     INBOX_HANDLER_TIMEOUTS,
     InboxContactHandler,
@@ -77,7 +86,7 @@ from leonaid.modules.surveys.jobs import (
     survey_handlers,
     survey_sweep,
 )
-from leonaid.platform.background import BackgroundLoop
+from leonaid.platform.background import BackgroundLoop, LoopReporter
 
 
 def observe_job(
@@ -111,6 +120,8 @@ class HandlerDependencies:
     mail_transport: SmtpTransport
     payload_secret: str
     crm: CrmGateway | None = None
+    # The HTTP client and keys for Web Push; None without a VAPID key.
+    push: WebPushSender | None = None
 
 
 def worker_modules(
@@ -153,6 +164,12 @@ def worker_modules(
         ModuleRegistration(
             "mail",
             handlers=_mail_handlers(dependencies) if dependencies else {},
+        ),
+        ModuleRegistration(
+            "push",
+            handlers=_push_handlers(dependencies) if dependencies else {},
+            handler_timeouts=PUSH_HANDLER_TIMEOUTS if dependencies else {},
+            background_loops=(push_follow_up_loop(database_url),),
         ),
     )
 
@@ -225,6 +242,88 @@ def _mail_handlers(
             secure_payload=SecureMailPayload(dependencies.payload_secret),
         ),
     }
+
+
+# One push request ends after PUSH_REQUEST_SECONDS; a member with several
+# devices still fits. A second run sends the same count again (the device
+# shows one notification per kind).
+PUSH_REQUEST_SECONDS = 10.0
+PUSH_HANDLER_TIMEOUTS = {PUSH_EVENT_TYPE: 120.0}
+PUSH_FOLLOW_UP_LOOP = "push_follow_ups"
+PUSH_FOLLOW_UP_INTERVAL_SECONDS = 300.0
+
+
+def _flags(pool: asyncpg.Pool[Any]) -> FeatureFlagService:
+    return FeatureFlagService(
+        AsyncpgFeatureFlagRepository(pool),
+        OpenFeatureBooleanEvaluator(LeonAidFeatureProvider()),
+    )
+
+
+def _push_handlers(
+    dependencies: HandlerDependencies,
+) -> dict[str, OutboxEventHandler]:
+    return {
+        PUSH_EVENT_TYPE: PushNotificationHandler(
+            AsyncpgPushRepository(dependencies.pool),
+            dependencies.push,
+            _flags(dependencies.pool),
+        )
+    }
+
+
+def push_sender(
+    settings: PushSettings,
+) -> tuple[WebPushSender, httpx.AsyncClient] | None:
+    """The Web Push sender and its HTTP client; None without a VAPID key.
+
+    The client follows no redirects and reads no proxy settings from the
+    environment: it calls the allowlisted push services and nothing else.
+    """
+    signer = settings.signer()
+    if signer is None:
+        return None
+    client = httpx.AsyncClient(
+        timeout=PUSH_REQUEST_SECONDS, follow_redirects=False, trust_env=False
+    )
+    return WebPushSender(signer, client, PushEndpointPolicy()), client
+
+
+def push_follow_up_loop(database_url: str) -> BackgroundLoop:
+    """Every five minutes: the daily follow-up push (from 08:00 club time)
+    and the removal of devices whose session ended."""
+
+    async def run(report: LoopReporter) -> None:
+        while True:
+            pool = None
+            try:
+                pool = await create_pool(database_url, maximum_size=1)
+                job = FollowUpPushJob(
+                    AsyncpgPushRepository(pool),
+                    _flags(pool),
+                    configured=load_push_settings().configured,
+                )
+                while True:
+                    asked = await job.run_once(now=datetime.now(timezone.utc))
+                    report.succeeded()
+                    if asked:
+                        print(
+                            structured_event("worker.push.follow_ups", members=asked),
+                            flush=True,
+                        )
+                    await asyncio.sleep(PUSH_FOLLOW_UP_INTERVAL_SECONDS)
+            except Exception as error:
+                # Logged by type and location only, never with row data.
+                await asyncio.sleep(report.failed(error))
+            finally:
+                if pool is not None:
+                    await pool.close()
+
+    return BackgroundLoop(
+        PUSH_FOLLOW_UP_LOOP,
+        stall_after_seconds=PUSH_FOLLOW_UP_INTERVAL_SECONDS * 3,
+        run=run,
+    )
 
 
 def background_loops(
@@ -318,6 +417,17 @@ async def build_worker(
     )
     pool = await create_pool(database_url, maximum_size=5)
     crm = crm_gateway_from_environment()
+    push = push_sender(load_push_settings())
+    closers: list[Callable[[], Awaitable[None]]] = []
+    if crm is not None:
+        closers.append(crm.close)
+    if push is not None:
+        closers.append(push[1].aclose)
+
+    async def close() -> None:
+        for closer in closers:
+            await closer()
+
     all_modules = worker_modules(
         database_url,
         HandlerDependencies(
@@ -326,6 +436,7 @@ async def build_worker(
             mail_transport=mail_transport_from_environment(),
             payload_secret=os.environ["LEONAID_SESSION_ENCRYPTION_KEY"],
             crm=crm,
+            push=push[0] if push is not None else None,
         ),
     )
     modules, parked = split_enabled(all_modules, switched_off)
@@ -351,7 +462,7 @@ async def build_worker(
             maximum_delay=timedelta(minutes=15),
         ),
         observer=observe_job,
-        on_close=crm.close if crm is not None else None,
+        on_close=close if closers else None,
     )
     return pool, queue, worker
 
@@ -362,11 +473,7 @@ def build_geocoding_job(
     """The geocoding job and its HTTP client; the caller closes the client."""
 
     geocoder = NominatimGeocoder(settings.geocoder_url, settings.geocoder_user_agent)
-    flags = FeatureFlagService(
-        AsyncpgFeatureFlagRepository(pool),
-        OpenFeatureBooleanEvaluator(LeonAidFeatureProvider()),
-    )
     return (
-        GeocodingJob(AsyncpgDeliveryGeoRepository(pool), geocoder, flags),
+        GeocodingJob(AsyncpgDeliveryGeoRepository(pool), geocoder, _flags(pool)),
         geocoder,
     )

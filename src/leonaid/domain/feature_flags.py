@@ -16,6 +16,7 @@ class FeatureFlagKey(StrEnum):
     PREVIEW_NOTICE = "admin.preview_notice"
     PWA_OFFLINE_QUEUE = "pwa.offline_queue"
     DELIVERY_TOURS = "delivery.tours"
+    PWA_PUSH = "pwa.push"
 
 
 class FeatureFlagSurface(StrEnum):
@@ -93,6 +94,31 @@ FEATURE_FLAG_CATALOG = (
         effect=(
             "Lieferadressen gehen an den eingestellten Geocoder; Karten "
             "laden Kacheln vom eingestellten Kachel-Server."
+        ),
+        default_enabled=False,
+        client_safe=True,
+    ),
+    # specs/mails-documents-donations-push §10: switched on once the members'
+    # privacy notice has the paragraph on notifications (ADR-0017).
+    FeatureFlagDefinition(
+        key=FeatureFlagKey.PWA_PUSH,
+        title="Benachrichtigungen in der Akquise-App",
+        description=(
+            "Mitglieder können in der Akquise-App unter „Benachrichtigungen“ "
+            "Hinweise auf ihr Gerät einschalten: fällige Wiedervorlagen, neue "
+            "Einträge unter „Neues“, zugewiesene Aufgaben und zugewiesene "
+            "Lieferungen. Jede Art ist aus, bis das Mitglied sie einschaltet. "
+            "Vor dem Einschalten muss der aktive Mitglieder-Datenschutzhinweis "
+            "den Abschnitt zu Benachrichtigungen auf dem Gerät enthalten "
+            "(Rechtliche Angaben), und der Betreiber muss den VAPID-Schlüssel "
+            "gesetzt haben; ohne ihn zeigt die Seite „nicht eingerichtet“."
+        ),
+        effect=(
+            "LeonAid speichert je angemeldetem Gerät die Adresse des "
+            "Benachrichtigungsdienstes (Google, Apple, Mozilla oder Microsoft) "
+            "und sendet darüber verschlüsselte Hinweise ohne Namen, Adressen "
+            "oder Beträge. Ausschalten sendet nichts mehr; die Geräteadressen "
+            "bleiben, bis das Mitglied sie entfernt oder sich abmeldet."
         ),
         default_enabled=False,
         client_safe=True,
