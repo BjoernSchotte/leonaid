@@ -4,9 +4,9 @@ description: Cancel an order that is not delivered yet, with a reason, including
 docId: DOC-P047
 audience: [user]
 diataxis: how-to
-contentRevision: 7
-reviewedRevision: 7
-verifiedAgainst: cab8222f75f02ec4fb0df1e8186127bc609cbc69
+contentRevision: 8
+reviewedRevision: 8
+verifiedAgainst: 44a1e8cd5085ea1ac8be745dfaf7059945f955c2
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -152,8 +152,11 @@ Public orders from before this change keep their long number (`LA-` and 32
 characters). The search of the list finds the order by either.
 
 The section **E-Mails an den Käufer** shows one row per e-mail:
-**Bestellbestätigung** (order confirmation) and, after a cancellation,
-**Stornierung** (cancellation notice). The state is **Gesendet** (sent) with
+**Bestellbestätigung** (order confirmation), for orders with a delivery
+window the **Liefertags-E-Mail** (delivery-day e-mail, when the campaign
+sends it, see
+[Manage delivery windows](/en/user/how-to/manage-delivery-windows/#e-mail-on-the-delivery-day))
+and, after a cancellation, **Stornierung** (cancellation notice). The state is **Gesendet** (sent) with
 date and time, **Wartet** (waiting), **Fehlgeschlagen** (failed), **Nicht
 gesendet** (not sent) or **Nicht fällig** (not due); the reason stands below
 it, for example that the order has no e-mail address, that the campaign has
@@ -168,6 +171,12 @@ the e-mail waits, and whenever LeonAid would not send the e-mail by itself
 either: without an address, with the e-mails switched off, for a draft, and
 for the confirmation of an order that is cancelled, delivered or past its
 window. A confirmation that is sent again states the order as it is today,
-not as it was then. At most ten order e-mails go to one mailbox per hour;
-above that the delivery fails, and you send again later. If LeonAid answers a
-click by saying that the earlier request arrived, no further e-mail went out.
+not as it was then. The delivery-day e-mail is due on the delivery day only:
+from the time the campaign selected until the window ends or the delivery is
+ticked off. Before that the row says **Wird am Liefertag gesendet** (will be
+sent on the delivery day). If the delivery window ends before that time, the
+row says **Keine E-Mail: Das Lieferfenster endet vor der Versandzeit** (no
+e-mail: the delivery window ends before the send time). At most ten order
+e-mails go to one mailbox per hour; above that the delivery fails, and you
+send again later. If LeonAid answers a click by saying that the earlier
+request arrived, no further e-mail went out.

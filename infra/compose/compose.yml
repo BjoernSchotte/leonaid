@@ -358,6 +358,9 @@ services:
       # no egress, so lookups there end as `failed` rows; the dev stack adds
       # one in its local overlay (infra/compose/README.md).
       LEONAID_PUBLIC_BASE_URL: ${LEONAID_ADMIN_BASE_URL:-https://localhost:${LEONAID_HTTPS_PORT:-8443}}
+      # The delivery-day mail links /impressum and /datenschutz of the public
+      # host; the worker queues it and so builds these links itself.
+      LEONAID_SITE_BASE_URL: ${LEONAID_SITE_BASE_URL:-}
     volumes:
       - survey-erasure-archive:/recovery/survey-erasure
     networks:

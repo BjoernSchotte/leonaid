@@ -1259,6 +1259,65 @@ describe("order number and buyer mails in the order pane", () => {
     expect(within(block).queryByRole("button")).toBeNull();
   });
 
+  it.each([
+    ["scheduled", "Wird am Liefertag gesendet."],
+    [
+      "window_before_send_time",
+      "Keine E-Mail: Das Lieferfenster endet vor der Versandzeit.",
+    ],
+    [
+      "switched_off",
+      "Die E-Mail am Liefertag ist in der Aktion ausgeschaltet.",
+    ],
+    ["action_closed", "Die Aktion ist abgeschlossen."],
+  ] as const)(
+    "says for the delivery-day mail why none comes: %s",
+    async (reason, text) => {
+      const { client } = clientWithMails([
+        {
+          canResend: false,
+          kind: "delivery_day",
+          reason,
+          sentAt: null,
+          state: "not_due",
+        },
+      ]);
+      await renderPage("?view=all&open=c1", client);
+      const block = await screen.findByTestId("buyer-mails");
+      await within(block).findByText("Liefertags-E-Mail");
+      expect(block.textContent).toContain("Nicht fällig");
+      expect(block.textContent).toContain(text);
+      expect(block.textContent).not.toContain("Mitglieder erfassen");
+      expect(within(block).queryByRole("button")).toBeNull();
+    },
+  );
+
+  it("offers Senden for a delivery-day mail that is due and not queued yet", async () => {
+    const { client, resendBuyerMail } = clientWithMails([
+      {
+        canResend: true,
+        kind: "delivery_day",
+        reason: "not_requested",
+        sentAt: null,
+        state: "not_due",
+      },
+    ]);
+    await renderPage("?view=all&open=c1", client);
+    const block = await screen.findByTestId("buyer-mails");
+    fireEvent.click(
+      await within(block).findByRole("button", {
+        name: "Liefertags-E-Mail senden",
+      }),
+    );
+    await screen.findByText("Liefertags-E-Mail wird gesendet.");
+    expect(resendBuyerMail).toHaveBeenCalledWith(
+      actionId,
+      "c1",
+      "delivery_day",
+      expect.anything(),
+    );
+  });
+
   it("sends a sent mail again once, with an idempotency key", async () => {
     const { client, listBuyerMails, resendBuyerMail } = clientWithMails([
       {

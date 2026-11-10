@@ -24325,7 +24325,7 @@
     },
     "/api/v1/actions/{action_id}/commitments/{commitment_id}/buyer-mails": {
       "get": {
-        "description": "The mails to the buyer of one order: one entry per kind that applies.\n\nThe confirmation always, the cancellation notice once the order is\ncancelled. Managers only. The kind `delivery_day` is reserved for the\nmail on the delivery day and does not appear yet. For a draft,\n`completion` says whether completing it now sends the confirmation.",
+        "description": "The mails to the buyer of one order: one entry per kind that applies.\n\nThe confirmation always; the mail on the delivery day for an order with\na delivery window, while the action sends it; the cancellation notice\nonce the order is cancelled. Managers only. For a draft, `completion`\nsays whether completing it now sends the confirmation.",
         "operationId": "listBuyerMails",
         "parameters": [
           {
@@ -24429,7 +24429,7 @@
     },
     "/api/v1/actions/{action_id}/commitments/{commitment_id}/buyer-mails/{kind}/resend": {
       "post": {
-        "description": "Send a mail to the buyer, again or for the first time.\n\nAllowed whenever the mail is due and no job of it waits (`canResend`):\nafter it was sent or failed, and when it never went out (never queued,\nor its job ended without a mail). Answers 409 while the mail waits in\nthe queue or is not due (no address, switched off, draft; for a\nconfirmation also a cancelled or delivered order, a delivery window that\nis over, a completed action). The worker applies the limit per mailbox.\nIdempotent per `Idempotency-Key`; `replayed` tells a repeated call.",
+        "description": "Send a mail to the buyer, again or for the first time.\n\nAllowed whenever the mail is due and no job of it waits (`canResend`):\nafter it was sent or failed, and when it never went out (never queued,\nor its job ended without a mail). Answers 409 while the mail waits in\nthe queue or is not due (no address, switched off, draft; for a\nconfirmation also a cancelled or delivered order, a delivery window that\nis over, a completed action; for the delivery-day mail also before the\ndelivery day and its send time). The worker applies the limit per\nmailbox. Idempotent per `Idempotency-Key`; `replayed` tells a repeated\ncall.",
         "operationId": "resendBuyerMail",
         "parameters": [
           {

@@ -4371,10 +4371,10 @@ async def list_buyer_mails(
 ) -> BuyerMailListResponse:
     """The mails to the buyer of one order: one entry per kind that applies.
 
-    The confirmation always, the cancellation notice once the order is
-    cancelled. Managers only. The kind `delivery_day` is reserved for the
-    mail on the delivery day and does not appear yet. For a draft,
-    `completion` says whether completing it now sends the confirmation.
+    The confirmation always; the mail on the delivery day for an order with
+    a delivery window, while the action sends it; the cancellation notice
+    once the order is cancelled. Managers only. For a draft, `completion`
+    says whether completing it now sends the confirmation.
     """
     actor = await identity_service(request).authenticate(session_token(request))
     overview = await buyer_mail_service(request).overview(
@@ -4421,18 +4421,12 @@ async def resend_buyer_mail(
     or its job ended without a mail). Answers 409 while the mail waits in
     the queue or is not due (no address, switched off, draft; for a
     confirmation also a cancelled or delivered order, a delivery window that
-    is over, a completed action). The worker applies the limit per mailbox.
-    Idempotent per `Idempotency-Key`; `replayed` tells a repeated call.
+    is over, a completed action; for the delivery-day mail also before the
+    delivery day and its send time). The worker applies the limit per
+    mailbox. Idempotent per `Idempotency-Key`; `replayed` tells a repeated
+    call.
     """
     actor = await identity_service(request).authenticate(session_token(request))
-    if kind == "delivery_day":
-        # The delivery-day mail comes with stage 2 of the buyer mails; until
-        # then no order has one. Managers learn that, others get the 403.
-        await buyer_mail_service(request).statuses(actor, action_id, commitment_id)
-        raise Conflict(
-            "buyer_mail_not_applicable",
-            "Diese E-Mail gibt es für die Bestellung nicht.",
-        )
     result, replayed = await buyer_mail_service(request).resend(
         actor,
         action_id,

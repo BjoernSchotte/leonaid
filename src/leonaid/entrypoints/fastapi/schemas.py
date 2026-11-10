@@ -1589,9 +1589,6 @@ class CommitmentCancellationResultResponse(TransportModel):
     replayed: bool
 
 
-# "delivery_day" is the mail on the delivery day (stage 2 of the buyer mails,
-# specs/mails-documents-donations-push §6.3). Until that stage ships, the
-# list never returns it and a resend of it answers 409.
 BuyerMailKindValue = Literal["confirmation", "cancellation", "delivery_day"]
 
 

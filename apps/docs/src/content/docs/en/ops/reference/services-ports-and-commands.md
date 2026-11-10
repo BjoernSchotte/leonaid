@@ -4,9 +4,9 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 22
-reviewedRevision: 22
-verifiedAgainst: 6d17bcfaca798bedf39427163d35a7ccd859a66e
+contentRevision: 24
+reviewedRevision: 24
+verifiedAgainst: 7425865669f0e487ad78293e8be3c472ccb69914
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -68,6 +68,30 @@ start with `worker.configuration.invalid`. The metric
 outbox counters under **System › Hintergrundaufgaben** (`/admin/system/jobs`) therefore show completed jobs of the
 retention window only. `docker compose run --rm worker python -m
 leonaid.entrypoints.worker.outbox retention-sweep` runs one sweep by hand.
+
+## E-mail on the delivery day
+
+The worker runs a `delivery_day_mail` loop. Every five minutes it writes one
+job `order.delivery_day.mail.v1` per due order, for campaigns that have the
+**E-Mail am Liefertag** switched on (at most 200 per run; a full batch
+continues after a second). With several workers only one sweeps at a time
+(advisory lock); the others skip the run. The loop sends nothing itself: the
+outbox delivers the mail like every other. The job holds ids and the links to
+`/impressum` and `/datenschutz` only. The worker builds these links itself
+and needs `LEONAID_PUBLIC_BASE_URL` and `LEONAID_SITE_BASE_URL` with the same
+values as the API; the Compose files pass them on, and the pilot contract
+(`tools/pilot_deployment/validate.py`) refuses differing values. Logs hold
+the count only (`worker.delivery_day_mail.queued`); the metric
+`leonaid_worker_delivery_day_mails_queued_total` counts the jobs written, and
+the worker's `/health/ready` reports the loop as `delivery_day_mail`.
+`docker compose run --rm worker python -m leonaid.entrypoints.worker.outbox
+delivery-day-mail-sweep` runs one sweep by hand. Its output names `queued`
+and `busy`; while another worker holds the sweep, `busy` is true and the
+command ends with code 75. The loop does not count such a run as a success
+and asks again after 30 seconds. Delivery-day e-mails leave no dead letter
+for a full mailbox (more than ten order e-mails per hour to one address) and
+none for a window that is over: the job completes, and the order shows the
+e-mail as failed.
 
 ## Notifications of the acquisition app
 
@@ -226,7 +250,6 @@ and `oldestDuePendingAgeSeconds`). Jobs of switched-off modules are left out
 of both values, because they wait on purpose. A growing wait with a running
 worker points to a stuck or overloaded queue.
 
-
 ## Hosts and routes
 
 One route table (`tools/proxy/caddyfiles.py`) generates every Caddyfile:
@@ -235,14 +258,14 @@ One route table (`tools/proxy/caddyfiles.py`) generates every Caddyfile:
 `LEONAID_PROXY_CADDYFILE` selects the file; `./leonaid check` fails when a
 file differs from the table and proves every route against a running Caddy.
 
-| Path                                                    | Admin host (`app.<domain>`)  | Public host (`<domain>`)            |
-| ------------------------------------------------------- | ---------------------------- | ----------------------------------- |
-| `/admin/*`, `/app/*`, `/login`, `/invite`, `/email-change`, `/fresh-login` | served | 308 to the admin host |
-| `/api/*`                                                | full API                     | only `/api/v1/public/*` and `/api/health/*` |
-| `/_emdash/*` (CMS editor)                               | served                       | 404                                 |
-| `/campaigns/*`, `/surveys/*`, aliases, `/archive/*`     | 308 to the public host       | served                              |
-| `/impressum`, `/datenschutz`                            | served                       | served                              |
-| `/`                                                     | 302 to `/admin/`             | public home page                    |
+| Path                                                                       | Admin host (`app.<domain>`) | Public host (`<domain>`)                    |
+| -------------------------------------------------------------------------- | --------------------------- | ------------------------------------------- |
+| `/admin/*`, `/app/*`, `/login`, `/invite`, `/email-change`, `/fresh-login` | served                      | 308 to the admin host                       |
+| `/api/*`                                                                   | full API                    | only `/api/v1/public/*` and `/api/health/*` |
+| `/_emdash/*` (CMS editor)                                                  | served                      | 404                                         |
+| `/campaigns/*`, `/surveys/*`, aliases, `/archive/*`                        | 308 to the public host      | served                                      |
+| `/impressum`, `/datenschutz`                                               | served                      | served                                      |
+| `/`                                                                        | 302 to `/admin/`            | public home page                            |
 
 Every further name in `LEONAID_PUBLIC_DOMAIN_ALIASES` answers 308 to the
 public host with path and query. The session cookie stays on the admin host.
