@@ -160,6 +160,33 @@ describe("TourMap", () => {
     }
   });
 
+  it("says ready only once the pins carry their ids", async () => {
+    // Leaflet builds marker elements when the map loads; their ids come
+    // with the next draw. "Ready" before that let a click find no pin.
+    const seen: boolean[] = [];
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        const canvas = record.target as HTMLElement;
+        if (canvas.getAttribute("data-ready") !== "true") continue;
+        const drawn = [...canvas.querySelectorAll(".tour-pin")].filter(
+          (pin) => !pin.classList.contains("tour-pin--start"),
+        );
+        seen.push(
+          drawn.length === pins.length &&
+            drawn.every((pin) => pin.hasAttribute("data-pin-id")),
+        );
+      }
+    });
+    observer.observe(document.body, {
+      attributeFilter: ["data-ready"],
+      attributes: true,
+      subtree: true,
+    });
+    await renderMap();
+    observer.disconnect();
+    expect(seen).toEqual([true]);
+  });
+
   it("click on pin calls onSelect", async () => {
     const { container, onSelect } = await renderMap();
     const pin = container.querySelector<HTMLElement>('[data-pin-id="b"]');
