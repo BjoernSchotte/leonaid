@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 7
 reviewedRevision: 7
-verifiedAgainst: a69da48553f9a00670e0f809199684a9a8dae282
+verifiedAgainst: f6329086d05f318c74972ad49744ea2ea24f622c
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -136,10 +136,10 @@ E-Mails nennt es den Grund, aus dem keine Bestätigung mehr hinausgeht.
 Anders ist es, wenn eine Bestätigung rechtzeitig angelegt war und LeonAid sie
 erst zu spät senden konnte, zum Beispiel weil der E-Mail-Versand über das
 Lieferfenster hinaus gestört war. Dann hat der Käufer nichts bekommen. Die
-Bestellung zeigt die Bestätigung als **Fehlgeschlagen** mit dem Grund, und
-der System-Admin sieht sie in der Betriebsübersicht bei den fehlgeschlagenen
-E-Mails. Gesendet wird sie nicht mehr; sprich den Käufer bei Bedarf direkt
-an.
+Bestellung zeigt die Bestätigung als **Fehlgeschlagen** mit dem Grund. In
+der Betriebsübersicht steht sie nicht bei den fehlgeschlagenen Aufträgen,
+weil ein erneuter Versuch nichts mehr ändern könnte. Gesendet wird sie nicht
+mehr; sprich den Käufer bei Bedarf direkt an.
 
 Bestellungen, die vor dem Einschalten erfasst wurden, bestätigt LeonAid nicht
 von selbst. Du kannst die Bestätigung in der Bestellung einzeln senden (siehe
