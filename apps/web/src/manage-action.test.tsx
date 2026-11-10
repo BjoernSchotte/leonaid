@@ -323,7 +323,9 @@ describe("action detail: CMS editor link", () => {
   it("links to the editor only when the installation runs the CMS", async () => {
     await renderPage();
     // Without the CMS /_emdash has no upstream: no link instead of a 502.
-    expect(screen.queryByRole("link", { name: "Microsite bearbeiten" })).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: "Microsite bearbeiten" }),
+    ).toBeNull();
     cleanup();
 
     const href = `/_emdash/admin/campaigns/${actionId}`;

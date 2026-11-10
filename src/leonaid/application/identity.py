@@ -518,9 +518,7 @@ def navigation_for(
             NavigationItem("delivery", "Auslieferung", PWA_BASE + "delivery", "pwa")
         )
 
-    if cms and (
-        principal.is_system_admin or ActionRole.CHARITY_ADMIN in action_roles
-    ):
+    if cms and (principal.is_system_admin or ActionRole.CHARITY_ADMIN in action_roles):
         items.append(
             NavigationItem(
                 "microsite",
