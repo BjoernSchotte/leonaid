@@ -30,6 +30,8 @@ class PrivacySubjectContributor(Protocol):
 
     Both calls run on the privacy transaction's connection, so the report and
     the erasure see the same rows and commit together with the core erasure.
+    ``anonymize`` runs before core anonymizes its own rows: the orders and
+    consent records still carry the e-mail address then.
     """
 
     async def references(

@@ -71,7 +71,7 @@ entrypoint alone as proof of migration: both commands must exit with code 0,
 the expected target schema must exist and the business contract must still
 pass unchanged.
 
-## Release note: document series (migration `0062_document_series`)
+## Release note: document series (migration `0063_document_series`)
 
 The migration moves the invoice counter from every action's profile to one
 series per prefix (ADR-0015). Deploy order, as `./leonaid pilot-release` does

@@ -38,7 +38,9 @@ Public Web und eine spätere Tauri-App verwenden den generierten
   Dokumentmetadaten, Zahlungen, Audit und Outbox.
 - Twenty besitzt Firmen und Personen. LeonAid speichert nur stabile
   Twenty-IDs und fachliche Snapshots, wo spätere Änderungen Historie nicht
-  verändern dürfen.
+  verändern dürfen. Einzige Ausnahme: der Suchindex `sponsor_search_entry`
+  mit Name und Ort der Parteien, die eine Akquise-Zuordnung haben
+  (ADR-0003, Nachtrag 2026-11-10).
 - RustFS besitzt ausschließlich Dokumentbytes. Core PostgreSQL hält
   Object-Key, Version, SHA-256, Größe und Fachreferenzen.
 - Rechnungsnummer, Rechnungssnapshot und Outbox-Ereignis entstehen in einer

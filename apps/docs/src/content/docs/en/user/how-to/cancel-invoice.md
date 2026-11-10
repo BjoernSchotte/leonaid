@@ -1,7 +1,7 @@
 ---
 title: Cancel an invoice
 description: Cancel an invoice, find and send the cancellation invoice, and mark a refund as done.
-docId: DOC-P053
+docId: DOC-P054
 audience: [user]
 diataxis: how-to
 contentRevision: 1

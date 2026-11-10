@@ -11,7 +11,11 @@ The gateway implements the domain port from
 - Companies and people stay authoritative in Twenty.
 - LeonAid does not duplicate any CRM party. A `CrmSyncReceipt` links the ID
   of the triggering LeonAid domain object to the Twenty record ID, status and
-  correlation.
+  correlation. The one exception is the sponsor search index
+  (`sponsor_search_entry`, `leonaid.application.sponsor_search`): the name and
+  the city of the parties that have an acquisition assignment, kept in step
+  by the worker with `sponsor_parties_by_id` and
+  `sponsor_parties_changed_since` (one request per call, worker only).
 - Create and update accept only the explicit semantic fields of each data
   type. Arbitrary Twenty payloads are not part of the port.
 - A partial person update sends only the parts of the composite name that are

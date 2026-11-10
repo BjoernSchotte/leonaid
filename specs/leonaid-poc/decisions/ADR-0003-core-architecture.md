@@ -33,3 +33,11 @@ Projektlaufzeiten erforderlich.
 - Externe Systeme bleiben austauschbar und exakt gepinnt.
 - Autorisierung, Audit und Idempotenz gelten identisch für alle Adapter.
 - Durable Effekte laufen nicht über FastAPI-`BackgroundTasks`.
+
+## Nachtrag 2026-11-10: Suchindex der Sponsoren
+
+Der Core hält keine Kopie von CRM-Firmen und -Personen. Einzige Ausnahme ist
+`sponsor_search_entry` (specs/mails-documents-donations-push §9, D-S1): Name
+und Ort der Parteien mit Akquise-Zuordnung, damit die Core-Suche Sponsoren
+ohne CRM-Abfrage pro Tastendruck findet. Twenty bleibt maßgeblich; ein Worker
+gleicht den Index per Polling und nächtlichem Volldurchlauf ab (D-S2).

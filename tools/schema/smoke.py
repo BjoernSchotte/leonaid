@@ -68,6 +68,8 @@ EXPECTED_TABLES = {
     "public_action_alias",
     "site_binding",
     "site_host",
+    "sponsor_search_entry",
+    "sponsor_search_sync",
     "privacy_erasure_case",
     "suppression_entry",
     "task",
@@ -194,7 +196,7 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
             """
         )
         if registered != 2:
-            raise SchemaError("0062 did not register the legacy invoice numbers")
+            raise SchemaError("0063 did not register the legacy invoice numbers")
         invoice_dates = {
             str(row["number"]): (row["issued_on"], row["due_on"])
             for row in await connection.fetch(

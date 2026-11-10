@@ -4,10 +4,10 @@ description: Die Core-, CRM-, Storage- und Frontend-Grenzen hinter LeonAids modu
 docId: DOC-P037
 audience: [dev]
 diataxis: explanation
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
-reviewer: Björn Schotte
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: e2e199217b9b0d23fc0ad225051cfc36fe01daf5
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 Der FastAPI Core besitzt Authentifizierung, Autorisierung und sämtliche
@@ -22,7 +22,11 @@ oder expliziten Datensatz-IDs ab und listen nie eine ganze Sammlung: Core
 speichert an jeder geschriebenen Firma und Person einen normalisierten
 Match-Schlüssel in einem provisionierten Feld, findet Dubletten über eine
 exakte Schlüsselabfrage, und ein idempotentes Reparaturkommando ergänzt
-außerhalb von LeonAid angelegte Datensätze. RustFS hält private Dokumentbytes; Metadaten und Fachbezug liegen
+außerhalb von LeonAid angelegte Datensätze. Die einzige Ausnahme von „keine
+Kontaktkopie“ ist der Suchindex `sponsor_search_entry`: Er hält Name und Ort
+der Firmen und Personen mit Akquise-Zuordnung, damit die Suche Sponsoren ohne
+CRM-Abfrage pro Tastendruck findet; ein Worker gleicht ihn mit Twenty ab.
+RustFS hält private Dokumentbytes; Metadaten und Fachbezug liegen
 im Core. Rendering und Versand verarbeiten transaktional erzeugte
 Outbox-Ereignisse idempotent.
 

@@ -401,11 +401,11 @@ compose run --rm --no-deps --entrypoint alembic api downgrade 0049_window_fully_
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 payment_guard verify-exact
 
-echo "poc021-test: 0062 gives every prefix one series, never below the highest issued number"
+echo "poc021-test: 0063 gives every prefix one series, never below the highest issued number"
 series_parent=$(sed -n 's/^down_revision: str | None = "\(.*\)"$/\1/p' \
-  "$root/migrations/versions/0062_document_series.py")
+  "$root/migrations/versions/0063_document_series.py")
 [ -n "$series_parent" ] || {
-  echo "poc021-test: ERROR: 0062 names no down_revision" >&2
+  echo "poc021-test: ERROR: 0063 names no down_revision" >&2
   exit 1
 }
 series_sql() {
@@ -468,12 +468,12 @@ SQL
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 series=$(printf '%s\n' "SELECT string_agg(prefix || '=' || next_number || '/' || width, ',' ORDER BY prefix) FROM document_series WHERE kind = 'invoice';" | series_sql)
 if [ "$series" != "LEGACY-=8/4,ZZ-=5/4" ]; then
-  echo "poc021-test: ERROR: 0062 migrated the counters wrongly: $series" >&2
+  echo "poc021-test: ERROR: 0063 migrated the counters wrongly: $series" >&2
   exit 1
 fi
 registered=$(printf '%s\n' "SELECT count(*) FROM invoice WHERE NOT EXISTS (SELECT 1 FROM document_number WHERE document_number.number = invoice.number AND kind = 'invoice');" | series_sql)
 if [ "$registered" != "0" ]; then
-  echo "poc021-test: ERROR: 0062 left $registered invoice numbers unregistered" >&2
+  echo "poc021-test: ERROR: 0063 left $registered invoice numbers unregistered" >&2
   exit 1
 fi
 # The downgrade refuses to drop an issued cancellation invoice and gives the
@@ -496,10 +496,10 @@ if output=$(compose run --rm --no-deps --entrypoint alembic api \
   exit 1
 fi
 case "$output" in
-  *"0062 downgrade refused"*) ;;
+  *"0063 downgrade refused"*) ;;
   *)
     printf '%s\n' "$output" >&2
-    echo "poc021-test: ERROR: 0062 downgrade failed for another reason" >&2
+    echo "poc021-test: ERROR: 0063 downgrade failed for another reason" >&2
     exit 1
     ;;
 esac
@@ -507,13 +507,13 @@ printf '%s\n' "DELETE FROM invoice_cancellation WHERE id = '97620000-0000-4000-8
 compose run --rm --no-deps --entrypoint alembic api downgrade "$series_parent"
 counters=$(printf '%s\n' "SELECT string_agg(number_prefix || '=' || next_number, ',' ORDER BY id) FROM invoice_profile;" | series_sql)
 if [ "$counters" != "LEGACY-=8,LEGACY-=8,ZZ-=5" ]; then
-  echo "poc021-test: ERROR: 0062 downgrade lost the counters: $counters" >&2
+  echo "poc021-test: ERROR: 0063 downgrade lost the counters: $counters" >&2
   exit 1
 fi
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 series=$(printf '%s\n' "SELECT string_agg(prefix || '=' || next_number, ',' ORDER BY prefix) FROM document_series WHERE kind = 'invoice';" | series_sql)
 if [ "$series" != "LEGACY-=8,ZZ-=5" ]; then
-  echo "poc021-test: ERROR: 0062 did not survive downgrade and upgrade: $series" >&2
+  echo "poc021-test: ERROR: 0063 did not survive downgrade and upgrade: $series" >&2
   exit 1
 fi
 

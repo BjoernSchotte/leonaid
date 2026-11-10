@@ -1,7 +1,7 @@
 ---
 title: Rechnung stornieren
 description: Eine Rechnung stornieren, die Stornorechnung finden und senden und eine Erstattung als erledigt vermerken.
-docId: DOC-P053
+docId: DOC-P054
 audience: [user]
 diataxis: how-to
 contentRevision: 1

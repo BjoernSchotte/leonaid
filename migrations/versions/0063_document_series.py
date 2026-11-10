@@ -1,7 +1,7 @@
 """Document series for the installation and the cancellation invoice.
 
-Revision ID: 0062_document_series
-Revises: 0061_delivery_geo_regeocode
+Revision ID: 0063_document_series
+Revises: 0062_sponsor_search_entry
 
 ADR-0015. Until now every action counted its own invoice numbers
 (`invoice_profile.next_number`) while the prefix was one for the installation
@@ -32,8 +32,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0062_document_series"
-down_revision: str | None = "0061_delivery_geo_regeocode"
+revision: str = "0063_document_series"
+down_revision: str | None = "0062_sponsor_search_entry"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 DATA_MIGRATION_REFERENCE = (
@@ -332,7 +332,7 @@ def downgrade() -> None:
                 WHERE number IS NOT NULL OR refund_settled_on IS NOT NULL
             ) OR EXISTS (SELECT 1 FROM invoice_refund_withdrawal) THEN
                 RAISE EXCEPTION
-                    '0062 downgrade refused: issued cancellation invoices or '
+                    '0063 downgrade refused: issued cancellation invoices or '
                     'recorded refunds exist and the old schema cannot hold them';
             END IF;
         END;
