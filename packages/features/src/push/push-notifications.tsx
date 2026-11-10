@@ -62,7 +62,15 @@ const QUERY_KEY = ["push-configuration"] as const;
 type DeviceState =
   | { readonly status: "checking" }
   | { readonly status: "off" }
-  | { readonly status: "on"; readonly id: string };
+  | {
+      readonly status: "on";
+      /**
+       * Core's id of the device. null: the browser is subscribed, but Core
+       * took no registration just now (too many in the last hour), so the
+       * page cannot name the device to Core until later.
+       */
+      readonly id: string | null;
+    };
 
 function errorCode(error: unknown): string | null {
   return error instanceof ApiError ? error.detail.code : null;
@@ -117,8 +125,15 @@ export function PushNotificationsPage({
           ? (await client.savePushSubscription(subscription)).id
           : null;
         if (live) setDeviceState(id ? { id, status: "on" } : { status: "off" });
-      } catch {
-        if (live) setDeviceState({ status: "off" });
+      } catch (error) {
+        if (!live) return;
+        // Past the limit of registrations the device is still subscribed:
+        // say so, instead of showing it as off for an hour.
+        setDeviceState(
+          error instanceof ApiError && error.status === 429
+            ? { id: null, status: "on" }
+            : { status: "off" },
+        );
       }
     })();
     return () => {
@@ -205,6 +220,37 @@ export function PushNotificationsPage({
         tone: "success",
       }),
   });
+
+  // A plain function, not a component: the buttons keep their focus when
+  // the page renders again.
+  const deviceActions = (deviceId: string) => (
+    <>
+      <p>
+        Benachrichtigungen sind auf diesem Gerät eingeschaltet. Mit dem Test
+        siehst du, ob sie ankommen.
+      </p>
+      <div className="push-actions">
+        <Button
+          data-testid="push-test"
+          disabled={test.isPending}
+          icon={Send}
+          onClick={() => test.mutate(deviceId)}
+          variant="secondary"
+        >
+          Test senden
+        </Button>
+        <Button
+          data-testid="push-switch-off"
+          disabled={switchOff.isPending}
+          icon={BellOff}
+          onClick={() => switchOff.mutate(deviceId)}
+          variant="ghost"
+        >
+          Auf diesem Gerät ausschalten
+        </Button>
+      </div>
+    </>
+  );
 
   return (
     <div className="push" data-testid="push-page">
@@ -338,30 +384,17 @@ export function PushNotificationsPage({
           </section>
           <section className="panel panel-pad push-step">
             <h2>Dieses Gerät</h2>
-            <p>
-              Benachrichtigungen sind auf diesem Gerät eingeschaltet. Mit dem
-              Test siehst du, ob sie ankommen.
-            </p>
-            <div className="push-actions">
-              <Button
-                data-testid="push-test"
-                disabled={test.isPending}
-                icon={Send}
-                onClick={() => test.mutate(deviceState.id)}
-                variant="secondary"
-              >
-                Test senden
-              </Button>
-              <Button
-                data-testid="push-switch-off"
-                disabled={switchOff.isPending}
-                icon={BellOff}
-                onClick={() => switchOff.mutate(deviceState.id)}
-                variant="ghost"
-              >
-                Auf diesem Gerät ausschalten
-              </Button>
-            </div>
+            {deviceState.id === null ? (
+              <p data-testid="push-busy">
+                Benachrichtigungen sind auf diesem Gerät eingeschaltet. LeonAid
+                konnte die Anmeldung des Geräts gerade nicht erneuern, weil es
+                in der letzten Stunde zu viele Versuche gab. Den Test und das
+                Ausschalten findest du hier wieder, wenn du es in etwa einer
+                Stunde noch einmal versuchst.
+              </p>
+            ) : (
+              deviceActions(deviceState.id)
+            )}
           </section>
         </>
       )}

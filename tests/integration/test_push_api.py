@@ -670,7 +670,7 @@ class Proof:
         return list(
             await self.connection.fetch(
                 "SELECT id, endpoint, session_id, vapid_public_key, "
-                "last_success_at, failure_count, failing_since "
+                "last_success_at, failure_count, failing_since, failure_days "
                 "FROM push_subscription WHERE user_id = $1 "
                 "ORDER BY created_at, id",
                 self.data.users[name],
@@ -1032,7 +1032,7 @@ class Proof:
         assert self.undelivered == [
             {
                 "kind": "feed",
-                "host": "timeout",
+                "host": "",
                 "status": None,
                 "outcome": "unavailable",
                 "attempt": 0,
@@ -1046,6 +1046,29 @@ class Proof:
         assert [item.path for item in self.receiver.take()] == [tablet.path]
         # A delivery ends the device's row of failures.
         assert all(row["failure_count"] == 0 for row in await self.devices("acquirer"))
+
+        # No answer at all, three tries long (our network is down, or the
+        # service hangs): logged, but never counted against the device.
+        self.undelivered.clear()
+        self.receiver.delays = {phone.path: 1.0, tablet.path: 1.0}
+        self.handler = self.worker_handler(job_seconds=0.2)
+        self.clock.advance(PUSH_THROTTLE)
+        await self.order_arrives()
+        for delay in (timedelta(0), *PUSH_RETRY_DELAYS):
+            self.clock.advance(delay)
+            assert await self.run_all("acquirer") == 1
+        self.handler = self.worker_handler()
+        self.receiver.delays = {}
+        time.sleep(1.2)
+        self.receiver.take()
+        assert await self.jobs("acquirer") == []
+        assert [
+            (item["status"], item["device_removed"]) for item in self.undelivered
+        ] == [(None, False)] * 6
+        assert [
+            (row["failure_count"], row["failing_since"], row["failure_days"])
+            for row in await self.devices("acquirer")
+        ] == [(0, None, 0)] * 2
 
         # The push service refuses the message (a wrong key or subject):
         # logged with host and status, counted, not tried again.
@@ -1066,21 +1089,45 @@ class Proof:
                 "device_removed": False,
             }
         ]
-        # After five such messages over three days the device is removed.
-        await self.connection.execute(
-            "UPDATE push_subscription SET failure_count = $2, failing_since = $3 "
-            "WHERE id = $1",
-            UUID(tablet_id),
-            DEVICE_FAILURE_LIMIT - 1,
-            self.clock.now - DEVICE_FAILURE_PERIOD,
-        )
-        self.receiver.answers = {tablet.path: [401]}
-        self.clock.advance(PUSH_THROTTLE)
-        await self.order_arrives()
-        assert await self.run_all("acquirer") == 1
-        self.receiver.take()
-        assert self.undelivered[-1]["status"] == 401
-        assert self.undelivered[-1]["device_removed"] is True
+        (row,) = [
+            row for row in await self.devices("acquirer") if str(row["id"]) == tablet_id
+        ]
+        assert (row["failure_count"], row["failure_days"]) == (1, 1)
+
+        async def earlier_failures(days: int, last_on: timedelta) -> None:
+            """Four failures before, the first three days ago, on ``days``
+            different days, the last of them ``last_on`` ago."""
+            await self.connection.execute(
+                "UPDATE push_subscription SET failure_count = $2, "
+                "failing_since = $3, failure_days = $4, last_failure_on = $5 "
+                "WHERE id = $1",
+                UUID(tablet_id),
+                DEVICE_FAILURE_LIMIT - 1,
+                self.clock.now - DEVICE_FAILURE_PERIOD - timedelta(hours=1),
+                days,
+                (self.clock.now - last_on).astimezone(BERLIN).date(),
+            )
+
+        async def refused_again() -> dict[str, Any]:
+            self.receiver.answers = {tablet.path: [401]}
+            self.clock.advance(PUSH_THROTTLE)
+            await self.order_arrives()
+            assert await self.run_all("acquirer") == 1
+            self.receiver.take()
+            assert self.undelivered[-1]["status"] == 401
+            return self.undelivered[-1]
+
+        # Two short outages days apart (one failure then, the rest today):
+        # five failures, the first long ago, but on two days only. It stays.
+        await earlier_failures(2, timedelta(0))
+        assert (await refused_again())["device_removed"] is False
+        (row,) = [
+            row for row in await self.devices("acquirer") if str(row["id"]) == tablet_id
+        ]
+        assert (row["failure_count"], row["failure_days"]) == (5, 2)
+        # Five failures on three different days: the device is removed.
+        await earlier_failures(2, timedelta(days=1))
+        assert (await refused_again())["device_removed"] is True
         assert [row["endpoint"] for row in await self.devices("acquirer")] == [
             phone.endpoint
         ]

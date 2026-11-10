@@ -12,11 +12,14 @@ from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.push import (
     PUSH_THROTTLE,
     TEST_KIND,
+    DEVICE_FAILURE_DAYS,
     DEVICE_FAILURE_LIMIT,
     DEVICE_FAILURE_PERIOD,
     DispatchState,
     PushKind,
     PushMessage,
+    PushOutcome,
+    PushResult,
     device_is_dead,
     follow_up_push_due,
     plan_dispatch,
@@ -164,14 +167,33 @@ def test_follow_ups_are_announced_from_8_club_time(moment: datetime, due: bool) 
     assert follow_up_push_due(moment) is due
 
 
-def test_a_device_is_removed_after_many_failures_over_days_only() -> None:
-    """Five messages in a row that did not arrive, the first three days ago."""
+def test_a_device_is_removed_after_failures_on_several_days_only() -> None:
+    """Five messages in a row the push service did not take, on at least
+    three different days, the first at least three days ago."""
     since = NOW - DEVICE_FAILURE_PERIOD
-    assert (DEVICE_FAILURE_LIMIT, DEVICE_FAILURE_PERIOD) == (5, timedelta(days=3))
-    assert device_is_dead(5, since, now=NOW) is True
-    assert device_is_dead(50, since, now=NOW) is True
-    # A phone that was off for a weekend: failures, but not for long enough.
-    assert device_is_dead(50, NOW - timedelta(days=2, hours=23), now=NOW) is False
-    # One old failure and little traffic since: not often enough.
-    assert device_is_dead(4, NOW - timedelta(days=30), now=NOW) is False
-    assert device_is_dead(0, None, now=NOW) is False
+    assert (DEVICE_FAILURE_LIMIT, DEVICE_FAILURE_DAYS, DEVICE_FAILURE_PERIOD) == (
+        5,
+        3,
+        timedelta(days=3),
+    )
+    assert device_is_dead(5, since, 3, now=NOW) is True
+    assert device_is_dead(50, since, 9, now=NOW) is True
+    # Two short outages days apart: one failure on Monday, four on Friday.
+    assert device_is_dead(5, NOW - timedelta(days=4), 2, now=NOW) is False
+    # Many failures within one long weekend: not for long enough.
+    assert device_is_dead(50, NOW - timedelta(days=2, hours=23), 3, now=NOW) is False
+    # Little traffic: not often enough.
+    assert device_is_dead(4, NOW - timedelta(days=30), 4, now=NOW) is False
+    assert device_is_dead(0, None, 0, now=NOW) is False
+
+
+def test_only_an_answer_of_the_push_service_blames_the_device() -> None:
+    assert PushResult(PushOutcome.REJECTED, "fcm.googleapis.com", 403).blames_device
+    assert PushResult(PushOutcome.UNAVAILABLE, "fcm.googleapis.com", 503).blames_device
+    # No answer at all (no route, DNS, timeout) is our side.
+    assert not PushResult(PushOutcome.UNAVAILABLE, "fcm.googleapis.com").blames_device
+    assert not PushResult(PushOutcome.UNAVAILABLE, "").blames_device
+    assert not PushResult(
+        PushOutcome.DELIVERED, "fcm.googleapis.com", 201
+    ).blames_device
+    assert not PushResult(PushOutcome.GONE, "fcm.googleapis.com", 410).blames_device

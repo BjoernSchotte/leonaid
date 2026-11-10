@@ -121,9 +121,12 @@ has at most 10 devices. The row is deleted:
   forget it;
 - within minutes after the session expired;
 - when the push service answers 404 or 410;
-- when 5 messages in a row did not reach it and the first of them is at
-  least 3 days ago (`failure_count`, `failing_since`; a delivery resets
-  both);
+- when the push service did not take 5 messages in a row for it, on at
+  least 3 different club days, the first at least 3 days ago
+  (`failure_count`, `failure_days`, `failing_since`; a delivery resets
+  them). Only an answer of the push service counts. When LeonAid got no
+  answer at all (no route, DNS, timeout), the failure is logged and not
+  counted, so an outage of the installation's network removes no device;
 - when it was made with another VAPID key than the current one.
 
 After a sign-out the browser's subscription is gone too: the member
@@ -164,9 +167,12 @@ message (a wrong VAPID key or subject, a malformed request). It is not
 tried again and counts as a failure on the device.
 
 Every message that did not reach a device is one log line
-`worker.push.undelivered` with the kind, the push service's host, the HTTP
-status, the try and whether the device was removed. The path of an endpoint
-is the device's token and is never logged, nor is the member.
+`worker.push.undelivered` with the kind, the push service's name, the HTTP
+status (empty when nobody answered), the try and whether the device was
+removed. The name is the listed host, or `notify.windows.com` for every host
+below it: the labels below that suffix are chosen by the member's browser
+and are not logged. The path of an endpoint is the device's token and is
+never logged, nor is the member.
 
 ### Limits per member
 

@@ -262,7 +262,9 @@ class AsyncpgPushRepository:
                         auth = EXCLUDED.auth,
                         vapid_public_key = EXCLUDED.vapid_public_key,
                         failure_count = 0,
-                        failing_since = NULL
+                        failing_since = NULL,
+                        failure_days = 0,
+                        last_failure_on = NULL
                     RETURNING id
                     """,
                     uuid4(),
@@ -528,28 +530,39 @@ class AsyncpgPushRepository:
         await self._pool.execute(
             "UPDATE push_subscription "
             "SET last_success_at = $2, last_event_id = $3, "
-            "    failure_count = 0, failing_since = NULL WHERE id = $1",
+            "    failure_count = 0, failing_since = NULL, failure_days = 0, "
+            "    last_failure_on = NULL WHERE id = $1",
             subscription_id,
             now,
             event_id,
         )
 
     async def record_failure(self, *, subscription_id: UUID, now: datetime) -> bool:
+        day = local_day(now)
         async with self._pool.acquire() as connection:
             async with connection.transaction():
                 row = await connection.fetchrow(
                     """
                     UPDATE push_subscription
                     SET failure_count = failure_count + 1,
-                        failing_since = COALESCE(failing_since, $2)
+                        failing_since = COALESCE(failing_since, $2),
+                        failure_days = failure_days + CASE
+                            WHEN last_failure_on IS DISTINCT FROM $3::date THEN 1
+                            ELSE 0
+                        END,
+                        last_failure_on = $3::date
                     WHERE id = $1
-                    RETURNING failure_count, failing_since
+                    RETURNING failure_count, failing_since, failure_days
                     """,
                     subscription_id,
                     now,
+                    day,
                 )
                 if row is None or not device_is_dead(
-                    int(row["failure_count"]), row["failing_since"], now=now
+                    int(row["failure_count"]),
+                    row["failing_since"],
+                    int(row["failure_days"]),
+                    now=now,
                 ):
                     return False
                 await connection.execute(

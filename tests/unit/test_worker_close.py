@@ -140,3 +140,64 @@ async def test_a_worker_that_cannot_be_built_leaves_nothing_open(
         )
 
     assert log == ["crm", "push", "pool"]
+
+
+@pytest.mark.asyncio
+async def test_the_outbox_loop_survives_a_client_that_cannot_close(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``durable_worker_loop``: a failing ``worker.close()`` is logged, the
+    pool is closed all the same, and the loop builds the next worker."""
+    import asyncio
+
+    from leonaid.entrypoints.worker import platform
+
+    stopping = asyncio.Event()
+    log: list[str] = []
+    builds = 0
+
+    class Worker:
+        def __init__(self, number: int) -> None:
+            self._number = number
+
+        async def run_once(self) -> bool:
+            log.append(f"run {self._number}")
+            if self._number == 1:
+                # The first worker breaks while it works.
+                raise RuntimeError("database went away")
+            stopping.set()
+            return False
+
+        async def close(self) -> None:
+            log.append(f"close worker {self._number}")
+            if self._number == 1:
+                raise RuntimeError("client cannot close")
+
+    async def build_worker(**_: Any) -> tuple[Closable, None, Worker]:
+        nonlocal builds
+        builds += 1
+        return Closable(f"pool {builds}", log), None, Worker(builds)
+
+    async def no_pause(_: asyncio.Event, __: float) -> None:
+        return None
+
+    monkeypatch.setattr(platform, "build_worker", build_worker)
+    monkeypatch.setattr(platform, "pause", no_pause)
+    monkeypatch.setenv("CORE_DATABASE_URL", "postgresql://unused")
+
+    await asyncio.wait_for(platform.durable_worker_loop(stopping), timeout=5)
+
+    assert log == [
+        "run 1",
+        "close worker 1",
+        # Closed although the worker's own close failed.
+        "pool 1",
+        # The loop went on with a new worker and ended in order.
+        "run 2",
+        "close worker 2",
+        "pool 2",
+    ]
+    # Both failures of the first worker are logged, by type only.
+    events = [line for line in capsys.readouterr().out.splitlines() if line]
+    assert sum('"worker.loop.failed"' in line for line in events) == 2
+    assert "cannot close" not in "".join(events)

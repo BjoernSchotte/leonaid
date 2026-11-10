@@ -413,3 +413,58 @@ async def test_a_request_ends_after_its_deadline_as_a_whole() -> None:
 
     assert result.outcome is PushOutcome.UNAVAILABLE
     assert asyncio.get_running_loop().time() - started < 2
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "name"),
+    [
+        ("https://fcm.googleapis.com/fcm/send/secret-token", "fcm.googleapis.com"),
+        ("https://FCM.googleapis.com:443/fcm/send/x", "fcm.googleapis.com"),
+        ("https://web.push.apple.com/secret", "web.push.apple.com"),
+        # Below notify.windows.com a member chooses the labels: cut off.
+        ("https://wns2-par02p.notify.windows.com/w/?token=x", "notify.windows.com"),
+        (
+            "https://" + "a" * 60 + ".member-chosen.notify.windows.com/w/x",
+            "notify.windows.com",
+        ),
+        ("https://attacker.example/x", ""),
+        ("https://core-postgres:5432/", ""),
+    ],
+)
+def test_the_logged_host_is_the_push_service_never_a_members_label(
+    endpoint: str, name: str
+) -> None:
+    assert PushEndpointPolicy().service_name(endpoint) == name
+
+
+def test_the_logged_host_of_a_proof_origin_is_bounded() -> None:
+    host = "h" * 63 + "." + "i" * 63 + ".invalid"
+    policy = PushEndpointPolicy(extra_origins=frozenset({f"http://{host}:9911"}))
+
+    assert policy.service_name(f"http://{host}:9911/push/a") == host[:64]
+
+
+@pytest.mark.asyncio
+async def test_no_answer_names_the_service_and_no_status() -> None:
+    def answer(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("no route", request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(answer)) as client:
+        sender = WebPushSender(
+            VapidSigner(generate_vapid_private_key(), SUBJECT),
+            client,
+            PushEndpointPolicy(),
+        )
+        result = await sender.send(
+            target("https://db5p-member.notify.windows.com/w/?token=secret"),
+            b"{}",
+            topic="feed",
+            now=NOW,
+        )
+
+    assert (result.outcome, result.host, result.status) == (
+        PushOutcome.UNAVAILABLE,
+        "notify.windows.com",
+        None,
+    )
+    assert result.blames_device is False

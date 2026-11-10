@@ -107,8 +107,8 @@ Punkte sind keine stillschweigenden Produktzusagen.
   - A device ends with its session. After a sign-out the member switches it
     on again; after 90 days without opening the app it gets no push until
     the app is opened.
-  - At most 10 devices per member. A device that 5 messages in a row did not
-    reach over at least 3 days is removed.
+  - At most 10 devices per member. A device for which the push service did
+    not take 5 messages in a row, on at least 3 different days, is removed.
   - A new `LEONAID_VAPID_PRIVATE_KEY` ends every subscription: each device
     subscribes again by itself when its app is next opened; without the
     key the page says "noch nicht eingerichtet". The worker needs a route

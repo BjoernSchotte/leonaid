@@ -155,8 +155,8 @@ class PushDispatchRepository(Protocol):
     ) -> None: ...
 
     async def record_failure(self, *, subscription_id: UUID, now: datetime) -> bool:
-        """Count one message that did not reach the device. True: the device
-        failed too often for too long and was removed."""
+        """Count one message the push service did not take for the device.
+        True: the device failed too often, on too many days, and was removed."""
         ...
 
     async def delete_device(self, *, subscription_id: UUID) -> None: ...
@@ -494,8 +494,12 @@ class PushNotificationHandler:
             elif result.outcome is PushOutcome.REJECTED or (
                 result.outcome is PushOutcome.UNAVAILABLE and last_try
             ):
-                removed = await self._repository.record_failure(
-                    subscription_id=device.id, now=now
+                # Counted on the device only when the push service answered:
+                # an outage on our side must not remove anybody's device.
+                removed = result.blames_device and (
+                    await self._repository.record_failure(
+                        subscription_id=device.id, now=now
+                    )
                 )
                 self._observe(message.kind, result, job.attempt, removed)
             elif result.outcome is PushOutcome.UNAVAILABLE:
@@ -563,9 +567,7 @@ class PushNotificationHandler:
         results: list[tuple[PushSubscription, PushResult]] = []
         for device, task in zip(devices, tasks, strict=True):
             if task.cancelled():
-                results.append(
-                    (device, PushResult(PushOutcome.UNAVAILABLE, host="timeout"))
-                )
+                results.append((device, PushResult(PushOutcome.UNAVAILABLE, host="")))
             else:
                 # A database or programming error fails the job; the outbox
                 # runs it again and the devices reached so far are skipped.

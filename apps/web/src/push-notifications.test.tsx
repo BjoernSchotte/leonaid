@@ -360,6 +360,46 @@ describe("Benachrichtigungen", () => {
     expect(sent.some((request) => request.method === "PUT")).toBe(false);
   });
 
+  it("shows a subscribed device as on when Core takes no registration just now", async () => {
+    const sent: SentRequest[] = [];
+    const { calls, device } = browser({
+      permission: "granted",
+      subscribed: true,
+    });
+    const { container } = show(
+      core(sent, { subscribe: failure(429, "push_rate_limited") }),
+      device,
+    );
+    // The switches are there; the device is not shown as off.
+    await screen.findByTestId("push-on");
+    expect(screen.queryByTestId("push-off")).toBeNull();
+    expect(screen.queryByTestId("push-switch-on")).toBeNull();
+    expect(screen.getByTestId("push-busy").textContent).toContain(
+      "in etwa einer Stunde noch einmal",
+    );
+    // Without Core's id of the device there is nothing to test or remove.
+    expect(screen.queryByTestId("push-test")).toBeNull();
+    expect(screen.queryByTestId("push-switch-off")).toBeNull();
+    expect(calls).toEqual([]);
+    // The switches still work.
+    fireEvent.click(screen.getByTestId("push-kind-follow_ups"));
+    await waitFor(() =>
+      expect(
+        screen.getByTestId<HTMLInputElement>("push-kind-follow_ups").checked,
+      ).toBe(true),
+    );
+    await accessible(container);
+  });
+
+  it("says to try later when switching on hits the limit", async () => {
+    const { device } = browser();
+    show(core([], { subscribe: failure(429, "push_rate_limited") }), device);
+    fireEvent.click(await screen.findByTestId("push-switch-on"));
+    expect((await screen.findByTestId("push-notice")).textContent).toContain(
+      "Versuche es in einer Stunde wieder",
+    );
+  });
+
   it("says so when the member has ten devices already", async () => {
     const { device } = browser();
     show(core([], { subscribe: failure(409, "push_device_limit") }), device);

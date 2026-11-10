@@ -207,10 +207,10 @@ class WebPushSender:
 
         if not _TOPIC.fullmatch(topic):
             raise ValueError("A push topic is 1 to 32 base64url characters.")
-        host = (urlsplit(target.endpoint).hostname or "").lower()
         # Checked again here: a stored row is no proof of where it points.
         if not self._endpoints.allows(target.endpoint):
             return PushResult(PushOutcome.GONE, host="")
+        host = self._endpoints.service_name(target.endpoint)
         try:
             body = encrypt_push_message(
                 payload, ua_public=target.p256dh, auth_secret=target.auth

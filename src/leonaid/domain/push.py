@@ -36,11 +36,16 @@ MAX_DEVICES_PER_MEMBER: Final = 10
 # A message that reached no device is tried again after these delays, then
 # given up. Push is a hint: a job never fails because a device is away.
 PUSH_RETRY_DELAYS: Final = (timedelta(minutes=1), timedelta(minutes=10))
-# A device is removed when this many messages in a row did not reach it and
-# the first of them is at least this long ago: a phone that is off for a
-# weekend stays, a dead subscription goes.
+# A device is removed when the push service did not take this many messages
+# in a row for it, on at least this many different club days, the first of
+# them at least this long ago. Two short outages some days apart remove
+# nothing; a dead subscription goes. Only an answer of the push service
+# counts: when LeonAid itself reached nobody (no route, DNS, timeout), the
+# device is not to blame.
 DEVICE_FAILURE_LIMIT: Final = 5
+DEVICE_FAILURE_DAYS: Final = 3
 DEVICE_FAILURE_PERIOD: Final = timedelta(days=3)
+MAX_LOGGED_HOST_LENGTH: Final = 64
 MAX_ENDPOINT_LENGTH: Final = 2048
 MAX_PUSH_COUNT: Final = 9999
 
@@ -164,6 +169,26 @@ class PushEndpointPolicy:
             return False
         return host in PUSH_SERVICE_HOSTS or host.endswith(PUSH_SERVICE_HOST_SUFFIXES)
 
+    def service_name(self, endpoint: str) -> str:
+        """The push service of an endpoint, for the operator's log.
+
+        The listed host, or the listed suffix without what stands below it:
+        a member chooses the labels below ``notify.windows.com`` (and the
+        path, which is the device's token), so neither is logged. Empty for
+        an endpoint LeonAid does not send to.
+        """
+
+        if not self.allows(endpoint):
+            return ""
+        host = (urlsplit(endpoint).hostname or "").casefold()
+        if host not in PUSH_SERVICE_HOSTS:
+            for suffix in PUSH_SERVICE_HOST_SUFFIXES:
+                if host.endswith(suffix):
+                    host = suffix.removeprefix(".")
+                    break
+        # An extra origin of a proof is set by the composition, not a member.
+        return host[:MAX_LOGGED_HOST_LENGTH]
+
     def require(self, endpoint: str) -> str:
         if not self.allows(endpoint):
             raise DomainInvariantError(
@@ -227,22 +252,40 @@ class PushOutcome(StrEnum):
 class PushResult:
     """How one request to a push service ended.
 
-    ``host`` and ``status`` are for the operator's log. The path of an
-    endpoint is the device's token and never leaves the sender.
+    ``host`` and ``status`` are for the operator's log: the name of the
+    push service (``PushEndpointPolicy.service_name``), never a label a
+    member chose and never the path, which is the device's token.
+    ``status`` is None when no push service answered at all.
     """
 
     outcome: PushOutcome
     host: str
     status: int | None = None
 
+    @property
+    def blames_device(self) -> bool:
+        """Whether this counts toward removing the device: the push service
+        answered and did not take the message. No answer is our side."""
+
+        return self.status is not None and self.outcome in (
+            PushOutcome.REJECTED,
+            PushOutcome.UNAVAILABLE,
+        )
+
 
 def device_is_dead(
-    failure_count: int, failing_since: datetime | None, *, now: datetime
+    failure_count: int,
+    failing_since: datetime | None,
+    failure_days: int,
+    *,
+    now: datetime,
 ) -> bool:
-    """Whether a device failed often enough and long enough to be removed."""
+    """Whether a device failed often enough, on enough days and for long
+    enough to be removed."""
 
     return (
         failure_count >= DEVICE_FAILURE_LIMIT
+        and failure_days >= DEVICE_FAILURE_DAYS
         and failing_since is not None
         and now - failing_since >= DEVICE_FAILURE_PERIOD
     )

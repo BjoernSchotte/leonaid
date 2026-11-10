@@ -72,14 +72,23 @@ def upgrade() -> None:
                 CHECK (char_length(vapid_public_key) = 87),
             created_at timestamptz NOT NULL DEFAULT now(),
             last_success_at timestamptz,
-            -- Messages in a row that did not reach the device, and since
-            -- when; both reset with the next delivery.
+            -- Messages in a row that the push service did not take for the
+            -- device: how many, since when, on how many different club days
+            -- and on which day last. All reset with the next delivery.
             failure_count integer NOT NULL DEFAULT 0
                 CONSTRAINT ck_push_subscription_failure_count
                 CHECK (failure_count >= 0),
             failing_since timestamptz,
+            failure_days integer NOT NULL DEFAULT 0
+                CONSTRAINT ck_push_subscription_failure_days
+                CHECK (failure_days BETWEEN 0 AND failure_count),
+            last_failure_on date,
             CONSTRAINT ck_push_subscription_failing
-                CHECK ((failure_count = 0) = (failing_since IS NULL)),
+                CHECK (
+                    (failure_count = 0) = (failing_since IS NULL)
+                    AND (failure_count = 0) = (last_failure_on IS NULL)
+                    AND (failure_count = 0) = (failure_days = 0)
+                ),
             -- The job whose message this device got last: the same job run
             -- again does not send to it twice.
             last_event_id uuid
