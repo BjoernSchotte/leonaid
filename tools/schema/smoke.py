@@ -410,14 +410,15 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         INSERT INTO commitment (
             id, action_id, twenty_company_id, source, status,
             customer_snapshot, invoice_recipient_snapshot,
-            currency, total_minor, idempotency_key
+            currency, total_minor, idempotency_key, public_reference
         )
         VALUES (
             '80000000-0000-4000-8000-000000000001', $1, $2,
             'acquisition', 'invoiced',
             '{"partyKind":"company","twentyId":"40000000-0000-4000-8000-000000000001","displayName":"Musterwerk GmbH","email":null}'::jsonb,
             '{"recipientName":"Musterwerk GmbH","streetLine1":"Werkstraße 1","postalCode":"86150","city":"Augsburg","countryCode":"DE","email":null}'::jsonb,
-            'EUR', 7200, 'poc090:schema:commitment'
+            'EUR', 7200, 'poc090:schema:commitment',
+            'LA-80000000000040008000000000000001'
         )
         """,
         ACTION,

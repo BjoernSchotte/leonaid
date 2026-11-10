@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone, timedelta
 from typing import Any
@@ -19,6 +20,12 @@ from leonaid.adapters.postgres.delivery import (
 )
 
 from leonaid.adapters.postgres.order_mails import insert_order_mail_event
+from leonaid.adapters.postgres.order_numbers import (
+    ORDER_NUMBER_ATTEMPTS,
+    free_order_number,
+    free_order_number_from,
+    order_number_taken,
+)
 from leonaid.application.errors import Conflict, RateLimited, ResourceNotFound
 from leonaid.application.order_mails import (
     OrderMailKind,
@@ -454,15 +461,13 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
             delivery_window_snapshot=window_snapshot,
             delivery_contact=draft.delivery_contact,
             message=draft.message,
-            public_reference=f"LA-{commitment_id.hex.upper()}",
+            public_reference=await free_order_number(connection, commitment_id),
             lines=tuple(priced_lines),
             total=total,
             idempotency_key=idempotency_key,
         )
-        await self._insert_commitment(
-            connection,
-            commitment=commitment,
-            occurred_at=occurred_at,
+        commitment = await self._insert_numbered(
+            connection, commitment=commitment, occurred_at=occurred_at
         )
         consent_person_id = party.contact_twenty_id or party.buyer.person_id
         consent_company_id = (
@@ -647,6 +652,46 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
             )
             for row in rows
         }
+
+    async def _insert_numbered(
+        self,
+        connection: asyncpg.Connection[Any],
+        *,
+        commitment: Commitment,
+        occurred_at: datetime,
+    ) -> Commitment:
+        """Insert the order; on a taken order number take the next one.
+
+        Only a writer that derived the same number at the same moment gets
+        the unique violation (``order_number_taken``). The insert runs in a
+        savepoint, so the order's transaction survives it. The public order
+        runs in repeatable read and so cannot see the order that took the
+        number: it does not ask "is it free" again but moves on to the
+        number of the next attempt. Bounded, then the buyer sends again.
+        """
+
+        used = 0
+        for tries in range(ORDER_NUMBER_ATTEMPTS):
+            try:
+                async with connection.transaction():
+                    await self._insert_commitment(
+                        connection, commitment=commitment, occurred_at=occurred_at
+                    )
+                return commitment
+            except asyncpg.UniqueViolationError as error:
+                if not order_number_taken(error):
+                    raise
+                if tries == ORDER_NUMBER_ATTEMPTS - 1:
+                    raise Conflict(
+                        "public_order_concurrent_retry",
+                        "Die Bestellung wurde gleichzeitig verarbeitet. "
+                        "Bitte senden Sie das Formular erneut.",
+                    ) from error
+                number, used = await free_order_number_from(
+                    connection, commitment.id, used + 1
+                )
+                commitment = replace(commitment, public_reference=number)
+        raise AssertionError("unreachable")
 
     @staticmethod
     async def _insert_commitment(
@@ -886,11 +931,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
                 if row["message_snapshot"] is not None
                 else None
             ),
-            public_reference=(
-                str(row["public_reference"])
-                if row["public_reference"] is not None
-                else None
-            ),
+            public_reference=str(row["public_reference"]),
             lines=tuple(
                 CommitmentLine(
                     id=item["id"],

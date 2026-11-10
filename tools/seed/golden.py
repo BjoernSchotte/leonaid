@@ -25,6 +25,7 @@ from botocore.exceptions import ClientError
 
 from leonaid.adapters.typst import RENDER_VERSION
 from leonaid.domain.calendar import INSTALLATION_TIME_ZONE, local_day
+from leonaid.domain.commitments import order_number
 
 DATASET_VERSION = "1.0.0"
 # Twenty 2.54 builds indexes and validates foreign keys of a schema change in
@@ -42,6 +43,18 @@ GOLDEN_PRIVACY_POLICY = (
     "## Verantwortlicher\n\n"
     "Verantwortlich ist der im Impressum genannte Golden-Verein. Diese "
     "Datenschutzerklärung ist ein synthetischer Testtext.\n\n"
+    # specs/mails-documents-donations-push, Appendix A.1 (P1): the dev
+    # tenant's sentence for mails to buyers whose order a member entered.
+    "## Bestellungen, die ein Mitglied für Sie erfasst\n\n"
+    "Nimmt ein Mitglied des Lions Club Musterstadt Ihre Bestellung "
+    "persönlich oder am Telefon auf, speichern wir Ihren Namen, Ihre Liefer- "
+    "und Rechnungsanschrift und Ihre E-Mail-Adresse, wenn Sie sie nennen "
+    "oder sie uns aus einer früheren Bestellung vorliegt. "
+    "An diese Adresse senden wir die Bestellbestätigung, am Liefertag einen "
+    "Hinweis auf das Lieferfenster und, falls die Bestellung storniert wird, "
+    "eine Stornobestätigung. Rechtsgrundlage ist die Erfüllung des Vertrags "
+    "mit Ihnen (Art. 6 Abs. 1 Buchst. b DSGVO). Werbung senden wir an diese "
+    "Adresse nicht.\n\n"
     "## Ihre Rechte\n\n"
     "- Auskunft\n"
     "- Berichtigung\n"
@@ -1466,10 +1479,13 @@ async def seed_operational_golden(
             if isinstance(delivery, dict)
             else None
         )
+        # Every order has an order number (migration 0063). The golden
+        # public order keeps the long number of its time; orders that
+        # members entered get the short one of today.
         public_reference = (
             f"LA-{str(commitment['id']).replace('-', '').upper()}"
             if source[str(commitment["source"])] == "public_form"
-            else None
+            else order_number(UUID(str(commitment["id"])))
         )
         created_at = GOLDEN_COMMITMENT_CREATED_AT + timedelta(minutes=commitment_index)
         await connection.execute(

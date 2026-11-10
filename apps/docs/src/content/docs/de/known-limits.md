@@ -4,9 +4,9 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 9
-reviewedRevision: 9
-verifiedAgainst: 176b94f63b8ff6dbd9deadb71b9ab507ee53989b
+contentRevision: 11
+reviewedRevision: 11
+verifiedAgainst: a69da48553f9a00670e0f809199684a9a8dae282
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -34,11 +34,26 @@ allgemeine Produktionsfreigabe.
 - Öffentliche Bestellungen sind nur für eine veröffentlichte Aktion mit
   aktivem Bestellformular und verfügbarem Angebot möglich. Bei aktivierter
   Lieferplanung ist außerdem ein verfügbares Lieferfenster nötig.
-- Bestellbestätigung und Stornohinweis gehen als reiner Text nur an Besteller
-  aus dem öffentlichen Formular. Bestellungen von Mitgliedern oder
-  Akquisiteuren lösen keine E-Mail aus. Der Link zur Aktion zeigt auf die
-  Aktionsseite des öffentlichen Hosts; eigene Kampagnen-Domains folgen mit
-  Stufe 2. Absender ist die konfigurierte Systemadresse, nicht der Club.
+- Bestellbestätigung und Stornohinweis gehen als reiner Text an Besteller aus
+  dem öffentlichen Formular. Für Bestellungen, die Mitglieder oder
+  Akquisiteure erfassen, schaltet die Aktionsverwaltung sie je Aktion ein
+  (**E-Mails an Käufer**); dann wird eine Bestellung einmal bestätigt, sobald
+  sie prüfbereit ist. Bestellungen ohne E-Mail-Adresse des Käufers und Entwürfe
+  erhalten keine E-Mail, ebenso Bestellungen, die erst nach der Lieferung,
+  nach dem Lieferfenster oder nach Abschluss der Aktion prüfbereit werden;
+  das gilt auch für Bestellungen aus dem öffentlichen Formular. Konnte
+  LeonAid eine rechtzeitig angelegte Bestätigung erst danach senden (Versand
+  gestört), geht sie nicht mehr hinaus und steht in der Bestellung als
+  fehlgeschlagen.
+  Bestellungen von vor dem Einschalten bestätigt die Aktionsverwaltung
+  einzeln in der Bestellung (**Senden**). Die Adresse ist die des Sponsors
+  aus dem CRM. LeonAid prüft nicht, ob die Datenschutzerklärung des Clubs
+  diese E-Mails nennt. Eine E-Mail am Liefertag gibt es noch nicht.
+  Bestellnummern haben zwei Formen: neue sind kurz (`LA-` und acht Zeichen),
+  öffentliche Bestellungen von früher behalten ihre lange Nummer. Der Link zur Aktion zeigt auf die dauerhafte Adresse
+  der Aktion auf ihrer Kampagnen-Domain, sonst auf die Aktionsseite des
+  öffentlichen Hosts. Absender ist die konfigurierte Systemadresse, nicht der
+  Club.
 - Die Suche (**Suchen und Befehle**) findet Sponsoren nur über Name und Ort
   und nur, wenn sie in einer Aktion einem Akquisiteur zugeordnet sind (siehe
   [Mit der Suche finden](/de/user/how-to/find-with-search/)). E-Mail, Telefon

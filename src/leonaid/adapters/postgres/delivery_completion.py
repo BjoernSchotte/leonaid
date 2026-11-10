@@ -31,6 +31,7 @@ from leonaid.application.delivery_completion import (
     delivery_completion_version,
 )
 from leonaid.application.errors import Conflict, ResourceNotFound
+from leonaid.application.order_mails import OrderMailLinks
 from leonaid.domain.commitments import Commitment, CommitmentStatus
 from leonaid.domain.errors import DomainInvariantError
 
@@ -52,6 +53,7 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None = None,
     ) -> Commitment:
         async with self._pool.acquire() as connection:
             for attempt in range(SERIALIZABLE_ATTEMPTS):
@@ -67,6 +69,7 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
                             request_hash=request_hash,
                             request_id=request_id,
                             occurred_at=occurred_at,
+                            mail_links=mail_links,
                         )
                 except RETRYABLE_ERRORS:
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
@@ -90,6 +93,7 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None,
     ) -> Commitment:
         await connection.execute(
             "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
@@ -291,6 +295,13 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
             json.dumps({"commitmentId": str(commitment_id)}),
             occurred_at,
         )
-        return await AsyncpgCommitmentRepository._get(
+        completed = await AsyncpgCommitmentRepository._get(
             connection, commitment_id, replayed=False
         )
+        if order.status is CommitmentStatus.DRAFT:
+            # The draft became review-ready here: the one confirmation. A
+            # change to an order that was review-ready before sends nothing.
+            await AsyncpgCommitmentRepository._confirm_to_buyer(
+                connection, completed, mail_links=mail_links, occurred_at=occurred_at
+            )
+        return completed

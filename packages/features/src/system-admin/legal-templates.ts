@@ -8,6 +8,12 @@
  * production activation (`template_placeholder_open`), and every text goes
  * through the four-eyes draft/approval flow before it is published.
  *
+ * The section "Bestellungen, die ein Mitglied für Sie erfasst" is P1 of
+ * specs/mails-documents-donations-push/PLAN.md (§13, Appendix A.1): the
+ * legal basis for mails to buyers whose order a member entered. LEGAL
+ * REVIEW PENDING: Björn Schotte signs it before a club switches these mails
+ * on in production ("E-Mails an Käufer" in the action settings).
+ *
  * Format: blocks separated by an empty line; "## " starts a heading and
  * "- " a list item (apps/public/src/lib/legal-text.ts renders it).
  */
@@ -31,6 +37,10 @@ Beim Aufruf dieser Seiten verarbeitet der Server technisch notwendige Daten: IP-
 Wenn Sie über eine Aktionsseite bestellen oder eine Anfrage senden, verarbeiten wir die Angaben aus dem Formular, um Ihre Bestellung oder Anfrage zu bearbeiten. Zweck, Rechtsgrundlage und Kontakt stehen zusätzlich direkt am Formular.
 
 [[Empfänger der Daten eintragen, z. B. Steuerberatung, Bank oder Lieferdienst.]]
+
+## Bestellungen, die ein Mitglied für Sie erfasst
+
+Nimmt ein Mitglied unseres Clubs Ihre Bestellung persönlich oder am Telefon auf, speichern wir Ihren Namen, Ihre Liefer- und Rechnungsanschrift und Ihre E-Mail-Adresse, wenn Sie sie nennen oder sie uns aus einer früheren Bestellung vorliegt. An diese Adresse senden wir die Bestellbestätigung, am Liefertag einen Hinweis auf das Lieferfenster und, falls die Bestellung storniert wird, eine Stornobestätigung. Rechtsgrundlage ist die Erfüllung des Vertrags mit Ihnen (Art. 6 Abs. 1 Buchst. b DSGVO). Werbung senden wir an diese Adresse nicht.
 
 ## Umfragen
 

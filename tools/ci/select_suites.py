@@ -530,6 +530,7 @@ RULES: tuple[Rule, ...] = (
             "tests/integration/test_order_cancellation_api.py",
             "tests/integration/test_cancellation_invoice_api.py",
             "tests/integration/test_offline_capture_api.py",
+            "tests/integration/test_buyer_mails_api.py",
             "tests/integration/test_campaign_renderer_api.py",
         ),
         integration("schema"),

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -17,7 +18,33 @@ from leonaid.domain.identity import require_aware
 
 CURRENCY = re.compile(r"^[A-Z]{3}$")
 COUNTRY_CODE = re.compile(r"^[A-Z]{2}$")
-PUBLIC_REFERENCE = re.compile(r"^LA-[A-F0-9]{32}$")
+# Characters a buyer can read out on the phone: no 0/O, no 1/I/L.
+ORDER_NUMBER_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+ORDER_NUMBER_LENGTH = 8
+# The short number of every new order, or the long one (``LA-`` plus the
+# order id in hex) that public orders got before migration 0064. Buyers hold
+# the long ones in their mails, so they stay valid.
+PUBLIC_REFERENCE = re.compile(
+    rf"^LA-(?:[{ORDER_NUMBER_ALPHABET}]{{{ORDER_NUMBER_LENGTH}}}|[A-F0-9]{{32}})$"
+)
+
+
+def order_number(commitment_id: UUID, attempt: int = 0) -> str:
+    """The order number of an order: ``LA-`` plus eight readable characters.
+
+    Derived from the order id, so that the application, migration 0064 (the
+    same rule in SQL, for older internal orders) and fixtures agree. The
+    number is unique in the database; a writer that meets a taken number
+    asks again with the next ``attempt``.
+    """
+
+    if attempt < 0:
+        raise ValueError("attempt must not be negative")
+    digest = hashlib.sha256(f"{commitment_id}:{attempt}".encode()).digest()
+    return "LA-" + "".join(
+        ORDER_NUMBER_ALPHABET[byte % len(ORDER_NUMBER_ALPHABET)]
+        for byte in digest[:ORDER_NUMBER_LENGTH]
+    )
 
 
 class CommitmentSource(StrEnum):
@@ -451,7 +478,9 @@ class Commitment:
     delivery_contact: DeliveryContactSnapshot | None = None
     delivery_recipient: DeliveryRecipientSnapshot | None = None
     message: str | None = None
-    public_reference: str | None = None
+    # The order number the buyer can quote; every order has one. Left empty
+    # it is derived from the id (``order_number``), as for a new order.
+    public_reference: str = ""
     idempotency_key: str | None = None
     replayed: bool = False
     # When the acquirer saved the order on the device (PWA queue); history
@@ -510,18 +539,12 @@ class Commitment:
                     "Die Nachricht darf höchstens 1000 Zeichen enthalten.",
                 )
             object.__setattr__(self, "message", normalized_message or None)
-        if self.source is CommitmentSource.PUBLIC_FORM:
-            if self.public_reference is None or not PUBLIC_REFERENCE.fullmatch(
-                self.public_reference
-            ):
-                raise DomainInvariantError(
-                    "commitment_public_reference_invalid",
-                    "Eine öffentliche Bestellung benötigt eine gültige Referenz.",
-                )
-        elif self.public_reference is not None:
+        if not self.public_reference:
+            object.__setattr__(self, "public_reference", order_number(self.id))
+        if not PUBLIC_REFERENCE.fullmatch(self.public_reference):
             raise DomainInvariantError(
-                "commitment_public_reference_forbidden",
-                "Nur öffentliche Bestellungen besitzen eine öffentliche Referenz.",
+                "commitment_public_reference_invalid",
+                "Eine Bestellung benötigt eine gültige Bestellnummer.",
             )
 
     @property

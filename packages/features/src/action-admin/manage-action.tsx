@@ -32,6 +32,7 @@ import {
   TemplatesTab,
   useActionConfiguration,
 } from "./action-templates";
+import { BuyerMailSection } from "./buyer-mail-section";
 import { CampaignAliasesSection } from "./campaign-aliases";
 import { ActionPublicUrls } from "./public-urls";
 import { DeliverySection } from "./delivery-section";
@@ -522,6 +523,13 @@ export function ManageActionPage({
                 <GoalSection {...shared} />
                 <BeneficiariesSection {...shared} />
                 <CapabilitiesSection {...shared} />
+                {action.capabilities.includes("ordering") ? (
+                  <BuyerMailSection
+                    actionId={actionId}
+                    client={client}
+                    disabled={archived}
+                  />
+                ) : null}
                 <AdministratorsSection {...shared} />
               </div>
             ) : (

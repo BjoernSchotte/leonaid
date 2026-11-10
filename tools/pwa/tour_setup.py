@@ -232,7 +232,8 @@ async def copy_order(
             delivery_window_id = $4,
             delivery_window_snapshot = $5::jsonb,
             delivery_contact_snapshot = NULL,
-            public_reference = NULL,
+            -- Every order has an order number, derived from its id.
+            public_reference = 'LA-' || upper(replace($1::uuid::text, '-', '')),
             created_at = now(),
             updated_at = now()
         """,

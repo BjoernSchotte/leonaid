@@ -105,7 +105,8 @@ async def seed_bulk_orders(connection: asyncpg.Connection[Any]) -> None:
                     delivery_window_id = $3,
                     delivery_window_snapshot = $4::jsonb,
                     delivery_contact_snapshot = NULL,
-                    public_reference = NULL,
+                    -- Every order has an order number, derived from its id.
+                    public_reference = 'LA-' || upper(replace($1::uuid::text, '-', '')),
                     created_at = now() + make_interval(secs => $5),
                     updated_at = now() + make_interval(secs => $5)
                 """,

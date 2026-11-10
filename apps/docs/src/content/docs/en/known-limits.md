@@ -4,9 +4,9 @@ description: Verified limits of the current LeonAid development and pilot state.
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 9
-reviewedRevision: 9
-verifiedAgainst: 176b94f63b8ff6dbd9deadb71b9ab507ee53989b
+contentRevision: 11
+reviewedRevision: 11
+verifiedAgainst: a69da48553f9a00670e0f809199684a9a8dae282
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -33,10 +33,24 @@ general production approval.
 - Public orders require a published campaign with an active order form and an
   available offering. When delivery planning is enabled, an available delivery
   window is also required.
-- The order confirmation and the cancellation notice are plain-text mails and
-  go only to buyers from the public form. Orders that members or acquirers
-  enter send no e-mail. The campaign link points to the campaign page on the
-  public host; own campaign domains follow with stage 2. The sender is the
+- The order confirmation and the cancellation notice are plain-text mails
+  and go to buyers from the public form. For orders that members or acquirers
+  enter, the campaign's managers switch them on per campaign (**E-Mails an
+  Käufer**); an order is then confirmed once, as soon as it is ready for
+  review. Orders without an e-mail address of the buyer and drafts get no
+  e-mail, nor do orders that become ready for review only after the
+  delivery, after the delivery window or after the campaign was completed;
+  this also holds for orders from the public form. If LeonAid could send a
+  confirmation that was created in time only after that (delivery
+  disturbed), it is not sent any more and the order shows it as failed.
+  The campaign's managers confirm orders from before the switch was set one
+  by one in the order (**Senden**). The address is the sponsor's from the
+  CRM. LeonAid does not check that the club's privacy notice names these
+  e-mails. There is no e-mail on the delivery day yet. Order numbers have
+  two shapes: new ones are short (`LA-` and eight characters), public orders
+  from before keep their long number. The campaign
+  link points to the permanent address of the campaign on its campaign
+  domain, else to the campaign page on the public host. The sender is the
   configured system address, not the club.
 - The search (**Suchen und Befehle**) finds sponsors by name and city only,
   and only if they are assigned to an acquirer in a campaign (see
