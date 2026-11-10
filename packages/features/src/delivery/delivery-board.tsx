@@ -232,6 +232,8 @@ function WebDeliveryPage(props: DeliveryBoardPageProps) {
     );
   }
   if (view === "tours" && tours) {
+    // A campaign switch remounts the planner; as on a day switch, its
+    // waiting moves go out first, without asking (useOrderAutosave).
     return (
       <TourPlanner
         actionId={props.actionId}

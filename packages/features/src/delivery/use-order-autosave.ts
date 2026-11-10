@@ -243,16 +243,19 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
       return chains.get(key) ?? Promise.resolve();
     }
 
-    /** Sends every waiting move now (leaving the page). */
-    const flushAll = () => {
-      for (const [key, burst] of bursts)
-        if (burst.timer) void queue(key, burst);
+    /**
+     * Leaving the page (route or campaign switch): as `release` for every
+     * tour, so waiting moves go out and no toast offers an undo for a tour
+     * that is gone.
+     */
+    const releaseAll = () => {
+      for (const key of [...bursts.keys()]) void release(key);
     };
 
-    return { cancel, flush, flushAll, move, release };
+    return { cancel, flush, move, release, releaseAll };
   });
 
-  useEffect(() => saver.flushAll, [saver]);
+  useEffect(() => saver.releaseAll, [saver]);
 
   return {
     /** The local order of a tour while it saves, else null. */

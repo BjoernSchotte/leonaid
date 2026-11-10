@@ -1177,8 +1177,9 @@ describe("delivery view switch (web)", () => {
   } as unknown as CurrentIdentityResponse;
 
   function renderPage(client: LeonAidApiClient) {
-    render(
-      <QueryClientProvider client={newQueries()}>
+    const queries = newQueries();
+    const page = (action: string) => (
+      <QueryClientProvider client={queries}>
         <ToastProvider>
           <HotkeyProvider>
             <FeatureFlagProvider
@@ -1187,15 +1188,17 @@ describe("delivery view switch (web)", () => {
               surface="web"
             >
               <DeliveryBoardPage
-                actionId={actionId}
+                actionId={action}
                 client={client}
                 surface="web"
               />
             </FeatureFlagProvider>
           </HotkeyProvider>
         </ToastProvider>
-      </QueryClientProvider>,
+      </QueryClientProvider>
     );
+    const view = render(page(actionId));
+    return { switchAction: (action: string) => view.rerender(page(action)) };
   }
 
   function pageClient(enabled: boolean) {
@@ -1244,6 +1247,37 @@ describe("delivery view switch (web)", () => {
     await waitFor(() => expect(client.getDeliveryBoard).toHaveBeenCalled());
     expect(client.getDeliveryTours).not.toHaveBeenCalled();
     expect(screen.queryByRole("link", { name: "Touren" })).toBeNull();
+  });
+
+  it("a campaign switch sends a waiting move first, for its own campaign, without undo", async () => {
+    window.history.replaceState(null, "", `/?view=tours&day=${DAY}`);
+    const other = "20000000-0000-4000-8000-000000000002";
+    const client = pageClient(true);
+    const { switchAction } = renderPage(client);
+    await screen.findAllByTestId("tour-column");
+    fireEvent.click(
+      within(column("anna")).getByRole("button", {
+        name: "Bäckerei Kern nach unten",
+      }),
+    );
+    switchAction(other);
+    await waitFor(() =>
+      expect(client.getDeliveryTours).toHaveBeenCalledWith(other, {
+        day: DAY,
+      }),
+    );
+    await waitFor(() =>
+      expect(client.saveDeliveryTourOrder).toHaveBeenCalledWith(
+        actionId,
+        "anna",
+        { commitmentIds: ["c2", "c1", "c3"], day: DAY, expectedRevision: "r1" },
+      ),
+    );
+    await screen.findByText(/Reihenfolge .*gespeichert/);
+    expect(client.saveDeliveryTourOrder).toHaveBeenCalledTimes(1);
+    // The saved tour is no longer on screen: nothing to undo.
+    expect(screen.queryByRole("button", { name: "Rückgängig" })).toBeNull();
+    window.history.replaceState(null, "", "/");
   });
 
   it("?view=tours with the flag opens the planner directly", async () => {
