@@ -737,7 +737,9 @@ RULES: tuple[Rule, ...] = (
         e2e("public-orders") | EMDASH,
         "public Krapfentaxi page",
     ),
-    Rule(("apps/public/src/pages/surveys/**",), frozenset({"surveys"}), "public surveys"),
+    Rule(
+        ("apps/public/src/pages/surveys/**",), frozenset({"surveys"}), "public surveys"
+    ),
     # The public site: order form, catalog, sign-in and invitation pages.
     Rule(
         ("apps/public/**",),

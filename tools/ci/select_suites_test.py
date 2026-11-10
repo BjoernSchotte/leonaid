@@ -332,7 +332,8 @@ def main() -> int:
     )
     intro = outputs("apps/public/src/components/KrapfentaxiIntro.astro")
     expect(
-        intro["e2e"] == ["public-orders"] and sorted(intro["emdash"]) == sorted(s.EMDASH_GROUPS),
+        intro["e2e"] == ["public-orders"]
+        and sorted(intro["emdash"]) == sorted(s.EMDASH_GROUPS),
         f"Krapfentaxi intro: public orders and the EmDash proofs: {intro}",
     )
     expect(
