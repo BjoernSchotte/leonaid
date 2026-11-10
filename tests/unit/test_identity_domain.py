@@ -345,7 +345,7 @@ def test_navigation_keeps_backoffice_overview_for_authorized_roles(
         action_memberships=memberships,
     )
 
-    navigation = navigation_for(principal)
+    navigation = navigation_for(principal, cms=True)
 
     assert any(
         item.surface == "web" and item.key == "overview-web" for item in navigation
@@ -356,6 +356,9 @@ def test_navigation_keeps_backoffice_overview_for_authorized_roles(
     if allowed:
         assert microsites[0].surface == "web"
         assert microsites[0].href == "/_emdash/admin/content/campaign_pages"
+    # Without the CMS service the editor does not exist: no entry for anyone,
+    # otherwise the link ends in a 502 of the proxy.
+    assert not any(item.key == "microsite" for item in navigation_for(principal))
 
 
 @pytest.mark.parametrize(

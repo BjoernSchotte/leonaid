@@ -210,6 +210,9 @@ services:
       # Caddy's internal CA (LEONAID_SITE_HOST_TLS_CA_FILE, set by tests).
       LEONAID_PUBLIC_DOMAIN_ALIASES: ${LEONAID_PUBLIC_DOMAIN_ALIASES:-}
       LEONAID_PUBLIC_HOST_ENABLED: ${LEONAID_PUBLIC_HOST_ENABLED:-true}
+      # true only with the emdash profile (campaign-site): the API then
+      # offers the CMS editor links. Otherwise /_emdash has no upstream.
+      LEONAID_CMS_ENABLED: ${LEONAID_CMS_ENABLED:-false}
       LEONAID_SITE_HOST_CHECK_ALLOW_PRIVATE: "true"
       LEONAID_SITE_HOST_CHECK_HTTP_PORT: "8080"
       LEONAID_SITE_HOST_TLS_EDGE: proxy:8443

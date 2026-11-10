@@ -442,6 +442,7 @@ export function App({ client }: AppProps) {
               <ManageActionPage
                 actionId={currentRoute.actionId}
                 client={client}
+                editorHref={editorHref}
                 key={currentRoute.actionId}
               />
             ) : currentRoute.kind === "members" ? (

@@ -159,6 +159,11 @@ export function TourMap({
   const layer = useRef<Leaflet.LayerGroup | null>(null);
   const fitted = useRef<string | null>(null);
   const [ready, setReady] = useState(false);
+  // Leaflet builds a marker's element only on a loaded map: the pins of the
+  // first draw (before the view is set) carry no id or label yet. The canvas
+  // says "ready" only after a draw on the loaded map, so nobody (tests, the
+  // e2e suite) finds pins without them.
+  const [painted, setPainted] = useState(false);
   // Handlers change every render; the map's listeners read the latest.
   const handlers = useRef({ onLocationError, onPlace, onSelect });
   handlers.current = { onLocationError, onPlace, onSelect };
@@ -215,6 +220,7 @@ export function TourMap({
       layer.current = null;
       fitted.current = null;
       setReady(false);
+      setPainted(false);
     };
   }, [L, interactive, tiles.attribution, tiles.url]);
 
@@ -299,6 +305,7 @@ export function TourMap({
       }
     }
 
+    if (ready) setPainted(true);
     if (fitted.current === key) return;
     const points: Leaflet.LatLngTuple[] = pins.map((pin) => [pin.lat, pin.lon]);
     if (start) points.push([start.lat, start.lon]);
@@ -365,7 +372,7 @@ export function TourMap({
         onPlace && "is-placing",
         className,
       )}
-      data-ready={ready ? "true" : undefined}
+      data-ready={ready && painted ? "true" : undefined}
       data-testid="tour-map-canvas"
       role="region"
     >

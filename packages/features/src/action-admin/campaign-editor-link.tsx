@@ -5,14 +5,23 @@ import { buttonClassName, Icon } from "@leonaid/ui";
 
 type CampaignIdentity = Pick<
   CurrentIdentityResponse,
-  "globalRoles" | "actionMemberships"
+  "globalRoles" | "actionMemberships" | "navigation"
 >;
+
+// The server lists the microsite entry only when the installation runs the
+// CMS (LEONAID_CMS_ENABLED). Without it /_emdash has no upstream (502).
+export function cmsAvailable(identity: Pick<CampaignIdentity, "navigation">) {
+  return identity.navigation.some(
+    (item) => item.surface === "web" && item.key === "microsite",
+  );
+}
 
 export function campaignEditorHref(
   identity: CampaignIdentity,
   actionId: string,
 ) {
   if (
+    !cmsAvailable(identity) ||
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
       actionId,
     ) ||

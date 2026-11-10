@@ -4,15 +4,25 @@ import type { CurrentIdentityResponse } from "@leonaid/api-client";
 import {
   CampaignEditorLink,
   campaignEditorHref,
+  cmsAvailable,
 } from "../../../packages/features/src/action-admin/campaign-editor-link";
 
 const first = "20000000-0000-4000-8000-000000000001";
 const second = "20000000-0000-4000-8000-000000000002";
 const identity: Pick<
   CurrentIdentityResponse,
-  "globalRoles" | "actionMemberships"
+  "globalRoles" | "actionMemberships" | "navigation"
 > = {
   globalRoles: [],
+  // The server sends this entry only when the installation runs the CMS.
+  navigation: [
+    {
+      key: "microsite",
+      label: "Microsite bearbeiten",
+      href: "/_emdash/admin/content/campaign_pages",
+      surface: "web",
+    },
+  ],
   actionMemberships: [
     {
       actionId: first,
@@ -69,5 +79,18 @@ test("the selected campaign and its role determine the same-tab editor link", ()
       identity={{ ...identity, globalRoles: ["system_admin"] }}
     />,
   );
+  expect(screen.queryByRole("link")).toBeNull();
+});
+
+test("an installation without the CMS offers no editor link", () => {
+  const withoutCms = { ...identity, navigation: [] };
+  expect(cmsAvailable(identity)).toBe(true);
+  expect(cmsAvailable(withoutCms)).toBe(false);
+  expect(campaignEditorHref(withoutCms, first)).toBeUndefined();
+  expect(
+    campaignEditorHref({ ...withoutCms, globalRoles: ["system_admin"] }, first),
+  ).toBeUndefined();
+
+  render(<CampaignEditorLink actionId={first} identity={withoutCms} />);
   expect(screen.queryByRole("link")).toBeNull();
 });

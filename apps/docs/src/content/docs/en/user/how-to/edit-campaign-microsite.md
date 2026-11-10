@@ -4,15 +4,17 @@ description: Change the text and images of your campaign's public microsite in t
 docId: DOC-P042
 audience: [user]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: b18d63d1299216eefe09dee710699a4337cceeec
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 You need the Charity-Admin role for the campaign. The microsite editor is part
 of the optional campaign site. Its interface uses English labels; this guide
-quotes them unchanged.
+quotes them unchanged. If the installation runs without the campaign site
+(`LEONAID_CMS_ENABLED=false`), LeonAid shows neither **Microsite bearbeiten**
+nor the navigation entry "Kampagnenseiten".
 
 1. In LeonAid, open the campaign and select **Microsite bearbeiten**. The
    editor opens with the current draft of the page.

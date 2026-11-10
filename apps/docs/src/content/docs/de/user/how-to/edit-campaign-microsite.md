@@ -4,15 +4,17 @@ description: Texte und Bilder der öffentlichen Microsite einer Aktion im CMS-Ed
 docId: DOC-P042
 audience: [user]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: b18d63d1299216eefe09dee710699a4337cceeec
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 Du brauchst die Rolle Charity-Admin für die Aktion. Der Microsite-Editor
 gehört zur optionalen Kampagnenseite. Seine Oberfläche ist englisch
-beschriftet; diese Anleitung nennt die Beschriftungen unverändert.
+beschriftet; diese Anleitung nennt die Beschriftungen unverändert. Läuft die
+Installation ohne Kampagnenseite (`LEONAID_CMS_ENABLED=false`), zeigt LeonAid
+weder **Microsite bearbeiten** noch den Navigationseintrag „Kampagnenseiten“.
 
 1. Öffne in LeonAid die Aktion und wähle **Microsite bearbeiten**. Der Editor
    öffnet den aktuellen Entwurf der Seite.

@@ -34,6 +34,36 @@ docker compose --env-file .env.local -f infra/compose/compose.yml \
   --profile observability up -d --wait
 ```
 
+## Campaign site (CMS) in the dev stack
+
+The campaign site (service `campaign-site`, profile `emdash`) is not part of
+the default start: `/_emdash` has no upstream, and the API offers no
+"Kampagnenseiten" entry and no "Microsite bearbeiten" link
+(`LEONAID_CMS_ENABLED=false`). After `./leonaid seed` or `./leonaid reset`,
+provision it once:
+
+```sh
+./leonaid dev-cms
+```
+
+The command runs the steps of `pilot-cms-provision` with the same operators:
+CMS database, media bucket, EmDash setup and campaign schema. The seeded
+System Admin (`system-admin@leonaid.invalid`, or `--system-admin-email`)
+completes the EmDash setup through its normal sign-in; the code comes from the
+local Mailpit. The command then writes `LEONAID_CMS_ENABLED=true` to
+`.env.local`. From then on `./leonaid dev` starts the campaign site too, and
+`./leonaid reset` provisions it again after it removed the data. The command
+is safe to repeat.
+
+The CMS editor answers on exactly one origin, the admin origin
+(`LEONAID_ADMIN_BASE_URL`, by default `https://localhost:<LEONAID_HTTPS_PORT>`).
+On any other name of the stack (`LEONAID_LAN_HOST`, `LEONAID_REMOTE_HOST`) it
+answers "Invalid CMS origin" (403). To edit from another machine, make that
+name the admin origin, for example
+`LEONAID_ADMIN_BASE_URL=https://myhost.local:28081`, and run `./leonaid dev`.
+Sign-in links in mails then use that name too. To leave the CMS out again, set `LEONAID_CMS_ENABLED=false`
+and stop the service (`docker compose ... --profile emdash stop campaign-site`).
+
 ## Separate admin and public host
 
 By default the dev stack serves everything under one host, as before. To try
