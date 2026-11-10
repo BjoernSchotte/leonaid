@@ -6,7 +6,7 @@ audience: [user, ops, dev]
 diataxis: reference
 contentRevision: 8
 reviewedRevision: 8
-verifiedAgainst: dd69fcf4fed541649862cc2ed3c869415a3813d6
+verifiedAgainst: b4bbe992cf790597a2f3ca7934de71995cff5665
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -50,7 +50,7 @@ allgemeine Produktionsfreigabe.
   ein Vorschlag und rechtlich noch nicht geprüft.
 - Zahlungen einer stornierten Rechnung bleiben erfasst und lassen sich nicht
   zurückbuchen. LeonAid bucht keine Erstattung; „Erstattung erledigt“ ist nur
-  ein Vermerk und lässt sich nicht zurücknehmen.
+  ein Vermerk. Er lässt sich mit Grund zurücknehmen.
 - Teil- und Überzahlungen werden als einzelne Zahlungseinträge erfasst und
   bei Bedarf begründet zurückgebucht. Eine Überzahlung wird nur angezeigt; die
   Erstattung läuft außerhalb von LeonAid. Bankabgleich und Mahnwesen fehlen.

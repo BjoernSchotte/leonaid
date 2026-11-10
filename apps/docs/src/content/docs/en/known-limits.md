@@ -6,7 +6,7 @@ audience: [user, ops, dev]
 diataxis: reference
 contentRevision: 8
 reviewedRevision: 8
-verifiedAgainst: dd69fcf4fed541649862cc2ed3c869415a3813d6
+verifiedAgainst: b4bbe992cf790597a2f3ca7934de71995cff5665
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -48,8 +48,8 @@ general production approval.
   The wording of the cancellation invoice is a proposal and has no legal
   review yet.
 - Payments of a cancelled invoice stay recorded and cannot be reversed.
-  LeonAid books no refund; "Erstattung erledigt" is only a marker and cannot
-  be taken back.
+  LeonAid books no refund; "Erstattung erledigt" is only a marker. It can be
+  taken back with a reason.
 - Partial payments and overpayments are recorded as separate payment entries
   and can be reversed with a reason. An overpayment is only shown; the refund
   happens outside LeonAid. Bank reconciliation and dunning are missing.

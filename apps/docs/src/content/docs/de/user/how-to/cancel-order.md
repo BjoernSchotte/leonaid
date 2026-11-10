@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 4
 reviewedRevision: 4
-verifiedAgainst: dd69fcf4fed541649862cc2ed3c869415a3813d6
+verifiedAgainst: b4bbe992cf790597a2f3ca7934de71995cff5665
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -48,8 +48,10 @@ Menge und Betrag zählen sie nicht mehr mit.
   LeonAid stellt dazu eine **Stornorechnung** mit eigener Nummer aus. Du
   findest sie unter **Rechnungen** bei der Rechnung und kannst sie dort
   herunterladen und per E-Mail senden (siehe
-  [Rechnung stornieren](/de/user/how-to/cancel-invoice/)). Mit dem Storno der
-  Bestellung wird sie nicht automatisch versendet.
+  [Rechnung stornieren](/de/user/how-to/cancel-invoice/)). Wurde die Rechnung
+  per E-Mail versendet, bietet der Dialog **Stornorechnung gleich senden** an;
+  das Häkchen ist gesetzt. Die Stornorechnung geht dann an dieselbe Adresse,
+  sobald sie erzeugt ist. Ohne Häkchen sendest du sie später bei der Rechnung.
   Weil dabei ein Beleg entsteht, bestätigst du deine Anmeldung
   gegebenenfalls erneut. Grund und Notiz bleiben dabei erhalten; nach der
   Anmeldung öffnet sich der Dialog wieder, und du bestätigst noch einmal.

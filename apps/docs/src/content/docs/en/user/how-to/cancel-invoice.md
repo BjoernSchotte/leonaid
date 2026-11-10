@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 1
 reviewedRevision: 1
-verifiedAgainst: ea0d4b8aca50736cc2d8442cd424e4e083cc472a
+verifiedAgainst: b4bbe992cf790597a2f3ca7934de71995cff5665
 reviewer: Claude Code (review by Björn Schotte pending)
 ---
 
@@ -60,7 +60,9 @@ can then be viewed and downloaded.
 If you did not send the cancellation invoice with the cancellation, select
 **Stornorechnung senden** in the area **Versand der Stornorechnung**. This
 works as soon as the PDF is ready. The area then shows whether the e-mail was
-delivered. A failed delivery can be started again there. **Erneut senden**
+delivered. A failed delivery can be started again there. It also counts under
+**Versand fehlgeschlagen** on the overview, and the invoice list shows it in the
+dispatch state of the cancelled invoice. **Erneut senden**
 deliberately sends the same cancellation invoice once more.
 
 The e-mail goes to the e-mail address of the invoice recipient. Without a
@@ -85,14 +87,20 @@ When the money has been transferred back:
 
 1. Open the invoice and select **Erstattung erledigt**.
 2. Enter the day of the transfer under **Erstattet am**. It lies between the
-   day of the cancellation and today.
+   invoice date and today; it may lie before the cancellation when the money
+   went back earlier.
 3. Add a **Notiz** (note) if needed.
 4. Confirm with **Erstattung erledigt**. Here too you may have to confirm
    your sign-in again.
 
-The entry only closes the reminder. It cannot be changed or taken back. The
-section **Stornorechnung** then shows **Erstattung erledigt am** with the date
-and the person.
+The entry only closes the reminder. The section **Stornorechnung** then shows
+**Erstattung erledigt am** with the date and the person.
+
+If the entry was a mistake, select **Erstattung zurücknehmen** in the section
+**Stornorechnung**, give the **Grund der Rücknahme** (reason, at least eight
+characters) and confirm. The invoice shows **Erstattung offen** again. The line
+**Zurückgenommen** records who set the entry and who took it back. You can then
+record the refund again.
 
 Cancelling the invoice keeps the order. To drop the order too, cancel it
 afterwards (see [Cancel an order](/en/user/how-to/cancel-order/)). The other
@@ -111,9 +119,6 @@ too you may have to confirm your sign-in again.
 
 - **No button:** your account has read access only, or the invoice is already
   cancelled.
-- **Invoice profile missing:** the cancellation invoice needs the number series
-  of the action. Without an invoice profile a system admin must first activate
-  the legal details.
 - **Stornorechnung gleich senden fails:** without an e-mail address of the
   recipient the server refuses the whole step. Cancel without the tick.
 - **Sending not possible yet:** the PDF is still being rendered. Try again a

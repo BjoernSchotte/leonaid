@@ -729,6 +729,7 @@
         "Notiz",
         "Stornieren",
         "wird mitstorniert.",
+        "Stornorechnung gleich senden",
         "LeonAid benachrichtigt den Besteller nicht automatisch.",
         "Der Besteller erhält eine E-Mail über die Stornierung",
         "bereits geliefert",
@@ -907,6 +908,8 @@
         "Stornorechnung gleich senden",
         "LeonAid stellt dazu eine Stornorechnung aus",
         "Erstattung erledigt",
+        "Erstattung zurücknehmen",
+        "Grund der Rücknahme",
         "Erstattet am",
         "Notiz"
       ]

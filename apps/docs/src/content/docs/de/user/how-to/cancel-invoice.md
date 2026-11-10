@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 1
 reviewedRevision: 1
-verifiedAgainst: ea0d4b8aca50736cc2d8442cd424e4e083cc472a
+verifiedAgainst: b4bbe992cf790597a2f3ca7934de71995cff5665
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -61,6 +61,8 @@ Hast du die Stornorechnung nicht gleich mitgesendet, wähle im Bereich
 **Versand der Stornorechnung** die Schaltfläche **Stornorechnung senden**. Das
 geht, sobald das PDF bereitsteht. Der Bereich zeigt danach, ob die E-Mail
 zugestellt wurde. Ein fehlgeschlagener Versand lässt sich dort erneut starten.
+Er zählt außerdem in der Übersicht unter **Versand fehlgeschlagen**, und
+die Rechnungsliste zeigt ihn im Versandstatus der stornierten Rechnung.
 Mit **Erneut senden** schickst du dieselbe Stornorechnung bewusst noch einmal.
 
 Die E-Mail geht an die E-Mail-Adresse des Rechnungsempfängers. Ist dort keine
@@ -86,14 +88,21 @@ Ist das Geld zurücküberwiesen:
 
 1. Öffne die Rechnung und wähle **Erstattung erledigt**.
 2. Trage unter **Erstattet am** den Tag der Überweisung ein. Er liegt zwischen
-   dem Tag des Stornos und heute.
+   dem Rechnungsdatum und heute; er darf vor dem Storno liegen, wenn das Geld
+   schon vorher zurückging.
 3. Ergänze bei Bedarf eine **Notiz**.
 4. Bestätige mit **Erstattung erledigt**. Auch hier bestätigst du deine
    Anmeldung gegebenenfalls erneut.
 
-Der Vermerk schließt nur die Erinnerung. Er lässt sich nicht ändern oder
-zurücknehmen. Der Abschnitt **Stornorechnung** zeigt danach
-**Erstattung erledigt am** mit Datum und Person.
+Der Vermerk schließt nur die Erinnerung. Der Abschnitt **Stornorechnung** zeigt
+danach **Erstattung erledigt am** mit Datum und Person.
+
+War der Vermerk ein Versehen, wähle im Abschnitt **Stornorechnung**
+**Erstattung zurücknehmen**, nenne den **Grund der Rücknahme** mit mindestens
+acht Zeichen und bestätige. Die Rechnung zeigt dann wieder
+**Erstattung offen**. Die Zeile **Zurückgenommen** hält fest, wer den Vermerk
+gesetzt und wer ihn zurückgenommen hat. Danach kannst du die Erstattung neu
+vermerken.
 
 Die Bestellung bleibt beim Storno der Rechnung bestehen. Soll auch sie
 entfallen, storniere sie danach (siehe
@@ -114,9 +123,6 @@ gegebenenfalls erneut.
 
 - **Keine Schaltfläche:** Dein Konto hat nur Lesezugriff, oder die Rechnung ist
   bereits storniert.
-- **Rechnungsprofil fehlt:** Die Stornorechnung braucht den Nummernkreis der
-  Aktion. Fehlt das Rechnungsprofil, muss ein System-Admin zuerst die
-  rechtlichen Angaben aktivieren.
 - **Stornorechnung gleich senden schlägt fehl:** Fehlt die E-Mail-Adresse des
   Empfängers, lehnt der Server den ganzen Schritt ab. Storniere ohne das
   Häkchen.

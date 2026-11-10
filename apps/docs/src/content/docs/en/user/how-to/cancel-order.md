@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 4
 reviewedRevision: 4
-verifiedAgainst: dd69fcf4fed541649862cc2ed3c869415a3813d6
+verifiedAgainst: b4bbe992cf790597a2f3ca7934de71995cff5665
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -44,8 +44,11 @@ finds all cancelled orders. Quantity and amount totals no longer count them.
   becomes **Storniert**. LeonAid issues a **cancellation invoice**
   ("Stornorechnung") with its own number for it. You find it under
   **Rechnungen** with the invoice and can download it and send it by e-mail
-  there (see [Cancel an invoice](/en/user/how-to/cancel-invoice/)). Cancelling
-  the order does not send it automatically. Because this creates a financial
+  there (see [Cancel an invoice](/en/user/how-to/cancel-invoice/)). If the
+  invoice was sent by e-mail, the dialog offers **Stornorechnung gleich
+  senden**; the box is ticked. The cancellation invoice then goes to the same
+  address as soon as it is rendered. Without the tick you send it later from
+  the invoice. Because this creates a financial
   document, you may have to confirm your sign-in again. Reason and note are
   kept; after the sign-in the dialog opens again and you confirm once more.
 - **Buyer:** if the order came in through the public order form, the buyer

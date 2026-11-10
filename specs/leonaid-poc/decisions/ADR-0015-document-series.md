@@ -38,8 +38,10 @@ nummerierte Belegarten dazu. Sie brauchen dieselbe Zählung.
 `donation` und `donation_receipt`.
 
 Eine Nummer wird in der Transaktion ihres Belegs vergeben: Zeile sperren,
-lesen, mit Compare-and-Swap weiterzählen. Die Zeile ist die letzte Sperre
-eines Befehls (Sperrreihenfolge in `adapters/postgres/retry.py`). Eine
+lesen, mit Compare-and-Swap weiterzählen. Die Zeile wird nach den Sperren
+von Rechnung und Bestellung genommen (Sperrreihenfolge in
+`adapters/postgres/retry.py`) und bis zum Ende des Befehls gehalten; alle
+Aktionen eines Präfixes teilen sie sich. Eine
 gescheiterte Transaktion verbraucht keine Nummer. Eine vergebene Nummer wird
 nie wiederverwendet; das gilt aus ADR-0004 weiter.
 
@@ -48,6 +50,13 @@ bei der Aktivierung einer Rechtskonfiguration oder bei der ersten Vergabe.
 Er beginnt hinter der höchsten Nummer, die irgendein Beleg mit diesem Präfix
 schon trägt. Ein Präfix, das später wieder verwendet wird, wiederholt also
 keine Nummer. Die Stellenbreite folgt der Rechtskonfiguration.
+
+Steht der Zähler hinter einer schon vergebenen Nummer (eine Rechnung, die
+ein Prozess der Vorversion nach der Migration geschrieben hat, oder ein von
+Hand eingespielter Beleg), rückt die Vergabe ihn in derselben Transaktion
+hinter die höchste registrierte Nummer des Präfixes. Es entsteht keine Lücke:
+diese Nummern existieren. Ohne diese Regel scheiterte jede weitere Freigabe
+und jedes Storno des Präfixes dauerhaft.
 
 `invoice_profile.next_number` bleibt eine Version lang in der Tabelle. Die
 Anwendung liest und schreibt die Spalte nicht mehr. Die Rückmigration
@@ -70,7 +79,10 @@ Wer eine Rechnung storniert, stellt im selben Schritt die Stornorechnung aus
 (D-C1). Sie ist ein eigener Beleg:
 
 - eigene Nummer aus dem Nummernkreis `invoice`, mit dem Präfix, das am Tag
-  des Stornos gilt;
+  des Stornos gilt: das Präfix des Rechnungsprofils der Aktion; ohne Profil
+  das der aktiven Rechtskonfiguration; ohne diese der Nummernkreis, zu dem
+  die Nummer der Rechnung selbst gehört. Ein Storno scheitert nie daran, dass
+  ein Profil fehlt;
 - Datum ist der Tag des Stornos in der Zeitzone des Clubs;
 - Aussteller, Empfänger, Steuerfall und Positionen der Rechnung;
 - Nummer und Datum der Rechnung, die sie aufhebt.
@@ -106,7 +118,11 @@ zurückbuchen (ADR-0014). LeonAid bucht keine Erstattung. Hat die Rechnung
 Geld erhalten, nennt die Stornorechnung den Betrag und den Satz „Die
 Erstattung erfolgt gesondert.“. Die Rechnungsliste zeigt „Erstattung offen“,
 bis eine berechtigte Person „Erstattung erledigt“ mit Datum vermerkt. Der
-Vermerk ist einmalig und wird protokolliert.
+Vermerk verlangt wie eine Rückbuchung eine frische Anmeldung und einen
+Idempotency-Key und wird protokolliert. Er lässt sich mit Begründung
+zurücknehmen („Erstattung zurücknehmen“); `invoice_refund_withdrawal` hält
+fest, wer ihn gesetzt und wer ihn zurückgenommen hat. Das Datum darf vor dem
+Storno liegen, aber nicht vor dem Rechnungsdatum.
 
 `cancelCommitment` lehnt weiter ab, solange eine nicht stornierte Rechnung
 eine Zahlung trägt. Ist die Rechnung bereits storniert, blockiert ihre Zahlung
@@ -144,8 +160,9 @@ Rechnungsaufträge bleibt gültig.
   eigenes Präfix bekommen sollen, kann der Produktverantwortliche noch anders
   entscheiden (P5 der Spezifikation); das ist dann eine weitere Belegart mit
   eigenem Nummernkreis und ändert nichts an diesem Modell.
-- Ein Storno braucht das Rechnungsprofil der Aktion, weil es dessen
-  Nummernkreis benutzt.
+- Wird die Stornorechnung mit dem Storno versendet, wartet der Mailauftrag
+  auf das PDF, ohne Versuche zu verbrauchen (`OutboxDeferred`), und scheitert
+  sichtbar, wenn der Renderauftrag endgültig gescheitert ist.
 - `GeneratedDocumentResponse.documentType` kennt den neuen Wert
   `invoice_cancellation_pdf`. Der OpenAPI-Prüfer wertet das als Breaking
   Change; die Freigabe steht in
