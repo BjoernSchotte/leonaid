@@ -167,12 +167,14 @@ export type DonationCancellationResponse = { readonly cancelledAt: string; reado
 export type DonationDeliveryResponse = { readonly attempts: number; readonly canRetry: boolean; readonly donationId: string; readonly generatedDocumentId: string; readonly id: string; readonly lastErrorCode: string | null; readonly lastErrorDetail: string | null; readonly recipientEmail: string; readonly requestedAt: string; readonly sentAt: string | null; readonly status: "queued" | "sending" | "retrying" | "failed" | "sent"; readonly subject: string; };
 export type DonationDonorRequest = { readonly city: string; readonly countryCode?: string; readonly email?: string | null; readonly name: string; readonly partyKind?: "company" | "person" | null; readonly postalCode: string; readonly streetLine1: string; readonly twentyId?: string | null; };
 export type DonationDonorResponse = { readonly city: string; readonly countryCode: string; readonly email: string | null; readonly name: string; readonly partyKind: "company" | "person" | null; readonly postalCode: string; readonly streetLine1: string; readonly twentyId: string | null; };
-export type DonationListResponse = { readonly actionId: string; readonly actionName: string; readonly currency: string; readonly items: Array<DonationResponse>; readonly mayManage: boolean; readonly maySend: boolean; readonly pledgedOpenTotalMinor: number; readonly receivedTotalMinor: number; readonly receivingBodyName: string | null; };
+export type DonationListResponse = { readonly actionId: string; readonly actionName: string; readonly currency: string; readonly items: Array<DonationResponse>; readonly mayManage: boolean; readonly maySend: boolean; readonly pledgedOpenTotalMinor: number; readonly receiptNoticeValidUntil: string | null; readonly receiptSigning: "by_hand" | "machine" | null; readonly receivedTotalMinor: number; readonly receivingBodyName: string | null; };
 export type DonationPaymentResponse = { readonly amountMinor: number; readonly note: string | null; readonly receivedOn: string; readonly recordedAt: string; readonly recordedByDisplayName: string | null; };
 export type DonationPaymentWithdrawalResponse = { readonly amountMinor: number; readonly id: string; readonly note: string | null; readonly reason: string; readonly receivedOn: string; readonly recordedAt: string; readonly recordedByDisplayName: string | null; readonly withdrawnAt: string; readonly withdrawnByDisplayName: string | null; };
 export type DonationPledgeDocumentResponse = { readonly availableAt: string | null; readonly createdAt: string; readonly filename: string | null; readonly id: string; readonly sizeBytes: number | null; readonly status: "pending" | "available" | "deleted"; readonly version: number; };
 export type DonationReasonRequest = { readonly reason: string; };
-export type DonationResponse = { readonly actionId: string; readonly cancellation: DonationCancellationResponse | null; readonly commitmentId: string | null; readonly createdByDisplayName: string | null; readonly currency: string; readonly donor: DonationDonorResponse; readonly id: string; readonly note: string | null; readonly number: string; readonly payment: DonationPaymentResponse | null; readonly paymentWithdrawals: Array<DonationPaymentWithdrawalResponse>; readonly pledgeDeliveries: Array<DonationDeliveryResponse>; readonly pledgeDocument: DonationPledgeDocumentResponse; readonly pledgedAt: string; readonly pledgedMinor: number; readonly replayed: boolean; readonly source: "public_form" | "admin" | "acquisition"; readonly status: "pledged" | "paid" | "cancelled"; };
+export type DonationReceiptResponse = { readonly amountMinor: number; readonly deliveries: Array<DonationDeliveryResponse>; readonly document: DonationPledgeDocumentResponse; readonly id: string; readonly issuedAt: string; readonly issuedByDisplayName: string | null; readonly issuedOn: string; readonly number: string; readonly receivedOn: string; readonly signing: "by_hand" | "machine"; readonly void: DonationReceiptVoidResponse | null; };
+export type DonationReceiptVoidResponse = { readonly evidence: "original_returned" | "tax_office_informed"; readonly reason: string; readonly voidedAt: string; readonly voidedByDisplayName: string | null; };
+export type DonationResponse = { readonly actionId: string; readonly cancellation: DonationCancellationResponse | null; readonly commitmentId: string | null; readonly createdByDisplayName: string | null; readonly currency: string; readonly donor: DonationDonorResponse; readonly id: string; readonly note: string | null; readonly number: string; readonly payment: DonationPaymentResponse | null; readonly paymentWithdrawals: Array<DonationPaymentWithdrawalResponse>; readonly pledgeDeliveries: Array<DonationDeliveryResponse>; readonly pledgeDocument: DonationPledgeDocumentResponse; readonly pledgedAt: string; readonly pledgedMinor: number; readonly receipts: Array<DonationReceiptResponse>; readonly replayed: boolean; readonly source: "public_form" | "admin" | "acquisition"; readonly status: "pledged" | "paid" | "cancelled"; };
 export type DraftSave = { readonly definition: Record<string, unknown>; readonly expectedRevision: number; readonly operationId: string; };
 export type DraftValidation = { readonly expectedRevision: number; };
 export type Duplicate = { readonly expectedRevision: number; readonly operationId: string; readonly targetSurveyId: string; readonly title: string; };
@@ -191,7 +193,7 @@ export type FreshLoginStatusResponse = { readonly freshUntil: string; readonly s
 export type GeneratedDocumentListResponse = { readonly actionId: string; readonly items: Array<GeneratedDocumentRecordResponse>; readonly reference: GeneratedDocumentReferenceResponse; };
 export type GeneratedDocumentRecordResponse = { readonly buyerDisplayName: string; readonly document: GeneratedDocumentResponse; readonly documentNumber: string | null; readonly invoiceNumber: string | null; };
 export type GeneratedDocumentReferenceResponse = { readonly id: string; readonly kind: "action" | "commitment" | "invoice" | "twenty_company" | "twenty_person"; };
-export type GeneratedDocumentResponse = { readonly actionId: string; readonly availableAt: string | null; readonly commitmentId: string | null; readonly createdAt: string; readonly documentType: "invoice_pdf" | "invoice_cancellation_pdf" | "donation_pledge_pdf"; readonly donationId: string | null; readonly filename: string | null; readonly id: string; readonly invoiceId: string | null; readonly mediaType: string; readonly renderVersion: string | null; readonly sentAt: string | null; readonly sizeBytes: number | null; readonly status: "pending" | "available" | "deleted"; readonly twentyCompanyId: string | null; readonly twentyPersonId: string | null; readonly version: number; };
+export type GeneratedDocumentResponse = { readonly actionId: string; readonly availableAt: string | null; readonly commitmentId: string | null; readonly createdAt: string; readonly documentType: "invoice_pdf" | "invoice_cancellation_pdf" | "donation_pledge_pdf" | "donation_receipt_pdf"; readonly donationId: string | null; readonly filename: string | null; readonly id: string; readonly invoiceId: string | null; readonly mediaType: string; readonly renderVersion: string | null; readonly sentAt: string | null; readonly sizeBytes: number | null; readonly status: "pending" | "available" | "deleted"; readonly twentyCompanyId: string | null; readonly twentyPersonId: string | null; readonly version: number; };
 export type GeoPointResponse = { readonly lat: number; readonly lon: number; };
 export type HandOverAcquisitionAssignmentRequest = { readonly revision: number; readonly targetAcquirerUserId: string; };
 export type IdentityDonationActionResponse = { readonly actionId: string; readonly actionName: string; };
@@ -430,6 +432,7 @@ export type UpdateFeatureFlagRequest = { readonly enabled: boolean; readonly exp
 export type UpdatePage = { readonly content: Record<string, unknown>; readonly expectedRevision: number; readonly idempotencyKey: string; readonly title: string; };
 export type UpdatePushPreferencesRequest = { readonly preferences: Array<PushPreferenceRequest>; };
 export type UpdateTask = { readonly assigneeUserId?: string | null; readonly deferredUntil?: string | null; readonly description?: string; readonly dueAt?: string | null; readonly epicId?: string | null; readonly expectedRevision: number; readonly idempotencyKey: string; readonly status: "open" | "done"; readonly title: string; };
+export type VoidDonationReceiptRequest = { readonly evidence: "original_returned" | "tax_office_informed"; readonly reason: string; };
 export type WithdrawInvoiceRefundRequest = { readonly reason: string; };
 
 export type FetchLike = (
@@ -1464,6 +1467,49 @@ export class LeonAidApiClient {
     return this.request<DonationDeliveryResponse>(
       `/api/v1/actions/${encodeURIComponent(String(actionId))}/donations/${encodeURIComponent(String(donationId))}/pledge/deliveries/${encodeURIComponent(String(deliveryId))}/retry`,
       { method: "POST" },
+      options,
+    );
+  }
+
+  async issueDonationReceipt(
+    actionId: string,
+    donationId: string,
+    options: RequestOptions = {},
+  ): Promise<DonationResponse> {
+    return this.request<DonationResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/donations/${encodeURIComponent(String(donationId))}/receipts`,
+      { method: "POST" },
+      options,
+    );
+  }
+
+  async sendDonationReceipt(
+    actionId: string,
+    donationId: string,
+    receiptId: string,
+    options: RequestOptions = {},
+  ): Promise<DonationDeliveryResponse> {
+    return this.request<DonationDeliveryResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/donations/${encodeURIComponent(String(donationId))}/receipts/${encodeURIComponent(String(receiptId))}/deliveries`,
+      { method: "POST" },
+      options,
+    );
+  }
+
+  async voidDonationReceipt(
+    actionId: string,
+    donationId: string,
+    receiptId: string,
+    body: VoidDonationReceiptRequest,
+    options: RequestOptions = {},
+  ): Promise<DonationResponse> {
+    return this.request<DonationResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/donations/${encodeURIComponent(String(donationId))}/receipts/${encodeURIComponent(String(receiptId))}/void`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
       options,
     );
   }

@@ -33,11 +33,13 @@ from leonaid.application.rendered_documents import (
 )
 from leonaid.domain.commitments import Money
 from leonaid.domain.documents import GeneratedDocument
+from leonaid.domain.donation_receipts import DonationReceipt
 from leonaid.domain.donations import (
     Donation,
     DonationPledgeDocument,
     DonationSource,
     DonorSnapshot,
+    ReceiptSigning,
 )
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import IdentityPrincipal
@@ -47,12 +49,26 @@ IDEMPOTENCY_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$")
 
 
 @dataclass(frozen=True, slots=True)
+class DonationReceiptRecord:
+    receipt: DonationReceipt
+    # The receipt PDF, written in the transaction of the receipt.
+    document: GeneratedDocument
+    deliveries: tuple[InvoiceDelivery, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class DonationRecord:
     donation: Donation
     # The pledge PDF; None only while its row is missing (never by design).
     # Written in the transaction of the donation: every donation has one.
     pledge_document: GeneratedDocument
     pledge_deliveries: tuple[InvoiceDelivery, ...] = ()
+    # Newest first; at most one of them is not void.
+    receipts: tuple[DonationReceiptRecord, ...] = ()
+
+    @property
+    def valid_receipt(self) -> DonationReceiptRecord | None:
+        return next((item for item in self.receipts if item.receipt.valid), None)
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +81,10 @@ class DonationList:
     receiving_body_name: str | None
     may_manage: bool
     may_send: bool
+    # How the active receiving body signs receipts, and the last day its
+    # notice carries one (§ 63 Abs. 5 AO); None without a receiving body.
+    receipt_signing: ReceiptSigning | None = None
+    receipt_notice_valid_until: date | None = None
 
     @property
     def received_total(self) -> Money:
@@ -299,6 +319,8 @@ class DonationService:
             receiving_body_name=listing.receiving_body_name,
             may_manage=may_manage_invoice_settlements(actor, action_id),
             may_send=_may_send(actor, action_id),
+            receipt_signing=listing.receipt_signing,
+            receipt_notice_valid_until=listing.receipt_notice_valid_until,
         )
 
     async def create(

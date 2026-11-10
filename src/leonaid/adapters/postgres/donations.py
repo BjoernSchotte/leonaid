@@ -9,6 +9,7 @@ series row a new number comes from (``retry.py``).
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import date, datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
@@ -16,6 +17,7 @@ from uuid import UUID, uuid4
 import asyncpg
 
 from leonaid.adapters.postgres.document_series import allocate_document_number
+from leonaid.adapters.postgres.donation_receipts import load_receipts
 from leonaid.adapters.postgres.documents import AsyncpgGeneratedDocumentRepository
 from leonaid.adapters.postgres.invoice_deliveries import (
     AsyncpgInvoiceDeliveryRepository,
@@ -39,6 +41,7 @@ from leonaid.domain.documents import (
     GeneratedDocument,
     GeneratedDocumentType,
 )
+from leonaid.domain.donation_receipts import notice_valid_until
 from leonaid.domain.donations import (
     Donation,
     DonationCancellation,
@@ -362,6 +365,10 @@ class AsyncpgDonationRepository:
             receiving_body_name=configured[1].legal_name if configured else None,
             may_manage=False,
             may_send=False,
+            receipt_signing=configured[1].signing if configured else None,
+            receipt_notice_valid_until=(
+                notice_valid_until(configured[1]) if configured else None
+            ),
         )
 
     async def donation_pledge_document(
@@ -459,11 +466,13 @@ class AsyncpgDonationRepository:
             deliveries.setdefault(item["donation_id"], []).append(
                 AsyncpgInvoiceDeliveryRepository._delivery(item)
             )
+        receipts = await load_receipts(connection, ids)
         return tuple(
             DonationRecord(
                 donation=self._donation(row, tuple(withdrawals.get(row["id"], ()))),
                 pledge_document=_pledge_document_of(documents, row["id"]),
                 pledge_deliveries=tuple(deliveries.get(row["id"], ())),
+                receipts=receipts.get(row["id"], ()),
             )
             for row in rows
         )
@@ -564,12 +573,11 @@ class AsyncpgDonationRepository:
         record = (await self._records(connection, action_id, (row,)))[0]
         if not replayed:
             return record
-        return DonationRecord(
+        return replace(
+            record,
             donation=self._donation(
                 row, record.donation.payment_withdrawals, replayed=True
             ),
-            pledge_document=record.pledge_document,
-            pledge_deliveries=record.pledge_deliveries,
         )
 
     # --- commands -----------------------------------------------------------
@@ -810,6 +818,8 @@ class AsyncpgDonationRepository:
                     reason=reason,
                     withdrawn_by_user_id=actor_user_id,
                     withdrawn_at=occurred_at,
+                    # A valid receipt confirms this money: it goes first.
+                    has_valid_receipt=record.valid_receipt is not None,
                 )
                 await connection.execute(
                     """
@@ -1188,8 +1198,11 @@ class AsyncpgDonationRepository:
             async with connection.transaction():
                 row = await connection.fetchrow(
                     """
-                    SELECT delivery.outbox_event_id, event.status, mail.sent_at
+                    SELECT delivery.outbox_event_id, event.status, mail.sent_at,
+                           document.document_type
                     FROM invoice_delivery AS delivery
+                    JOIN generated_document AS document
+                      ON document.id = delivery.generated_document_id
                     JOIN outbox_event AS event
                       ON event.id = delivery.outbox_event_id
                     LEFT JOIN mail_delivery AS mail
@@ -1238,7 +1251,11 @@ class AsyncpgDonationRepository:
                     connection,
                     action_id=action_id,
                     actor_user_id=actor_user_id,
-                    event_type="donation_pledge_delivery_retried",
+                    event_type=(
+                        "donation_receipt_delivery_retried"
+                        if str(row["document_type"]) == "donation_receipt_pdf"
+                        else "donation_pledge_delivery_retried"
+                    ),
                     donation_id=donation_id,
                     request_id=request_id,
                     payload={"deliveryId": str(delivery_id)},

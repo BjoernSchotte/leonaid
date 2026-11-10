@@ -126,11 +126,14 @@ from leonaid.application.invoice_deliveries import (
     InvoiceDeliveryKind,
     InvoiceDeliveryService,
 )
+from leonaid.application.donation_receipts import DonationReceiptService
 from leonaid.application.donations import (
     DonationDraft,
+    DonationReceiptRecord,
     DonationRecord,
     DonationService,
 )
+from leonaid.domain.donation_receipts import ReceiptVoidEvidence
 from leonaid.domain.donations import (
     DonorPartyKind,
     DonorSnapshot,
@@ -413,6 +416,9 @@ from leonaid.entrypoints.fastapi.schemas import (
     RecordDonationPaymentRequest,
     DonationReasonRequest,
     DonationResponse,
+    DonationReceiptResponse,
+    DonationReceiptVoidResponse,
+    VoidDonationReceiptRequest,
     DonationListResponse,
     DonationDonorResponse,
     DonationPaymentResponse,
@@ -678,6 +684,45 @@ def donation_delivery_response(delivery: InvoiceDelivery) -> DonationDeliveryRes
     )
 
 
+def donation_receipt_service(request: Request) -> DonationReceiptService:
+    return cast(DonationReceiptService, request.app.state.donation_receipt_service)
+
+
+def donation_receipt_response(item: DonationReceiptRecord) -> DonationReceiptResponse:
+    receipt = item.receipt
+    document = item.document
+    return DonationReceiptResponse(
+        id=receipt.id,
+        number=receipt.number,
+        issued_on=receipt.document.issued_on,
+        issued_at=receipt.document.issued_at,
+        issued_by_display_name=receipt.issued_by_display_name,
+        amount_minor=receipt.document.amount.amount_minor,
+        received_on=receipt.document.received_on,
+        signing=receipt.document.body.signing.value,
+        void=(
+            DonationReceiptVoidResponse(
+                reason=receipt.void.reason,
+                evidence=receipt.void.evidence.value,
+                voided_by_display_name=receipt.void.voided_by_display_name,
+                voided_at=receipt.void.voided_at,
+            )
+            if receipt.void is not None
+            else None
+        ),
+        document=DonationPledgeDocumentResponse(
+            id=document.id,
+            status=document.status.value,
+            version=document.version,
+            filename=document.filename,
+            size_bytes=document.size_bytes,
+            created_at=document.created_at,
+            available_at=document.available_at,
+        ),
+        deliveries=[donation_delivery_response(entry) for entry in item.deliveries],
+    )
+
+
 def donation_response(record: DonationRecord) -> DonationResponse:
     donation = record.donation
     donor = donation.donor
@@ -752,6 +797,7 @@ def donation_response(record: DonationRecord) -> DonationResponse:
         pledge_deliveries=[
             donation_delivery_response(item) for item in record.pledge_deliveries
         ],
+        receipts=[donation_receipt_response(item) for item in record.receipts],
         replayed=donation.replayed,
     )
 
@@ -4804,6 +4850,10 @@ async def list_donations(
         receiving_body_name=listing.receiving_body_name,
         may_manage=listing.may_manage,
         may_send=listing.may_send,
+        receipt_signing=(
+            listing.receipt_signing.value if listing.receipt_signing else None
+        ),
+        receipt_notice_valid_until=listing.receipt_notice_valid_until,
         received_total_minor=listing.received_total.amount_minor,
         pledged_open_total_minor=listing.pledged_open_total.amount_minor,
         currency="EUR",
@@ -4950,6 +5000,109 @@ async def cancel_donation(
     )
     response.headers["Cache-Control"] = "no-store"
     return donation_response(record)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/donations/{donation_id}/receipts",
+    operation_id="issueDonationReceipt",
+    response_model=DonationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["donations"],
+)
+async def issue_donation_receipt(
+    action_id: UUID, donation_id: UUID, request: Request, response: Response
+) -> DonationResponse:
+    """Issue the donation receipt ("Zuwendungsbestätigung") of a paid donation.
+
+    It confirms the amount and the day that arrived. One valid receipt per
+    donation: 422 `donation_receipt_already_issued`. 409
+    `donation_receipt_requires_payment` for an unpaid donation, 409
+    `donation_receipt_notice_expired` when the notice of the receiving body
+    is too old (§ 63 Abs. 5 AO).
+    """
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    record = await donation_receipt_service(request).issue(
+        actor,
+        action_id,
+        donation_id,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return donation_response(record)
+
+
+@router.post(
+    ("/api/v1/actions/{action_id}/donations/{donation_id}/receipts/{receipt_id}/void"),
+    operation_id="voidDonationReceipt",
+    response_model=DonationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["donations"],
+)
+async def void_donation_receipt(
+    action_id: UUID,
+    donation_id: UUID,
+    receipt_id: UUID,
+    request: Request,
+    body: VoidDonationReceiptRequest,
+    response: Response,
+) -> DonationResponse:
+    """Declare a receipt void, with a reason and with what happened to the
+    donor's paper. The receipt and its PDF stay stored; a new receipt can be
+    issued afterwards."""
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    record = await donation_receipt_service(request).void(
+        actor,
+        action_id,
+        donation_id,
+        receipt_id,
+        reason=body.reason,
+        evidence=ReceiptVoidEvidence(body.evidence),
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return donation_response(record)
+
+
+@router.post(
+    (
+        "/api/v1/actions/{action_id}/donations/{donation_id}/receipts/"
+        "{receipt_id}/deliveries"
+    ),
+    operation_id="sendDonationReceipt",
+    response_model=DonationDeliveryResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["donations"],
+)
+async def send_donation_receipt(
+    action_id: UUID,
+    donation_id: UUID,
+    receipt_id: UUID,
+    request: Request,
+    response: Response,
+) -> DonationDeliveryResponse:
+    """Send a valid receipt to the donor by mail (action manager).
+
+    Only a receipt made by the machine procedure: 409
+    `donation_receipt_signed_by_hand` otherwise. A failed delivery is
+    started again with `retryDonationPledgeDelivery`, which serves every
+    delivery of a donation.
+    """
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    delivery = await donation_receipt_service(request).send(
+        actor,
+        action_id,
+        donation_id,
+        receipt_id,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return donation_delivery_response(delivery)
 
 
 @router.post(

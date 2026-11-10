@@ -2162,6 +2162,38 @@ class DonationPledgeDocumentResponse(TransportModel):
     available_at: datetime | None
 
 
+class VoidDonationReceiptRequest(TransportModel):
+    reason: str = Field(min_length=8, max_length=500)
+    # What happened to the paper the donor holds.
+    evidence: Literal["original_returned", "tax_office_informed"]
+
+
+class DonationReceiptVoidResponse(TransportModel):
+    reason: str
+    evidence: Literal["original_returned", "tax_office_informed"]
+    voided_by_display_name: str | None
+    voided_at: datetime
+
+
+class DonationReceiptResponse(TransportModel):
+    """A donation receipt ("Zuwendungsbestätigung"): issued once, never
+    edited, at most declared void."""
+
+    id: UUID
+    number: str
+    issued_on: date
+    issued_at: datetime
+    issued_by_display_name: str | None
+    amount_minor: int = Field(ge=1)
+    received_on: date
+    # `by_hand`: print and sign, no mail from LeonAid. `machine`: valid
+    # without a signature and can be sent as a PDF.
+    signing: Literal["by_hand", "machine"]
+    void: DonationReceiptVoidResponse | None
+    document: DonationPledgeDocumentResponse
+    deliveries: list[DonationDeliveryResponse]
+
+
 class DonationResponse(TransportModel):
     id: UUID
     action_id: UUID
@@ -2181,6 +2213,8 @@ class DonationResponse(TransportModel):
     # Created with the donation, in its transaction: never missing.
     pledge_document: DonationPledgeDocumentResponse
     pledge_deliveries: list[DonationDeliveryResponse]
+    # Newest first; at most one of them is not void.
+    receipts: list[DonationReceiptResponse]
     replayed: bool
 
 
@@ -2197,6 +2231,18 @@ class DonationListResponse(TransportModel):
     )
     may_manage: bool
     may_send: bool
+    receipt_signing: Literal["by_hand", "machine"] | None = Field(
+        description=(
+            "How the active receiving body signs receipts; null without a "
+            "receiving body."
+        ),
+    )
+    receipt_notice_valid_until: date | None = Field(
+        description=(
+            "Last day the notice of the active receiving body carries a "
+            "receipt (§ 63 Abs. 5 AO). After it no receipt can be issued."
+        ),
+    )
     received_total_minor: int = Field(ge=0)
     pledged_open_total_minor: int = Field(ge=0)
     currency: str
@@ -2219,7 +2265,10 @@ class GeneratedDocumentResponse(TransportModel):
     twenty_company_id: UUID | None
     twenty_person_id: UUID | None
     document_type: Literal[
-        "invoice_pdf", "invoice_cancellation_pdf", "donation_pledge_pdf"
+        "invoice_pdf",
+        "invoice_cancellation_pdf",
+        "donation_pledge_pdf",
+        "donation_receipt_pdf",
     ]
     donation_id: UUID | None
     media_type: str

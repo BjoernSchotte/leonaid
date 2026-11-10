@@ -32,6 +32,7 @@ DOCUMENT_TYPES = {
         GeneratedDocumentType.INVOICE_CANCELLATION_PDF
     ),
     InvoiceDeliveryKind.DONATION_PLEDGE: GeneratedDocumentType.DONATION_PLEDGE_PDF,
+    InvoiceDeliveryKind.DONATION_RECEIPT: GeneratedDocumentType.DONATION_RECEIPT_PDF,
 }
 KINDS = {document_type.value: kind for kind, document_type in DOCUMENT_TYPES.items()}
 MAIL_DELIVERY_NAMESPACE = UUID("8a30d44c-d313-4cc6-af6a-237af95a4d4c")

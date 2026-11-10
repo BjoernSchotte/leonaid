@@ -43,6 +43,7 @@ EXPECTED_TABLES = {
     "document_series",
     "donation",
     "donation_payment_withdrawal",
+    "donation_receipt",
     "generated_document",
     "inbox_case",
     "inbox_case_comment",

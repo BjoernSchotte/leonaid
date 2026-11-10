@@ -31,6 +31,8 @@ class InvoiceDeliveryKind(StrEnum):
     # A delivery of a donation's pledge; it belongs to a donation, not to
     # an invoice (application/donations.py).
     DONATION_PLEDGE = "donation_pledge"
+    # A delivery of a donation receipt (application/donation_receipts.py).
+    DONATION_RECEIPT = "donation_receipt"
 
 
 class InvoiceDeliveryStatus(StrEnum):

@@ -6,6 +6,12 @@ from leonaid.adapters.typst.donation_pledge_renderer import (
     TypstDonationPledgeRenderer,
     pledge_render_payload,
 )
+from leonaid.adapters.typst.donation_receipt_renderer import (
+    RECEIPT_RENDER_VERSION,
+    RECEIPT_TEMPLATE_VERSION,
+    TypstDonationReceiptRenderer,
+    receipt_render_payload,
+)
 from leonaid.adapters.typst.invoice_cancellation_renderer import (
     CANCELLATION_RENDER_VERSION,
     CANCELLATION_TEMPLATE_VERSION,
@@ -26,14 +32,18 @@ __all__ = [
     "CANCELLATION_TEMPLATE_VERSION",
     "PLEDGE_RENDER_VERSION",
     "PLEDGE_TEMPLATE_VERSION",
+    "RECEIPT_RENDER_VERSION",
+    "RECEIPT_TEMPLATE_VERSION",
     "RENDER_VERSION",
     "TEMPLATE_VERSION",
     "TYPST_VERSION",
     "TypstDonationPledgeRenderer",
+    "TypstDonationReceiptRenderer",
     "TypstInvoiceCancellationRenderer",
     "TypstInvoiceRenderer",
     "TypstRenderError",
     "cancellation_render_payload",
     "pledge_render_payload",
+    "receipt_render_payload",
     "render_payload",
 ]

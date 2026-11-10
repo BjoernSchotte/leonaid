@@ -7928,6 +7928,35 @@
             "title": "Pledgedopentotalminor",
             "type": "integer"
           },
+          "receiptNoticeValidUntil": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last day the notice of the active receiving body carries a receipt (§ 63 Abs. 5 AO). After it no receipt can be issued.",
+            "title": "Receiptnoticevaliduntil"
+          },
+          "receiptSigning": {
+            "anyOf": [
+              {
+                "enum": [
+                  "by_hand",
+                  "machine"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How the active receiving body signs receipts; null without a receiving body.",
+            "title": "Receiptsigning"
+          },
           "receivedTotalMinor": {
             "minimum": 0.0,
             "title": "Receivedtotalminor",
@@ -7953,6 +7982,8 @@
           "receivingBodyName",
           "mayManage",
           "maySend",
+          "receiptSigning",
+          "receiptNoticeValidUntil",
           "receivedTotalMinor",
           "pledgedOpenTotalMinor",
           "currency"
@@ -8182,6 +8213,136 @@
         "title": "DonationReasonRequest",
         "type": "object"
       },
+      "DonationReceiptResponse": {
+        "additionalProperties": false,
+        "description": "A donation receipt (\"Zuwendungsbestätigung\"): issued once, never\nedited, at most declared void.",
+        "properties": {
+          "amountMinor": {
+            "minimum": 1.0,
+            "title": "Amountminor",
+            "type": "integer"
+          },
+          "deliveries": {
+            "items": {
+              "$ref": "#/components/schemas/DonationDeliveryResponse"
+            },
+            "title": "Deliveries",
+            "type": "array"
+          },
+          "document": {
+            "$ref": "#/components/schemas/DonationPledgeDocumentResponse"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "issuedAt": {
+            "format": "date-time",
+            "title": "Issuedat",
+            "type": "string"
+          },
+          "issuedByDisplayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuedbydisplayname"
+          },
+          "issuedOn": {
+            "format": "date",
+            "title": "Issuedon",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "string"
+          },
+          "receivedOn": {
+            "format": "date",
+            "title": "Receivedon",
+            "type": "string"
+          },
+          "signing": {
+            "enum": [
+              "by_hand",
+              "machine"
+            ],
+            "title": "Signing",
+            "type": "string"
+          },
+          "void": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DonationReceiptVoidResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "issuedOn",
+          "issuedAt",
+          "issuedByDisplayName",
+          "amountMinor",
+          "receivedOn",
+          "signing",
+          "void",
+          "document",
+          "deliveries"
+        ],
+        "title": "DonationReceiptResponse",
+        "type": "object"
+      },
+      "DonationReceiptVoidResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence": {
+            "enum": [
+              "original_returned",
+              "tax_office_informed"
+            ],
+            "title": "Evidence",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "voidedAt": {
+            "format": "date-time",
+            "title": "Voidedat",
+            "type": "string"
+          },
+          "voidedByDisplayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voidedbydisplayname"
+          }
+        },
+        "required": [
+          "reason",
+          "evidence",
+          "voidedByDisplayName",
+          "voidedAt"
+        ],
+        "title": "DonationReceiptVoidResponse",
+        "type": "object"
+      },
       "DonationResponse": {
         "additionalProperties": false,
         "properties": {
@@ -8287,6 +8448,13 @@
             "title": "Pledgedminor",
             "type": "integer"
           },
+          "receipts": {
+            "items": {
+              "$ref": "#/components/schemas/DonationReceiptResponse"
+            },
+            "title": "Receipts",
+            "type": "array"
+          },
           "replayed": {
             "title": "Replayed",
             "type": "boolean"
@@ -8328,6 +8496,7 @@
           "cancellation",
           "pledgeDocument",
           "pledgeDeliveries",
+          "receipts",
           "replayed"
         ],
         "title": "DonationResponse",
@@ -8932,7 +9101,8 @@
             "enum": [
               "invoice_pdf",
               "invoice_cancellation_pdf",
-              "donation_pledge_pdf"
+              "donation_pledge_pdf",
+              "donation_receipt_pdf"
             ],
             "title": "Documenttype",
             "type": "string"
@@ -21410,6 +21580,31 @@
         "title": "UpdateTask",
         "type": "object"
       },
+      "VoidDonationReceiptRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence": {
+            "enum": [
+              "original_returned",
+              "tax_office_informed"
+            ],
+            "title": "Evidence",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 8,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "evidence"
+        ],
+        "title": "VoidDonationReceiptRequest",
+        "type": "object"
+      },
       "WithdrawInvoiceRefundRequest": {
         "additionalProperties": false,
         "properties": {
@@ -28185,6 +28380,378 @@
           }
         },
         "summary": "Retry Donation Pledge Delivery",
+        "tags": [
+          "donations"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/donations/{donation_id}/receipts": {
+      "post": {
+        "description": "Issue the donation receipt (\"Zuwendungsbestätigung\") of a paid donation.\n\nIt confirms the amount and the day that arrived. One valid receipt per\ndonation: 422 `donation_receipt_already_issued`. 409\n`donation_receipt_requires_payment` for an unpaid donation, 409\n`donation_receipt_notice_expired` when the notice of the receiving body\nis too old (§ 63 Abs. 5 AO).",
+        "operationId": "issueDonationReceipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "donation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Donation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DonationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Issue Donation Receipt",
+        "tags": [
+          "donations"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/donations/{donation_id}/receipts/{receipt_id}/deliveries": {
+      "post": {
+        "description": "Send a valid receipt to the donor by mail (action manager).\n\nOnly a receipt made by the machine procedure: 409\n`donation_receipt_signed_by_hand` otherwise. A failed delivery is\nstarted again with `retryDonationPledgeDelivery`, which serves every\ndelivery of a donation.",
+        "operationId": "sendDonationReceipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "donation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Donation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "receipt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Receipt Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DonationDeliveryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Send Donation Receipt",
+        "tags": [
+          "donations"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/donations/{donation_id}/receipts/{receipt_id}/void": {
+      "post": {
+        "description": "Declare a receipt void, with a reason and with what happened to the\ndonor's paper. The receipt and its PDF stay stored; a new receipt can be\nissued afterwards.",
+        "operationId": "voidDonationReceipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "donation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Donation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "receipt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Receipt Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoidDonationReceiptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DonationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Void Donation Receipt",
         "tags": [
           "donations"
         ]
