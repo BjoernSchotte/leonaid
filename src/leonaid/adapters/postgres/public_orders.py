@@ -23,6 +23,7 @@ from leonaid.adapters.postgres.order_mails import insert_order_mail_event
 from leonaid.adapters.postgres.order_numbers import (
     ORDER_NUMBER_ATTEMPTS,
     free_order_number,
+    free_order_number_from,
     order_number_taken,
 )
 from leonaid.application.errors import Conflict, RateLimited, ResourceNotFound

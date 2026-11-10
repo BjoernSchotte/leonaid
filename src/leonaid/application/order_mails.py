@@ -620,6 +620,8 @@ LATE_REASONS = frozenset(
         MailNotDueReason.ACTION_CLOSED,
     }
 )
+
+
 def mail_not_due_reason(
     commitment: Commitment,
     *,

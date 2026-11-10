@@ -1230,7 +1230,6 @@ async def test_a_confirmation_that_is_no_news_is_skipped_without_a_failure() -> 
     assert sender.events == []
 
 
-
 def test_the_confirmation_rule_can_judge_a_draft_as_completed() -> None:
     draft = order(source=CommitmentSource.ADMIN, status=CommitmentStatus.DRAFT)
     ready = CommitmentStatus.REVIEW_READY
