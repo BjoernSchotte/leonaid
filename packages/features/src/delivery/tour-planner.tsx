@@ -548,7 +548,7 @@ export function TourPlanner({
       const title = target
         ? `${stopCount(ids.length)} ${target.name} zugeordnet. Sie stehen am Ende ihres Fensters.`
         : `Fahrer entfernt (${stopCount(ids.length)}).`;
-      setAnnouncement(title);
+      // The toast is a live region itself: no second announcement.
       toast?.show({
         title,
         tone: "success",
@@ -582,7 +582,6 @@ export function TourPlanner({
       }
     },
     onSuccess: () => {
-      setAnnouncement(copy.assignUndone);
       toast?.show({ title: copy.assignUndone, tone: "success" });
     },
     onError: showError,
@@ -667,9 +666,10 @@ export function TourPlanner({
     if (isViewingDriver(lane)) return;
     if (windowOf(overId) !== windowOf(id)) {
       // A drop the rule refuses says why (D19: the window is promised).
-      const text = copy.staysInWindow(deliveryTimeRange(from.window, zone));
-      setAnnouncement(text);
-      toast?.show({ title: text, tone: "info" });
+      toast?.show({
+        title: copy.staysInWindow(deliveryTimeRange(from.window, zone)),
+        tone: "info",
+      });
       return;
     }
     const ids = shownOf(lane);

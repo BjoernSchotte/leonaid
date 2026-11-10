@@ -672,11 +672,10 @@ describe("Touren planner", () => {
       "Praxis Süd",
     ]);
     expect(client.assignDeliveryDriver).not.toHaveBeenCalled();
-    // The refused drop says why instead of doing nothing: on the toast and
-    // in the live region (hence "all").
+    // The refused drop says why instead of doing nothing.
     expect(
-      await screen.findAllByText(/Der Stopp bleibt im Lieferfenster 08–10 Uhr/),
-    ).not.toHaveLength(0);
+      await screen.findByText(/Der Stopp bleibt im Lieferfenster 08–10 Uhr/),
+    ).toBeTruthy();
 
     // Inside the window the keyboard move works.
     await keyboardMove(anna, "Bäckerei Kern", "ArrowDown");
@@ -737,10 +736,7 @@ describe("Touren planner", () => {
         driverUserId: "anna",
       }),
     );
-    // Toast and live region both say it.
-    expect(
-      await screen.findAllByText("Zuordnung zurückgenommen."),
-    ).not.toHaveLength(0);
+    expect(await screen.findByText("Zuordnung zurückgenommen.")).toBeTruthy();
   });
 
   it("Fahrer ändern on a row assigns that one stop", async () => {
