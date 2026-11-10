@@ -14,6 +14,11 @@ from leonaid.adapters.postgres.retry import (
     serialization_pause,
 )
 from leonaid.adapters.postgres.invoice_payment_state import ACTIVE_PAID_MINOR_SQL
+from leonaid.adapters.postgres.order_numbers import (
+    free_order_number,
+    order_number_taken,
+)
+from leonaid.adapters.postgres.order_mail_jobs import queue_confirmation
 from leonaid.adapters.postgres.delivery import (
     guard_window_booking,
     read_configuration,
@@ -32,6 +37,7 @@ from leonaid.application.commitments import (
     CommitmentRepository,
 )
 from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFound
+from leonaid.application.order_mails import OrderMailLinks, mail_due
 from leonaid.domain.action_templates import OfferingStatus, OfferingUnit
 from leonaid.domain.captures import bounded_captured_at
 from leonaid.domain.commitments import (
@@ -96,6 +102,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None = None,
     ) -> Commitment:
         async with self._pool.acquire() as connection:
             for attempt in range(SERIALIZABLE_ATTEMPTS):
@@ -112,6 +119,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                             request_hash=request_hash,
                             request_id=request_id,
                             occurred_at=occurred_at,
+                            mail_links=mail_links,
                         )
                 except RETRYABLE_ERRORS:
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
@@ -184,6 +192,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None,
     ) -> Commitment:
         await connection.execute(
             "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
@@ -317,7 +326,25 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             json.dumps({"commitmentId": str(commitment_id)}),
             occurred_at,
         )
-        return await self._get(connection, commitment_id, replayed=False)
+        completed = await self._get(connection, commitment_id, replayed=False)
+        await self._confirm_to_buyer(
+            connection, completed, mail_links=mail_links, occurred_at=occurred_at
+        )
+        return completed
+
+    @staticmethod
+    async def _confirm_to_buyer(
+        connection: asyncpg.Connection[Any],
+        commitment: Commitment,
+        *,
+        mail_links: OrderMailLinks | None,
+        occurred_at: datetime,
+    ) -> None:
+        """See ``order_mail_jobs.queue_confirmation``."""
+
+        await queue_confirmation(
+            connection, commitment, mail_links=mail_links, occurred_at=occurred_at
+        )
 
     async def capture_context(
         self,
@@ -380,7 +407,22 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 action_name=str(action["name"]),
                 offerings=offerings,
                 delivery_configuration=await read_configuration(connection, action_id),
+                **await self._buyer_mail_switches(connection, action_id),
             )
+
+    @staticmethod
+    async def _buyer_mail_switches(
+        connection: asyncpg.Connection[Any], action_id: UUID
+    ) -> dict[str, bool]:
+        row = await connection.fetchrow(
+            "SELECT internal_order_mails, delivery_day_mail "
+            "FROM action_buyer_mail_configuration WHERE action_id = $1",
+            action_id,
+        )
+        return {
+            "internal_order_mails": bool(row and row["internal_order_mails"]),
+            "delivery_day_mail": bool(row and row["delivery_day_mail"]),
+        }
 
     async def list_for_action(
         self,
@@ -414,6 +456,8 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                         AS invoice_recipient_email,
                     {ACTIVE_PAID_MINOR_SQL} AS invoice_paid_minor,
                     COALESCE(delivery.state = 'delivered', false) AS delivered,
+                    COALESCE(mails.internal_order_mails, false)
+                        AS internal_order_mails,
                     cancellation.id AS cancellation_id,
                     cancellation.previous_status AS cancellation_previous_status,
                     cancellation.reason_snapshot AS cancellation_reason,
@@ -458,6 +502,8 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                   ON cancellation.commitment_id = commitment.id
                 LEFT JOIN user_account AS canceller
                   ON canceller.id = cancellation.requested_by_user_id
+                LEFT JOIN action_buyer_mail_configuration AS mails
+                  ON mails.action_id = commitment.action_id
                 WHERE commitment.action_id = $1
                 ORDER BY
                     commitment.created_at DESC,
@@ -489,6 +535,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None = None,
     ) -> Commitment:
         async with self._pool.acquire() as connection:
             for attempt in range(SERIALIZABLE_ATTEMPTS):
@@ -505,8 +552,15 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                             request_hash=request_hash,
                             request_id=request_id,
                             occurred_at=occurred_at,
+                            mail_links=mail_links,
                         )
-                except RETRYABLE_ERRORS:
+                except (*RETRYABLE_ERRORS, asyncpg.UniqueViolationError) as error:
+                    # A taken order number is retried like a lost
+                    # serialization check: the next run derives a new one.
+                    if isinstance(
+                        error, asyncpg.UniqueViolationError
+                    ) and not order_number_taken(error):
+                        raise
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "commitment_concurrent_retry",
@@ -529,6 +583,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None,
     ) -> Commitment:
         await connection.execute(
             "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
@@ -637,8 +692,9 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             total = total.plus(line.line_total)
         if draft.captured_at is not None:
             self._guard_quoted_prices(draft, priced_lines, total)
+        commitment_id = uuid4()
         commitment = Commitment(
-            id=uuid4(),
+            id=commitment_id,
             action_id=action_id,
             source=source,
             status=status,
@@ -651,6 +707,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             delivery_window_snapshot=window_snapshot,
             delivery_contact=draft.delivery_contact,
             message=draft.message,
+            public_reference=await free_order_number(connection, commitment_id),
             idempotency_key=idempotency_key,
             captured_at=captured_at,
         )
@@ -662,6 +719,9 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             request_hash=request_hash,
             occurred_at=occurred_at,
             full_window_booked=full_window_booked,
+        )
+        await self._confirm_to_buyer(
+            connection, commitment, mail_links=mail_links, occurred_at=occurred_at
         )
         return commitment
 
@@ -909,11 +969,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 if header["message_snapshot"] is not None
                 else None
             ),
-            public_reference=(
-                str(header["public_reference"])
-                if header["public_reference"] is not None
-                else None
-            ),
+            public_reference=str(header["public_reference"]),
             idempotency_key=(
                 str(header["idempotency_key"])
                 if header["idempotency_key"] is not None
@@ -985,6 +1041,13 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             cancellation=cancellation,
             invoice=invoice,
             delivered=bool(header["delivered"]),
+            buyer_mail_due=(
+                commitment.status is not CommitmentStatus.CANCELLED
+                and mail_due(
+                    commitment,
+                    internal_order_mails=bool(header["internal_order_mails"]),
+                )
+            ),
         )
 
     @staticmethod
@@ -1228,11 +1291,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 if row["message_snapshot"] is not None
                 else None
             ),
-            public_reference=(
-                str(row["public_reference"])
-                if row["public_reference"] is not None
-                else None
-            ),
+            public_reference=str(row["public_reference"]),
             idempotency_key=(
                 str(row["idempotency_key"])
                 if row["idempotency_key"] is not None

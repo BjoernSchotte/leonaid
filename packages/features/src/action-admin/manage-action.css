@@ -214,6 +214,20 @@
 .campaign .choice[data-available="false"] {
   color: var(--text-3);
 }
+/* A settings row with its switch on the right ("E-Mails an Käufer"). */
+.campaign .buyer-mail-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-height: 48px;
+  padding: var(--s-3) var(--s-4);
+}
+.campaign .buyer-mail-switch-text {
+  display: grid;
+  flex: 1;
+  gap: var(--s-1);
+  min-width: 0;
+}
 
 /* ---------- prototype styles/components.css helpers ---------- */
 :is(.campaign, .delivery-windows) p {

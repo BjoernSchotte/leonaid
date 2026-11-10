@@ -113,8 +113,17 @@ function zoneOffset(instant: number, zone: string) {
 
 /** Start instant (ms) of a window whose wall time is local to `zone`. */
 export function windowStart(window: DeliveryWindowOption, zone: string) {
-  const [year, month, day] = window.deliveryOn.split("-").map(Number);
-  const [hour, minute] = window.startsAt.split(":").map(Number);
+  return wallInstant(window.deliveryOn, window.startsAt, zone);
+}
+
+/** End instant (ms) of a window; start and end are on the same local day. */
+export function windowEnd(window: DeliveryWindowOption, zone: string) {
+  return wallInstant(window.deliveryOn, window.endsAt, zone);
+}
+
+function wallInstant(date: string, time: string, zone: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
   const wall = Date.UTC(year!, month! - 1, day!, hour!, minute!);
   // Two passes settle the offset across a DST change; Core rejects
   // ambiguous or nonexistent wall times when windows are created.

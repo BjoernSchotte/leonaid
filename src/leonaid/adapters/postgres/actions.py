@@ -215,6 +215,12 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                         action.id,
                         ActionCapability.DELIVERY in action.capabilities,
                     )
+                    # The switches for mails to buyers, all off.
+                    await connection.execute(
+                        "INSERT INTO action_buyer_mail_configuration(action_id) "
+                        "VALUES ($1)",
+                        action.id,
+                    )
                     await connection.execute(
                         """
                         INSERT INTO action_membership (

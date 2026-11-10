@@ -807,11 +807,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 if header["message_snapshot"] is not None
                 else None
             ),
-            public_reference=(
-                str(header["public_reference"])
-                if header["public_reference"] is not None
-                else None
-            ),
+            public_reference=str(header["public_reference"]),
             idempotency_key=(
                 str(header["idempotency_key"])
                 if header["idempotency_key"] is not None

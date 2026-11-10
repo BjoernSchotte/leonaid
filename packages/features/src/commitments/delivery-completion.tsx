@@ -6,6 +6,9 @@ import {
   type LeonAidApiClient,
 } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
+
+import { BuyerMailNotice } from "./buyer-mail-notice";
+import { buyerMailsKey, isLateReason } from "./buyer-mails";
 import {
   DeliveryFields,
   DeliverySummary,
@@ -17,6 +20,7 @@ import {
   hasDeliveryAddress,
   hasPartialDeliveryAddress,
   selectableWindows,
+  windowEnd,
 } from "./delivery-fields";
 
 interface InvoiceDraft {
@@ -88,6 +92,23 @@ export function DeliveryCompletion({
     queryFn: () => client.getDeliveryConfiguration(order.actionId),
     refetchOnWindowFocus: false,
   });
+  // Completing a draft makes it review-ready, which sends the confirmation.
+  const buyerMails = useQuery({
+    enabled: baseline.status === "draft",
+    queryKey: ["buyer-mail-configuration", order.actionId],
+    queryFn: () => client.getBuyerMailConfiguration(order.actionId),
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+  // Whether the confirmation would still be sent: the server's rule (the
+  // one of the mail status), asked for the stored order.
+  const mailStatus = useQuery({
+    enabled: baseline.status === "draft",
+    queryKey: buyerMailsKey(order.actionId, order.id),
+    queryFn: () => client.listBuyerMails(order.actionId, order.id),
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
   useEffect(() => {
     if (error || saved) message.current?.focus();
   }, [error, saved]);
@@ -99,6 +120,23 @@ export function DeliveryCompletion({
     : { upcoming: [], past: [] };
   const historicalChoice =
     !lockedWindow && choices.past.some((item) => item.id === delivery.windowId);
+  // A window that this form selects is not stored yet, so the server
+  // cannot judge it: a window that has ended gets no confirmation (one that
+  // only started still does).
+  const selectedPast = historicalChoice
+    ? choices.past.find((item) => item.id === delivery.windowId)
+    : undefined;
+  const selectedOver =
+    selectedPast !== undefined &&
+    configuration.data !== undefined &&
+    windowEnd(selectedPast, configuration.data.timezone) <= Date.now();
+  const storedReason = mailStatus.data?.completion?.reason;
+  const confirmationNotDue =
+    storedReason && isLateReason(storedReason)
+      ? storedReason
+      : selectedOver
+        ? "window_over"
+        : undefined;
   const deliveryReady =
     !enabled ||
     (hasDeliveryAddress(delivery) &&
@@ -389,6 +427,15 @@ export function DeliveryCompletion({
           Die Lieferung wird nachträglich für ein vergangenes Zeitfenster
           erfasst.
         </p>
+      ) : null}
+      {baseline.status === "draft" && mailStatus.isSuccess ? (
+        <BuyerMailNotice
+          address="Sie"
+          confirmationNotDue={confirmationNotDue}
+          deliveryDayMail={buyerMails.data?.deliveryDayMail}
+          email={baseline.buyer.email}
+          internalOrderMails={buyerMails.data?.internalOrderMails}
+        />
       ) : null}
       <Button
         data-testid="delivery-completion-submit"

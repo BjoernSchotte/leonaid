@@ -59,21 +59,9 @@ export function invoiceToCancel(record: CommitmentRecordResponse) {
 }
 
 /**
- * True when the server sends the buyer a cancellation notice: orders from
- * the public form whose buyer address still exists (application/order_mails).
- */
-export function notifiesBuyer(record: CommitmentRecordResponse): boolean {
-  const { commitment } = record;
-  return (
-    commitment.source === "public_form" &&
-    Boolean(commitment.buyer.email?.trim())
-  );
-}
-
-/**
- * What reaches the buyer by e-mail: the cancellation notice of a public
- * order, the cancellation invoice when it is sent with the cancellation,
- * both, or nothing.
+ * What reaches the buyer by e-mail: the cancellation notice (the server
+ * decides who gets one: `buyerMailDue`), the cancellation invoice when it is
+ * sent with the cancellation, both, or nothing.
  */
 export function buyerNotice(notice: boolean, cancellationInvoice: boolean) {
   if (notice) {
@@ -329,7 +317,7 @@ export function OrderCancellationDialog({
               />
             </Field>
             <StatusMessage tone="info">
-              {buyerNotice(notifiesBuyer(record), sendInvoiceCancellation)}
+              {buyerNotice(record.buyerMailDue, sendInvoiceCancellation)}
             </StatusMessage>
           </>
         )}

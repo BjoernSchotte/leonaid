@@ -72,12 +72,6 @@ def window_label(starts_at: datetime, ends_at: datetime, zone: ZoneInfo) -> str:
     )
 
 
-def order_reference(commitment_id: UUID, public_reference: str | None) -> str:
-    """A reference without personal data: the public one or the id's tail."""
-
-    return public_reference or f"…{str(commitment_id)[-8:]}"
-
-
 def order_link(action_id: UUID, commitment_id: UUID) -> str:
     """The order in the orders list pane (Task 5.1 URL contract)."""
 
@@ -509,7 +503,7 @@ class AsyncpgDeliveryBoardRepository:
             connection,
             action_id=action_id,
             commitment_id=drop.commitment_id,
-            title=f"Nachliefern: Bestellung {order_reference(drop.commitment_id, reference)}",
+            title=f"Nachliefern: Bestellung {reference}",
             description=(
                 f"Nicht geliefert im Fenster {label}.\n"
                 f"Bestellung öffnen: {order_link(action_id, drop.commitment_id)}"

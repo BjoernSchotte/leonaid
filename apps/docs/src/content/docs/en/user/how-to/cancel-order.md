@@ -4,9 +4,9 @@ description: Cancel an order that is not delivered yet, with a reason, including
 docId: DOC-P047
 audience: [user]
 diataxis: how-to
-contentRevision: 4
-reviewedRevision: 4
-verifiedAgainst: 176b94f63b8ff6dbd9deadb71b9ab507ee53989b
+contentRevision: 7
+reviewedRevision: 7
+verifiedAgainst: cab8222f75f02ec4fb0df1e8186127bc609cbc69
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -51,13 +51,24 @@ finds all cancelled orders. Quantity and amount totals no longer count them.
   the invoice. Because this creates a financial
   document, you may have to confirm your sign-in again. Reason and note are
   kept; after the sign-in the dialog opens again and you confirm once more.
-- **Buyer:** if the order came in through the public order form, the buyer
-  soon gets an e-mail **Stornierung Ihrer Bestellung bei …** (your order was
+- **Buyer:** before you cancel, the dialog says whether the buyer gets an
+  e-mail. If the order came in through the public order form, the buyer soon
+  gets the e-mail **Stornierung Ihrer Bestellung bei …** (your order was
   cancelled) at the address from the form. It names the order number, items,
   total, an invoice cancelled with it and the club's contact details from the
   legal settings. Reason and note are not in it; they stay internal. Repeating
-  the command sends no second e-mail. Orders that members or acquirers entered
-  send no e-mail: tell those buyers yourself.
+  the command sends no second e-mail.
+
+  For orders that members or acquirers entered, the same applies only when
+  the action has the switch **E-Mails für Bestellungen, die Mitglieder
+  erfassen** on (see below) and the order holds an e-mail address of the
+  buyer. A cancelled draft sends nothing. When the dialog says that LeonAid
+  does not notify the buyer, tell the buyer yourself.
+
+  If you send the cancellation invoice at once, the dialog names it too: it
+  goes to the invoice recipient in an e-mail of its own. The e-mail about the
+  cancellation names the cancelled invoice but does not contain the
+  cancellation invoice.
 
 ## When it does not work
 
@@ -79,3 +90,84 @@ finds all cancelled orders. Quantity and amount totals no longer count them.
 
 A cancellation is final. A cancelled order cannot be reopened; capture a new
 order if needed.
+
+## E-mails for orders that members enter
+
+Orders from the public form get the order confirmation and the cancellation
+notice without a switch. The same rule applies to them as to all orders,
+though: a confirmation that would come too late is not sent any more (see
+below). For orders from acquisition and from the back office you switch the
+e-mails on per campaign:
+
+1. Open **Aktionen** in the back office, select the campaign and then
+   **Bearbeiten**.
+2. In the section **E-Mails an Käufer**, switch on **E-Mails für
+   Bestellungen, die Mitglieder erfassen**. The switch applies at once, also
+   while the campaign runs, and you can switch it off again at any time.
+
+From then on the buyer gets the order confirmation as soon as the order is
+ready for review: when it is captured, when a draft is completed, or when a
+manager adds missing details. This also applies to orders that the app saved
+offline and sent later. The e-mail says that a member of the club recorded
+the order. Each order is confirmed once; a later change of address or
+delivery window sends no second confirmation. Without an e-mail address of
+the buyer in the order nothing is sent.
+
+The e-mail goes to the address that the sponsor has in the CRM. The capture
+form of the acquisition app and the form **Angaben ergänzen** show this
+address before you save and name the e-mails that go there. Check with the
+buyer that it is right.
+
+LeonAid does not send a confirmation that would come too late: not after the
+delivery was ticked off, not after the delivery window ended, and not once
+the campaign is completed. This holds for orders of every origin, also for
+those from the public form. So an order that is captured or completed
+afterwards triggers no confirmation. The form **Angaben ergänzen** says so
+before you save: instead of the e-mails it names the reason why no
+confirmation goes out any more.
+
+It is different when a confirmation was created in time and LeonAid could
+only send it too late, for example because e-mail delivery was disturbed
+until after the delivery window. Then the buyer got nothing. The order shows
+the confirmation as **Fehlgeschlagen** (failed) with the reason. It is not
+listed among the failed jobs in the operations overview, because a retry
+could not change anything. It is not sent any more; contact the buyer
+directly if needed.
+
+LeonAid does not confirm orders from before you switched the e-mails on by
+itself. You can send the confirmation in the order, one by one (see below).
+
+The club's privacy notice must name these e-mails. A system admin maintains
+it under **Rechtliches**; the template holds the section **Bestellungen, die
+ein Mitglied für Sie erfasst** for it. LeonAid does not check that the active
+version contains the section.
+
+## See the e-mails of an order and send one again
+
+The detail pane of every order shows its order number (**Bestellnummer**)
+at the top; every order has one, however it was captured. It is `LA-` and
+eight characters, for example `LA-7F3K2QWX`, without the characters 0, O, 1,
+I and L that are easy to mix up, so that a buyer can say it on the phone.
+Public orders from before this change keep their long number (`LA-` and 32
+characters). The search of the list finds the order by either.
+
+The section **E-Mails an den Käufer** shows one row per e-mail:
+**Bestellbestätigung** (order confirmation) and, after a cancellation,
+**Stornierung** (cancellation notice). The state is **Gesendet** (sent) with
+date and time, **Wartet** (waiting), **Fehlgeschlagen** (failed), **Nicht
+gesendet** (not sent) or **Nicht fällig** (not due); the reason stands below
+it, for example that the order has no e-mail address, that the campaign has
+the e-mails switched off, that the delivery is already recorded, that the
+delivery window is over or that the campaign is completed.
+
+If the buyer did not get an e-mail, select **Erneut senden** (send again).
+If an e-mail that is due never went out, the button reads **Senden** (send):
+for example for an order from before you switched the e-mails on. The button
+exists whenever the e-mail is due now and none is waiting. It is absent while
+the e-mail waits, and whenever LeonAid would not send the e-mail by itself
+either: without an address, with the e-mails switched off, for a draft, and
+for the confirmation of an order that is cancelled, delivered or past its
+window. A confirmation that is sent again states the order as it is today,
+not as it was then. At most ten order e-mails go to one mailbox per hour;
+above that the delivery fails, and you send again later. If LeonAid answers a
+click by saying that the earlier request arrived, no further e-mail went out.

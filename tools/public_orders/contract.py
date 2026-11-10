@@ -28,7 +28,8 @@ TWIN_COMPANIES = (
     (UUID("40000000-0000-4000-8000-00000000f072"), "POC072 Zwilling-Werk GmbH"),
     (UUID("40000000-0000-4000-8000-00000000f073"), "POC072 Zwilling Werk GmbH"),
 )
-PUBLIC_REFERENCE = re.compile(r"^LA-[A-F0-9]{32}$")
+# The short order number of every new order (domain.commitments.order_number).
+PUBLIC_REFERENCE = re.compile(r"^LA-[2-9A-HJKMNP-Z]{8}$")
 PRIVACY_NOTICE_VERSION = "public-order-golden-v1"
 PRIVACY_NOTICE_TEXT = (
     "Wir verarbeiten Ihre Angaben ausschließlich zur Durchführung, "

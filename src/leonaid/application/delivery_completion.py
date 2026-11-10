@@ -22,6 +22,7 @@ from typing import Protocol
 from uuid import UUID
 
 from leonaid.application.commitments import IDEMPOTENCY_KEY
+from leonaid.application.order_mails import OrderMailLinkResolver, OrderMailLinks
 from leonaid.application.policies import require_action_manager
 from leonaid.domain.commitments import (
     Commitment,
@@ -121,12 +122,20 @@ class DeliveryCompletionRepository(Protocol):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None = None,
     ) -> Commitment: ...
 
 
 class DeliveryCompletionService:
-    def __init__(self, repository: DeliveryCompletionRepository) -> None:
+    def __init__(
+        self,
+        repository: DeliveryCompletionRepository,
+        *,
+        mail_links: OrderMailLinkResolver | None = None,
+    ) -> None:
         self._repository = repository
+        # Without a resolver a completed draft queues no order confirmation.
+        self._mail_links = mail_links
 
     async def complete(
         self,
@@ -163,4 +172,10 @@ class DeliveryCompletionService:
             ),
             request_id=request_id,
             occurred_at=occurred_at or datetime.now(timezone.utc),
+            # Resolved before the transaction holds a connection.
+            mail_links=(
+                await self._mail_links.for_action(action_id)
+                if self._mail_links is not None
+                else None
+            ),
         )

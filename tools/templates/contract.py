@@ -267,16 +267,17 @@ async def insert_operational_source_data(
         """
         INSERT INTO commitment (
             id, action_id, twenty_company_id, source, status,
-            customer_snapshot, currency, total_minor
+            customer_snapshot, currency, total_minor, public_reference
         )
         VALUES (
             $1, $2, $3, 'admin', 'invoiced',
-            '{"name":"Operative Quelle GmbH"}'::jsonb, 'EUR', 3600
+            '{"name":"Operative Quelle GmbH"}'::jsonb, 'EUR', 3600, $4
         )
         """,
         commitment_id,
         action_id,
         uuid4(),
+        f"LA-{commitment_id.hex.upper()}",
     )
     await connection.execute(
         """
@@ -471,6 +472,14 @@ async def exercise(
         )
         if pickup_delivery is not False:
             raise ContractFailure("pickup sale got a delivery plan")
+        # A new action gets its buyer-mail settings row with every switch off.
+        pickup_mails = await connection.fetchrow(
+            "SELECT internal_order_mails, delivery_day_mail, revision "
+            "FROM action_buyer_mail_configuration WHERE action_id = $1",
+            UUID(str(pickup["action"]["id"])),
+        )
+        if pickup_mails is None or tuple(pickup_mails) != (False, False, 1):
+            raise ContractFailure("new action has no switched-off buyer-mail settings")
         unknown = await client.post(
             "/api/v1/actions/from-template",
             json=template_payload(

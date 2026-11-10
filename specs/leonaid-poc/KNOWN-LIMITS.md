@@ -20,7 +20,7 @@ Punkte sind keine stillschweigenden Produktzusagen.
   Editor-Setup, Aktionsschema) läuft mit `./leonaid pilot-cms-provision` auf
   einer laufenden Installation; `pilot-install` richtet das CMS nicht mit ein.
   Die erste LeonAid-Systemadministration legt `./leonaid
-  pilot-create-system-admin` an (Anmeldemail, kein Passwort).
+pilot-create-system-admin` an (Anmeldemail, kein Passwort).
   Die erste EmDash-Einrichtung braucht eine LeonAid-Systemadministration im
   Browser (15-Minuten-Freigabe). Eine unterbrochene Einrichtung gibt
   `--reset-setup` nur frei, solange das CMS unbenutzt ist. Backups enthalten
@@ -197,11 +197,30 @@ Punkte sind keine stillschweigenden Produktzusagen.
   profile: it then numbers from the active legal configuration's prefix or,
   without one, from the series of the invoice's own number.
   `invoice_profile.next_number` is unused and goes with the next release.
+- Every order has an order number (`commitment.public_reference`). A new
+  order of every source gets `LA-` plus eight characters of an alphabet
+  without `0`/`O` and `1`/`I`/`L` (`domain.commitments.order_number`, unique
+  by a second candidate on a collision); the buyer-mail migration backfilled
+  internal orders the same way. Public orders from before keep their long
+  number (`LA-` plus 32 hex digits), so two shapes exist. The invoice PDF
+  does not print the number. An application from before that migration
+  cannot read the migrated orders (rollback: `infra/upgrade/README.md`).
 - Buyer mails (`application/order_mails.py`): a public-form order sends one
   plain-text order confirmation, and its cancellation one cancellation
   notice, through the outbox (`order.confirmation.mail.v1`,
   `order.cancellation.mail.v1`; one job and one SMTP ledger row per order
-  and kind). The job holds ids and links only; the worker reads the order
+  and kind). An order that a member or acquirer entered sends the same two
+  mails only while its action has `internal_order_mails` on
+  (`action_buyer_mail_configuration`, section "E-Mails an Käufer", off by
+  default, changeable in every status): the confirmation once when the order
+  becomes `review_ready` (creation, completion of a draft, also from the PWA
+  queue, manager completion), never for a draft, and no second one after a
+  later change. Orders recorded before the switch was set are not confirmed
+  afterwards. There is no consent record for these buyers; the legal basis
+  is the contract, and the sentence for the privacy notice
+  (specs/mails-documents-donations-push, P1) awaits Björn's signature before
+  a club switches the mails on in production. The job holds ids and links
+  only; the worker reads the order
   and the active legal configuration when it sends, so an erased buyer gets
   nothing. Delivery is at least once: a crash between the SMTP server
   accepting a mail and the ledger write sends it again on the retry. A
@@ -216,10 +235,37 @@ Punkte sind keine stillschweigenden Produktzusagen.
   recipient name, street and city also refuse `://`, `www.` and `@`. The
   mail strips such characters from older data.
   The mail repeats the full delivery and billing address so the buyer can
-  check it. Not covered: orders entered by members or acquirers (no mail,
-  also no cancellation notice), an HTML version, a club sender address (the
-  configured `MAIL_FROM` sends), a resend button, and mails for later order
-  changes (delivery window moved, invoice issued). Fulfilment mails ignore
+  check it. The order detail shows the state of each mail (`listBuyerMails`:
+  `not_due`, `queued`, `sent`, `failed`, `skipped`, derived from the SMTP
+  ledger and the outbox) and a manager can send a mail whenever it is due and none
+  waits (`resendBuyerMail`, audit event `order_mail_resent`, no fresh login,
+  the mailbox limit applies): again after it was sent or failed, and for the
+  first time when it never went out (recorded before the switch was set, or
+  its job ended without a mail). A confirmation is not due, neither
+  automatically nor by a manager, for a cancelled order, after the delivery
+  was recorded, after the delivery window ended, or in a completed or
+  archived action; an order completed late (PWA sync after the window, a
+  manager recording a delivery afterwards) is therefore never confirmed by
+  mail. The rule holds for orders of every source, the public form
+  included. A confirmation that was queued while it was due and that the
+  worker reaches too late (worker or SMTP down past the window) is not sent
+  either, but not silently: the order shows it as failed with the reason.
+  Its job completes and is no dead letter (a retry could never clear it and
+  the dead-letter alert would stay on), so it does not count among the
+  failed jobs of the operations view; the same holds for a dead letter an
+  operator retries after the window. The form "Angaben ergänzen" asks the same rule
+  (`listBuyerMails.completion`) before a manager completes a draft. Its text follows the order's status and promises an invoice only in
+  an action with invoicing. A send settles older failed jobs of the same
+  mail, and the worker skips a job that a later sent one superseded, so an
+  operator's retry cannot mail a buyer twice. Retention deletes completed
+  jobs, so the status of an old order without a ledger row reads as "no mail
+  went out yet". The buyer's address of an internal order is the sponsor's
+  from the CRM, not one named for the order; the capture form shows it to
+  the member. LeonAid does not check that the club's privacy notice names
+  these mails. Not covered: an HTML version,
+  a club sender address (the configured `MAIL_FROM` sends), a mail on the
+  delivery day (stage 2 of the spec), and mails for later order changes
+  (delivery window moved, invoice issued). Fulfilment mails ignore
   the marketing/acquisition suppression list. The campaign link is the
   permanent edition URL on the campaign host (decision D8), else the public
   host page (`edition_link`).

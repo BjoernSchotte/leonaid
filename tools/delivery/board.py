@@ -24,7 +24,6 @@ from leonaid.adapters.postgres.delivery import AsyncpgDeliveryRepository
 from leonaid.adapters.postgres.delivery_board import (
     AsyncpgDeliveryBoardRepository,
     order_link,
-    order_reference,
     purge_read_audits,
 )
 from leonaid.adapters.postgres.feature_flags import AsyncpgFeatureFlagRepository
@@ -41,6 +40,7 @@ from leonaid.domain.commitments import (
     CommitmentStatus,
     DeliveryRecipientSnapshot,
     InvoiceRecipientSnapshot,
+    order_number,
 )
 from leonaid.domain.delivery import DeliveryContactSnapshot
 from leonaid.domain.delivery_board import DeliveryBoard, DeliveryDrop, DropState
@@ -461,7 +461,8 @@ async def prove_board(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) -> No
         assert row["assignee_user_id"] == admin_id
         assert row["list_title"] == "Nachliefern"
         assert row["action_id"] == action_id
-        reference = order_reference(row["commitment_id"], row["public_reference"])
+        reference = row["public_reference"]
+        assert reference == order_number(row["commitment_id"]), reference
         assert row["title"] == f"Nachliefern: Bestellung {reference}", row["title"]
         assert order_link(action_id, row["commitment_id"]) in row["description"]
         # No personal data: no buyer, recipient, street, contact or phone.
