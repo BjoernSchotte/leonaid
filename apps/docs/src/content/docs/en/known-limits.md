@@ -6,7 +6,7 @@ audience: [user, ops, dev]
 diataxis: reference
 contentRevision: 9
 reviewedRevision: 9
-verifiedAgainst: c936ec580b1ef13d6175b551ab34d2f597e2bb2d
+verifiedAgainst: 1f49427206df2ee9224ad2fb21c80e3f2241649b
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -37,10 +37,15 @@ general production approval.
   and go to buyers from the public form. For orders that members or acquirers
   enter, the campaign's managers switch them on per campaign (**E-Mails an
   Käufer**); an order is then confirmed once, as soon as it is ready for
-  review. Orders without an e-mail address of the buyer, drafts, and orders
-  from before the switch was set get no e-mail. An e-mail that was sent or
-  that failed can be sent again in the order; an e-mail that was never
-  created cannot. There is no e-mail on the delivery day yet. The campaign
+  review. Orders without an e-mail address of the buyer and drafts get no
+  e-mail, nor do orders that become ready for review only after the
+  delivery, after the delivery window or after the campaign was completed.
+  The campaign's managers confirm orders from before the switch was set one
+  by one in the order (**Senden**). The address is the sponsor's from the
+  CRM. LeonAid does not check that the club's privacy notice names these
+  e-mails. There is no e-mail on the delivery day yet. Order numbers have
+  two shapes: new ones are short (`LA-` and eight characters), public orders
+  from before keep their long number. The campaign
   link points to the permanent address of the campaign on its campaign
   domain, else to the campaign page on the public host. The sender is the
   configured system address, not the club.

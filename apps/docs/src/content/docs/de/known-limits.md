@@ -6,7 +6,7 @@ audience: [user, ops, dev]
 diataxis: reference
 contentRevision: 9
 reviewedRevision: 9
-verifiedAgainst: c936ec580b1ef13d6175b551ab34d2f597e2bb2d
+verifiedAgainst: 1f49427206df2ee9224ad2fb21c80e3f2241649b
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -38,11 +38,15 @@ allgemeine Produktionsfreigabe.
   dem öffentlichen Formular. Für Bestellungen, die Mitglieder oder
   Akquisiteure erfassen, schaltet die Aktionsverwaltung sie je Aktion ein
   (**E-Mails an Käufer**); dann wird eine Bestellung einmal bestätigt, sobald
-  sie prüfbereit ist. Bestellungen ohne E-Mail-Adresse des Käufers, Entwürfe
-  und Bestellungen von vor dem Einschalten erhalten keine E-Mail. Eine
-  gesendete oder fehlgeschlagene E-Mail lässt sich in der Bestellung erneut
-  senden; eine E-Mail, die nie angelegt wurde, nicht. Eine E-Mail am Liefertag
-  gibt es noch nicht. Der Link zur Aktion zeigt auf die dauerhafte Adresse
+  sie prüfbereit ist. Bestellungen ohne E-Mail-Adresse des Käufers und Entwürfe
+  erhalten keine E-Mail, ebenso Bestellungen, die erst nach der Lieferung,
+  nach dem Lieferfenster oder nach Abschluss der Aktion prüfbereit werden.
+  Bestellungen von vor dem Einschalten bestätigt die Aktionsverwaltung
+  einzeln in der Bestellung (**Senden**). Die Adresse ist die des Sponsors
+  aus dem CRM. LeonAid prüft nicht, ob die Datenschutzerklärung des Clubs
+  diese E-Mails nennt. Eine E-Mail am Liefertag gibt es noch nicht.
+  Bestellnummern haben zwei Formen: neue sind kurz (`LA-` und acht Zeichen),
+  öffentliche Bestellungen von früher behalten ihre lange Nummer. Der Link zur Aktion zeigt auf die dauerhafte Adresse
   der Aktion auf ihrer Kampagnen-Domain, sonst auf die Aktionsseite des
   öffentlichen Hosts. Absender ist die konfigurierte Systemadresse, nicht der
   Club.
