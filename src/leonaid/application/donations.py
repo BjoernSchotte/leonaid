@@ -50,7 +50,8 @@ IDEMPOTENCY_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$")
 class DonationRecord:
     donation: Donation
     # The pledge PDF; None only while its row is missing (never by design).
-    pledge_document: GeneratedDocument | None
+    # Written in the transaction of the donation: every donation has one.
+    pledge_document: GeneratedDocument
     pledge_deliveries: tuple[InvoiceDelivery, ...] = ()
 
 

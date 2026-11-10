@@ -34,7 +34,11 @@ from leonaid.application.invoice_deliveries import (
 )
 from leonaid.domain.commitments import Money
 from leonaid.domain.document_series import DocumentSeriesKind
-from leonaid.domain.documents import DOCUMENT_RENDER_REQUESTED, GeneratedDocumentType
+from leonaid.domain.documents import (
+    DOCUMENT_RENDER_REQUESTED,
+    GeneratedDocument,
+    GeneratedDocumentType,
+)
 from leonaid.domain.donations import (
     Donation,
     DonationCancellation,
@@ -76,6 +80,17 @@ def _json_object(value: object) -> dict[str, object]:
     if not isinstance(value, dict):
         raise RuntimeError("Ein gespeicherter Spenden-Snapshot ist ungültig.")
     return {str(key): item for key, item in value.items()}
+
+
+def _pledge_document_of(
+    documents: dict[UUID, GeneratedDocument], donation_id: UUID
+) -> GeneratedDocument:
+    """A donation and its pledge document are written in one transaction."""
+
+    document = documents.get(donation_id)
+    if document is None:
+        raise RuntimeError("Eine Spende besitzt kein Dokument der Spendenzusage.")
+    return document
 
 
 async def active_receiving_body(
@@ -447,7 +462,7 @@ class AsyncpgDonationRepository:
         return tuple(
             DonationRecord(
                 donation=self._donation(row, tuple(withdrawals.get(row["id"], ()))),
-                pledge_document=documents.get(row["id"]),
+                pledge_document=_pledge_document_of(documents, row["id"]),
                 pledge_deliveries=tuple(deliveries.get(row["id"], ())),
             )
             for row in rows

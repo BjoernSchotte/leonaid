@@ -624,13 +624,10 @@ function AdminDashboard({
                 </dt>
                 <dd>
                   <strong className="num">
-                    {formatMoney(donations.receivedMinor, commitments.currency)}
+                    {formatMoney(donations.receivedMinor, donations.currency)}
                   </strong>
                   eingegangen ·{" "}
-                  {formatMoney(
-                    donations.pledgedOpenMinor,
-                    commitments.currency,
-                  )}{" "}
+                  {formatMoney(donations.pledgedOpenMinor, donations.currency)}{" "}
                   zugesagt, noch offen
                 </dd>
               </div>

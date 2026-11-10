@@ -144,6 +144,11 @@ class IdentityMembershipResponse(TransportModel):
     role_label: str
 
 
+class IdentityDonationActionResponse(TransportModel):
+    action_id: UUID
+    action_name: str
+
+
 class NavigationItemResponse(TransportModel):
     key: str
     label: str
@@ -165,6 +170,9 @@ class CurrentIdentityResponse(TransportModel):
     action_memberships: list[IdentityMembershipResponse]
     role_labels: list[str]
     navigation: list[NavigationItemResponse]
+    # Actions with the `donations` capability whose finances the account
+    # reads or manages: the action picker of "Spenden" (ADR-0016).
+    donation_actions: list[IdentityDonationActionResponse]
     session_expires_at: datetime
     session_last_seen_at: datetime
     fresh_login_at: datetime
@@ -1907,6 +1915,7 @@ class DashboardDonationResponse(TransportModel):
     paid: int = Field(ge=0)
     received_minor: int = Field(ge=0)
     pledged_open_minor: int = Field(ge=0)
+    currency: str = Field(pattern=r"^[A-Z]{3}$")
 
 
 class CharityAdminDashboardResponse(TransportModel):
@@ -2018,8 +2027,11 @@ class DonationDeliveryResponse(TransportModel):
 class DonationPledgeDocumentResponse(TransportModel):
     id: UUID
     status: Literal["pending", "available", "deleted"]
+    version: int = Field(ge=1)
     filename: str | None
     size_bytes: Annotated[int, Field(ge=1)] | None
+    created_at: datetime
+    available_at: datetime | None
 
 
 class DonationResponse(TransportModel):
@@ -2038,7 +2050,8 @@ class DonationResponse(TransportModel):
     payment: DonationPaymentResponse | None
     payment_withdrawals: list[DonationPaymentWithdrawalResponse]
     cancellation: DonationCancellationResponse | None
-    pledge_document: DonationPledgeDocumentResponse | None
+    # Created with the donation, in its transaction: never missing.
+    pledge_document: DonationPledgeDocumentResponse
     pledge_deliveries: list[DonationDeliveryResponse]
     replayed: bool
 

@@ -157,6 +157,8 @@ class DonationOverview:
     # What arrived, and what is pledged and not paid yet.
     received_minor: int = 0
     pledged_open_minor: int = 0
+    # Donations are in euro (ADR-0016).
+    currency: str = "EUR"
 
 
 @dataclass(frozen=True, slots=True)

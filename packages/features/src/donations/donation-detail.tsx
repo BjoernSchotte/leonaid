@@ -419,19 +419,8 @@ function PledgeDocument({
   readonly client: LeonAidApiClient;
   readonly donation: DonationResponse;
 }) {
+  // Every donation has its pledge document from the moment it is recorded.
   const generated = donation.pledgeDocument;
-  if (!generated) {
-    return (
-      <p
-        className="small muted"
-        data-state="missing"
-        data-testid="donation-pledge-document"
-      >
-        Das PDF der Spendenzusage ist noch nicht angelegt. Der Dokumentauftrag
-        muss geprüft werden.
-      </p>
-    );
-  }
   if (generated.status === "pending") {
     return (
       <p
@@ -462,7 +451,9 @@ function PledgeDocument({
       client={client}
       documentId={generated.id}
       filename={generated.filename ?? `Spendenzusage-${donation.number}.pdf`}
+      producedAt={generated.availableAt ?? generated.createdAt}
       sizeBytes={generated.sizeBytes}
+      version={generated.version}
     />
   );
 }
@@ -472,13 +463,17 @@ function AvailablePledgeDocument({
   client,
   documentId,
   filename,
+  producedAt,
   sizeBytes,
+  version,
 }: {
   readonly actionId: string;
   readonly client: LeonAidApiClient;
   readonly documentId: string;
   readonly filename: string;
+  readonly producedAt: string;
   readonly sizeBytes: number | null;
+  readonly version: number;
 }) {
   const { busy, download, errorMessage } = useDocumentDownload(
     client,
@@ -497,9 +492,13 @@ function AvailablePledgeDocument({
         <Icon icon={FileText} size={16} />
         <span className="grow">
           {filename}
-          <span className="subtle small">
+          <span
+            className="subtle small"
+            data-testid="donation-pledge-document-metadata"
+          >
             {" "}
-            · PDF{sizeBytes != null ? ` · ${formatFileSize(sizeBytes)}` : ""}
+            · PDF{sizeBytes != null ? ` · ${formatFileSize(sizeBytes)}` : ""} ·
+            Version {version} · erzeugt {formatDateTime(producedAt)}
           </span>
         </span>
         <a
@@ -547,24 +546,14 @@ function FailedPledgeDelivery({
   readonly onChanged: () => void;
 }) {
   const [errorMessage, setErrorMessage] = useState<string>();
-  const storageKey = donationCommandStorageKey(
-    "pledge-delivery-retry",
-    delivery.id,
-  );
   const retry = useMutation({
+    // No Idempotency-Key, as for the invoice retry: only a failed delivery
+    // can be started again, so a second call finds nothing to retry.
     mutationFn: () =>
       client.retryDonationPledgeDelivery(
         donation.actionId,
         donation.id,
         delivery.id,
-        {
-          headers: {
-            "Idempotency-Key": commandKey(
-              storageKey,
-              "donation:pledge-delivery-retry",
-            ),
-          },
-        },
       ),
     onError(cause) {
       const message = donationErrorMessage(cause);
@@ -572,7 +561,6 @@ function FailedPledgeDelivery({
       if (message.conflict) onChanged();
     },
     onSuccess() {
-      forgetCommandKey(storageKey);
       setErrorMessage(undefined);
       onChanged();
     },
@@ -628,7 +616,7 @@ function PledgeDelivery({
   const deliveries = donation.pledgeDeliveries;
   const latest = deliveries[0];
   const donorEmail = donation.donor.email;
-  const documentAvailable = donation.pledgeDocument?.status === "available";
+  const documentAvailable = donation.pledgeDocument.status === "available";
   const cancelled = donation.status === "cancelled";
   const storageKey = donationCommandStorageKey("pledge-delivery", donation.id);
   const send = useMutation({

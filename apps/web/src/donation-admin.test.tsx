@@ -95,7 +95,10 @@ function donation(
       filename: `Spendenzusage-${number}.pdf`,
       id: `doc-${id}`,
       sizeBytes: 38_000,
+      availableAt: "2026-10-01T10:00:05Z",
+      createdAt: "2026-10-01T10:00:00Z",
       status: "available",
+      version: 1,
     },
     pledgedAt: "2026-10-01T10:00:00Z",
     pledgedMinor: 5_000,
@@ -184,6 +187,7 @@ function identity(
         roleLabel: role === "charity_admin" ? "Charity-Admin" : "Finanzen",
       },
     ],
+    donationActions: [{ actionId, actionName: "Krapfentaxi 2026" }],
     displayName: "Klara Kern",
     globalRoles: [],
     navigation: [],
@@ -282,7 +286,10 @@ describe("donation helpers", () => {
             filename: null,
             id: "doc",
             sizeBytes: null,
+            availableAt: null,
+            createdAt: "2026-10-01T10:00:00Z",
             status: "pending",
+            version: 1,
           },
         }),
       ),
@@ -315,6 +322,52 @@ describe("donation helpers", () => {
 });
 
 describe("DonationAdminPage", () => {
+  it("offers the actions the server names, not every membership", async () => {
+    const client = fakeClient(listResponse());
+    window.history.replaceState(null, "", "/admin/donations");
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <ToastProvider>
+          <HotkeyProvider>
+            <DonationAdminPage
+              client={client as unknown as LeonAidApiClient}
+              identity={
+                {
+                  ...identity("charity_admin"),
+                  // A membership in an action without the capability.
+                  actionMemberships: [
+                    {
+                      actionId: "a-orders-only",
+                      actionName: "Krapfentaxi 2025",
+                      role: "charity_admin",
+                      roleLabel: "Charity-Admin",
+                    },
+                  ],
+                  donationActions: [
+                    { actionId, actionName: "Krapfentaxi 2026" },
+                    { actionId: "a-second", actionName: "Sommerfest 2026" },
+                  ],
+                } as unknown as CurrentIdentityResponse
+              }
+            />
+          </HotkeyProvider>
+        </ToastProvider>
+      </QueryClientProvider>,
+    );
+    const picker = (await screen.findByTestId(
+      "donation-action",
+    )) as HTMLSelectElement;
+    expect([...picker.options].map((option) => option.textContent)).toEqual([
+      "Krapfentaxi 2026",
+      "Sommerfest 2026",
+    ]);
+    expect(client.listDonations).toHaveBeenCalledWith(actionId);
+  });
+
   it("shows the open donations with both sums and the receiving body", async () => {
     await renderPage();
     expect(screen.getByTestId("donation-received-total").textContent).toBe(
@@ -742,7 +795,10 @@ describe("DonationAdminPage", () => {
               filename: null,
               id: "doc-p",
               sizeBytes: null,
+              availableAt: null,
+              createdAt: "2026-10-01T10:00:00Z",
               status: "pending",
+              version: 1,
             },
           }),
         ],
@@ -773,7 +829,10 @@ describe("DonationAdminPage", () => {
               filename: null,
               id: "doc-p",
               sizeBytes: null,
+              availableAt: null,
+              createdAt: "2026-10-01T10:00:00Z",
               status: "pending",
+              version: 1,
             },
           }),
         ],

@@ -362,7 +362,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             identity_repository,
             module_navigation=module_navigation(disabled_modules),
             delivery_navigation=identity_repository.manages_delivery,
-            donations_navigation=identity_repository.sees_donations,
+            donation_actions=identity_repository.donation_actions,
             cms_enabled=settings.cms_enabled,
             fresh_login_window=timedelta(seconds=settings.fresh_login_seconds),
         )

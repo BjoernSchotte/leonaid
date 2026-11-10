@@ -151,6 +151,7 @@ const invoiceContext: InvoiceContextResponse = {
 };
 
 const identity: CurrentIdentityResponse = {
+  donationActions: [],
   actionMemberships: [
     { actionId, actionName: "Krapfentaxi", role: "charity_admin" },
   ] as CurrentIdentityResponse["actionMemberships"],

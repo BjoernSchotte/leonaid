@@ -103,24 +103,14 @@ export function DonationAdminPage({
   client,
   identity,
 }: DonationAdminPageProps) {
-  // Donations are read as invoices are (may_read_invoices): system admins
-  // and global finance roles read every action.
+  // The server names the actions of this page: those with the `donations`
+  // capability whose finances the account reads (system admins and global
+  // finance roles: every such action).
   const readsEveryAction =
     identity.globalRoles.includes("system_admin") ||
     identity.globalRoles.includes("finance_reader") ||
     identity.globalRoles.includes("finance_manager");
-  const memberActions = useMemo(() => {
-    const seen = new Set<string>();
-    return identity.actionMemberships.filter((membership) => {
-      const eligible =
-        readsEveryAction ||
-        membership.role === "charity_admin" ||
-        membership.role === "finance_reader";
-      if (!eligible || seen.has(membership.actionId)) return false;
-      seen.add(membership.actionId);
-      return true;
-    });
-  }, [identity.actionMemberships, readsEveryAction]);
+  const memberActions = identity.donationActions;
   // A link may carry ?action=<id> of an action without a membership; keep
   // it selectable for the whole visit.
   const [unlistedActionId] = useState(() =>

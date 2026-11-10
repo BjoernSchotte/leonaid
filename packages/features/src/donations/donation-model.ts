@@ -42,7 +42,7 @@ export function pledgeDeliveryInProgress(delivery: DonationDeliveryResponse) {
 /** The list polls while a pledge PDF renders or a pledge mail is on its way. */
 export function donationInFlight(donation: DonationResponse) {
   return (
-    donation.pledgeDocument?.status === "pending" ||
+    donation.pledgeDocument.status === "pending" ||
     donation.pledgeDeliveries.some(pledgeDeliveryInProgress)
   );
 }
@@ -124,12 +124,7 @@ export function isCapabilityDisabled(error: unknown) {
 }
 
 export const donationCommandStorageKey = (
-  kind:
-    | "payment"
-    | "payment-withdrawal"
-    | "cancellation"
-    | "pledge-delivery"
-    | "pledge-delivery-retry",
+  kind: "payment" | "payment-withdrawal" | "cancellation" | "pledge-delivery",
   id: string,
 ) => `leonaid.donation-${kind}-command.${id}`;
 

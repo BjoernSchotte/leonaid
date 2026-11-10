@@ -513,7 +513,12 @@ class Proof:
         assert donation["replayed"] is False
         assert donation["donor"]["countryCode"] == "DE"
         assert donation["createdByDisplayName"] == f"Charity {self.data.tag}"
-        assert donation["pledgeDocument"]["status"] == "pending"
+        pledge_document = donation["pledgeDocument"]
+        assert pledge_document["status"] == "pending"
+        assert pledge_document["version"] == 1
+        assert pledge_document["createdAt"] is not None
+        assert pledge_document["availableAt"] is None
+        assert pledge_document["filename"] is None
         assert await self.next_number() == 2
         donation_id = UUID(donation["id"])
         assert (
@@ -902,6 +907,10 @@ class Proof:
             401,
             "fresh_login_required",
         )
+        available = (await self.record("after_cancel"))["pledgeDocument"]
+        assert available["status"] == "available"
+        assert available["availableAt"] is not None
+        assert available["filename"] == "Spendenzusage.pdf"
         key = self.key()
         sent = await self.charity.post(send, None, key)
         assert sent.status_code == 201, sent.text
@@ -979,6 +988,42 @@ class Proof:
             assert identity.status_code == 200, identity.text
             keys = [item["key"] for item in identity.json()["navigation"]]
             assert ("donations" in keys) is expected, (name, keys)
+            # The picker of "Spenden": the actions with the capability whose
+            # finances the account reads, never one without the capability.
+            listed = {
+                item["actionId"]: item["actionName"]
+                for item in identity.json()["donationActions"]
+            }
+            assert str(self.data.gamma) not in listed, name
+            own = {str(self.data.alpha), str(self.data.beta)} & set(listed)
+            assert (
+                own
+                == {
+                    "charity": {str(self.data.alpha), str(self.data.beta)},
+                    "finance": {str(self.data.alpha)},
+                    "finance_manager": {str(self.data.alpha), str(self.data.beta)},
+                    "acquirer": set(),
+                    "outsider": set(),
+                }[name]
+            ), (name, listed)
+            if name in ("charity", "finance"):
+                assert set(listed) == own, (name, listed)
+            if own:
+                assert listed[str(self.data.alpha)] == (f"Aktion {self.data.tag} Alpha")
+        # The dashboard figure carries its currency.
+        dashboard = await self.charity.get(
+            f"/api/v1/actions/{self.data.alpha}/dashboard"
+        )
+        assert dashboard.status_code == 200, dashboard.text
+        figure = dashboard.json()["charityAdmin"]["donations"]
+        assert figure == {
+            "enabled": True,
+            "pledged": overview.pledged,
+            "paid": 1,
+            "receivedMinor": 4000,
+            "pledgedOpenMinor": open_total,
+            "currency": "EUR",
+        }, figure
 
     async def the_pledge_keeps_the_body_of_its_day(self) -> None:
         """A later legal configuration without the part "Spenden" stops new

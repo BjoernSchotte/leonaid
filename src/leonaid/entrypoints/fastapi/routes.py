@@ -726,15 +726,14 @@ def donation_response(record: DonationRecord) -> DonationResponse:
             if donation.cancellation is not None
             else None
         ),
-        pledge_document=(
-            DonationPledgeDocumentResponse(
-                id=document.id,
-                status=document.status.value,
-                filename=document.filename,
-                size_bytes=document.size_bytes,
-            )
-            if document is not None
-            else None
+        pledge_document=DonationPledgeDocumentResponse(
+            id=document.id,
+            status=document.status.value,
+            version=document.version,
+            filename=document.filename,
+            size_bytes=document.size_bytes,
+            created_at=document.created_at,
+            available_at=document.available_at,
         ),
         pledge_deliveries=[
             donation_delivery_response(item) for item in record.pledge_deliveries
@@ -1332,6 +1331,7 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                 paid=admin.donations.paid,
                 received_minor=admin.donations.received_minor,
                 pledged_open_minor=admin.donations.pledged_open_minor,
+                currency=admin.donations.currency,
             ),
         )
 

@@ -5384,6 +5384,13 @@
             "title": "Displayname",
             "type": "string"
           },
+          "donationActions": {
+            "items": {
+              "$ref": "#/components/schemas/IdentityDonationActionResponse"
+            },
+            "title": "Donationactions",
+            "type": "array"
+          },
           "email": {
             "title": "Email",
             "type": "string"
@@ -5474,6 +5481,7 @@
           "actionMemberships",
           "roleLabels",
           "navigation",
+          "donationActions",
           "sessionExpiresAt",
           "sessionLastSeenAt",
           "freshLoginAt",
@@ -5638,6 +5646,11 @@
       "DashboardDonationResponse": {
         "additionalProperties": false,
         "properties": {
+          "currency": {
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          },
           "enabled": {
             "description": "The action has the donations capability.",
             "title": "Enabled",
@@ -5669,7 +5682,8 @@
           "pledged",
           "paid",
           "receivedMinor",
-          "pledgedOpenMinor"
+          "pledgedOpenMinor",
+          "currency"
         ],
         "title": "DashboardDonationResponse",
         "type": "object"
@@ -7737,6 +7751,23 @@
       "DonationPledgeDocumentResponse": {
         "additionalProperties": false,
         "properties": {
+          "availableAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availableat"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
           "filename": {
             "anyOf": [
               {
@@ -7773,13 +7804,21 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
           }
         },
         "required": [
           "id",
           "status",
+          "version",
           "filename",
-          "sizeBytes"
+          "sizeBytes",
+          "createdAt",
+          "availableAt"
         ],
         "title": "DonationPledgeDocumentResponse",
         "type": "object"
@@ -7893,14 +7932,7 @@
             "type": "array"
           },
           "pledgeDocument": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DonationPledgeDocumentResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/DonationPledgeDocumentResponse"
           },
           "pledgedAt": {
             "format": "date-time",
@@ -8738,6 +8770,26 @@
           "targetAcquirerUserId"
         ],
         "title": "HandOverAcquisitionAssignmentRequest",
+        "type": "object"
+      },
+      "IdentityDonationActionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "actionName": {
+            "title": "Actionname",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actionId",
+          "actionName"
+        ],
+        "title": "IdentityDonationActionResponse",
         "type": "object"
       },
       "IdentityMembershipResponse": {

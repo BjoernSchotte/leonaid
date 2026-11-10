@@ -143,6 +143,8 @@ export function identityFromSummary(
   return {
     actionMemberships: [...summary.memberships],
     displayName: summary.displayName,
+    // The web admin's page "Spenden" is not part of the offline app.
+    donationActions: [],
     email: "",
     freshLoginAt: summary.savedAt,
     freshUntil: summary.savedAt,
