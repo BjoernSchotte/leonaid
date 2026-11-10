@@ -1,5 +1,5 @@
-"""Verify Typst invoices, cancellation invoices and donation pledges with two
-independent real PDF engines."""
+"""Verify Typst invoices, cancellation invoices, donation pledges and donation
+receipts with two independent real PDF engines."""
 
 from __future__ import annotations
 
@@ -20,12 +20,15 @@ from pypdf.generic import ArrayObject, DictionaryObject, IndirectObject
 from leonaid.adapters.typst import (
     CANCELLATION_RENDER_VERSION,
     PLEDGE_RENDER_VERSION,
+    RECEIPT_RENDER_VERSION,
     RENDER_VERSION,
     cancellation_render_payload,
     pledge_render_payload,
+    receipt_render_payload,
     render_payload,
 )
 from leonaid.application.invoice_documents import InvoiceDocumentSnapshot
+from leonaid.domain.donation_receipts import DonationReceiptDocument
 from leonaid.domain.donations import DonationPledgeDocument
 from leonaid.domain.invoice_cancellation_documents import InvoiceCancellationDocument
 
@@ -202,6 +205,43 @@ def _pledge_subject(document: DonationPledgeDocument) -> Subject:
     )
 
 
+def _receipt_subject(document: DonationReceiptDocument) -> Subject:
+    presentation = receipt_render_payload(document)
+    expected = [
+        presentation["title"],
+        presentation["subtitle"],
+        document.number,
+        document.donation_number,
+        document.donor.name,
+        document.donor.street_line_1,
+        document.body.legal_name,
+        document.body.street_line_1,
+        presentation["amount"],
+        presentation["amountInWords"],
+        presentation["receivedOn"],
+        presentation["noWaiver"],
+        presentation["notice"],
+        presentation["purpose"],
+        presentation["placeAndDate"],
+        presentation["signatory"],
+        presentation["signatureNote"],
+        presentation["liability"],
+    ]
+    return Subject(
+        number=document.number,
+        title=f"Zuwendungsbestätigung {document.number}",
+        author=document.body.legal_name,
+        render_version=RECEIPT_RENDER_VERSION,
+        created_at=document.issued_at,
+        expected_text=tuple(str(value) for value in expected),
+        needs_page_break=False,
+        # A receipt is no invoice and names no tax amounts.
+        forbidden_text=("Rechnung", "Umsatzsteuer", "Netto", "Brutto"),
+        # The official sample is one page.
+        single_page=True,
+    )
+
+
 def _assert_expected_text(
     *,
     subject: Subject,
@@ -238,6 +278,8 @@ def _subject_from_manifest(item: dict[str, object]) -> Subject:
         return _cancellation_subject(InvoiceCancellationDocument.from_payload(snapshot))
     if kind == "donation_pledge":
         return _pledge_subject(DonationPledgeDocument.from_payload(snapshot))
+    if kind == "donation_receipt":
+        return _receipt_subject(DonationReceiptDocument.from_payload(snapshot))
     raise PdfVerificationError(f"Renderer manifest names an unknown kind: {kind}")
 
 

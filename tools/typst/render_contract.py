@@ -1,5 +1,5 @@
 """Exercise deterministic normal and multi-page rendering of invoices and
-cancellation invoices, and of donation pledges."""
+cancellation invoices, and of donation pledges and donation receipts."""
 
 from __future__ import annotations
 
@@ -11,11 +11,13 @@ from typing import Any
 
 from leonaid.adapters.typst import (
     TypstDonationPledgeRenderer,
+    TypstDonationReceiptRenderer,
     TypstInvoiceCancellationRenderer,
     TypstInvoiceRenderer,
     TypstRenderError,
 )
 from leonaid.application.invoice_documents import InvoiceDocumentSnapshot
+from leonaid.domain.donation_receipts import DonationReceiptDocument
 from leonaid.domain.donations import DonationPledgeDocument
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.invoice_cancellation_documents import InvoiceCancellationDocument
@@ -155,6 +157,7 @@ KINDS: dict[type, str] = {
     InvoiceDocumentSnapshot: "invoice",
     InvoiceCancellationDocument: "invoice_cancellation",
     DonationPledgeDocument: "donation_pledge",
+    DonationReceiptDocument: "donation_receipt",
 }
 
 
@@ -164,9 +167,13 @@ def _render_twice(
         TypstInvoiceRenderer
         | TypstInvoiceCancellationRenderer
         | TypstDonationPledgeRenderer
+        | TypstDonationReceiptRenderer
     ),
     snapshot: (
-        InvoiceDocumentSnapshot | InvoiceCancellationDocument | DonationPledgeDocument
+        InvoiceDocumentSnapshot
+        | InvoiceCancellationDocument
+        | DonationPledgeDocument
+        | DonationReceiptDocument
     ),
     output: Path,
 ) -> dict[str, object]:
@@ -277,6 +284,22 @@ def run_contract(
             output=output,
         )
     )
+    # Donation receipts: machine procedure with a Freistellungsbescheid, and
+    # signed by hand with a notice after § 60a AO.
+    receipt_payloads = [
+        _load_payload(path) for path in sorted(donation_directory.glob("ZB26-*.json"))
+    ]
+    if len(receipt_payloads) < 2:
+        raise RenderContractError("The versioned donation receipts are missing.")
+    receipt_renderer = TypstDonationReceiptRenderer()
+    for payload in receipt_payloads:
+        manifest.append(
+            _render_twice(
+                renderer=receipt_renderer,
+                snapshot=DonationReceiptDocument.from_payload(payload),
+                output=output,
+            )
+        )
     (output / "contract-manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",

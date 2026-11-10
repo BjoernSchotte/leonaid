@@ -1,10 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { CircleDot, HandHeart, Mail, TriangleAlert } from "lucide-react";
+import {
+  CircleDot,
+  FileCheck,
+  HandHeart,
+  Mail,
+  TriangleAlert,
+} from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
 import {
   ApiError,
   type CurrentIdentityResponse,
+  type DonationListResponse,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
 import {
@@ -45,15 +52,20 @@ import {
   DonationCancellationDialog,
   DonationPaymentDialog,
   DonationPaymentWithdrawalDialog,
+  DonationReceiptDialog,
+  DonationReceiptVoidDialog,
 } from "./donation-dialogs";
 import {
+  DONATION_RECEIPT_STATES,
   DONATION_STATUSES,
   donationInFlight,
+  donationReceiptStateLabels,
   donationRows,
   donationStatusLabels,
   isCapabilityDisabled,
   RECEIVING_BODY_MISSING,
   type DonationRow,
+  validDonationReceipt,
 } from "./donation-model";
 
 interface DonationAdminPageProps {
@@ -245,8 +257,10 @@ export function DonationAdminPage({
             className="inv-readonly"
             data-testid="donation-read-only"
           >
-            Ihre Rolle zeigt Spenden, Zahlungen und Spendenzusagen. Spenden und
-            Zahlungen erfasst die Aktionsleitung oder „Finanzen verwalten“.
+            Ihre Rolle zeigt Spenden, Zahlungen, Spendenzusagen und
+            Zuwendungsbestätigungen. Spenden und Zahlungen erfasst die
+            Aktionsleitung oder „Finanzen verwalten“; sie stellen auch die
+            Zuwendungsbestätigungen aus.
           </ReadOnlyNotice>
         ) : null}
         {data && data.receivingBodyName === null ? (
@@ -271,6 +285,8 @@ export function DonationAdminPage({
         maySend={Boolean(data?.maySend)}
         onChanged={refetch}
         onRetry={refetch}
+        receiptNoticeValidUntil={data?.receiptNoticeValidUntil ?? null}
+        receiptSigning={data?.receiptSigning ?? null}
         receivingBodyName={data?.receivingBodyName ?? null}
         rows={rows}
         status={status}
@@ -298,6 +314,8 @@ function DonationList({
   maySend,
   onChanged,
   onRetry,
+  receiptNoticeValidUntil,
+  receiptSigning,
   receivingBodyName,
   rows,
   status,
@@ -310,6 +328,8 @@ function DonationList({
   readonly maySend: boolean;
   readonly onChanged: () => void;
   readonly onRetry: () => void;
+  readonly receiptNoticeValidUntil: string | null;
+  readonly receiptSigning: DonationListResponse["receiptSigning"];
   readonly receivingBodyName: string | null;
   readonly rows: readonly DonationRow[];
   readonly status: "loading" | "error" | "ready";
@@ -335,8 +355,8 @@ function DonationList({
   // No donation without the receiving body (D-D6): no create command then.
   const mayCreate = mayManage && receivingBodyName !== null;
 
-  // Status and dispatch are read-only: they change only through the
-  // explicit commands in the pane.
+  // Status, receipt and dispatch are read-only: they change only through
+  // the explicit commands in the pane.
   const properties = useMemo<ListProperty<DonationRow>[]>(
     () => [
       {
@@ -357,6 +377,17 @@ function DonationList({
         chip: (row) => (
           <StatusLabel status={donationStatusLabels[row.status]} />
         ),
+      },
+      {
+        id: "receipt",
+        label: "Zuwendungsbestätigung",
+        icon: FileCheck,
+        get: (row) => row.receipt,
+        options: DONATION_RECEIPT_STATES.map((value) => ({
+          value,
+          label: donationReceiptStateLabels[value],
+        })),
+        groupable: false,
       },
       {
         id: "sent",
@@ -414,9 +445,23 @@ function DonationList({
         sort: "number",
       },
       {
+        // Paid and still without a valid receipt: the receipt is due.
         id: "paid",
         label: "Bezahlt",
-        filters: [{ prop: "status", values: ["paid"] }],
+        filters: [
+          { prop: "status", values: ["paid"] },
+          { prop: "receipt", values: ["none"] },
+        ],
+        groupBy: null,
+        sort: "number",
+      },
+      {
+        id: "confirmed",
+        label: "Bestätigt",
+        filters: [
+          { prop: "status", values: ["paid"] },
+          { prop: "receipt", values: ["issued"] },
+        ],
         groupBy: null,
         sort: "number",
       },
@@ -450,7 +495,8 @@ function DonationList({
         const { cancellation, currency, payment, pledgedAt } = row.donation;
         if (cancellation) return `storniert · ${cancellation.reason}`;
         if (payment) {
-          return `${formatMoney(payment.amountMinor, currency)} eingegangen am ${shortDate(payment.receivedOn, today)}`;
+          const receipt = validDonationReceipt(row.donation);
+          return `${formatMoney(payment.amountMinor, currency)} eingegangen am ${shortDate(payment.receivedOn, today)}${receipt ? ` · bestätigt ${receipt.number}` : ""}`;
         }
         return `zugesagt am ${shortDate(pledgedAt, today)} · noch nichts eingegangen`;
       },
@@ -513,6 +559,8 @@ function DonationList({
             maySend={maySend}
             onChanged={onChanged}
             onCommand={onCommand}
+            receiptNoticeValidUntil={receiptNoticeValidUntil}
+            receiptSigning={receiptSigning}
             row={row}
             today={today}
           />
@@ -550,6 +598,19 @@ function DonationList({
       <DonationCancellationDialog
         client={client}
         donation={dialog?.command === "cancellation" ? dialogDonation : null}
+        onChanged={onChanged}
+        onClose={closeDialog}
+      />
+      <DonationReceiptDialog
+        client={client}
+        donation={dialog?.command === "receipt" ? dialogDonation : null}
+        onChanged={onChanged}
+        onClose={closeDialog}
+        receiptSigning={receiptSigning}
+      />
+      <DonationReceiptVoidDialog
+        client={client}
+        donation={dialog?.command === "receipt-void" ? dialogDonation : null}
         onChanged={onChanged}
         onClose={closeDialog}
       />

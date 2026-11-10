@@ -72,7 +72,7 @@
   inset: 4mm,
 )[
   #grid(
-    columns: (1fr, 2fr, 1fr),
+    columns: (1.45fr, 2fr, 1fr),
     column-gutter: 5mm,
     [
       #text(size: 8pt, fill: muted)[Betrag der Zuwendung – in Ziffern –]

@@ -7,6 +7,11 @@ from uuid import UUID
 
 import pytest
 
+from leonaid.adapters.typst.donation_receipt_renderer import (
+    RECEIPT_RENDER_VERSION,
+    receipt_render_payload,
+)
+from leonaid.application.donation_receipts import receipt_mail
 from leonaid.domain.commitments import Money
 from leonaid.domain.donation_receipts import (
     DonationReceipt,
@@ -294,3 +299,59 @@ def test_a_receipt_is_declared_void_once_with_reason_and_evidence() -> None:
         )
     assert code_of(error) == "donation_receipt_void_reason_too_short"
     assert PLEDGED_AT < ISSUED_AT
+
+
+def test_the_receipt_pdf_follows_the_official_sample() -> None:
+    payload = receipt_render_payload(document(donation=paid(123_456)))
+    assert payload["renderVersion"] == RECEIPT_RENDER_VERSION
+    assert payload["title"] == "Bestätigung über Geldzuwendungen"
+    assert str(payload["subtitle"]).startswith(
+        "im Sinne des § 10b des Einkommensteuergesetzes"
+    )
+    assert payload["amount"] == "1.234,56 €"
+    assert payload["amountInWords"] == (
+        "eintausendzweihundertvierunddreißig Euro 56/100"
+    )
+    assert payload["receivedOn"] == "12.11.2026"
+    assert payload["noWaiver"] == (
+        "Es handelt sich nicht um den Verzicht auf Erstattung von Aufwendungen."
+    )
+    assert payload["purpose"] == (
+        "Es wird bestätigt, dass die Zuwendung nur zur Förderung der "
+        "Jugendhilfe, der Bildung und mildtätiger Zwecke verwendet wird."
+    )
+    assert payload["placeAndDate"] == "Musterstadt, 10.12.2026"
+    assert payload["signatory"] == "Erika Mustermann, Schatzmeisterin"
+    assert payload["signedByMachine"] is True
+    assert payload["signatureNote"] == (
+        "Diese Zuwendungsbestätigung wurde maschinell erstellt und trägt keine "
+        "eigenhändige Unterschrift. Das Verfahren ist dem Finanzamt Musterstadt "
+        "angezeigt (R 10b.1 Abs. 4 EStR)."
+    )
+    assert payload["liability"] == body().receipt_liability_text
+    # The receiving body issues it, never the invoice issuer.
+    issuer = payload["body"]
+    assert isinstance(issuer, dict)
+    assert issuer["legalName"] == "Förderverein Lions Club Musterstadt e. V."
+    by_hand = receipt_render_payload(
+        document(body=body(signing=ReceiptSigning.BY_HAND, machine_notified_on=None))
+    )
+    assert by_hand["signedByMachine"] is False
+    assert "maschinell" not in str(by_hand["signatureNote"])
+
+
+def test_the_receipt_mail_names_number_amount_and_day() -> None:
+    subject, text = receipt_mail(
+        number="ZB26-0001",
+        action_name="Krapfentaxi 2026",
+        donor_name="Bäckerei Sonnenschein GmbH",
+        body_name="Förderverein Lions Club Musterstadt e. V.",
+        amount_minor=6_000,
+        currency="EUR",
+        received_on_label="12.11.2026",
+    )
+    assert subject == "Zuwendungsbestätigung ZB26-0001 · Krapfentaxi 2026"
+    assert "Spende von 60,00 €, die am 12.11.2026 bei uns eingegangen ist" in text
+    assert "Zuwendungsbestätigung ZB26-0001 für Ihre Steuererklärung" in text
+    assert "ohne Unterschrift gültig" in text
+    assert text.endswith("Förderverein Lions Club Musterstadt e. V.")

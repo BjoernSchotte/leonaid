@@ -1,96 +1,70 @@
-import { useMutation } from "@tanstack/react-query";
-import {
-  Ban,
-  Download,
-  FileText,
-  Mail,
-  Send,
-  Undo2,
-  Wallet,
-} from "lucide-react";
-import { useState } from "react";
+import { Ban, FileCheck, Undo2, Wallet } from "lucide-react";
 
 import type {
-  DonationDeliveryResponse,
-  DonationResponse,
+  DonationListResponse,
   LeonAidApiClient,
 } from "@leonaid/api-client";
 import {
   Button,
-  buttonClassName,
   DetailProps,
   DetailSection,
-  Icon,
   NextStep,
   StatusLabel,
 } from "@leonaid/ui";
 import { ADMIN_BASE } from "@leonaid/ui/base-paths";
 
-import {
-  documentPreviewHref,
-  useDocumentDownload,
-  WrapEmail,
-} from "../invoices/invoice-detail";
+import { WrapEmail } from "../invoices/invoice-detail";
 import {
   formatDate,
   formatDateTime,
-  formatFileSize,
   formatMoney,
   shortDate,
 } from "../invoices/invoice-format";
-import { commandKey, forgetCommandKey } from "../invoices/invoice-model";
+import {
+  DonationDelivery,
+  DonationDocument,
+  FailedDonationDelivery,
+  PLEDGE,
+  RECEIPT,
+} from "./donation-delivery";
 import {
   donationCommandStorageKey,
-  donationErrorMessage,
+  FINANCE_ROLE,
+  donationReceiptNoticeExpired,
   donationSourceLabels,
   donationStatusLabels,
   type DonationRow,
+  RECEIPT_BLOCKS_WITHDRAWAL,
+  validDonationReceipt,
   withPeriod,
 } from "./donation-model";
+import {
+  DonationReceiptDelivery,
+  DonationReceiptSection,
+} from "./donation-receipt";
 
-export type DonationCommand = "payment" | "withdrawal" | "cancellation";
+export type DonationCommand =
+  | "payment"
+  | "withdrawal"
+  | "cancellation"
+  | "receipt"
+  | "receipt-void";
 
 export interface DonationDetailProps {
   readonly row: DonationRow;
   readonly client: LeonAidApiClient;
-  /** Server right `mayManage`: payments, withdrawals, cancellation. */
+  /** Server right `mayManage`: payments, withdrawals, cancellation, receipts. */
   readonly mayManage: boolean;
-  /** Server right `maySend`: send, resend and retry the pledge mail. */
+  /** Server right `maySend`: send, resend and retry the pledge and receipt mails. */
   readonly maySend: boolean;
+  /** How the receiving body signs a receipt; null without a receiving body. */
+  readonly receiptSigning: DonationListResponse["receiptSigning"];
+  /** Last day the receiving body's notice carries a receipt (ISO day). */
+  readonly receiptNoticeValidUntil: string | null;
   readonly onCommand: (command: DonationCommand, row: DonationRow) => void;
   readonly onChanged: () => void;
   readonly today: string;
 }
-
-const FINANCE_ROLE = "Berechtigte Finanzrolle";
-
-const deliveryStatus = {
-  failed: {
-    label: "Versand fehlgeschlagen",
-    description:
-      "Die E-Mail wurde nicht zugestellt. Die Spendenzusage bleibt unverändert und kann kontrolliert erneut gesendet werden.",
-  },
-  queued: {
-    label: "Für Versand eingeplant",
-    description:
-      "Der Versandauftrag ist gespeichert und wird vom Hintergrunddienst übernommen.",
-  },
-  retrying: {
-    label: "Automatischer Neuversuch",
-    description:
-      "Der letzte Versuch ist fehlgeschlagen. LeonAid versucht die Zustellung erneut.",
-  },
-  sending: {
-    label: "Wird gerade versendet",
-    description:
-      "Das gespeicherte PDF der Spendenzusage wird jetzt an den Spender übertragen.",
-  },
-  sent: {
-    label: "Erfolgreich versendet",
-    description:
-      "Der Mailserver hat die Nachricht mit genau dieser PDF-Version angenommen.",
-  },
-} as const;
 
 /** The pane body of one donation: stamps, explicit commands and the record. */
 export function DonationDetail({
@@ -99,6 +73,8 @@ export function DonationDetail({
   maySend,
   onChanged,
   onCommand,
+  receiptNoticeValidUntil,
+  receiptSigning,
   row,
   today,
 }: DonationDetailProps) {
@@ -106,6 +82,20 @@ export function DonationDetail({
   const { cancellation, donor, payment } = donation;
   const money = (minor: number) => formatMoney(minor, donation.currency);
   const latest = donation.pledgeDeliveries[0];
+  const receipt = validDonationReceipt(donation);
+  const latestReceiptMail = receipt?.deliveries[0];
+  const noticeExpired = donationReceiptNoticeExpired(
+    receiptNoticeValidUntil,
+    today,
+  );
+  // A receipt needs the payment, a receiving body and a notice that still
+  // carries it. The server checks all three again.
+  const mayIssueReceipt =
+    mayManage &&
+    donation.status === "paid" &&
+    !receipt &&
+    receiptSigning !== null &&
+    !noticeExpired;
 
   return (
     <div
@@ -129,6 +119,7 @@ export function DonationDetail({
             {withPeriod(
               `${money(payment.amountMinor)} eingegangen am ${shortDate(payment.receivedOn, today)}`,
             )}
+            {receipt ? ` Bestätigt mit ${receipt.number}.` : ""}
           </span>
         </div>
       ) : null}
@@ -162,11 +153,40 @@ export function DonationDetail({
         />
       ) : null}
 
+      {mayIssueReceipt && payment ? (
+        <NextStep
+          action={
+            <Button
+              data-testid="open-donation-receipt-form"
+              icon={FileCheck}
+              onClick={() => onCommand("receipt", row)}
+              variant="primary"
+            >
+              Zuwendungsbestätigung ausstellen
+            </Button>
+          }
+          consequence="Die Zuwendungsbestätigung bestätigt den eingegangenen Betrag und den Tag des Eingangs. Sie kann danach nicht mehr geändert werden."
+          lead={withPeriod(
+            `${money(payment.amountMinor)} eingegangen am ${shortDate(payment.receivedOn, today)}`,
+          )}
+        />
+      ) : null}
+
       {maySend && latest?.status === "failed" ? (
-        <FailedPledgeDelivery
+        <FailedDonationDelivery
           client={client}
           delivery={latest}
           donation={donation}
+          kind={PLEDGE}
+          onChanged={onChanged}
+        />
+      ) : null}
+      {maySend && latestReceiptMail?.status === "failed" ? (
+        <FailedDonationDelivery
+          client={client}
+          delivery={latestReceiptMail}
+          donation={donation}
+          kind={RECEIPT}
           onChanged={onChanged}
         />
       ) : null}
@@ -281,7 +301,15 @@ export function DonationDetail({
             ]}
           />
           <div className="inv-note">
-            <PledgeDocument client={client} donation={donation} />
+            {/* Every donation has its pledge document from the moment it
+                is recorded. */}
+            <DonationDocument
+              actionId={donation.actionId}
+              client={client}
+              document={donation.pledgeDocument}
+              fallbackFilename={`Spendenzusage-${donation.number}.pdf`}
+              kind={PLEDGE}
+            />
           </div>
         </div>
       </DetailSection>
@@ -316,7 +344,14 @@ export function DonationDetail({
                   },
                 ]}
               />
-              {mayManage ? (
+              {mayManage && receipt ? (
+                <p
+                  className="small subtle inv-note"
+                  data-testid="donation-receipt-blocks-withdrawal"
+                >
+                  {RECEIPT_BLOCKS_WITHDRAWAL}
+                </p>
+              ) : mayManage ? (
                 <div className="cluster inv-section-actions">
                   <Button
                     data-testid="open-donation-withdrawal-form"
@@ -385,6 +420,14 @@ export function DonationDetail({
         </div>
       </DetailSection>
 
+      <DonationReceiptSection
+        client={client}
+        donation={donation}
+        mayManage={mayManage}
+        noticeExpiredOn={noticeExpired ? receiptNoticeValidUntil : null}
+        onVoid={() => onCommand("receipt-void", row)}
+      />
+
       {cancellation ? (
         <DetailSection title="Storno">
           <div data-testid="donation-cancellation">
@@ -401,393 +444,26 @@ export function DonationDetail({
         </DetailSection>
       ) : null}
 
-      <PledgeDelivery
+      <DonationDelivery
+        blocked={donation.status === "cancelled"}
+        deliveries={donation.pledgeDeliveries}
+        documentAvailable={donation.pledgeDocument.status === "available"}
+        donorEmail={donor.email}
+        idempotencyPrefix="donation:pledge-delivery"
+        kind={PLEDGE}
+        maySend={maySend}
+        onChanged={onChanged}
+        send={(options) =>
+          client.sendDonationPledge(donation.actionId, donation.id, options)
+        }
+        storageKey={donationCommandStorageKey("pledge-delivery", donation.id)}
+      />
+      <DonationReceiptDelivery
         client={client}
         donation={donation}
         maySend={maySend}
         onChanged={onChanged}
       />
     </div>
-  );
-}
-
-/** The pledge PDF in its state: missing, being rendered, removed or ready. */
-function PledgeDocument({
-  client,
-  donation,
-}: {
-  readonly client: LeonAidApiClient;
-  readonly donation: DonationResponse;
-}) {
-  // Every donation has its pledge document from the moment it is recorded.
-  const generated = donation.pledgeDocument;
-  if (generated.status === "pending") {
-    return (
-      <p
-        aria-live="polite"
-        className="small muted"
-        data-state="pending"
-        data-testid="donation-pledge-document"
-      >
-        Das PDF der Spendenzusage wird erzeugt und danach unveränderlich
-        gespeichert.
-      </p>
-    );
-  }
-  if (generated.status === "deleted") {
-    return (
-      <p
-        className="small muted"
-        data-state="deleted"
-        data-testid="donation-pledge-document"
-      >
-        {generated.filename ?? "Das PDF"} wurde kontrolliert entfernt.
-      </p>
-    );
-  }
-  return (
-    <AvailablePledgeDocument
-      actionId={donation.actionId}
-      client={client}
-      documentId={generated.id}
-      filename={generated.filename ?? `Spendenzusage-${donation.number}.pdf`}
-      producedAt={generated.availableAt ?? generated.createdAt}
-      sizeBytes={generated.sizeBytes}
-      version={generated.version}
-    />
-  );
-}
-
-function AvailablePledgeDocument({
-  actionId,
-  client,
-  documentId,
-  filename,
-  producedAt,
-  sizeBytes,
-  version,
-}: {
-  readonly actionId: string;
-  readonly client: LeonAidApiClient;
-  readonly documentId: string;
-  readonly filename: string;
-  readonly producedAt: string;
-  readonly sizeBytes: number | null;
-  readonly version: number;
-}) {
-  const { busy, download, errorMessage } = useDocumentDownload(
-    client,
-    actionId,
-    documentId,
-    filename,
-  );
-  return (
-    <ul
-      aria-busy={busy || undefined}
-      className="doc-list"
-      data-state="available"
-      data-testid="donation-pledge-document"
-    >
-      <li>
-        <Icon icon={FileText} size={16} />
-        <span className="grow">
-          {filename}
-          <span
-            className="subtle small"
-            data-testid="donation-pledge-document-metadata"
-          >
-            {" "}
-            · PDF{sizeBytes != null ? ` · ${formatFileSize(sizeBytes)}` : ""} ·
-            Version {version} · erzeugt {formatDateTime(producedAt)}
-          </span>
-        </span>
-        <a
-          aria-label={`${filename} im Browser öffnen`}
-          className={buttonClassName({ size: "sm", variant: "ghost" })}
-          data-testid="preview-donation-pledge"
-          href={documentPreviewHref(actionId, documentId)}
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          <Icon icon={FileText} size={16} />
-          <span className="btn-label">Öffnen</span>
-        </a>
-        <Button
-          aria-label={`${filename} herunterladen`}
-          data-testid="download-donation-pledge"
-          icon={Download}
-          loading={busy}
-          onClick={() => void download()}
-          size="sm"
-          variant="ghost"
-        >
-          PDF
-        </Button>
-      </li>
-      {errorMessage ? (
-        <li className="inv-error" role="alert">
-          {errorMessage}
-        </li>
-      ) : null}
-    </ul>
-  );
-}
-
-/** A failed pledge mail with the explicit retry command. */
-function FailedPledgeDelivery({
-  client,
-  delivery,
-  donation,
-  onChanged,
-}: {
-  readonly client: LeonAidApiClient;
-  readonly delivery: DonationDeliveryResponse;
-  readonly donation: DonationResponse;
-  readonly onChanged: () => void;
-}) {
-  const [errorMessage, setErrorMessage] = useState<string>();
-  const retry = useMutation({
-    // No Idempotency-Key, as for the invoice retry: only a failed delivery
-    // can be started again, so a second call finds nothing to retry.
-    mutationFn: () =>
-      client.retryDonationPledgeDelivery(
-        donation.actionId,
-        donation.id,
-        delivery.id,
-      ),
-    onError(cause) {
-      const message = donationErrorMessage(cause);
-      setErrorMessage(message.message);
-      if (message.conflict) onChanged();
-    },
-    onSuccess() {
-      setErrorMessage(undefined);
-      onChanged();
-    },
-  });
-  return (
-    <div
-      className="callout tone-danger inv-callout"
-      data-testid="donation-pledge-delivery-failed"
-      role="status"
-    >
-      <Icon icon={Mail} size={16} />
-      <span className="grow">
-        Versand der Spendenzusage an {delivery.recipientEmail} fehlgeschlagen
-        {delivery.lastErrorDetail ? `: ${delivery.lastErrorDetail}` : ""}.{" "}
-        {delivery.canRetry
-          ? "Prüfen Sie die Adresse und senden Sie erneut."
-          : "Ein erneuter Versand ist für diesen Auftrag nicht möglich."}
-        {errorMessage ? (
-          <span className="inv-callout-error" role="alert">
-            {errorMessage}
-          </span>
-        ) : null}
-      </span>
-      {delivery.canRetry ? (
-        <Button
-          data-testid="retry-donation-pledge-delivery"
-          icon={Send}
-          loading={retry.isPending}
-          onClick={() => retry.mutate()}
-          size="sm"
-        >
-          Erneut senden
-        </Button>
-      ) : null}
-    </div>
-  );
-}
-
-/** The e-mail delivery of the pledge: state, log and the send commands. */
-function PledgeDelivery({
-  client,
-  donation,
-  maySend,
-  onChanged,
-}: {
-  readonly client: LeonAidApiClient;
-  readonly donation: DonationResponse;
-  readonly maySend: boolean;
-  readonly onChanged: () => void;
-}) {
-  const [errorMessage, setErrorMessage] = useState<string>();
-  const [confirmResend, setConfirmResend] = useState(false);
-  const deliveries = donation.pledgeDeliveries;
-  const latest = deliveries[0];
-  const donorEmail = donation.donor.email;
-  const documentAvailable = donation.pledgeDocument.status === "available";
-  const cancelled = donation.status === "cancelled";
-  const storageKey = donationCommandStorageKey("pledge-delivery", donation.id);
-  const send = useMutation({
-    mutationFn: () =>
-      client.sendDonationPledge(donation.actionId, donation.id, {
-        headers: {
-          "Idempotency-Key": commandKey(storageKey, "donation:pledge-delivery"),
-        },
-      }),
-    onError(cause) {
-      const message = donationErrorMessage(cause);
-      setErrorMessage(message.message);
-      if (message.conflict) onChanged();
-    },
-    onSuccess() {
-      forgetCommandKey(storageKey);
-      setConfirmResend(false);
-      setErrorMessage(undefined);
-      onChanged();
-    },
-  });
-  const status = latest ? deliveryStatus[latest.status] : undefined;
-  // A new mail goes to the donor's stored address.
-  const canSend = maySend && !cancelled && documentAvailable && donorEmail;
-
-  return (
-    <section
-      aria-busy={send.isPending}
-      className="pane-section"
-      data-state={latest?.status ?? "not-sent"}
-      data-testid="donation-pledge-delivery"
-    >
-      <h3>Versand der Spendenzusage</h3>
-      <DetailProps
-        items={[
-          { label: "Status", value: status?.label ?? "Noch nicht versendet" },
-          {
-            label: "Empfänger",
-            value: donorEmail ? (
-              <WrapEmail value={donorEmail} />
-            ) : (
-              "Keine E-Mail-Adresse hinterlegt"
-            ),
-          },
-        ]}
-      />
-      <p className="small subtle inv-note">
-        {status?.description ??
-          "Das unveränderliche PDF der Spendenzusage geht direkt an die E-Mail-Adresse des Spenders."}
-      </p>
-
-      {deliveries.length ? (
-        <ol aria-label="Versandprotokoll" className="timeline inv-attempts">
-          {deliveries.map((delivery, index) => (
-            <li
-              data-status={delivery.status}
-              data-testid="donation-pledge-delivery-attempt"
-              key={delivery.id}
-            >
-              <span>
-                <strong>
-                  {index === 0 ? "Aktueller Versand" : "Früherer Versand"}
-                </strong>{" "}
-                · {deliveryStatus[delivery.status].label}
-                <span className="inv-attempt-subject">
-                  {delivery.subject} · an {delivery.recipientEmail}
-                </span>
-                {delivery.lastErrorDetail ? (
-                  <span className="inv-attempt-error">
-                    <strong>Letzter Fehler:</strong> {delivery.lastErrorDetail}
-                    {delivery.lastErrorCode
-                      ? ` (${delivery.lastErrorCode})`
-                      : ""}
-                  </span>
-                ) : null}
-                <time dateTime={delivery.sentAt ?? delivery.requestedAt}>
-                  {delivery.sentAt
-                    ? `Versendet ${formatDateTime(delivery.sentAt)}`
-                    : `Angelegt ${formatDateTime(delivery.requestedAt)}`}{" "}
-                  · {delivery.attempts}{" "}
-                  {delivery.attempts === 1 ? "Versuch" : "Versuche"}
-                </time>
-              </span>
-            </li>
-          ))}
-        </ol>
-      ) : null}
-
-      {canSend && !latest ? (
-        <div className="cluster inv-section-actions">
-          <Button
-            data-testid="send-donation-pledge"
-            icon={Send}
-            loading={send.isPending}
-            onClick={() => send.mutate()}
-            size="sm"
-            variant="secondary"
-          >
-            Spendenzusage senden
-          </Button>
-        </div>
-      ) : null}
-
-      {canSend && latest?.status === "sent" && !confirmResend ? (
-        <div className="cluster inv-section-actions">
-          <Button
-            data-testid="resend-donation-pledge"
-            icon={Send}
-            onClick={() => setConfirmResend(true)}
-            size="sm"
-            variant="secondary"
-          >
-            Erneut senden
-          </Button>
-        </div>
-      ) : null}
-
-      {confirmResend ? (
-        <div
-          aria-label="Erneut senden bestätigen"
-          className="callout inv-confirm"
-          role="group"
-        >
-          <div className="stack">
-            <p>
-              Es geht eine zweite E-Mail mit derselben PDF-Version an{" "}
-              <strong>{donorEmail}</strong>.
-            </p>
-            <div className="cluster">
-              <Button
-                disabled={send.isPending}
-                onClick={() => setConfirmResend(false)}
-                size="sm"
-                variant="ghost"
-              >
-                Abbrechen
-              </Button>
-              <Button
-                data-testid="confirm-resend-donation-pledge"
-                icon={Send}
-                loading={send.isPending}
-                onClick={() => send.mutate()}
-                size="sm"
-                variant="primary"
-              >
-                Erneut senden
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {maySend && !cancelled && donorEmail && !latest && !documentAvailable ? (
-        <p className="small muted inv-note">
-          Der Versand ist möglich, sobald das PDF der Spendenzusage bereitsteht.
-        </p>
-      ) : null}
-      {!cancelled && !donorEmail ? (
-        <p
-          className="small muted inv-note"
-          data-testid="donation-donor-email-missing"
-        >
-          Für den Versand fehlt die E-Mail-Adresse des Spenders. Senden Sie die
-          Spendenzusage auf anderem Weg, zum Beispiel als ausgedrucktes PDF.
-        </p>
-      ) : null}
-      {errorMessage ? (
-        <p className="small inv-error" role="alert">
-          {errorMessage}
-        </p>
-      ) : null}
-    </section>
   );
 }

@@ -1,8 +1,12 @@
 import { useMutation } from "@tanstack/react-query";
-import { Ban, Undo2 } from "lucide-react";
-import { useState } from "react";
+import { Ban, FileCheck, Undo2 } from "lucide-react";
+import { useId, useState } from "react";
 
-import type { DonationResponse, LeonAidApiClient } from "@leonaid/api-client";
+import type {
+  DonationReceiptResponse,
+  DonationResponse,
+  LeonAidApiClient,
+} from "@leonaid/api-client";
 import {
   Button,
   Field,
@@ -23,13 +27,18 @@ import {
 } from "../invoices/invoice-format";
 import { commandKey, forgetCommandKey } from "../invoices/invoice-model";
 import {
+  DONATION_RECEIPT_EVIDENCE,
   donationCommandStorageKey,
   donationCreateStorageKey,
   donationErrorMessage,
+  type DonationReceiptEvidence,
+  donationReceiptEvidenceLabels,
+  type DonationReceiptSigning,
   MAX_PAYMENT_MINOR,
   MAX_PLEDGE_MINOR,
   MIN_PLEDGE_MINOR,
   MIN_REASON,
+  validDonationReceipt,
   withPeriod,
 } from "./donation-model";
 
@@ -722,6 +731,364 @@ function ReasonForm({
             value={reason}
           />
         </Field>
+        {serverError ? (
+          <StatusMessage tone="error">{serverError}</StatusMessage>
+        ) : null}
+      </form>
+    </Modal>
+  );
+}
+
+/** How the receipt will be signed, as the confirmation says it. */
+const signingSentences: Readonly<Record<DonationReceiptSigning, string>> = {
+  by_hand: "Sie wird ausgedruckt und von Hand unterschrieben.",
+  machine: "Sie gilt ohne Unterschrift und kann per E-Mail gesendet werden.",
+};
+
+/**
+ * Explicit command: issues the receipt ("Zuwendungsbestätigung") of a paid
+ * donation. The dialog says what the receipt confirms before it exists,
+ * because it cannot be changed afterwards.
+ */
+export function DonationReceiptDialog({
+  receiptSigning,
+  ...props
+}: DonationDialogProps & {
+  /** How the receiving body signs; null keeps the dialog closed. */
+  readonly receiptSigning: DonationReceiptSigning | null;
+}) {
+  const { donation } = props;
+  return donation?.status === "paid" &&
+    donation.payment &&
+    receiptSigning &&
+    !validDonationReceipt(donation) ? (
+    <DonationReceiptForm
+      key={donation.id}
+      {...props}
+      donation={donation}
+      payment={donation.payment}
+      signing={receiptSigning}
+    />
+  ) : null;
+}
+
+function DonationReceiptForm({
+  client,
+  donation,
+  onChanged,
+  onClose,
+  payment,
+  signing,
+}: DonationDialogProps & {
+  readonly donation: DonationResponse;
+  readonly payment: NonNullable<DonationResponse["payment"]>;
+  readonly signing: DonationReceiptSigning;
+}) {
+  const toast = useOptionalToast();
+  const [serverError, setServerError] = useState<string>();
+  const storageKey = donationCommandStorageKey("receipt", donation.id);
+  const received = formatMoney(payment.amountMinor, donation.currency);
+
+  const issue = useMutation({
+    mutationFn: () =>
+      client.issueDonationReceipt(donation.actionId, donation.id, {
+        headers: {
+          "Idempotency-Key": commandKey(storageKey, "donation:receipt"),
+        },
+      }),
+    onError(cause) {
+      const message = donationErrorMessage(cause);
+      if (
+        message.code === "donation_receipt_already_issued" ||
+        message.code === "donation_receipt_requires_payment"
+      ) {
+        // Someone else was faster: the list is behind, nothing to do here.
+        forgetCommandKey(storageKey);
+        toast?.show({ title: message.message, tone: "info" });
+        onChanged();
+        onClose();
+        return;
+      }
+      // `donation_receipt_notice_expired` keeps the server's own message: it
+      // names the notice, its last day and where to renew it.
+      setServerError(message.message);
+      if (message.conflict) onChanged();
+    },
+    onSuccess(result) {
+      forgetCommandKey(storageKey);
+      const number = validDonationReceipt(result)?.number;
+      toast?.show(
+        result.replayed
+          ? {
+              title: "Diese Zuwendungsbestätigung war bereits ausgestellt.",
+              description: `Für ${donation.number} wurde keine zweite angelegt.`,
+              tone: "info",
+            }
+          : {
+              title: number
+                ? `Zuwendungsbestätigung ${number} ausgestellt.`
+                : `Zuwendungsbestätigung für ${donation.number} ausgestellt.`,
+              description: "Das PDF wird erzeugt.",
+              tone: "success",
+            },
+      );
+      onChanged();
+      onClose();
+    },
+  });
+
+  function submit() {
+    if (issue.isPending) return;
+    setServerError(undefined);
+    issue.mutate();
+  }
+
+  return (
+    <Modal
+      className="inv-dialog"
+      footer={
+        <>
+          <Button disabled={issue.isPending} onClick={onClose} variant="ghost">
+            Abbrechen
+          </Button>
+          <Button
+            data-testid="issue-donation-receipt"
+            icon={FileCheck}
+            loading={issue.isPending}
+            onClick={submit}
+            variant="primary"
+          >
+            Zuwendungsbestätigung ausstellen
+          </Button>
+        </>
+      }
+      onClose={() => {
+        if (!issue.isPending) onClose();
+      }}
+      open
+      title={`Zuwendungsbestätigung für ${donation.number} ausstellen?`}
+    >
+      <div className="stack" data-testid="donation-receipt-form">
+        <p>
+          Sie bestätigen {donation.donor.name} den eingegangenen Betrag von{" "}
+          <strong>{received}</strong>, eingegangen am{" "}
+          <strong>{formatDate(payment.receivedOn)}</strong>
+          {payment.amountMinor !== donation.pledgedMinor
+            ? `, nicht die Zusage von ${formatMoney(donation.pledgedMinor, donation.currency)}`
+            : ", nicht die Zusage"}
+          .
+        </p>
+        <p>
+          Die Zuwendungsbestätigung erhält eine eigene Nummer und kann danach
+          nicht mehr geändert werden.
+        </p>
+        <p data-signing={signing} data-testid="donation-receipt-signing">
+          {signingSentences[signing]}
+        </p>
+        {serverError ? (
+          <StatusMessage tone="error">{serverError}</StatusMessage>
+        ) : null}
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * Explicit command: declares the valid receipt void, with a reason and with
+ * what happened to the paper the donor holds. The receipt and its PDF stay.
+ */
+export function DonationReceiptVoidDialog(props: DonationDialogProps) {
+  const receipt = props.donation
+    ? validDonationReceipt(props.donation)
+    : undefined;
+  return props.donation && receipt ? (
+    <DonationReceiptVoidForm
+      key={receipt.id}
+      {...props}
+      donation={props.donation}
+      receipt={receipt}
+    />
+  ) : null;
+}
+
+function DonationReceiptVoidForm({
+  client,
+  donation,
+  onChanged,
+  onClose,
+  receipt,
+}: DonationDialogProps & {
+  readonly donation: DonationResponse;
+  readonly receipt: DonationReceiptResponse;
+}) {
+  const toast = useOptionalToast();
+  const evidenceId = useId();
+  const [reason, setReason] = useState("");
+  const [evidence, setEvidence] = useState<DonationReceiptEvidence>();
+  const [submitted, setSubmitted] = useState(false);
+  const [serverError, setServerError] = useState<string>();
+  const storageKey = donationCommandStorageKey("receipt-void", receipt.id);
+  const tooShort = reason.trim().length < MIN_REASON;
+  const evidenceMissing = submitted && !evidence;
+
+  const mutation = useMutation({
+    mutationFn: (chosen: DonationReceiptEvidence) =>
+      client.voidDonationReceipt(
+        donation.actionId,
+        donation.id,
+        receipt.id,
+        { reason: reason.trim(), evidence: chosen },
+        {
+          headers: {
+            "Idempotency-Key": commandKey(storageKey, "donation:receipt-void"),
+          },
+        },
+      ),
+    onError(cause) {
+      const message = donationErrorMessage(cause);
+      if (message.code === "donation_receipt_already_void") {
+        // Someone else was faster: the list is behind, nothing to do here.
+        forgetCommandKey(storageKey);
+        toast?.show({ title: message.message, tone: "info" });
+        onChanged();
+        onClose();
+        return;
+      }
+      setServerError(message.message);
+      if (message.conflict) onChanged();
+    },
+    onSuccess() {
+      forgetCommandKey(storageKey);
+      toast?.show({
+        title: `Zuwendungsbestätigung ${receipt.number} für ungültig erklärt.`,
+        tone: "success",
+      });
+      onChanged();
+      onClose();
+    },
+  });
+
+  function submit() {
+    if (mutation.isPending) return;
+    setSubmitted(true);
+    setServerError(undefined);
+    if (tooShort || !evidence) return;
+    mutation.mutate(evidence);
+  }
+
+  return (
+    <Modal
+      className="inv-dialog"
+      description="Die Zuwendungsbestätigung und ihr PDF bleiben gespeichert und werden als ungültig gekennzeichnet. Das lässt sich nicht rückgängig machen. Danach können Sie für diese Spende eine neue Zuwendungsbestätigung ausstellen."
+      footer={
+        <>
+          <Button
+            disabled={mutation.isPending}
+            onClick={onClose}
+            variant="ghost"
+          >
+            Abbrechen
+          </Button>
+          <Button
+            data-testid="void-donation-receipt"
+            icon={Ban}
+            loading={mutation.isPending}
+            onClick={submit}
+            variant="danger"
+          >
+            Für ungültig erklären
+          </Button>
+        </>
+      }
+      onClose={() => {
+        if (!mutation.isPending) onClose();
+      }}
+      open
+      role="alertdialog"
+      title={`Zuwendungsbestätigung ${receipt.number} für ungültig erklären?`}
+    >
+      <form
+        className="stack"
+        data-testid="donation-receipt-void-form"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
+        <Field
+          error={
+            submitted && tooShort
+              ? `Bitte einen Grund mit mindestens ${MIN_REASON} Zeichen angeben.`
+              : undefined
+          }
+          hint="Erscheint in der Historie der Spende."
+          id={`donation-receipt-void-reason-${receipt.id}`}
+          label="Grund"
+          required
+        >
+          <Textarea
+            autoFocus
+            data-testid="donation-receipt-void-reason"
+            maxLength={500}
+            onChange={(event) => {
+              // Another body is another command: it gets its own key.
+              forgetCommandKey(storageKey);
+              setReason(event.target.value);
+            }}
+            placeholder="z. B. Betrag falsch erfasst"
+            rows={3}
+            value={reason}
+          />
+        </Field>
+        <div
+          aria-describedby={
+            evidenceMissing ? `${evidenceId}-error` : `${evidenceId}-hint`
+          }
+          aria-invalid={evidenceMissing || undefined}
+          aria-labelledby={`${evidenceId}-label`}
+          aria-required
+          className={evidenceMissing ? "field has-error" : "field"}
+          data-testid="donation-receipt-void-evidence"
+          role="radiogroup"
+        >
+          <span className="field-label" id={`${evidenceId}-label`}>
+            Was ist mit dem Original beim Spender geschehen?
+            <span aria-hidden="true" className="field-required">
+              {" *"}
+            </span>
+            <span className="sr-only"> (Pflichtfeld)</span>
+          </span>
+          <div className="stack">
+            {DONATION_RECEIPT_EVIDENCE.map((value) => (
+              <label className="checkbox" key={value}>
+                <input
+                  checked={evidence === value}
+                  data-testid={`donation-receipt-void-evidence-${value}`}
+                  disabled={mutation.isPending}
+                  name={`${evidenceId}-evidence`}
+                  onChange={() => {
+                    forgetCommandKey(storageKey);
+                    setEvidence(value);
+                  }}
+                  type="radio"
+                  value={value}
+                />
+                <span>{donationReceiptEvidenceLabels[value]}</span>
+              </label>
+            ))}
+          </div>
+          {evidenceMissing ? (
+            <p className="field-error" id={`${evidenceId}-error`}>
+              Bitte wählen Sie, was mit dem Original geschehen ist.
+            </p>
+          ) : (
+            <p className="field-hint" id={`${evidenceId}-hint`}>
+              Ohne eines von beiden kann die Zuwendungsbestätigung nicht für
+              ungültig erklärt werden.
+            </p>
+          )}
+        </div>
         {serverError ? (
           <StatusMessage tone="error">{serverError}</StatusMessage>
         ) : null}
