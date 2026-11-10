@@ -73,6 +73,9 @@ Commands:
                     Tag the next CalVer release (vYYYY.M.N, fixes vYYYY.M.N.P)
   dev               Build and start the ready PoC core stack (plus local
                     extensions from .local/dev, see infra/compose/README.md)
+  dev-cms [--system-admin-email ADDRESS]
+                    Provision the campaign site (CMS editor, campaign pages)
+                    in the dev stack; afterwards dev starts it too
   install-pre-push-hook
                     Run check-fast before every git push (all worktrees of
                     this clone; skip once with git push --no-verify)
@@ -4108,12 +4111,278 @@ dev() {
     exit 1
   fi
   require_own_ports
-  compose up --build --detach --wait --wait-timeout 420
+  # shellcheck disable=SC2046 # empty or exactly "--profile emdash"
+  compose $(dev_cms_profile) up --build --detach --wait --wait-timeout 420
   port=$(sed -n 's/^LEONAID_HTTP_PORT=//p' "$root/.env.local" | tail -n 1)
   port=${port:-8080}
   https_port=$(sed -n 's/^LEONAID_HTTPS_PORT=//p' "$root/.env.local" | tail -n 1)
   https_port=${https_port:-8443}
   echo "dev: OK: LeonAid is ready at https://localhost:$https_port (HTTP diagnostics: http://127.0.0.1:$port)"
+}
+
+# LEONAID_CMS_ENABLED=true in .env.local: './leonaid dev-cms' provisioned the
+# campaign site of this dev stack; dev then starts it with the stack.
+dev_cms_enabled() {
+  [ "$(sed -n 's/^LEONAID_CMS_ENABLED=//p' "$root/.env.local" | tail -n 1)" = true ]
+}
+
+dev_cms_profile() {
+  if dev_cms_enabled; then
+    printf '%s\n' --profile emdash
+  fi
+}
+
+dev_cms_operator() {
+  compose --profile emdash run --rm --no-deps --entrypoint node campaign-site \
+    /app/operator/cms-provision-operator.mjs "$@"
+}
+
+# Operator steps that report on stdout: without pipefail a pipe to grep would
+# hide a refusal, so the output is captured and the status checked first.
+dev_cms_operator_step() {
+  dev_cms_output=$(dev_cms_operator "$@") || {
+    printf '%s\n' "$dev_cms_output" | grep -F 'cms-provision:' >&2 || true
+    echo "dev-cms: ERROR: the CMS operator refused '$1'" >&2
+    exit 1
+  }
+  printf '%s\n' "$dev_cms_output" | grep -F 'cms-provision:' || true
+}
+
+dev_cms_value() {
+  printf '%s\n' "$2" | sed -n "s/^$1=//p" | tail -n 1
+}
+
+dev_cms_secret() {
+  dev_cms_secret_value=$(sed -n "s/^$1=//p" "$root/.env.local" | tail -n 1)
+  if [ -z "$dev_cms_secret_value" ]; then
+    echo "dev-cms: ERROR: $1 is missing in .env.local; run './leonaid bootstrap'" >&2
+    exit 1
+  fi
+  printf '%s\n' "$dev_cms_secret_value"
+}
+
+# The campaign site (CMS editor at /_emdash, campaign pages) for the dev
+# stack: the steps of pilot-cms-provision with the same image-owned operators,
+# without the pilot's release, backup and doctor gates. The editor setup, a
+# browser step of the designated System Admin in the pilot, is completed here
+# by the seeded System Admin through its real sign-in (tools/dx/dev_cms_setup.py).
+# Safe to repeat; a finished step is skipped.
+dev_cms() {
+  require_docker
+  if [ ! -f "$root/.env.local" ]; then
+    echo "leonaid: ERROR: .env.local is missing. Run './leonaid bootstrap'." >&2
+    exit 1
+  fi
+  system_admin_email=system-admin@leonaid.invalid
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --system-admin-email)
+        [ "$#" -ge 2 ] || {
+          echo "dev-cms: ERROR: --system-admin-email needs an address" >&2
+          exit 64
+        }
+        system_admin_email=$2
+        shift 2
+        ;;
+      *)
+        echo "dev-cms: ERROR: unknown argument: $1" >&2
+        exit 64
+        ;;
+    esac
+  done
+  case "$system_admin_email" in
+    *[!a-z0-9@._+-]*|*@*@*|@*|*@|'')
+      echo "dev-cms: ERROR: --system-admin-email must be a lower-case address" >&2
+      exit 64
+      ;;
+    *@*) ;;
+    *)
+      echo "dev-cms: ERROR: --system-admin-email must be a lower-case address" >&2
+      exit 64
+      ;;
+  esac
+  require_own_ports
+  dev_cms_secret CMS_POSTGRES_PASSWORD >/dev/null
+  dev_cms_secret CMS_ENCRYPTION_KEY >/dev/null
+  cms_s3_secret=$(dev_cms_secret CMS_S3_SECRET_ACCESS_KEY)
+  core_password=$(dev_cms_secret CORE_POSTGRES_PASSWORD)
+  core_user=$(sed -n 's/^CORE_POSTGRES_USER=//p' "$root/.env.local" | tail -n 1)
+  core_database=$(sed -n 's/^CORE_POSTGRES_DB=//p' "$root/.env.local" | tail -n 1)
+  core_user=${core_user:-leonaid}
+  core_database=${core_database:-leonaid}
+
+  compose --profile emdash build campaign-site
+  # The sign-in of the setup step needs the whole stack and the local Mailpit.
+  compose --profile dev-mail up --detach --wait --wait-timeout 420
+  state=$(dev_cms_operator status) || {
+    echo "dev-cms: ERROR: the CMS provisioning state cannot be read" >&2
+    exit 1
+  }
+
+  # Step 1: role, database, grants, EmDash migrations, identity mapping.
+  case "$(dev_cms_value database "$state")" in
+    ready) echo "dev-cms: 1/4 database: already provisioned" ;;
+    missing)
+      echo "dev-cms: 1/4 database: provisioning role, database and EmDash migrations"
+      # The password reaches the container by name only, never in argv.
+      CORE_POSTGRES_PASSWORD=$core_password compose --profile emdash \
+        run --rm --no-deps \
+        --env "CORE_POSTGRES_DB=$core_database" \
+        --env "CORE_POSTGRES_USER=$core_user" \
+        --env CORE_POSTGRES_PASSWORD \
+        --entrypoint node campaign-site \
+        /app/operator/cms-provision-operator.mjs database
+      ;;
+    *)
+      echo "dev-cms: ERROR: the CMS database is in state '$(dev_cms_value database "$state")' (another EmDash migration state, or core-postgres does not answer); './leonaid reset' starts over" >&2
+      exit 1
+      ;;
+  esac
+
+  # Step 2: private media bucket and the scoped CMS user in RustFS.
+  case "$(dev_cms_value storage "$state")" in
+    ready) echo "dev-cms: 2/4 media bucket: already provisioned" ;;
+    missing)
+      echo "dev-cms: 2/4 media bucket: provisioning bucket and scoped access key"
+      CMS_S3_SECRET_ACCESS_KEY=$cms_s3_secret compose \
+        run --rm --no-deps \
+        --env CMS_S3_ACCESS_KEY_ID=leonaid-emdash \
+        --env CMS_S3_SECRET_ACCESS_KEY \
+        --entrypoint python \
+        api -m leonaid.entrypoints.cms_storage
+      ;;
+    *)
+      echo "dev-cms: ERROR: rustfs does not answer the CMS probe" >&2
+      exit 1
+      ;;
+  esac
+  state=$(dev_cms_operator status)
+  for expected in database=ready storage=ready; do
+    printf '%s\n' "$state" | grep -qx "$expected" || {
+      echo "dev-cms: ERROR: ${expected%%=*} is still not ready after provisioning" >&2
+      exit 1
+    }
+  done
+
+  # Step 3: setup grant for the System Admin, then the EmDash setup itself.
+  bootstrap=$(dev_cms_value bootstrap "$state")
+  if [ "$(dev_cms_value setup "$state")" = complete ]; then
+    case "$bootstrap" in
+      consumed|none)
+        # EmDash completed the setup but the grant was not marked (a crash
+        # after the upstream success); the operator verifies it first.
+        dev_cms_operator_step complete-setup
+        bootstrap=complete
+        ;;
+    esac
+  fi
+  if [ "$bootstrap" = consumed ]; then
+    # A setup that started and never completed: the operator withdraws the
+    # grant only while the CMS holds nothing an editor made.
+    compose --profile emdash stop campaign-site >/dev/null
+    dev_cms_operator_step reset-setup
+    bootstrap=none
+  fi
+  case "$bootstrap" in
+    complete) echo "dev-cms: 3/4 editor setup: already complete" ;;
+    none|expired|armed)
+      echo "dev-cms: 3/4 editor setup: $system_admin_email completes the EmDash setup"
+      # psql quotes the variable itself (:'email'); the address never becomes SQL.
+      system_admin_id=$(printf '%s\n' "SELECT account.id FROM user_account AS account JOIN user_global_role AS role ON role.user_id = account.id WHERE role.role = 'system_admin' AND account.status = 'active' AND account.email = :'email';" |
+        compose exec -T core-postgres psql \
+          --quiet --no-align --tuples-only --set ON_ERROR_STOP=1 \
+          --set "email=$system_admin_email" \
+          --username "$core_user" --dbname "$core_database")
+      case "$system_admin_id" in
+        ????????-????-????-????-????????????) ;;
+        *)
+          echo "dev-cms: ERROR: $system_admin_email is no active LeonAid System Admin; run './leonaid seed' or pass --system-admin-email" >&2
+          exit 1
+          ;;
+      esac
+      dev_cms_operator_step arm "$system_admin_id"
+      compose --profile emdash up --detach --wait --wait-timeout 420 campaign-site
+      admin_origin=$(sed -n 's/^LEONAID_ADMIN_BASE_URL=//p' "$root/.env.local" | tail -n 1)
+      https_port=$(sed -n 's/^LEONAID_HTTPS_PORT=//p' "$root/.env.local" | tail -n 1)
+      https_port=${https_port:-8443}
+      admin_origin=${admin_origin:-https://localhost:$https_port}
+      # The stack's own Caddy root certificate (public), nothing else trusted.
+      mkdir -p "$root/.local/dev-cms"
+      compose exec -T proxy cat /data/caddy/pki/authorities/local/root.crt \
+        >"$root/.local/dev-cms/caddy-root.crt"
+      python3 "$root/tools/dx/dev_cms_setup.py" \
+        "$admin_origin" "$https_port" "$root/.local/dev-cms/caddy-root.crt" \
+        "$system_admin_email"
+      ;;
+    *)
+      echo "dev-cms: ERROR: the editor setup state is unreadable" >&2
+      exit 1
+      ;;
+  esac
+  state=$(dev_cms_operator status)
+  [ "$(dev_cms_value setup "$state")" = complete ] || {
+    echo "dev-cms: ERROR: EmDash reports no completed setup" >&2
+    exit 1
+  }
+
+  # Step 4: campaign schema, binding and media guards under closed traffic,
+  # by the reviewed migration controller.
+  case "$(dev_cms_value schema "$state")" in
+    ready) echo "dev-cms: 4/4 campaign schema: already installed" ;;
+    missing|partial)
+      echo "dev-cms: 4/4 campaign schema: installing under closed CMS traffic"
+      compose --profile emdash up --no-start campaign-site
+      cms_container=$(compose --profile emdash ps --all --quiet campaign-site)
+      cms_image=$(docker inspect --format '{{.Image}}' "$cms_container")
+      set -- "$root/infra/compose/compose.yml"
+      if dev_local_enabled; then
+        set -- "$@" "$root/infra/compose/compose.dev-local.yml"
+      fi
+      LEONAID_COMPOSE_PROJECT="$dev_project" \
+        /bin/sh "$root/tools/pilot_release/migrate-cms.sh" \
+        "$root" "$dev_project" "$cms_image" install "$@"
+      ;;
+    *)
+      echo "dev-cms: ERROR: the CMS database carries another campaign schema; './leonaid reset' starts over" >&2
+      exit 1
+      ;;
+  esac
+
+  # Reopen traffic only after the installed schema verified.
+  state=$(dev_cms_operator status)
+  [ "$(dev_cms_value schema "$state")" = ready ] || {
+    echo "dev-cms: ERROR: the campaign schema does not verify; CMS traffic stays closed" >&2
+    exit 1
+  }
+  if [ "$(dev_cms_value traffic "$state")" = closed ]; then
+    if [ -n "$(docker ps -aq --filter "name=^$dev_project-cms-migration-lock\$")" ]; then
+      echo "dev-cms: ERROR: a CMS migration controller holds $dev_project-cms-migration-lock; CMS traffic stays closed" >&2
+      exit 1
+    fi
+    compose --profile emdash run --rm --no-deps --entrypoint rmdir campaign-site \
+      /app/bootstrap-state/cms-maintenance
+  fi
+
+  # The API offers the editor links only with LEONAID_CMS_ENABLED=true.
+  if ! dev_cms_enabled; then
+    if grep -q '^LEONAID_CMS_ENABLED=' "$root/.env.local"; then
+      sed -i.dev-cms 's/^LEONAID_CMS_ENABLED=.*/LEONAID_CMS_ENABLED=true/' "$root/.env.local"
+      rm -f "$root/.env.local.dev-cms"
+    else
+      printf '%s\n' \
+        '# The dev CMS is provisioned (./leonaid dev-cms): dev starts campaign-site.' \
+        'LEONAID_CMS_ENABLED=true' >>"$root/.env.local"
+    fi
+  fi
+  compose --profile emdash --profile dev-mail up --detach --wait --wait-timeout 420
+  state=$(dev_cms_operator status)
+  for expected in database=ready storage=ready setup=complete schema=ready traffic=open; do
+    printf '%s\n' "$state" | grep -qx "$expected" || {
+      echo "dev-cms: ERROR: ${expected%%=*} is not ${expected#*=} after provisioning" >&2
+      exit 1
+    }
+  done
+  echo "dev-cms: OK: $dev_project serves the CMS; campaign pages can be created and published"
 }
 
 validate_reset_target() {
@@ -4321,7 +4590,9 @@ snapshot_systems() {
 reset_systems() {
   require_docker
   validate_reset_target
-  phase reset-remove compose --profile dev-mail down --volumes --remove-orphans
+  # The emdash profile too: its container and bootstrap volume go with the
+  # CMS database, and dev-cms provisions the CMS again below.
+  phase reset-remove compose --profile dev-mail --profile emdash down --volumes --remove-orphans
   rm -f "$root/.local/twenty/integration.env"
   phase reset-build compose build
   # API and workers must first start with the newly provisioned integration key.
@@ -4343,6 +4614,9 @@ reset_systems() {
   phase reset-provision provision_twenty
   phase reset-seed seed_systems
   phase reset-snapshot snapshot_systems golden-v1.json
+  if dev_cms_enabled; then
+    phase reset-cms dev_cms
+  fi
   echo "reset: OK: Core PostgreSQL, Twenty, RustFS and Mailpit match Golden Data v1"
 }
 
@@ -4549,6 +4823,10 @@ case "$command" in
     run_python uv run --frozen --no-sync pytest tests/unit
     ;;
   dev) dev ;;
+  dev-cms)
+    shift
+    dev_cms "$@"
+    ;;
   # One entry point per suite, the same in CI (decision E-027).
   test-integration | test-e2e | test-emdash)
     require_docker
