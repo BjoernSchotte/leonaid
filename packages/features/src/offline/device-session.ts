@@ -43,7 +43,8 @@ async function storedOfflineStart(): Promise<boolean | null> {
 /**
  * Whether `/app/` may start from the cache. The setting lives in the
  * service worker's Cache Storage, which every page of the origin reaches,
- * so the admin web app can switch it off too.
+ * so the admin web app can switch it off too. Switching it off also drops
+ * the offline page's audience (`setOfflineAudience`).
  */
 export async function setOfflineStart(enabled: boolean): Promise<void> {
   // The service worker writes its own setting (WebKit does not always
@@ -82,7 +83,9 @@ export async function setOfflineStart(enabled: boolean): Promise<void> {
         new Response("true", { headers: { "content-type": "text/plain" } }),
       );
     } else {
+      // Off: the offline page no longer names who works offline here.
       await settings.delete(offlineStartKey());
+      await settings.delete(offlineAudienceKey());
     }
   } catch {
     // Without Cache Storage there is no offline start to switch.
