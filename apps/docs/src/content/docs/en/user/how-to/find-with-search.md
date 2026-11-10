@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 1
 reviewedRevision: 1
-verifiedAgainst: 653c04ddcf49295c4d7c8959507bc9f9b7b24c53
+verifiedAgainst: 225fc66fd2f98b8127fea32a158acc6e51d39de1
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -62,7 +62,9 @@ search cannot find them.
 - If someone changes the name or the city directly in the CRM, the search
   follows after about 15 minutes at the latest.
 - If someone deletes a sponsor in the CRM, the sponsor leaves the search in
-  the following night.
+  the following night. Its assignments stay in the Sponsor-Pipeline and in
+  the acquisition app, named **Im CRM nicht mehr vorhanden** and without
+  contact data. A charity admin can still hand them over or close them.
 - After a privacy erasure, the sponsor can no longer be found at once.
 
 ## If you find nothing

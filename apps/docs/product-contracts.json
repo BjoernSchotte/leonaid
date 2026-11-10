@@ -961,6 +961,12 @@
       ]
     },
     {
+      "file": "src/leonaid/application/activities.py",
+      "contains": [
+        "Im CRM nicht mehr vorhanden"
+      ]
+    },
+    {
       "file": "src/leonaid/application/sponsor_search.py",
       "contains": [
         "SYNC_INTERVAL_SECONDS = 15 * 60.0",

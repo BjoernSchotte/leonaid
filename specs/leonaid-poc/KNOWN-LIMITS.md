@@ -94,9 +94,10 @@ Punkte sind keine stillschweigenden Produktzusagen.
   - The index follows Twenty by polling (no webhook): a name or city changed
     in Twenty arrives within about 15 minutes; a party deleted in Twenty
     leaves the index with the nightly full pass (after 03:00 local time).
-    Until then the hit still appears, and its target does not open: the
-    acquisition board refuses an action that has an assignment to a party
-    Twenty no longer has.
+    Until then the hit still appears under the old name. Its target opens:
+    the acquisition boards list an assignment whose party Twenty no longer
+    has as "Im CRM nicht mehr vorhanden", without contact data, and it can
+    still be handed over or closed. Recording a contact for it is refused.
   - The worker loop `sponsor_search_sync` spends at most 30 CRM requests per
     run and stops on the first 429. The gateway counts its 100 requests a
     minute per process, so API and worker together can still exceed Twenty's

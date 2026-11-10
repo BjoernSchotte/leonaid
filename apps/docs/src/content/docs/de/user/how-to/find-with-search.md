@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 1
 reviewedRevision: 1
-verifiedAgainst: 653c04ddcf49295c4d7c8959507bc9f9b7b24c53
+verifiedAgainst: 225fc66fd2f98b8127fea32a158acc6e51d39de1
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -61,7 +61,9 @@ finden.
 - Ändert jemand Name oder Ort direkt im CRM, übernimmt die Suche das nach
   spätestens etwa 15 Minuten.
 - Löscht jemand einen Sponsor im CRM, verschwindet er in der folgenden Nacht
-  aus der Suche.
+  aus der Suche. Seine Zuordnungen bleiben in der Sponsor-Pipeline und in der
+  Akquise-App stehen, mit dem Namen **Im CRM nicht mehr vorhanden** und ohne
+  Kontaktdaten. Ein Charity-Admin kann sie weiter übergeben oder abschließen.
 - Nach einer Datenschutz-Löschung ist der Sponsor sofort nicht mehr zu finden.
 
 ## Wenn du nichts findest

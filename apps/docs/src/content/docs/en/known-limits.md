@@ -6,7 +6,7 @@ audience: [user, ops, dev]
 diataxis: reference
 contentRevision: 8
 reviewedRevision: 8
-verifiedAgainst: 653c04ddcf49295c4d7c8959507bc9f9b7b24c53
+verifiedAgainst: 225fc66fd2f98b8127fea32a158acc6e51d39de1
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -43,7 +43,8 @@ general production approval.
   [Find things with the search](/en/user/how-to/find-with-search/)). E-mail,
   phone and street cannot be searched. A change in the CRM reaches the search
   after up to about 15 minutes; a sponsor deleted in the CRM leaves the search
-  only in the following night, and its result cannot be opened until then.
+  only in the following night. Until then its result opens the assignment,
+  which is then named "Im CRM nicht mehr vorhanden" and shows no contact data.
   The acquisition app has no search of its own.
 - An issued invoice and its PDF are never overwritten. Corrections use a
   cancellation and a new transaction.
