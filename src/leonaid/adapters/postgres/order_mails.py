@@ -34,6 +34,41 @@ __all__ = [
 ]
 
 
+async def count_recent_order_mails(
+    connection: asyncpg.Connection[Any],
+    *,
+    recipient_sha256: str,
+    mailbox: str,
+    since: datetime,
+) -> int:
+    """Order mails sent since the moment to the address or its mailbox.
+
+    The ledger keeps only a digest of the exact address, so the mailbox
+    comparison (``+tag``, Gmail dots) needs the address of the mail's order.
+    """
+
+    rows = await connection.fetch(
+        """
+        SELECT mail.recipient_sha256,
+            commitment.customer_snapshot->>'email' AS email
+        FROM mail_delivery AS mail
+        LEFT JOIN commitment
+          ON commitment.id::text = split_part(mail.idempotency_key, ':', 2)
+        WHERE mail.sent_at >= $1
+          AND mail.status = 'sent'
+          AND mail.idempotency_key LIKE ANY($2::text[])
+        """,
+        since,
+        [f"{prefix}%" for prefix in ORDER_MAIL_KEY_PREFIXES],
+    )
+    return sum(
+        1
+        for row in rows
+        if row["recipient_sha256"] == recipient_sha256
+        or (row["email"] is not None and mailbox_key(str(row["email"])) == mailbox)
+    )
+
+
 class AsyncpgOrderMailReader:
     def __init__(self, pool: asyncpg.Pool[Any]) -> None:
         self._pool = pool
@@ -147,30 +182,13 @@ class AsyncpgOrderMailReader:
     async def recent_order_mails(
         self, *, recipient_sha256: str, mailbox: str, since: datetime
     ) -> int:
-        # Order mails of the window with the address of their order; the
-        # ledger keeps only a digest of the exact address, so the mailbox
-        # comparison (``+tag``, Gmail dots) needs the order's address.
         async with self._pool.acquire() as connection:
-            rows = await connection.fetch(
-                """
-                SELECT mail.recipient_sha256,
-                    commitment.customer_snapshot->>'email' AS email
-                FROM mail_delivery AS mail
-                LEFT JOIN commitment
-                  ON commitment.id::text = split_part(mail.idempotency_key, ':', 2)
-                WHERE mail.sent_at >= $1
-                  AND mail.status = 'sent'
-                  AND mail.idempotency_key LIKE ANY($2::text[])
-                """,
-                since,
-                [f"{prefix}%" for prefix in ORDER_MAIL_KEY_PREFIXES],
+            return await count_recent_order_mails(
+                connection,
+                recipient_sha256=recipient_sha256,
+                mailbox=mailbox,
+                since=since,
             )
-        return sum(
-            1
-            for row in rows
-            if row["recipient_sha256"] == recipient_sha256
-            or (row["email"] is not None and mailbox_key(str(row["email"])) == mailbox)
-        )
 
     @asynccontextmanager
     async def recipient_lock(self, digest: str) -> AsyncIterator[None]:

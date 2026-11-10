@@ -657,17 +657,43 @@ def test_a_delivery_day_job_that_waited_past_the_window_shows_as_failed() -> Non
 def test_a_delivery_day_job_over_the_mailbox_limit_shows_as_failed() -> None:
     # The worker completes such a job (no dead letter on the delivery
     # morning); the mail is still due, and a manager can send it.
-    value = ledger(delivery_day_mail=True, jobs=(BuyerMailJob(day_key(), "completed"),))
+    ended = ledger(delivery_day_mail=True, jobs=(BuyerMailJob(day_key(), "completed"),))
     during = datetime(2026, 2, 14, 9, 30, tzinfo=BERLIN)
 
-    assert buyer_mail_status(DELIVERY_DAY, value, now=during) == BuyerMailStatus(
-        DELIVERY_DAY,
-        BuyerMailState.FAILED,
-        reason=BuyerMailReason.RECIPIENT_LIMIT,
-        can_resend=True,
+    # The reason names the mailbox only while the mailbox is over the limit.
+    for recent in (10, 11):
+        value = replace(ended, recent_order_mails=recent)
+        assert buyer_mail_status(DELIVERY_DAY, value, now=during) == BuyerMailStatus(
+            DELIVERY_DAY,
+            BuyerMailState.FAILED,
+            reason=BuyerMailReason.RECIPIENT_LIMIT,
+            can_resend=True,
+        )
+        assert resend_refusal(DELIVERY_DAY, value, now=during) is None
+        assert next_sequence(DELIVERY_DAY, value) == 1
+    # Under the limit (again), or a job that ended for another reason (a
+    # switch or a tick taken back after it ran): "not sent", with "Senden".
+    for recent in (0, 9):
+        value = replace(ended, recent_order_mails=recent)
+        assert buyer_mail_status(DELIVERY_DAY, value, now=during) == BuyerMailStatus(
+            DELIVERY_DAY,
+            BuyerMailState.SKIPPED,
+            reason=BuyerMailReason.NOT_SENT,
+            can_resend=True,
+        )
+        assert resend_refusal(DELIVERY_DAY, value, now=during) is None
+    # A full mailbox never turns a mail that is not due into a failure.
+    delivered = replace(
+        ledger(
+            delivery_day_mail=True,
+            jobs=(BuyerMailJob(day_key(), "completed"),),
+            drop_state="delivered",
+        ),
+        recent_order_mails=12,
     )
-    assert resend_refusal(DELIVERY_DAY, value, now=during) is None
-    assert next_sequence(DELIVERY_DAY, value) == 1
+    assert buyer_mail_status(DELIVERY_DAY, delivered, now=during) == BuyerMailStatus(
+        DELIVERY_DAY, BuyerMailState.SKIPPED, reason=BuyerMailReason.DELIVERY_RECORDED
+    )
     # The confirmation keeps "not sent" for a job that ended without a mail.
     confirmation = ledger(jobs=(BuyerMailJob(key(), "completed"),))
     assert buyer_mail_status(CONFIRMATION, confirmation).reason is (

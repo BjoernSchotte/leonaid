@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
@@ -13,6 +13,7 @@ import asyncpg
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.delivery import has_delivery_capability
 from leonaid.adapters.postgres.order_mail_jobs import insert_order_mail_event
+from leonaid.adapters.postgres.order_mails import count_recent_order_mails
 from leonaid.application.buyer_mails import (
     BuyerMailJob,
     BuyerMailLedger,
@@ -24,9 +25,12 @@ from leonaid.application.errors import Conflict, ResourceNotFound
 from leonaid.application.order_mails import (
     EVENT_TYPES,
     KEY_PREFIXES,
+    RECIPIENT_WINDOW,
     OrderMailKind,
     OrderMailLinks,
+    mailbox_key,
     order_mail_event,
+    recipient_sha256,
 )
 from leonaid.domain.buyer_mails import (
     DEFAULT_DELIVERY_DAY_SEND_TIME,
@@ -198,7 +202,10 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
                 -- (the settings keep no timestamp; the audit trail does).
                 (
                     SELECT max(switched.occurred_at) FROM audit_event AS switched
-                    WHERE switched.action_id = commitment.action_id
+                    -- Entity first: ``ix_audit_event_entity`` serves it.
+                    WHERE switched.entity_type = 'charity_action'
+                      AND switched.entity_id = commitment.action_id
+                      AND switched.action_id = commitment.action_id
                       AND switched.event_type = 'buyer_mail_configuration_changed'
                       AND (switched.payload -> 'current' ->> 'deliveryDayMail')
                           = 'true'
@@ -261,9 +268,21 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
             + ")",
             *(f"{prefix}{commitment_id}" for prefix in KEY_PREFIXES.values()),
         )
+        commitment = await AsyncpgCommitmentRepository._get(
+            connection, commitment_id, replayed=False
+        )
+        address = (commitment.buyer.email or "").strip()
         return BuyerMailLedger(
-            commitment=await AsyncpgCommitmentRepository._get(
-                connection, commitment_id, replayed=False
+            commitment=commitment,
+            recent_order_mails=(
+                await count_recent_order_mails(
+                    connection,
+                    recipient_sha256=recipient_sha256(address),
+                    mailbox=mailbox_key(address),
+                    since=datetime.now(timezone.utc) - RECIPIENT_WINDOW,
+                )
+                if address
+                else 0
             ),
             internal_order_mails=bool(row["internal_order_mails"]),
             previous_status=(

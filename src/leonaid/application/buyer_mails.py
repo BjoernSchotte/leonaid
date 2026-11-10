@@ -27,6 +27,7 @@ from leonaid.application.errors import Conflict
 from leonaid.application.order_mails import (
     KEY_PREFIXES,
     RESEND_MARKER,
+    RECIPIENT_LIMIT,
     MailNotDueReason,
     OrderMailKind,
     OrderMailLinkResolver,
@@ -122,6 +123,9 @@ class BuyerMailLedger:
     # became ready for review". ``None`` when Core cannot tell (no record of
     # the switch).
     delivery_day_eligible_since: datetime | None = None
+    # Order mails that went to the buyer's mailbox within the limit's window
+    # (``RECIPIENT_WINDOW``), as the worker counts them.
+    recent_order_mails: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -346,11 +350,17 @@ def buyer_mail_status(
         return BuyerMailStatus(
             kind, BuyerMailState.FAILED, sent_at=sent_at, reason=not_due
         )
-    if kind is OrderMailKind.DELIVERY_DAY and due:
-        # Completed without a ledger row although the mail is due: the
-        # worker completes a delivery-day job over the mailbox limit instead
-        # of dead-lettering it. (A switch or a tick that was taken back
-        # after the job ran ends here too; "send it" is right then as well.)
+    if (
+        kind is OrderMailKind.DELIVERY_DAY
+        and due
+        and ledger.recent_order_mails >= RECIPIENT_LIMIT
+    ):
+        # Completed without a ledger row, the mail is due and the mailbox is
+        # over the limit now: the worker completes a delivery-day job over
+        # the limit instead of dead-lettering it. Once the mailbox is under
+        # the limit again, or when the job ended for another reason (a
+        # switch or a tick taken back after it ran), the neutral "not sent"
+        # below applies; a manager can send the mail in both cases.
         return BuyerMailStatus(
             kind,
             BuyerMailState.FAILED,
