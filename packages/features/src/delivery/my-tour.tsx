@@ -188,8 +188,8 @@ const STALE_CODES: ReadonlySet<string> = new Set([
 export const TOUR_UNDO_MS = 10_000;
 /** How often the window hints ("noch 35 min") move on. No server polling. */
 const CLOCK_TICK_MS = 30_000;
-/** The driver's own order: one tour, one key for the autosave. */
-const MY_ORDER = "me";
+/** The autosave key of the driver's tour: one per action and day. */
+const orderKey = (actionId: string, day: string) => `${actionId}|${day}`;
 /** The dock's folded state lives for the session (critique §3 C). */
 const DOCK_FOLDED_KEY = "leonaid.tour.dockFolded";
 /** A drag on the dock grip further than this folds or unfolds it. */
@@ -611,9 +611,11 @@ export function MyTourPage({
     undoneText: () => copy.undone,
   });
 
+  // Null without a tour: nothing to move or to send.
+  const tourKey = tour ? orderKey(actionId, tour.day) : null;
   // The order on screen: a move that is saving, kept to the known stops
   // (the server may add or drop one meanwhile), else the server's.
-  const pending = autosave.orderOf(MY_ORDER);
+  const pending = tourKey ? autosave.orderOf(tourKey) : null;
   const order = useMemo(
     () =>
       pending
@@ -884,7 +886,7 @@ export function MyTourPage({
     ) {
       moveQueued(tour, next, order);
     } else {
-      autosave.move(MY_ORDER, next, order, tour.revision, {
+      autosave.move(orderKey(actionId, tour.day), next, order, tour.revision, {
         actionId,
         day: tour.day,
         queryKey,
@@ -910,13 +912,13 @@ export function MyTourPage({
 
   // A waiting move goes out first, for the day and action it was made in.
   const chooseAction = (value: string) => {
-    void autosave.release(MY_ORDER);
+    if (tourKey) void autosave.release(tourKey);
     setDay(null);
     setShownId(null);
     replaceActionInUrl(value);
   };
   const chooseDay = (value: string) => {
-    void autosave.release(MY_ORDER);
+    if (tourKey) void autosave.release(tourKey);
     setDay(value);
     setShownId(null);
   };
@@ -935,7 +937,8 @@ export function MyTourPage({
       onReset={() => {
         // The reset replaces a waiting move; it waits for a running save
         // and then uses the revision that save returned.
-        void autosave.cancel(MY_ORDER).then(() => {
+        if (!tourKey) return;
+        void autosave.cancel(tourKey).then(() => {
           const current =
             queries.getQueryData<MyTourResponse>(queryKey)?.tour ?? tour;
           if (current) resetOrder.mutate(current);

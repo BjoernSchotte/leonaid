@@ -294,6 +294,45 @@ function stackRows() {
   );
 }
 
+/**
+ * The next order save waits until the returned function runs; later saves
+ * go straight through.
+ */
+function holdNextSave(client: LeonAidApiClient) {
+  const save = vi.mocked(client.saveMyTourOrder);
+  const real = save.getMockImplementation()!;
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  save.mockImplementationOnce(async (...args) => {
+    await held;
+    return real(...args);
+  });
+  return () => act(async () => release());
+}
+
+/** As the server: a save with an old revision gets a 409. */
+function strictRevisions(client: LeonAidApiClient) {
+  const save = vi.mocked(client.saveMyTourOrder);
+  const real = save.getMockImplementation()!;
+  let current = "r1";
+  save.mockImplementation(async (action, body) => {
+    if (body.expectedRevision !== current) {
+      throw new ApiError(409, {
+        code: "tour_revision_conflict",
+        message: "Die Tour wurde inzwischen geändert.",
+        requestId: "req-409",
+      });
+    }
+    const saved = await real(action, body);
+    current = saved.revision;
+    return saved;
+  });
+}
+
+/** Lets the save pause of the last move run out. */
+const pauseOver = () =>
+  act(() => new Promise((resolve) => setTimeout(resolve, 700)));
+
 /** Space, arrow, space on a grip (dnd-kit listens for keys on a timer). */
 async function keyboardMove(name: string, key: string) {
   const press = async (value: string, code: string) => {
@@ -661,6 +700,137 @@ describe("Meine Tour", () => {
       day: DAY,
       expectedRevision: "r1",
     });
+  });
+
+  it("Zurück zur Planung drops a move queued behind a running save: no second save, no toast", async () => {
+    stackRows();
+    const client = fakeClient(
+      myTour({ driverOrderedAt: "2099-12-05T06:00:00Z" }),
+    );
+    const releaseFirst = holdNextSave(client);
+    await renderTour(client);
+    await keyboardMove("Bäckerei Kern", "ArrowDown");
+    await pauseOver();
+    // The first save runs; the second move waits behind it.
+    expect(client.saveMyTourOrder).toHaveBeenCalledTimes(1);
+    await keyboardMove("Bäckerei Kern", "ArrowUp");
+    await pauseOver();
+    fireEvent.click(screen.getByRole("button", { name: "Tour-Menü" }));
+    fireEvent.click(await screen.findByTestId("tour-reset-order"));
+    await releaseFirst();
+    await screen.findByText("Es gilt wieder die Reihenfolge der Planung.");
+    expect(
+      vi
+        .mocked(client.saveMyTourOrder)
+        .mock.calls.map(([, body]) => body.commitmentIds),
+    ).toEqual([["c2", "c1", "c3"], []]);
+    expect(vi.mocked(client.saveMyTourOrder).mock.calls[1]![1]).toEqual({
+      commitmentIds: [],
+      day: DAY,
+      expectedRevision: "r2",
+    });
+    expect(screen.queryByText("Reihenfolge gespeichert.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Rückgängig" })).toBeNull();
+  });
+
+  it("Rückgängig of a day-A toast after a day-B move saves day A's order for day A", async () => {
+    stackRows();
+    const DAY2 = "2099-12-06";
+    const client = fakeClient({ ...myTour(), days: [DAY, DAY2] });
+    const dayB = myTour({
+      day: DAY2,
+      windows: [
+        tourWindow("w9", `${DAY2}T07:00:00Z`, `${DAY2}T09:00:00Z`, [
+          stop(drop("c8", "Hotel Ost", "w9"), 1),
+          stop(drop("c9", "Kanzlei West", "w9"), 2),
+        ]),
+      ],
+    });
+    const second: MyTourResponse = {
+      ...dayB,
+      days: [DAY, DAY2],
+      tour: { ...dayB.tour!, revision: "b1" },
+    };
+    const loadFirst = vi.mocked(client.getMyTour).getMockImplementation()!;
+    vi.mocked(client.getMyTour).mockImplementation(
+      async (action: string, query?: { day?: string | null }) =>
+        query?.day === DAY2 ? second : loadFirst(action, query),
+    );
+    await renderTour(client);
+    await keyboardMove("Bäckerei Kern", "ArrowDown");
+    await screen.findByText("Reihenfolge gespeichert.", undefined, {
+      timeout: 3_000,
+    });
+    const undoA = screen.getByRole("button", { name: "Rückgängig" });
+    fireEvent.click(screen.getByRole("button", { name: "Tour-Menü" }));
+    fireEvent.change(await screen.findByTestId("tour-day-select"), {
+      target: { value: DAY2 },
+    });
+    await waitFor(() => expect(names()).toEqual(["Hotel Ost", "Kanzlei West"]));
+    // A day-B move waits for its pause; then the day-A undo.
+    await keyboardMove("Hotel Ost", "ArrowDown");
+    fireEvent.click(undoA);
+    await waitFor(() =>
+      expect(client.saveMyTourOrder).toHaveBeenCalledWith(actionId, {
+        commitmentIds: ["c1", "c2", "c3"],
+        day: DAY,
+        expectedRevision: "r2",
+      }),
+    );
+    // The day-B move is not lost and keeps its own day and revision.
+    await waitFor(
+      () =>
+        expect(client.saveMyTourOrder).toHaveBeenCalledWith(actionId, {
+          commitmentIds: ["c9", "c8"],
+          day: DAY2,
+          expectedRevision: "b1",
+        }),
+      { timeout: 3_000 },
+    );
+    expect(client.saveMyTourOrder).toHaveBeenCalledTimes(3);
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("Rückgängig while a newer move of the tour saves waits and sends its revision", async () => {
+    stackRows();
+    const client = fakeClient(
+      myTour({
+        windows: [
+          tourWindow("w1", `${DAY}T07:00:00Z`, `${DAY}T09:00:00Z`, [
+            stop(drop("c1", "Bäckerei Kern", "w1"), 1),
+            stop(drop("c2", "Autohaus Nord", "w1"), 2),
+            stop(drop("c3", "Praxis Süd", "w1"), 3),
+          ]),
+        ],
+      }),
+    );
+    strictRevisions(client);
+    await renderTour(client);
+    await keyboardMove("Praxis Süd", "ArrowUp");
+    await screen.findByText("Reihenfolge gespeichert.", undefined, {
+      timeout: 3_000,
+    });
+    const undo = screen.getByRole("button", { name: "Rückgängig" });
+    const releaseSecond = holdNextSave(client);
+    await keyboardMove("Praxis Süd", "ArrowUp");
+    await pauseOver();
+    expect(client.saveMyTourOrder).toHaveBeenCalledTimes(2);
+    fireEvent.click(undo);
+    await releaseSecond();
+    await screen.findByText(
+      "Vorherige Reihenfolge wiederhergestellt.",
+      undefined,
+      { timeout: 3_000 },
+    );
+    expect(client.saveMyTourOrder).toHaveBeenLastCalledWith(actionId, {
+      commitmentIds: ["c1", "c2", "c3"],
+      day: DAY,
+      expectedRevision: "r3",
+    });
+    expect(
+      screen.queryByText("Die Tour wurde inzwischen geändert."),
+    ).toBeNull();
+    expect(names()).toEqual(["Bäckerei Kern", "Autohaus Nord", "Praxis Süd"]);
   });
 
   it('conflict 409 shows "Die Tour wurde inzwischen geändert." and refetches', async () => {

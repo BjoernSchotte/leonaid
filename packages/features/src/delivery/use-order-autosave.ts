@@ -47,6 +47,11 @@ interface Burst<C> {
   readonly undo: boolean;
   /** The page left this context: the save still goes out, without undo. */
   released: boolean;
+  /**
+   * Dropped (reset, undo, or done): a queued save no longer goes out and a
+   * running one shows no toast.
+   */
+  cancelled: boolean;
 }
 
 /**
@@ -57,6 +62,9 @@ interface Burst<C> {
  * server's shows again. Before the page switches day or action it calls
  * `release`: a waiting move goes out at once for its own context and no
  * longer shows.
+ *
+ * `key` names one tour (action, day and lane): a burst, its chain of saves
+ * and its local order belong to that tour only.
  */
 export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
   const toast = useOptionalToast();
@@ -67,6 +75,8 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
   const [saver] = useState(() => {
     const bursts = new Map<string, Burst<C>>();
     const chains = new Map<string, Promise<void>>();
+    /** The revision the last own save of each tour returned. */
+    const revisions = new Map<string, string>();
 
     const hide = (key: string) =>
       setOrders((current) => {
@@ -80,22 +90,31 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
     const forget = (key: string, burst: Burst<C>) => {
       if (burst.timer) window.clearTimeout(burst.timer);
       burst.timer = null;
+      burst.cancelled = true;
       if (bursts.get(key) !== burst) return;
       bursts.delete(key);
       hide(key);
     };
 
     const send = async (key: string, burst: Burst<C>) => {
-      if (burst.sentSeq === burst.seq) return;
+      if (burst.cancelled || burst.sentSeq === burst.seq) return;
       const { context, ids, seq } = burst;
       const { options } = latest.current;
+      // An undo runs after every earlier save of its tour, so it sends the
+      // revision the last of them returned (a newer move may have saved
+      // after the toast showed).
+      if (burst.undo && burst.sentSeq === 0) {
+        burst.revision = revisions.get(key) ?? burst.revision;
+      }
       try {
         const saved = await options.save(key, ids, burst.revision, context);
         burst.revision = options.revisionOf(saved);
+        revisions.set(key, burst.revision);
         burst.sentSeq = seq;
         options.onSaved(key, saved, context);
-        // A newer move waits for its own save; this one stays silent.
-        if (burst.seq !== seq || burst.timer) return;
+        // Dropped meanwhile, or a newer move waits for its own save: this
+        // one stays silent.
+        if (burst.cancelled || burst.seq !== seq || burst.timer) return;
         forget(key, burst);
         const revision = burst.revision;
         latest.current.toast?.show({
@@ -109,13 +128,12 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
               ? undefined
               : {
                   label: "Rückgängig",
-                  run: () => {
-                    move(key, burst.baseline, ids, revision, context, true);
-                    flush(key);
-                  },
+                  // The toast's own tour and context, whatever shows now.
+                  run: () => undo(key, burst.baseline, ids, revision, context),
                 },
         });
       } catch (error) {
+        if (burst.cancelled) return;
         forget(key, burst);
         options.onFailed(key, error, context);
       }
@@ -136,37 +154,68 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
       if (burst) void queue(key, burst);
     }
 
+    const start = (
+      key: string,
+      current: readonly string[],
+      revision: string,
+      context: C,
+      undo: boolean,
+    ) => {
+      const burst: Burst<C> = {
+        baseline: current,
+        context,
+        revision,
+        ids: current,
+        seq: 0,
+        sentSeq: 0,
+        timer: null,
+        undo,
+        released: false,
+        cancelled: false,
+      };
+      bursts.set(key, burst);
+      return burst;
+    };
+
+    const show = (key: string, next: readonly string[]) =>
+      setOrders((orders) => ({ ...orders, [key]: [...next] }));
+
     function move(
       key: string,
       next: readonly string[],
       current: readonly string[],
       revision: string,
       context: C,
-      undo = false,
     ) {
-      let burst = bursts.get(key);
-      if (!burst || undo) {
-        if (burst?.timer) window.clearTimeout(burst.timer);
-        burst = {
-          baseline: current,
-          context: burst?.context ?? context,
-          revision: burst?.revision ?? revision,
-          ids: current,
-          seq: 0,
-          sentSeq: 0,
-          timer: null,
-          undo,
-          released: false,
-        };
-        bursts.set(key, burst);
-      }
+      const burst =
+        bursts.get(key) ?? start(key, current, revision, context, false);
       burst.ids = next;
       burst.seq += 1;
       if (burst.timer) window.clearTimeout(burst.timer);
       const delay = latest.current.options.delayMs ?? ORDER_SAVE_DELAY_MS;
-      const pending = burst;
-      burst.timer = window.setTimeout(() => void queue(key, pending), delay);
-      setOrders((orders) => ({ ...orders, [key]: [...next] }));
+      burst.timer = window.setTimeout(() => void queue(key, burst), delay);
+      show(key, next);
+    }
+
+    /**
+     * "Rückgängig" on a saved toast: `baseline` goes out at once for the
+     * toast's tour and context. A newer move of that tour gives way: a
+     * waiting one is dropped, a running one finishes first.
+     */
+    function undo(
+      key: string,
+      baseline: readonly string[],
+      saved: readonly string[],
+      revision: string,
+      context: C,
+    ) {
+      const newer = bursts.get(key);
+      if (newer) forget(key, newer);
+      const burst = start(key, saved, revision, context, true);
+      burst.ids = baseline;
+      burst.seq = 1;
+      show(key, baseline);
+      void queue(key, burst);
     }
 
     /**
