@@ -57,9 +57,11 @@ A confirmation is never sent late (``confirmation_not_due_reason``), for an
 order of any source. A job that was queued while the confirmation was due
 and that the worker reaches too late (worker or SMTP down past the delivery
 window, for example; the same for a delivery-day mail that waited past its
-window) is not dropped silently: it is dead-lettered with
-``order_mail_late_<reason>``, so it counts with the failed mails in the
-operations view and the order's mail status says "failed" with the reason.
+window) is not sent and its job completes: a dead letter
+could never be cleared (a retry would be late again) and would keep the
+dead-letter alert firing for good. It is not silent either: the order's mail
+status derives "failed" with the reason from a completed job without a sent
+mail whose confirmation is late (``application.buyer_mails``).
 """
 
 from __future__ import annotations
@@ -755,34 +757,15 @@ LATE_REASONS = frozenset(
         MailNotDueReason.ACTION_CLOSED,
     }
 )
-# What the worker treats as "too late" per kind. A delivery-day mail whose
-# job waited past the window is a mail the buyer missed; one whose delivery
-# is recorded or whose action closed is no loss. A cancellation notice is
-# never late.
+# What counts as "too late" per kind in the order's mail status. A
+# delivery-day mail whose job waited past the window is a mail the buyer
+# missed; one whose delivery is recorded or whose action closed is no loss.
+# A cancellation notice is never late.
 LATE_REASONS_BY_KIND: dict[OrderMailKind, frozenset[MailNotDueReason]] = {
     OrderMailKind.CONFIRMATION: LATE_REASONS,
     OrderMailKind.CANCELLATION: frozenset(),
     OrderMailKind.DELIVERY_DAY: frozenset({MailNotDueReason.WINDOW_OVER}),
 }
-LATE_ERROR_PREFIX = "order_mail_late_"
-
-
-def late_error_code(reason: MailNotDueReason) -> str:
-    """The outbox error code of a confirmation the worker reached too late."""
-
-    return f"{LATE_ERROR_PREFIX}{reason.value}"
-
-
-def late_reason(error_code: str | None) -> MailNotDueReason | None:
-    """The reason in ``late_error_code``; ``None`` for any other failure."""
-
-    if error_code is None or not error_code.startswith(LATE_ERROR_PREFIX):
-        return None
-    try:
-        reason = MailNotDueReason(error_code.removeprefix(LATE_ERROR_PREFIX))
-    except ValueError:
-        return None
-    return reason if reason in LATE_REASONS else None
 
 
 def mail_not_due_reason(
@@ -1036,23 +1019,22 @@ class OrderMailHandler:
             # for that one under its own key.
             return
         not_due = facts.not_due_reason(self._kind, now=self._clock())
-        if not_due is not None and not_due not in LATE_REASONS_BY_KIND[self._kind]:
-            # Nothing to send: the buyer is erased, the action switched the
-            # mails off meanwhile, the order is cancelled, or (delivery day)
-            # the delivery is recorded or the action closed.
-            return
         if await self._reader.was_sent(event.idempotency_key):
             # A re-run of a sent job (lost completion): nothing to send, and
-            # neither the limit nor the late rule must dead-letter it.
+            # the limit must not dead-letter it.
             return
         if await self._superseded(event.idempotency_key):
             # An operator retried an old failed job after a manager already
             # sent the mail again: the buyer has it.
             return
         if not_due is not None:
-            # The mail was due when it was queued and comes too late now.
-            # Not sent, and not silent: the job fails for good.
-            raise OrderMailError(late_error_code(not_due), retryable=False)
+            # Nothing to send: the buyer is erased, the action switched the
+            # mails off meanwhile, the order is cancelled, the delivery is
+            # recorded, the action closed, or the mail comes too late now
+            # (``LATE_REASONS_BY_KIND``). The job completes in every case: a
+            # late one must not stay a dead letter that no retry can clear.
+            # The order's mail status still shows a late mail as failed.
+            return
         legal = await self._legal_configuration.active_configuration()
         if legal is None:
             # Retried: the mail must name the club; it waits for a version.

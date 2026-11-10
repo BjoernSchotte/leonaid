@@ -15,6 +15,7 @@ import pytest
 
 from leonaid.application.links import LinkBuilder
 from leonaid.application.order_mails import (
+    LATE_REASONS,
     RECIPIENT_LIMIT,
     RECIPIENT_WINDOW,
     ORDER_CANCELLATION_MAIL,
@@ -29,8 +30,6 @@ from leonaid.application.order_mails import (
     MailNotDueReason,
     delivery_day_not_due_reason,
     confirmation_not_due_reason,
-    late_error_code,
-    late_reason,
     mail_key_sequence,
     delivery_window_label,
     limit_digest,
@@ -1191,21 +1190,17 @@ def late_handler(
 
 @pytest.mark.parametrize(("value", "now", "reason"), LATE_CASES, ids=LATE_IDS)
 @pytest.mark.asyncio
-async def test_a_confirmation_that_comes_too_late_is_not_sent_and_fails_for_good(
+async def test_a_confirmation_that_comes_too_late_is_not_sent_and_leaves_no_dead_letter(
     value: OrderMailFacts, now: datetime, reason: str
 ) -> None:
     sender = RecordingSender()
 
-    # Not silent: the job is dead-lettered with the reason (R1).
-    with pytest.raises(OrderMailError) as captured:
-        await late_handler(value, now, sender).handle(
-            claimed(OrderMailKind.CONFIRMATION)
-        )
+    # The job completes (the handler returns): a dead letter of a late mail
+    # could never be cleared. The order's status reports it as failed.
+    await late_handler(value, now, sender).handle(claimed(OrderMailKind.CONFIRMATION))
 
-    assert captured.value.code == f"order_mail_late_{reason}"
-    assert captured.value.retryable is False
-    assert late_reason(captured.value.code) is MailNotDueReason(reason)
     assert sender.events == []
+    assert MailNotDueReason(reason) in LATE_REASONS
 
 
 @pytest.mark.parametrize(("value", "now", "reason"), LATE_CASES, ids=LATE_IDS)
@@ -1242,21 +1237,6 @@ async def test_a_confirmation_that_is_no_news_is_skipped_without_a_failure() -> 
             claimed(OrderMailKind.CONFIRMATION)
         )
     assert sender.events == []
-
-
-def test_only_late_codes_name_a_late_reason() -> None:
-    assert late_error_code(MailNotDueReason.WINDOW_OVER) == (
-        "order_mail_late_window_over"
-    )
-    for code in (
-        None,
-        "order_mail_recipient_limit",
-        "order_mail_late_",
-        "order_mail_late_no_email",
-        "order_mail_late_order_cancelled",
-        "order_mail_late_unknown",
-    ):
-        assert late_reason(code) is None, code
 
 
 def test_the_confirmation_rule_can_judge_a_draft_as_completed() -> None:
@@ -1758,16 +1738,14 @@ async def test_handler_skips_the_job_of_a_window_the_order_has_left() -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_delivery_day_job_that_waited_past_the_window_fails_for_good() -> None:
+async def test_handler_skips_a_delivery_day_job_that_waited_past_the_window() -> None:
     sender = RecordingSender()
     after = datetime(2026, 2, 14, 11, 1, tzinfo=BERLIN)
 
-    # The buyer missed the mail (an outage): not sent, and not silent.
-    with pytest.raises(OrderMailError) as captured:
-        await day_handler(day_facts(), sender, now=after).handle(claimed_day())
+    # Not sent; the job completes (no dead letter that no retry can clear).
+    # The order's mail status shows the missed mail as failed.
+    await day_handler(day_facts(), sender, now=after).handle(claimed_day())
 
-    assert captured.value.code == "order_mail_late_window_over"
-    assert captured.value.retryable is False
     assert sender.events == []
 
 

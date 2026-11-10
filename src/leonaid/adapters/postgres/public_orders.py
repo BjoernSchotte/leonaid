@@ -23,6 +23,7 @@ from leonaid.adapters.postgres.order_mails import insert_order_mail_event
 from leonaid.adapters.postgres.order_numbers import (
     ORDER_NUMBER_ATTEMPTS,
     free_order_number,
+    free_order_number_from,
     order_number_taken,
 )
 from leonaid.application.errors import Conflict, RateLimited, ResourceNotFound
@@ -659,16 +660,18 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
         commitment: Commitment,
         occurred_at: datetime,
     ) -> Commitment:
-        """Insert the order; on a taken order number take the next free one.
+        """Insert the order; on a taken order number take the next one.
 
         Only a writer that derived the same number at the same moment gets
         the unique violation (``order_number_taken``). The insert runs in a
-        savepoint, so the order's transaction survives it, and the allocator
-        then sees the other order. The same bounded retry as for an order a
-        member records.
+        savepoint, so the order's transaction survives it. The public order
+        runs in repeatable read and so cannot see the order that took the
+        number: it does not ask "is it free" again but moves on to the
+        number of the next attempt. Bounded, then the buyer sends again.
         """
 
-        for attempt in range(ORDER_NUMBER_ATTEMPTS):
+        used = 0
+        for tries in range(ORDER_NUMBER_ATTEMPTS):
             try:
                 async with connection.transaction():
                     await self._insert_commitment(
@@ -678,16 +681,16 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
             except asyncpg.UniqueViolationError as error:
                 if not order_number_taken(error):
                     raise
-                if attempt == ORDER_NUMBER_ATTEMPTS - 1:
+                if tries == ORDER_NUMBER_ATTEMPTS - 1:
                     raise Conflict(
                         "public_order_concurrent_retry",
                         "Die Bestellung wurde gleichzeitig verarbeitet. "
                         "Bitte senden Sie das Formular erneut.",
                     ) from error
-                commitment = replace(
-                    commitment,
-                    public_reference=await free_order_number(connection, commitment.id),
+                number, used = await free_order_number_from(
+                    connection, commitment.id, used + 1
                 )
+                commitment = replace(commitment, public_reference=number)
         raise AssertionError("unreachable")
 
     @staticmethod

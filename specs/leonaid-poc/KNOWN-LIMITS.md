@@ -208,10 +208,11 @@ pilot-create-system-admin` an (Anmeldemail, kein Passwort).
   mail. The rule holds for orders of every source, the public form
   included. A confirmation that was queued while it was due and that the
   worker reaches too late (worker or SMTP down past the window) is not sent
-  either, but not silently: its job is dead-lettered with
-  `order_mail_late_<reason>`, counts with the failed mails in the operations
-  view, and the order shows it as failed with the reason; an operator's
-  retry fails again. The form "Angaben ergänzen" asks the same rule
+  either, but not silently: the order shows it as failed with the reason.
+  Its job completes and is no dead letter (a retry could never clear it and
+  the dead-letter alert would stay on), so it does not count among the
+  failed jobs of the operations view; the same holds for a dead letter an
+  operator retries after the window. The form "Angaben ergänzen" asks the same rule
   (`listBuyerMails.completion`) before a manager completes a draft. Its text follows the order's status and promises an invoice only in
   an action with invoicing. A send settles older failed jobs of the same
   mail, and the worker skips a job that a later sent one superseded, so an
@@ -229,9 +230,8 @@ pilot-create-system-admin` an (Anmeldemail, kein Passwort).
   invoiced, have a buyer address and no recorded drop state, in an action
   that is not completed or archived and still has the delivery capability.
   The worker and a manager's send check the same rule; a job that waited
-  past its window sends nothing and is dead-lettered with
-  `order_mail_late_window_over` (failed in the order's mail status and in
-  the operations view). A window that ends at or before the send
+  past its window sends nothing and completes; the order's mail status then
+  shows the mail as failed (`window_over`), as for a late confirmation. A window that ends at or before the send
   time of its day never gets the mail, and the order's mail status says so
   (`window_before_send_time`). The mail names window, delivery address and
   quantities only: no arrival time per stop, no driver, no campaign link

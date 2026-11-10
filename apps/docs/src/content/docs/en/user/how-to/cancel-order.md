@@ -129,9 +129,10 @@ confirmation goes out any more.
 It is different when a confirmation was created in time and LeonAid could
 only send it too late, for example because e-mail delivery was disturbed
 until after the delivery window. Then the buyer got nothing. The order shows
-the confirmation as **Fehlgeschlagen** (failed) with the reason, and the
-system admin sees it among the failed e-mails in the operations overview. It
-is not sent any more; contact the buyer directly if needed.
+the confirmation as **Fehlgeschlagen** (failed) with the reason. It is not
+listed among the failed jobs in the operations overview, because a retry
+could not change anything. It is not sent any more; contact the buyer
+directly if needed.
 
 LeonAid does not confirm orders from before you switched the e-mails on by
 itself. You can send the confirmation in the order, one by one (see below).

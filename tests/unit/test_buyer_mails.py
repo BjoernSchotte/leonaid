@@ -167,11 +167,9 @@ def test_a_waiting_job_is_queued_and_cannot_be_sent_again(job_status: str) -> No
 def test_a_confirmation_the_worker_reached_too_late_is_failed_with_the_reason(
     changes: dict[str, str], now: datetime, reason: BuyerMailReason
 ) -> None:
-    # R1: queued in time, reached too late (an outage): not silent.
-    value = ledger(
-        jobs=(BuyerMailJob(key(), "dead_letter", f"order_mail_late_{reason.value}"),),
-        **changes,
-    )
+    # R1: queued in time, reached too late (an outage): not silent. The job
+    # is completed, never a dead letter that no retry could clear.
+    value = ledger(jobs=(BuyerMailJob(key(), "completed", None),), **changes)
 
     assert buyer_mail_status(CONFIRMATION, value, now=now) == BuyerMailStatus(
         CONFIRMATION, BuyerMailState.FAILED, reason=reason
@@ -204,8 +202,6 @@ def test_completing_a_draft_is_judged_by_the_rule_of_the_confirmation() -> None:
         ("order_mail_recipient_limit", BuyerMailReason.RECIPIENT_LIMIT),
         ("smtp_unavailable", BuyerMailReason.DELIVERY_FAILED),
         (None, BuyerMailReason.DELIVERY_FAILED),
-        # Not a late code: the reason of a late job is never guessed.
-        ("order_mail_late_no_email", BuyerMailReason.DELIVERY_FAILED),
     ],
 )
 def test_a_dead_job_is_failed_with_its_reason_and_can_be_sent_again(
@@ -627,6 +623,31 @@ def test_a_delivered_or_cancelled_order_gets_no_resend_of_the_delivery_day_mail(
         assert status.state is BuyerMailState.SENT and not status.can_resend
         refusal = resend_refusal(DELIVERY_DAY, value, now=during)
         assert refusal is not None and refusal.code == "buyer_mail_not_due"
+
+
+def test_a_delivery_day_job_that_waited_past_the_window_shows_as_failed() -> None:
+    # The worker completes a late job; the status says the buyer missed it.
+    job = (BuyerMailJob(day_key(), "completed"),)
+    after = datetime(2026, 2, 14, 11, 0, tzinfo=BERLIN)
+
+    assert buyer_mail_status(
+        DELIVERY_DAY, ledger(delivery_day_mail=True, jobs=job), now=after
+    ) == BuyerMailStatus(
+        DELIVERY_DAY, BuyerMailState.FAILED, reason=BuyerMailReason.WINDOW_OVER
+    )
+    # A recorded delivery or a closed action is no missed mail: skipped.
+    for changes, reason in (
+        ({"drop_state": "delivered"}, BuyerMailReason.DELIVERY_RECORDED),
+        ({"action_status": "completed"}, BuyerMailReason.ACTION_CLOSED),
+    ):
+        status = buyer_mail_status(
+            DELIVERY_DAY,
+            ledger(delivery_day_mail=True, jobs=job, **changes),
+            now=DELIVERY_MORNING,
+        )
+        assert status == BuyerMailStatus(
+            DELIVERY_DAY, BuyerMailState.SKIPPED, reason=reason
+        )
 
 
 def test_jobs_of_a_window_the_order_left_do_not_count_for_its_window_now() -> None:

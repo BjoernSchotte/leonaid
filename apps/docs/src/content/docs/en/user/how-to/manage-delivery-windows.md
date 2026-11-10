@@ -143,8 +143,9 @@ e-mails go to one mailbox per hour.
 
 If LeonAid could not send an e-mail before its window ended (e-mail delivery
 disturbed), it is not sent any more. The order then shows the row as
-**Fehlgeschlagen** (failed), and the system admin sees it among the failed
-e-mails in the operations overview.
+**Fehlgeschlagen** (failed) with the reason. It is not listed among the
+failed jobs in the operations overview, because a retry would send nothing
+any more.
 
 For questions the e-mail names only what the legal configuration holds: the
 club's e-mail address and, if entered, the phone number of the imprint.
