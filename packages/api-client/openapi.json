@@ -2395,6 +2395,12 @@
             "minLength": 8,
             "title": "Reason",
             "type": "string"
+          },
+          "sendCancellation": {
+            "default": false,
+            "description": "Also send the cancellation invoice to the invoice's recipient by mail, as soon as its PDF is rendered.",
+            "title": "Sendcancellation",
+            "type": "boolean"
           }
         },
         "required": [
@@ -7623,6 +7629,18 @@
           "document": {
             "$ref": "#/components/schemas/GeneratedDocumentResponse"
           },
+          "documentNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The document's own number when it is not the invoice's: the number of a cancellation invoice.",
+            "title": "Documentnumber"
+          },
           "invoiceNumber": {
             "anyOf": [
               {
@@ -7708,7 +7726,10 @@
             "type": "string"
           },
           "documentType": {
-            "const": "invoice_pdf",
+            "enum": [
+              "invoice_pdf",
+              "invoice_cancellation_pdf"
+            ],
             "title": "Documenttype",
             "type": "string"
           },
@@ -8326,6 +8347,30 @@
             "title": "Invoiceid",
             "type": "string"
           },
+          "issuedOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuedon"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Number of the cancellation invoice, from the invoice series. Null for a cancellation recorded before cancellation invoices existed, until `issueInvoiceCancellationDocument` issues it.",
+            "title": "Number"
+          },
           "originalStatus": {
             "enum": [
               "issued",
@@ -8338,6 +8383,65 @@
           "reason": {
             "title": "Reason",
             "type": "string"
+          },
+          "receivedMinor": {
+            "default": 0,
+            "description": "Active payments of the cancelled invoice; they stay recorded.",
+            "minimum": 0.0,
+            "title": "Receivedminor",
+            "type": "integer"
+          },
+          "refundNote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refundnote"
+          },
+          "refundOpen": {
+            "default": false,
+            "description": "Money was received and no refund is recorded as settled.",
+            "title": "Refundopen",
+            "type": "boolean"
+          },
+          "refundSettledAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refundsettledat"
+          },
+          "refundSettledByDisplayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refundsettledbydisplayname"
+          },
+          "refundSettledOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refundsettledon"
           },
           "replayed": {
             "title": "Replayed",
@@ -8488,6 +8592,16 @@
           "invoiceId": {
             "format": "uuid",
             "title": "Invoiceid",
+            "type": "string"
+          },
+          "kind": {
+            "default": "invoice",
+            "description": "Which document of the invoice this delivery carries.",
+            "enum": [
+              "invoice",
+              "invoice_cancellation"
+            ],
+            "title": "Kind",
             "type": "string"
           },
           "lastErrorCode": {
@@ -9023,6 +9137,13 @@
                 "type": "null"
               }
             ]
+          },
+          "cancellationDeliveries": {
+            "items": {
+              "$ref": "#/components/schemas/InvoiceDeliveryResponse"
+            },
+            "title": "Cancellationdeliveries",
+            "type": "array"
           },
           "deliveries": {
             "items": {
@@ -16236,6 +16357,33 @@
           "checklist"
         ],
         "title": "SetTaskStructure",
+        "type": "object"
+      },
+      "SettleInvoiceRefundRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "settledOn": {
+            "format": "date",
+            "title": "Settledon",
+            "type": "string"
+          }
+        },
+        "required": [
+          "settledOn"
+        ],
+        "title": "SettleInvoiceRefundRequest",
         "type": "object"
       },
       "SiteBindingResponse": {
@@ -25216,6 +25364,481 @@
           }
         },
         "summary": "Cancel Invoice",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/invoices/{invoice_id}/cancellation/deliveries": {
+      "post": {
+        "description": "Send the cancellation invoice to the invoice's recipient by mail.",
+        "operationId": "sendInvoiceCancellation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceDeliveryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Send Invoice Cancellation",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/invoices/{invoice_id}/cancellation/deliveries/{delivery_id}/retry": {
+      "post": {
+        "operationId": "retryInvoiceCancellationDelivery",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "delivery_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Delivery Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceDeliveryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Retry Invoice Cancellation Delivery",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/invoices/{invoice_id}/cancellation/document": {
+      "post": {
+        "description": "Issue the cancellation invoice of an invoice cancelled before it existed.\n\nCancelling an invoice issues its cancellation invoice in the same step.\nThis is for older cancellations only; it answers 409\n``invoice_cancellation_document_exists`` when the document exists.",
+        "operationId": "issueInvoiceCancellationDocument",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceCancellationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Issue Invoice Cancellation Document",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/invoices/{invoice_id}/cancellation/refund": {
+      "post": {
+        "description": "Record that the money received for a cancelled invoice went back.\n\nLeonAid books no refund; this closes the reminder \"Erstattung offen\".\nIt can be recorded once (409 ``invoice_refund_already_settled``).",
+        "operationId": "settleInvoiceCancellationRefund",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettleInvoiceRefundRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceCancellationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Settle Invoice Cancellation Refund",
         "tags": [
           "invoices"
         ]
