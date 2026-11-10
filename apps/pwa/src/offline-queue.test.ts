@@ -519,6 +519,29 @@ describe("403 per code (§9.4)", () => {
     ]);
   });
 
+  it("blocks the action's entries whatever the case of its id", async () => {
+    const store = new MemoryQueueStore();
+    const action = "2000000a-0000-4000-8000-00000000000b";
+    await store.put(activity(1, "a", { actionId: action }));
+    await store.put(activity(2, "b", { actionId: action.toUpperCase() }));
+    let sends = 0;
+    await drainQueue({
+      now: () => NOW,
+      send: async (entry) => {
+        sends += 1;
+        if (sends === 1) throw apiError(403, "acquirer_required");
+        return accepted(entry, 8);
+      },
+      store,
+    });
+    expect(sends).toBe(1);
+    const left = await store.list();
+    expect(left.map((entry) => [entry.sequence, entry.state])).toEqual([
+      [1, "blocked"],
+      [2, "blocked"],
+    ]);
+  });
+
   it("does not hold a sponsor's later entries behind one sponsor-level 403", async () => {
     const store = new MemoryQueueStore();
     await store.put({

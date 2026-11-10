@@ -21,6 +21,7 @@ import {
   draftCheckOutlived,
   isTourEntry,
   retention,
+  sameAction,
   type QueueEntry,
   type QueueStore,
   type SendResult,
@@ -148,7 +149,7 @@ export async function drainQueue(
           // leaves the captures sendable, and the reverse.
           for (const other of await store.list()) {
             if (
-              other.actionId === entry.actionId &&
+              sameAction(other.actionId, entry.actionId) &&
               isTourEntry(other) === isTourEntry(entry) &&
               other.state !== "expired" &&
               other.state !== "blocked" &&
