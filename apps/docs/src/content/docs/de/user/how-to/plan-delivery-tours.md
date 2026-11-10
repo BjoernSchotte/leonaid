@@ -4,9 +4,9 @@ description: Die Stopps eines Liefertags Fahrern zuweisen, die Grundreihenfolge 
 docId: DOC-P051
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 278f0c5658d87a7aaa1829609e883c816d35340b
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: c546921444a3c60a7681373698b85b3c3e37bc59
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -29,16 +29,27 @@ Tour.
 
 ## Zuweisen und sortieren
 
-1. Weise Stopps einem Fahrer zu (Stopp auf die Fahrerspalte ziehen oder Stopps
-   wählen und **Fahrer zuordnen** nutzen).
+1. Weise Stopps einem Fahrer zu. Es gibt drei Wege:
+   - Ziehe den Stopp an seinem Griff (sechs Punkte links) in die Spalte des
+     Fahrers. Die Spalte unter dem Zeiger wird markiert und nennt das Fenster,
+     an dessen Ende der Stopp kommt.
+   - Zeige auf den Stopp und wähle **Fahrer ändern**.
+   - Kreuze mehrere Stopps an und nutze **Fahrer zuordnen**. **Alle ohne
+     Fahrer auswählen** kreuzt alle Stopps ohne Fahrer an.
+
+   So gibst du auch einen einzelnen Stopp an einen anderen Fahrer weiter. Die
+   Meldung bietet **Rückgängig**.
 2. Ziehe Stopps innerhalb einer Fenstergruppe, um die Grundreihenfolge
    festzulegen. LeonAid speichert beim Ablegen. Die Meldung bietet
-   **Rückgängig**.
+   **Rückgängig**. Ein Stopp bleibt in seinem Lieferfenster: Das Zeitfenster
+   ist dem Kunden zugesagt.
 3. **Vorschlag sortieren** an einer Fahrerspalte schlägt eine Reihenfolge nach
    Luftlinie vor. Fehlen Pins, steht dort **Für den Vorschlag fehlen
    Koordinaten.** **Strecke …** zeigt die Luftlinien-Länge der Tour.
-4. Die Karte zeigt die Stopps als nummerierte Pins, nach Fahrer eingefärbt.
-   Die Nummern folgen der wirksamen Reihenfolge.
+4. **Karte** im Seitenkopf blendet die Karte ein und aus; LeonAid merkt sich
+   die Wahl im Browser. Die Karte zeigt die Stopps als nummerierte Pins, nach
+   Fahrer eingefärbt. Die Nummern folgen der Reihenfolge, die die Spalte
+   zeigt; Spalte und Nummern tragen die Farbe der Pins.
 
 Ein Fahrer kann seine eigene Tour umsortieren. Seine Reihenfolge gilt dann vor
 deiner Grundreihenfolge, bis du sie zurücksetzt.

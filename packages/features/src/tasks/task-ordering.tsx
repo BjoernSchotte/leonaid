@@ -25,6 +25,8 @@ import {
   type ReactNode,
 } from "react";
 
+import "./task-ordering.css";
+
 /**
  * How a touch on the grip starts a drag. "press": after a long press (small
  * grips, where a scroll may start on them). "handle": after a few pixels of

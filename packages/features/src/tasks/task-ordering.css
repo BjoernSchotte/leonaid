@@ -1,0 +1,45 @@
+/*
+ * The grip of TaskOrderHandle. Its own file, imported by task-ordering.tsx:
+ * every page that renders a grip gets these rules, not only the task pages
+ * (the delivery planner once showed a bare 14 px icon without them).
+ */
+.task-order-handle {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 26px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: none;
+  color: var(--text-3);
+  cursor: grab;
+  touch-action: none;
+}
+/* Keeps titles aligned in a reorderable list next to rows without a grip. */
+.task-handle-space {
+  display: inline-block;
+  width: 20px;
+}
+.task-order-handle:hover:not([aria-disabled="true"]) {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.task-order-handle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.task-order-handle[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.5;
+}
+@media (max-width: 720px) {
+  /* Touch: the grip is a full 44 px target. */
+  .task-order-handle {
+    width: 44px;
+    height: 44px;
+    margin-inline-start: calc(-1 * var(--s-2));
+  }
+  .task-handle-space {
+    display: none;
+  }
+}

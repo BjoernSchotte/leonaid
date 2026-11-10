@@ -1,8 +1,13 @@
 import {
   closestCenter,
   DndContext,
+  DragOverlay,
+  pointerWithin,
+  rectIntersection,
   useDroppable,
+  type CollisionDetection,
   type DragEndEvent,
+  type UniqueIdentifier,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -13,13 +18,16 @@ import {
   ArrowUp,
   Eye,
   EyeOff,
+  GripVertical,
   MailPlus,
+  Map as MapIcon,
   MapPin,
   MapPinPlus,
   Route,
   Truck,
   Undo2,
   UserRound,
+  UserRoundPen,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
@@ -80,7 +88,7 @@ import {
   type TourPoint,
 } from "./tour-model";
 import { driverTone, TourMap, type TourMapPin } from "./tour-map";
-import { useOrderAutosave } from "./use-order-autosave";
+import { ORDER_UNDO_MS, useOrderAutosave } from "./use-order-autosave";
 
 /*
  * "Touren" (spec krapfentaxi-touren §6): the manager's view of one delivery
@@ -102,8 +110,20 @@ const copy = {
   intro:
     "Eine Tour je Fahrer und Liefertag. Sortiert wird nur innerhalb eines Lieferfensters, so bleibt jedes zugesagte Zeitfenster.",
   unassigned: "Nicht zugeordnet",
-  unassignedHint:
-    "Wählen Sie Stopps aus und ordnen Sie sie einem Fahrer zu, oder ziehen Sie sie in eine Spalte.",
+  moveHint:
+    "Stopp einem anderen Fahrer geben: am Griff in dessen Spalte ziehen, oder Stopps ankreuzen und „Fahrer zuordnen“ wählen.",
+  waiting: (count: number) =>
+    `${stopCount(count)} ${count === 1 ? "hat" : "haben"} noch keinen Fahrer.`,
+  selectWaiting: "Alle ohne Fahrer auswählen",
+  changeDriver: "Fahrer ändern",
+  dropOnDriver: (window: string) => `Loslassen: ans Ende von ${window} Uhr`,
+  dropOnUnassigned: "Loslassen: Fahrer entfernen",
+  moving: "wird zugeordnet …",
+  staysInWindow: (window: string) =>
+    `Der Stopp bleibt im Lieferfenster ${window} Uhr. Das Zeitfenster ist dem Kunden zugesagt.`,
+  assignUndone: "Zuordnung zurückgenommen.",
+  showMap: "Karte",
+  lanesLabel: "Spalten: nicht zugeordnet und je Fahrer",
   allAssigned: "Alle Stopps zugeordnet.",
   emptyLane:
     "Noch keine Stopps. Ziehen Sie welche hierher oder nutzen Sie „Fahrer zuordnen“.",
@@ -113,7 +133,7 @@ const copy = {
   suggestMissing: "Für den Vorschlag fehlen Koordinaten.",
   suggestHint: "Je Fenster der nächste Stopp zuerst, nach Luftlinie.",
   mapLabel: "Karte der Touren",
-  mapHint: "Wählen Sie Stopps in der Liste oder auf der Karte.",
+  mapHint: "Ein Klick auf einen Pin wählt den Stopp aus.",
   noPins:
     "Noch kein Stopp hat einen Kartenpunkt. Die Adressen werden gerade gesucht, oder Sie setzen die Pins selbst.",
   notFound: "Adresse nicht gefunden",
@@ -294,6 +314,42 @@ function windowLoad(drops: readonly DeliveryDropResponse[]) {
   return [stopCount(live.length), ...units].join(", ");
 }
 
+const isLaneId = (id: UniqueIdentifier) => String(id).startsWith(LANE_PREFIX);
+
+/**
+ * The pointer decides: the stop under it, else the column under it. A
+ * column is a target everywhere (head, closed windows, free space), not only
+ * on its open stops. The keyboard has no pointer: what the moved stop covers
+ * most (a stop it landed on covers it fully, a column only in part), and
+ * only off every target the nearest centre.
+ */
+const stopThenLane: CollisionDetection = (args) => {
+  const under = pointerWithin(args);
+  const stops = under.filter((collision) => !isLaneId(collision.id));
+  if (stops.length) return stops;
+  if (under.length) return under;
+  const covered = rectIntersection(args);
+  return covered.length ? covered : closestCenter(args);
+};
+
+const MAP_KEY = "leonaid.tours.map";
+/** From this width three columns and the map fit side by side. */
+const MAP_WIDE = "(min-width: 1500px)";
+
+/** The map is a choice: remembered per browser, else open on wide screens. */
+function initialMapOpen() {
+  try {
+    const stored = window.localStorage.getItem(MAP_KEY);
+    if (stored === "1") return true;
+    if (stored === "0") return false;
+  } catch {
+    // Private mode or blocked storage: the width decides.
+  }
+  return typeof window.matchMedia === "function"
+    ? window.matchMedia(MAP_WIDE).matches
+    : true;
+}
+
 export interface TourPlannerProps {
   readonly client: LeonAidApiClient;
   readonly actionId: string;
@@ -323,6 +379,26 @@ export function TourPlanner({
   const [placing, setPlacing] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const assignAnchor = useRef<HTMLButtonElement | null>(null);
+  /** "Fahrer ändern" on one row: its stop and the button it opened from. */
+  const [rowAssign, setRowAssign] = useState<string | null>(null);
+  const rowAnchor = useRef<HTMLButtonElement | null>(null);
+  /** The stop in the hand and the column it is over. */
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [overLane, setOverLane] = useState<string | null>(null);
+  /** Stops on their way to another column, until the columns reloaded. */
+  const [moving, setMoving] = useState<{
+    readonly ids: ReadonlySet<string>;
+    readonly target: string;
+  } | null>(null);
+  const [mapOpen, setMapOpen] = useState(initialMapOpen);
+  const toggleMap = (open: boolean) => {
+    setMapOpen(open);
+    try {
+      window.localStorage.setItem(MAP_KEY, open ? "1" : "0");
+    } catch {
+      // The choice then holds for this visit only.
+    }
+  };
 
   const queryKey = ["delivery-tours", actionId, day] as const;
   const mutationOptions = { mutationKey: ["delivery-tours", actionId] };
@@ -454,25 +530,73 @@ export function TourPlanner({
     }: {
       ids: readonly string[];
       driverUserId: string | null;
+      /** Where each stop was, for "Rückgängig" (lane keys). */
+      previous: ReadonlyMap<string, string>;
     }) =>
       client.assignDeliveryDriver(actionId, {
         commitmentIds: [...ids],
         driverUserId,
       }),
-    onSuccess: (_result, { ids, driverUserId }) => {
+    onMutate: ({ ids, driverUserId }) => {
+      setMoving({ ids: new Set(ids), target: driverUserId ?? UNASSIGNED });
+    },
+    onSuccess: (_result, { ids, driverUserId, previous }) => {
       setAssignOpen(false);
+      setRowAssign(null);
       setSelected(new Set());
       const target = driverUserId ? laneByKey.get(driverUserId) : null;
+      const title = target
+        ? `${stopCount(ids.length)} ${target.name} zugeordnet. Sie stehen am Ende ihres Fensters.`
+        : `Fahrer entfernt (${stopCount(ids.length)}).`;
+      // The toast is a live region itself: no second announcement.
       toast?.show({
-        title: target
-          ? `${stopCount(ids.length)} ${target.name} zugeordnet. Sie stehen am Ende ihres Fensters.`
-          : `Fahrer entfernt (${stopCount(ids.length)}).`,
+        title,
         tone: "success",
+        timeout: ORDER_UNDO_MS,
+        action: {
+          label: "Rückgängig",
+          run: () => restoreAssign.mutate(previous),
+        },
       });
+    },
+    onError: showError,
+    // The columns reload first, so the stop never shows in its old column
+    // without the "wird zugeordnet" mark.
+    onSettled: () => refresh().finally(() => setMoving(null)),
+  });
+
+  // "Rückgängig" of an assignment: every stop back to the column it came
+  // from, one call per column. The stops return to the end of their window.
+  const restoreAssign = useMutation({
+    ...mutationOptions,
+    mutationFn: async (previous: ReadonlyMap<string, string>) => {
+      const byLane = new Map<string, string[]>();
+      for (const [id, lane] of previous) {
+        byLane.set(lane, [...(byLane.get(lane) ?? []), id]);
+      }
+      for (const [lane, ids] of byLane) {
+        await client.assignDeliveryDriver(actionId, {
+          commitmentIds: ids,
+          driverUserId: lane === UNASSIGNED ? null : lane,
+        });
+      }
+    },
+    onSuccess: () => {
+      toast?.show({ title: copy.assignUndone, tone: "success" });
     },
     onError: showError,
     onSettled: () => refresh(),
   });
+  const assignTo = (ids: readonly string[], target: string) => {
+    if (assign.isPending || restoreAssign.isPending || !ids.length) return;
+    assign.mutate({
+      ids,
+      driverUserId: target === UNASSIGNED ? null : target,
+      previous: new Map(
+        ids.map((id) => [id, model.stops.get(id)?.lane ?? UNASSIGNED]),
+      ),
+    });
+  };
 
   const discardDriverOrder = useMutation({
     ...mutationOptions,
@@ -512,30 +636,44 @@ export function TourPlanner({
     onSettled: () => refresh(),
   });
 
+  /** The column a drop on `overId` (a column or one of its stops) goes to. */
+  const laneOfTarget = (overId: UniqueIdentifier | undefined) => {
+    if (overId === undefined) return undefined;
+    const key = String(overId);
+    return isLaneId(key)
+      ? key.slice(LANE_PREFIX.length)
+      : model.stops.get(key)?.lane;
+  };
+
   const finishDrag = ({ active, over }: DragEndEvent) => {
+    setDragging(null);
+    setOverLane(null);
     if (!over) return;
     const id = String(active.id);
     const overId = String(over.id);
     const from = model.stops.get(id);
     if (!from) return;
-    const target = overId.startsWith(LANE_PREFIX)
-      ? overId.slice(LANE_PREFIX.length)
-      : model.stops.get(overId)?.lane;
+    const target = laneOfTarget(over.id);
     if (!target) return;
     if (target !== from.lane) {
       // Onto another column: the existing driver assignment.
-      if (!laneByKey.has(target) || assign.isPending) return;
-      assign.mutate({
-        ids: [id],
-        driverUserId: target === UNASSIGNED ? null : target,
-      });
+      if (!laneByKey.has(target)) return;
+      assignTo([id], target);
       return;
     }
     const lane = laneByKey.get(target);
-    if (!lane?.tour || overId === id || isViewingDriver(lane)) return;
+    if (!lane?.tour || overId === id || isLaneId(overId)) return;
+    if (isViewingDriver(lane)) return;
+    if (windowOf(overId) !== windowOf(id)) {
+      // A drop the rule refuses says why (D19: the window is promised).
+      toast?.show({
+        title: copy.staysInWindow(deliveryTimeRange(from.window, zone)),
+        tone: "info",
+      });
+      return;
+    }
     const ids = shownOf(lane);
     const side = ids.indexOf(id) < ids.indexOf(overId) ? "after" : "before";
-    // placeStop ignores a target in another window.
     moveTo(lane, placeStop(ids, id, overId, side, windowOf), id);
   };
 
@@ -573,7 +711,8 @@ export function TourPlanner({
       .map((lane, index) => [lane.key, index]),
   );
   const pins: TourMapPin[] = lanes.flatMap((lane) =>
-    lane.effective.flatMap((id, index) => {
+    // The order the column shows, so "Stopp 3" is pin 3.
+    shownOf(lane).flatMap((id, index) => {
       const stop = model.stops.get(id);
       if (!stop || stop.lat === null || stop.lon === null) return [];
       const unassigned = lane.key === UNASSIGNED;
@@ -604,7 +743,7 @@ export function TourPlanner({
   const mapLine = draftLane
     ? { ids: shownOf(draftLane), dashed: true }
     : chosenLane
-      ? { ids: chosenLane.effective, dashed: false }
+      ? { ids: shownOf(chosenLane), dashed: false }
       : null;
   const start =
     data?.startPoint &&
@@ -632,6 +771,8 @@ export function TourPlanner({
       toursQuery.error.detail.code,
     );
   const unassignedCount = laneByKey.get(UNASSIGNED)?.base.length ?? 0;
+  const draggingStop = dragging ? model.stops.get(dragging) : undefined;
+  const rowAssignStop = rowAssign ? model.stops.get(rowAssign) : undefined;
   const discardingLane = discarding ? laneByKey.get(discarding) : undefined;
 
   return (
@@ -644,9 +785,8 @@ export function TourPlanner({
               <span className="page-count">{longDay(data.day)}</span>
             ) : null}
           </div>
-          {/* One hint line: what to do while stops wait, else the rule. */}
           <p className="page-sub" data-testid="tour-plan-hint">
-            {unassignedCount ? copy.unassignedHint : copy.intro}
+            {copy.intro}
           </p>
         </div>
         <div className="delivery-filters">
@@ -673,6 +813,17 @@ export function TourPlanner({
                 ))}
               </select>
             </label>
+          ) : null}
+          {data?.day ? (
+            <Button
+              aria-pressed={mapOpen}
+              data-testid="tour-map-toggle"
+              icon={MapIcon}
+              onClick={() => toggleMap(!mapOpen)}
+              variant="secondary"
+            >
+              {copy.showMap}
+            </Button>
           ) : null}
           {onShowList ? (
             <DeliveryViewSwitch
@@ -752,6 +903,30 @@ export function TourPlanner({
             />
           ) : null}
 
+          {unassignedCount && data.drivers.length && !selectedIds.length ? (
+            <NextStep
+              action={
+                <Button
+                  data-testid="tour-select-waiting"
+                  onClick={() =>
+                    setSelected(
+                      new Set(
+                        (laneByKey.get(UNASSIGNED)?.base ?? []).filter(
+                          (id) => !model.stops.get(id)?.window.closed,
+                        ),
+                      ),
+                    )
+                  }
+                  variant="primary"
+                >
+                  {copy.selectWaiting}
+                </Button>
+              }
+              consequence={`${copy.waiting(unassignedCount)} ${copy.moveHint}`}
+              data-testid="tour-next-step"
+            />
+          ) : null}
+
           {selectedIds.length ? (
             <div aria-label="Auswahl" className="bulkbar" role="region">
               <span className="num">{selectedIds.length} ausgewählt</span>
@@ -783,22 +958,60 @@ export function TourPlanner({
 
           <DndContext
             accessibility={orderingAccessibility("Stopp")}
-            collisionDetection={closestCenter}
-            onDragCancel={() => setAnnouncement("Verschieben abgebrochen.")}
+            collisionDetection={stopThenLane}
+            onDragCancel={() => {
+              setDragging(null);
+              setOverLane(null);
+              setAnnouncement("Verschieben abgebrochen.");
+            }}
             onDragEnd={finishDrag}
+            onDragOver={({ over }) =>
+              setOverLane(laneOfTarget(over?.id) ?? null)
+            }
+            onDragStart={({ active }) => setDragging(String(active.id))}
             sensors={sensors}
           >
-            <div className="tour-plan-body">
-              <div className="tour-lanes">
+            <div className={cn("tour-plan-body", mapOpen && "has-map")}>
+              {/* Scrolls sideways when the drivers do not fit: focusable, so
+                  the keyboard can scroll it too. */}
+              <div
+                aria-label={copy.lanesLabel}
+                className="tour-lanes"
+                role="group"
+                tabIndex={0}
+              >
                 {lanes.map((lane) => (
                   <Lane
-                    busy={assign.isPending}
+                    busy={assign.isPending || restoreAssign.isPending}
+                    dropHint={
+                      draggingStop &&
+                      overLane === lane.key &&
+                      draggingStop.lane !== lane.key
+                        ? lane.key === UNASSIGNED
+                          ? copy.dropOnUnassigned
+                          : copy.dropOnDriver(
+                              deliveryTimeRange(draggingStop.window, zone),
+                            )
+                        : null
+                    }
                     key={lane.key}
                     lane={lane}
-                    onDiscardDriverOrder={() => setDiscarding(lane.key)}
-                    onPlacePin={(id) =>
-                      setPlacing((current) => (current === id ? null : id))
+                    moving={moving}
+                    onChangeDriver={(id, anchor) => {
+                      rowAnchor.current = anchor;
+                      setRowAssign(id);
+                    }}
+                    tone={
+                      lane.key === UNASSIGNED
+                        ? null
+                        : driverTone(driverIndex.get(lane.key) ?? 0)
                     }
+                    onDiscardDriverOrder={() => setDiscarding(lane.key)}
+                    onPlacePin={(id) => {
+                      // Placing needs the map: open it for this one task.
+                      if (!mapOpen) toggleMap(true);
+                      setPlacing((current) => (current === id ? null : id));
+                    }}
                     placing={placing}
                     onMove={(id, direction) =>
                       moveTo(
@@ -826,42 +1039,61 @@ export function TourPlanner({
                   />
                 ))}
               </div>
-              <aside className="tour-plan-map" data-testid="tour-plan-map">
-                {placingStop ? (
-                  <p className="tour-plan-map-bar is-placing" role="status">
-                    <span>{copy.placing(placingStop.drop.buyerName)}</span>
-                    <Button
-                      onClick={() => setPlacing(null)}
-                      size="sm"
-                      variant="ghost"
-                    >
-                      {copy.cancelPlacing}
-                    </Button>
-                  </p>
-                ) : (
-                  <p className="tour-plan-map-bar">
-                    {pins.length ? copy.mapHint : copy.noPins}
-                  </p>
-                )}
-                <TourMap
-                  label={copy.mapLabel}
-                  line={mapLine}
-                  onPlace={
-                    placing && !setPin.isPending
-                      ? (lat, lon) => setPin.mutate({ id: placing, lat, lon })
-                      : undefined
-                  }
-                  onSelect={choosePin}
-                  pins={pins}
-                  placeAtCenterLabel={copy.placeAtCenter}
-                  start={start}
-                  tiles={{
-                    url: data.map.tileUrl,
-                    attribution: data.map.attribution,
-                  }}
-                />
-              </aside>
+              {mapOpen ? (
+                <aside className="tour-plan-map" data-testid="tour-plan-map">
+                  {placingStop ? (
+                    <p className="tour-plan-map-bar is-placing" role="status">
+                      <span>{copy.placing(placingStop.drop.buyerName)}</span>
+                      <Button
+                        onClick={() => setPlacing(null)}
+                        size="sm"
+                        variant="ghost"
+                      >
+                        {copy.cancelPlacing}
+                      </Button>
+                    </p>
+                  ) : (
+                    <p className="tour-plan-map-bar">
+                      {pins.length ? copy.mapHint : copy.noPins}
+                    </p>
+                  )}
+                  <TourMap
+                    label={copy.mapLabel}
+                    line={mapLine}
+                    onPlace={
+                      placing && !setPin.isPending
+                        ? (lat, lon) => setPin.mutate({ id: placing, lat, lon })
+                        : undefined
+                    }
+                    onSelect={choosePin}
+                    pins={pins}
+                    placeAtCenterLabel={copy.placeAtCenter}
+                    start={start}
+                    tiles={{
+                      url: data.map.tileUrl,
+                      attribution: data.map.attribution,
+                    }}
+                  />
+                </aside>
+              ) : null}
             </div>
+            {/* The stop in the hand follows the pointer across columns; its
+                row stays as the place it came from. No fly-back on drop: a
+                stop given to another driver did not go back. */}
+            <DragOverlay dropAnimation={null}>
+              {draggingStop ? (
+                <div className="tour-drag-ghost" data-testid="tour-drag-ghost">
+                  <Icon icon={GripVertical} size={14} />
+                  <span className="tour-drag-ghost-name">
+                    {draggingStop.drop.buyerName}
+                  </span>
+                  <span className="tour-drag-ghost-sub">
+                    {deliveryTimeRange(draggingStop.window, zone)} Uhr ·{" "}
+                    {dropQuantities(draggingStop.drop)}
+                  </span>
+                </div>
+              ) : null}
+            </DragOverlay>
           </DndContext>
         </>
       )}
@@ -873,16 +1105,34 @@ export function TourPlanner({
         open={assignOpen && selectedIds.length > 0}
       >
         <OptionMenu<string>
-          onSelect={(value) => {
-            if (assign.isPending || !selectedIds.length) return;
-            assign.mutate({
-              ids: selectedIds,
-              driverUserId: value === UNASSIGNED ? null : value,
-            });
-          }}
+          onSelect={(value) => assignTo(selectedIds, value)}
           options={driverOptions}
           placeholder="Fahrer suchen"
           value={onlyLane ?? ""}
+        />
+      </Popover>
+      {/* "Fahrer ändern" on one row: the same choice, for that stop alone. */}
+      <Popover
+        anchor={rowAnchor}
+        label={
+          rowAssignStop
+            ? `${copy.changeDriver}: ${rowAssignStop.drop.buyerName}`
+            : copy.changeDriver
+        }
+        onClose={() => setRowAssign(null)}
+        open={Boolean(rowAssignStop)}
+      >
+        <OptionMenu<string>
+          onSelect={(value) => {
+            if (!rowAssign || value === rowAssignStop?.lane) {
+              setRowAssign(null);
+              return;
+            }
+            assignTo([rowAssign], value);
+          }}
+          options={driverOptions}
+          placeholder="Fahrer suchen"
+          value={rowAssignStop?.lane ?? ""}
         />
       </Popover>
 
@@ -918,15 +1168,29 @@ interface LaneProps {
   readonly onToggleViewing: () => void;
   readonly onDiscardDriverOrder: () => void;
   readonly onPlacePin: (id: string) => void;
+  /** "Fahrer ändern" on one stop; the button anchors the choice. */
+  readonly onChangeDriver: (id: string, anchor: HTMLButtonElement) => void;
   /** The stop whose pin the map is placing, if any. */
   readonly placing: string | null;
+  /** What a drop here does, while a stop of another column is over it. */
+  readonly dropHint: string | null;
+  /** Stops on their way to another column. */
+  readonly moving: {
+    readonly ids: ReadonlySet<string>;
+    readonly target: string;
+  } | null;
+  /** The driver's colour on the map; null for "Nicht zugeordnet". */
+  readonly tone: string | null;
   readonly start: { readonly lat: number; readonly lon: number } | null;
 }
 
 /** One column: head with count, load per window and actions, then the windows. */
 function Lane({
   busy,
+  dropHint,
   lane,
+  moving,
+  onChangeDriver,
   onDiscardDriverOrder,
   onMove,
   onPlacePin,
@@ -938,16 +1202,18 @@ function Lane({
   shown,
   start,
   stops,
+  tone,
   viewingDriver,
   zone,
 }: LaneProps) {
   const unassigned = lane.key === UNASSIGNED;
   const count = shown.length;
-  // Empty columns take a drop; filled ones take it on their stops.
-  const { setNodeRef, isOver } = useDroppable({
-    id: `${LANE_PREFIX}${lane.key}`,
-    disabled: count > 0,
-  });
+  // The whole column takes a drop: head, closed windows and free space too.
+  const { setNodeRef } = useDroppable({ id: `${LANE_PREFIX}${lane.key}` });
+  const receiving =
+    moving && moving.target === lane.key
+      ? [...moving.ids].filter((id) => stops.get(id)?.lane !== lane.key).length
+      : 0;
   const headingId = `tour-lane-${lane.key}`;
   const points: TourPoint[] = shown.map((id) => ({
     id,
@@ -971,9 +1237,10 @@ function Lane({
       className={cn(
         "tour-lane",
         unassigned && "is-unassigned",
-        isOver && "is-over",
+        (dropHint || receiving > 0) && "is-over",
       )}
       data-driver={unassigned ? undefined : lane.key}
+      data-tone={tone ?? undefined}
       data-lane={lane.key}
       data-testid={unassigned ? "tour-unassigned" : "tour-column"}
       ref={setNodeRef}
@@ -988,6 +1255,7 @@ function Lane({
             <Avatar name={lane.name} size="sm" />
           )}
           <h2 id={headingId}>{lane.name}</h2>
+          {tone ? <span aria-hidden="true" className="tour-lane-tone" /> : null}
           <span
             className="badge tone-neutral num"
             data-testid="tour-count"
@@ -997,35 +1265,31 @@ function Lane({
           </span>
         </div>
         {unassigned ? null : count ? (
-          <>
-            <p className="tour-lane-meta">
-              {length ? (
-                <>
-                  <span data-testid="tour-length">Strecke {length}</span>
-                  <span aria-hidden="true">·</span>
-                </>
-              ) : null}
-              <span className="num">
-                {done} von {count} erledigt
-              </span>
-            </p>
-            <ul className="tour-lane-load" data-testid="tour-load">
-              {lane.windows.map((window) => {
-                const drops = shown
-                  .map((id) => stops.get(id))
-                  .filter(
-                    (stop): stop is PlanStop =>
-                      stop?.window.windowId === window.windowId,
-                  )
-                  .map((stop) => stop.drop);
-                return drops.length ? (
-                  <li className="num" key={window.windowId}>
-                    {deliveryTimeRange(window, zone)}: {windowLoad(drops)}
-                  </li>
-                ) : null;
-              })}
-            </ul>
-          </>
+          <div className="tour-lane-meta">
+            {length ? (
+              <>
+                <span data-testid="tour-length">Strecke {length}</span>
+                <span aria-hidden="true">·</span>
+              </>
+            ) : null}
+            <span className="num">
+              {done} von {count} erledigt
+            </span>
+            {/* On the meta line: the driver's name keeps the title line. */}
+            <Button
+              className="tour-lane-suggest"
+              data-testid="tour-suggest-order"
+              disabled={!suggestable || viewingDriver || busy}
+              focusableWhenDisabled
+              icon={Route}
+              onClick={() => onSuggest(nearestNextOrder(points, start))}
+              size="sm"
+              title={suggestable ? copy.suggestHint : copy.suggestMissing}
+              variant="ghost"
+            >
+              {copy.suggest}
+            </Button>
+          </div>
         ) : null}
         {since ? (
           <div
@@ -1061,23 +1325,13 @@ function Lane({
             </span>
           </div>
         ) : null}
-        {!unassigned && count ? (
-          <div className="tour-lane-actions">
-            <Button
-              data-testid="tour-suggest-order"
-              disabled={!suggestable || viewingDriver || busy}
-              focusableWhenDisabled
-              icon={Route}
-              onClick={() => onSuggest(nearestNextOrder(points, start))}
-              size="sm"
-              title={suggestable ? copy.suggestHint : copy.suggestMissing}
-              variant="secondary"
-            >
-              {copy.suggest}
-            </Button>
-          </div>
-        ) : null}
       </header>
+
+      {dropHint || receiving > 0 ? (
+        <p className="tour-lane-drop" data-testid="tour-lane-drop">
+          {dropHint ?? `${stopCount(receiving)} ${copy.moving}`}
+        </p>
+      ) : null}
 
       {count === 0 ? (
         <p className="tour-lane-empty">
@@ -1099,6 +1353,8 @@ function Lane({
                   key={id}
                   last={index === ids.length - 1}
                   movable={movable}
+                  moving={Boolean(moving?.ids.has(id))}
+                  onChangeDriver={(anchor) => onChangeDriver(id, anchor)}
                   onMove={(direction) => onMove(id, direction)}
                   onPlacePin={() => onPlacePin(id)}
                   onToggleSelected={() => onToggleSelected(id)}
@@ -1120,7 +1376,9 @@ function Lane({
             >
               <div className="tour-lane-window-head">
                 <h3>{deliveryTimeRange(window, zone)} Uhr</h3>
-                <span className="small muted num">{stopCount(ids.length)}</span>
+                <span className="small muted num" data-testid="tour-load">
+                  {windowLoad(ids.map((id) => stops.get(id)!.drop))}
+                </span>
                 {window.closed ? (
                   <span className="stamp tone-ok">{copy.closed}</span>
                 ) : null}
@@ -1149,6 +1407,8 @@ function StopRow({
   first,
   last,
   movable,
+  moving,
+  onChangeDriver,
   onMove,
   onPlacePin,
   onToggleSelected,
@@ -1164,7 +1424,10 @@ function StopRow({
   readonly last: boolean;
   /** Draggable: to another column, and inside the window when orderable. */
   readonly movable: boolean;
+  /** On its way to another column: the save runs. */
+  readonly moving: boolean;
   readonly orderable: boolean;
+  readonly onChangeDriver: (anchor: HTMLButtonElement) => void;
   readonly onMove: (direction: -1 | 1) => void;
   readonly onToggleSelected: () => void;
   readonly onPlacePin: () => void;
@@ -1205,6 +1468,7 @@ function StopRow({
         "row tour-stop",
         selected && choosable && "is-checked",
         drop.state !== "open" && "is-done",
+        moving && "is-moving",
       )}
       data-commitment-id={drop.commitmentId}
       data-testid="tour-stop"
@@ -1256,21 +1520,11 @@ function StopRow({
           {drop.address?.streetLine1 ?? "Keine Lieferadresse"} ·{" "}
           {dropQuantities(drop)}
         </span>
+        {moving ? (
+          <span className="tour-stop-moving">{copy.moving}</span>
+        ) : null}
         <DriverNote className="tour-stop-note" drop={drop} />
       </label>
-      {/* Ruling 18: a pin that is there can move; the click writes a manual pin. */}
-      {stop.lat !== null && stop.lon !== null ? (
-        <IconButton
-          aria-pressed={placing}
-          className="tour-stop-move-pin"
-          data-testid="tour-move-pin"
-          icon={MapPin}
-          label={`${copy.movePin}: ${name}`}
-          onClick={onPlacePin}
-          size="sm"
-          variant={placing ? "primary" : "ghost"}
-        />
-      ) : null}
       {drop.address && (stop.lat === null || stop.lon === null) ? (
         <span className="tour-stop-pin" data-testid="tour-stop-no-pin">
           <span className="small">{copy.notFound}</span>
@@ -1287,10 +1541,39 @@ function StopRow({
           </Button>
         </span>
       ) : null}
-      {orderable ? (
-        <span className="tour-stop-tools">
+      {/* The row's tools: quiet until the row is pointed at or focused
+          (always there on touch), so a column reads as a list of stops. */}
+      {choosable || orderable ? (
+        <span className={cn("tour-stop-tools", placing && "is-active")}>
+          {choosable ? (
+            <IconButton
+              aria-haspopup="dialog"
+              data-testid="tour-change-driver"
+              disabled={busy}
+              focusableWhenDisabled
+              icon={UserRoundPen}
+              label={`${copy.changeDriver}: ${name}`}
+              onClick={(event: MouseEvent<HTMLButtonElement>) =>
+                onChangeDriver(event.currentTarget)
+              }
+              size="sm"
+            />
+          ) : null}
+          {/* Ruling 18: a pin that is there can move; the click writes a manual pin. */}
+          {stop.lat !== null && stop.lon !== null ? (
+            <IconButton
+              aria-pressed={placing}
+              className="tour-stop-move-pin"
+              data-testid="tour-move-pin"
+              icon={MapPin}
+              label={`${copy.movePin}: ${name}`}
+              onClick={onPlacePin}
+              size="sm"
+              variant={placing ? "primary" : "ghost"}
+            />
+          ) : null}
           {/* No arrow at a window edge: nothing to reach or to focus. */}
-          {first ? (
+          {!orderable ? null : first ? (
             <span aria-hidden="true" className="tour-stop-tools-space" />
           ) : (
             <IconButton
@@ -1306,7 +1589,7 @@ function StopRow({
               size="sm"
             />
           )}
-          {last ? (
+          {!orderable ? null : last ? (
             <span aria-hidden="true" className="tour-stop-tools-space" />
           ) : (
             <IconButton

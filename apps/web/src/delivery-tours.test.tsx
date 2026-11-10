@@ -353,9 +353,17 @@ function stackLayout() {
           y: top,
           toJSON: () => ({}),
         }) as DOMRect;
-      const lane = this.closest("[data-lane]");
+      // The ghost of a drag starts where its row is (dnd-kit places the
+      // overlay on the row's rectangle; jsdom has no layout to do that).
+      const ghost =
+        this.matches('[data-testid="tour-drag-ghost"]') ||
+        this.firstElementChild?.matches('[data-testid="tour-drag-ghost"]');
+      const source = ghost
+        ? document.querySelector(".tour-stop[data-dragging]")
+        : null;
+      const lane = (source ?? this).closest("[data-lane]");
       const left = Math.max(0, lanes.indexOf(lane as Element)) * 400;
-      const row = this.closest(".tour-stop");
+      const row = (source ?? this).closest(".tour-stop");
       if (row && lane) {
         const rows = [...lane.querySelectorAll(".tour-stop")];
         return rect(left, 100 + rows.indexOf(row) * 60, 56);
@@ -413,19 +421,25 @@ describe("Touren planner", () => {
     const [early, late] = within(anna).getAllByTestId("tour-window");
     expect(names(early!)).toEqual(["Bäckerei Kern", "Autohaus Nord"]);
     expect(names(late!)).toEqual(["Praxis Süd"]);
-    // The load per window instead of first and last stop.
+    // The load of each window stands in its own head.
     expect(
-      within(within(anna).getByTestId("tour-load"))
-        .getAllByRole("listitem")
+      within(anna)
+        .getAllByTestId("tour-load")
         .map((item) => item.textContent),
-    ).toEqual(["08–10: 2 Stopps, 6 Boxen", "10–12: 1 Stopp, 3 Boxen"]);
+    ).toEqual(["2 Stopps, 6 Boxen", "1 Stopp, 3 Boxen"]);
     // No coordinates yet: no length at all.
     expect(within(anna).queryByTestId("tour-length")).toBeNull();
-    // One hint line; no save button (every move saves).
+    // The rule stays in the page hint; no save button (every move saves).
     expect(screen.getByTestId("tour-plan-hint").textContent).toContain(
-      "Wählen Sie Stopps aus",
+      "Sortiert wird nur innerhalb eines Lieferfensters",
     );
     expect(within(anna).queryByTestId("tour-save-order")).toBeNull();
+    // Stops without a driver: one next step that says both ways to assign.
+    const nextStep = screen.getByTestId("tour-next-step");
+    expect(nextStep.textContent).toContain(
+      "2 Stopps haben noch keinen Fahrer.",
+    );
+    expect(nextStep.textContent).toContain("am Griff in dessen Spalte ziehen");
 
     const ben = column("ben");
     expect(within(ben).getByTestId("tour-count").textContent).toBe("0");
@@ -469,11 +483,9 @@ describe("Touren planner", () => {
     );
     expect(rows[0]!.classList.contains("is-done")).toBe(true);
     expect(rows[1]!.classList.contains("is-done")).toBe(false);
-    expect(
-      within(within(column("anna")).getByTestId("tour-load")).getByRole(
-        "listitem",
-      ).textContent,
-    ).toBe("08–10: 2 Stopps, 30 Stk");
+    expect(within(column("anna")).getByTestId("tour-load").textContent).toBe(
+      "2 Stopps, 30 Stk",
+    );
   });
 
   it("an empty Nicht zugeordnet says all stops are assigned", async () => {
@@ -660,6 +672,10 @@ describe("Touren planner", () => {
       "Praxis Süd",
     ]);
     expect(client.assignDeliveryDriver).not.toHaveBeenCalled();
+    // The refused drop says why instead of doing nothing.
+    expect(
+      await screen.findByText(/Der Stopp bleibt im Lieferfenster 08–10 Uhr/),
+    ).toBeTruthy();
 
     // Inside the window the keyboard move works.
     await keyboardMove(anna, "Bäckerei Kern", "ArrowDown");
@@ -699,6 +715,80 @@ describe("Touren planner", () => {
       }),
     );
     expect(client.saveDeliveryTourOrder).not.toHaveBeenCalled();
+  });
+
+  it("Rückgängig on the assignment toast gives the stop back to its column", async () => {
+    stackLayout();
+    const client = fakeClient(dayTours());
+    await renderPlanner(client);
+    // Bäckerei Kern (Anna) to the right: onto Ben's empty column.
+    await keyboardMove(column("anna"), "Bäckerei Kern", "ArrowRight");
+    await waitFor(() =>
+      expect(client.assignDeliveryDriver).toHaveBeenCalledWith(actionId, {
+        commitmentIds: ["c1"],
+        driverUserId: "ben",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Rückgängig" }));
+    await waitFor(() =>
+      expect(client.assignDeliveryDriver).toHaveBeenLastCalledWith(actionId, {
+        commitmentIds: ["c1"],
+        driverUserId: "anna",
+      }),
+    );
+    expect(await screen.findByText("Zuordnung zurückgenommen.")).toBeTruthy();
+  });
+
+  it("Fahrer ändern on a row assigns that one stop", async () => {
+    const client = fakeClient(dayTours());
+    await renderPlanner(client);
+    fireEvent.click(
+      within(column("anna")).getByRole("button", {
+        name: "Fahrer ändern: Praxis Süd",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("option", { name: /Fahrer Ben/ }));
+    await waitFor(() =>
+      expect(client.assignDeliveryDriver).toHaveBeenCalledWith(actionId, {
+        commitmentIds: ["c3"],
+        driverUserId: "ben",
+      }),
+    );
+    // Nothing was ticked for it.
+    expect(screen.queryByText(/ausgewählt/)).toBeNull();
+  });
+
+  it("the next step selects every stop without a driver", async () => {
+    const client = fakeClient(dayTours());
+    await renderPlanner(client);
+    fireEvent.click(screen.getByTestId("tour-select-waiting"));
+    expect(screen.getByText("2 ausgewählt")).toBeTruthy();
+    // The band made room for the selection bar and its one action.
+    expect(screen.queryByTestId("tour-next-step")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Fahrer zuordnen" }),
+    ).toBeTruthy();
+  });
+
+  it("Karte switches the map off and on and remembers the choice", async () => {
+    window.localStorage.removeItem("leonaid.tours.map");
+    const client = fakeClient(dayTours());
+    await renderPlanner(client);
+    const toggle = screen.getByTestId("tour-map-toggle");
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByTestId("tour-plan-map")).toBeTruthy();
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    expect(screen.queryByTestId("tour-plan-map")).toBeNull();
+    expect(window.localStorage.getItem("leonaid.tours.map")).toBe("0");
+
+    // Setting a pin needs the map: it comes back for that.
+    fireEvent.click(
+      within(screen.getAllByTestId("tour-stop-no-pin")[0]!).getByRole("button"),
+    );
+    expect(screen.getByTestId("tour-plan-map")).toBeTruthy();
+    window.localStorage.removeItem("leonaid.tours.map");
   });
 
   it("driver order banner shows time; verwerfen calls discard", async () => {
