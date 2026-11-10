@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
-from datetime import date
+from datetime import date, datetime, timezone
 
 import hashlib
 import json
@@ -14,6 +14,7 @@ from uuid import UUID, uuid4
 import asyncpg
 
 from leonaid.adapters.postgres.action_progress import AsyncpgCommandReceiptRepository
+from leonaid.adapters.postgres.push import enqueue_push
 from leonaid.application.errors import (
     ApplicationError,
     AuthenticationRequired,
@@ -22,6 +23,7 @@ from leonaid.application.errors import (
     ResourceNotFound,
 )
 from leonaid.domain.identity import IdentityPrincipal
+from leonaid.domain.push import PushKind
 from leonaid.modules.tasks.api import (
     ActionContext,
     ActionContexts,
@@ -1136,6 +1138,27 @@ class AsyncpgTaskRepository:
                 )
             await self._list(conn, command.assignee_user_id, list_id, write=False)
 
+    @staticmethod
+    async def _announce_assignment(
+        conn: asyncpg.Connection[Any],
+        actor: IdentityPrincipal,
+        assignee_user_id: UUID | None,
+        *,
+        previous: UUID | None,
+    ) -> None:
+        """A push for a task that now belongs to someone else (spec
+        mails-documents-donations-push §10); a retried command is a replay
+        and never gets here."""
+        if assignee_user_id is None or assignee_user_id == previous:
+            return
+        await enqueue_push(
+            conn,
+            user_ids=[assignee_user_id],
+            kind=PushKind.TASKS,
+            occurred_at=datetime.now(timezone.utc),
+            except_user_id=actor.account.id,
+        )
+
     async def create_task(
         self, actor: IdentityPrincipal, list_id: UUID, command: CreateTask
     ) -> Task:
@@ -1184,6 +1207,9 @@ class AsyncpgTaskRepository:
                 list_id,
             )
             result = Task.model_validate(_task_data(row))
+            await self._announce_assignment(
+                conn, actor, command.assignee_user_id, previous=None
+            )
             await self._finish(
                 conn,
                 key=key,
@@ -1262,6 +1288,12 @@ class AsyncpgTaskRepository:
                 position,
             )
             assert updated is not None
+            await self._announce_assignment(
+                conn,
+                actor,
+                command.assignee_user_id,
+                previous=row["assignee_user_id"],
+            )
             if epic_changed:
                 await conn.execute(
                     "UPDATE task_list SET order_revision=order_revision+1 WHERE id=$1",

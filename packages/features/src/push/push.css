@@ -1,0 +1,62 @@
+/* "Benachrichtigungen" of the acquisition app (push/push-notifications.tsx). */
+.push {
+  display: grid;
+  gap: var(--s-4);
+  max-width: 40rem;
+}
+.push-head .pwa-h1 {
+  margin-bottom: var(--s-1);
+}
+.push-head p,
+.push-step p,
+.push-privacy {
+  margin: 0;
+  color: var(--text-2);
+}
+.push-step {
+  display: grid;
+  gap: var(--s-3);
+  justify-items: start;
+}
+.push-step h2 {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.push-note,
+.push-privacy {
+  font-size: var(--fs-sm);
+}
+.push-steps {
+  margin: var(--s-2) 0 0;
+  padding-left: var(--s-5);
+}
+.push-kinds ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.push-kinds li {
+  padding: var(--s-3) var(--s-5);
+  border-bottom: var(--hair) solid var(--border);
+}
+.push-kinds li:last-child {
+  border-bottom: 0;
+}
+.push-kinds .switch-row {
+  font-weight: var(--fw-semibold);
+}
+.push-kinds li p,
+.push-empty {
+  margin: var(--s-1) 0 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.push-empty {
+  padding: var(--s-3) var(--s-5);
+}
+.push-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}

@@ -162,6 +162,22 @@ playwright --config=tests/e2e/pwa.config.mjs pwa.spec.mjs \
   --output=/proof/test-results-matrix
 playwright tests/e2e/pwa-audit.spec.mjs --browser=chromium \
   --output=/proof/test-results-audit
+
+# Push notifications (specs/mails-documents-donations-push §10): the page
+# and the service worker's handlers in Chromium, whose DevTools protocol
+# delivers a synthetic push. The flag is on only for its own tests; "flag
+# off" runs before it is switched on.
+push_flag() {
+  printf "UPDATE feature_flag SET enabled = %s, revision = revision + 1 WHERE key = 'pwa.push';\n" "$1" |
+    compose exec -T core-postgres sh -ec \
+      'psql -v ON_ERROR_STOP=1 -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+}
+playwright tests/e2e/pwa-push.spec.mjs --browser=chromium \
+  --grep "flag off" --output=/proof/test-results-push-off
+push_flag true
+playwright tests/e2e/pwa-push.spec.mjs --browser=chromium \
+  --grep-invert "flag off" --output=/proof/test-results-push
+push_flag false
 fi
 
 if [ -n "$offline_browsers" ]; then
@@ -298,7 +314,7 @@ if [ "$ui" = true ]; then
   evidence="pwa-list-chromium-390.png pwa-list-chromium-768.png
     pwa-list-chromium-1440.png pwa-list-firefox-390.png pwa-list-webkit-390.png
     pwa-empty-chromium-390.png pwa-update-chromium.png pwa-offline-chromium.png
-    pwa-error-chromium-390.png"
+    pwa-error-chromium-390.png pwa-push-chromium-390.png"
 fi
 if [ -n "$offline_browsers" ]; then
   for browser in $offline_browsers; do
@@ -321,3 +337,6 @@ cp "$proof"/pwa-*.png "$root/.artifacts/poc062/"
 
 echo "pwa-test: OK ($mode): PWA, real visibility boundaries, contacts, 5 browser/viewport projects,"
 echo "pwa-test:     a11y, text scaling, touch, offline, update, empty and outage states proven"
+if [ "$ui" = true ]; then
+  echo "pwa-test:     push page and service worker push handlers with a synthetic push (no vendor push service)"
+fi

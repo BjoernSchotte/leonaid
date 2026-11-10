@@ -94,9 +94,9 @@ services:
   worker:
     image: ${LEONAID_CORE_IMAGE:?LEONAID_CORE_IMAGE is missing}
     build: !reset null
-    # Every network of the base stack is internal. The external SMTP relay
-    # and the geocoder are only reachable through this dedicated egress
-    # network.
+    # Every network of the base stack is internal. The external SMTP relay,
+    # the geocoder and the push services of the browser vendors (ADR-0017)
+    # are only reachable through this dedicated egress network.
     networks:
       - mail-egress
     environment:

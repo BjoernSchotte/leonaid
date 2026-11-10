@@ -65,7 +65,22 @@ GOLDEN_MEMBER_PRIVACY_NOTICE = (
     "## Speicherung auf deinem Gerät\n\n"
     "Die Akquise-App speichert die Kontaktdaten deiner eigenen Sponsoren "
     "verschlüsselt auf deinem Gerät, höchstens 14 Tage. Beim Abmelden "
-    "löscht sie alles."
+    "löscht sie alles.\n\n"
+    # specs/mails-documents-donations-push, Appendix A.4 (P4), in the "Du"
+    # of the members' notice. LEGAL REVIEW PENDING for a real club.
+    "## Benachrichtigungen auf deinem Gerät\n\n"
+    "Schaltest du in der App Benachrichtigungen ein, speichert LeonAid für "
+    "dein Gerät eine Adresse des Benachrichtigungsdienstes deines Browsers "
+    "oder Betriebssystems (Google, Apple, Mozilla oder Microsoft) und zwei "
+    "Schlüssel. Über diesen Dienst senden "
+    "wir verschlüsselte Hinweise, zum Beispiel „3 Wiedervorlagen sind "
+    "fällig“. Die Hinweise enthalten keine Namen, Adressen oder Beträge. "
+    "Der Dienst erfährt, dass und wann dein Gerät einen Hinweis von LeonAid "
+    "erhält, aber nicht dessen Inhalt. Rechtsgrundlage ist deine "
+    "Einwilligung (Art. 6 Abs. 1 Buchst. a DSGVO). Du kannst sie jederzeit "
+    "in der App unter „Benachrichtigungen“ widerrufen; LeonAid löscht die "
+    "Adresse dann sofort. Sie wird auch gelöscht, wenn du dich auf dem "
+    "Gerät abmeldest oder der Dienst sie als ungültig meldet."
 )
 GOLDEN_ASSIGNMENT_CHANGED_AT = datetime(
     2026,
