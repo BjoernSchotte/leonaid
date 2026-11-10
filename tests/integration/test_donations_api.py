@@ -38,7 +38,9 @@ from leonaid.adapters.postgres.dashboard import AsyncpgDashboardRepository
 from leonaid.adapters.postgres.donation_receipts import (
     AsyncpgDonationReceiptRepository,
 )
+from leonaid.adapters.mail.invoice_smtp import InvoiceSmtpHandler
 from leonaid.adapters.postgres.donations import AsyncpgDonationRepository
+from leonaid.application.outbox import ClaimedOutboxEvent
 from leonaid.adapters.postgres.invoice_deliveries import (
     AsyncpgInvoiceDeliveryRepository,
 )
@@ -1568,9 +1570,16 @@ class Proof:
         assert state["void"]["reason"] == "Anschrift des Spenders war falsch"
         assert state["void"]["evidence"] == "original_returned"
         assert state["void"]["voidedByDisplayName"] == f"Charity {self.data.tag}"
-        # The PDF and the delivery stay.
+        # The PDF stays. The mail that was still queued is ended with the
+        # void: it never goes out, and it cannot be started again.
         assert state["document"]["status"] == "available"
         assert len(state["deliveries"]) == 1
+        ended = state["deliveries"][0]
+        assert ended["status"] == "failed", ended
+        assert ended["lastErrorCode"] == "delivery_withdrawn"
+        assert ended["canRetry"] is False
+        assert ended["sentAt"] is None
+        assert await self.job_status(UUID(ended["id"])) == "completed"
         self.error(
             await self.charity.post(void, body, self.key()),
             422,
@@ -1631,17 +1640,7 @@ class Proof:
             raise AssertionError("a void receipt became valid again")
         # After the valid receipt is void too, the payment can be taken back,
         # and a donation without payment gets no receipt.
-        second_void = await self.charity.post(
-            self.path(
-                self.data.alpha, "receipted", f"/receipts/{receipts[0]['id']}/void"
-            ),
-            {
-                "reason": "Zahlung gehörte zu einer anderen Spende",
-                "evidence": "tax_office_informed",
-            },
-            self.key(),
-        )
-        assert second_void.status_code == 201, second_void.text
+        await self.a_void_receipt_is_never_mailed(receipts[0])
         withdrawn = await self.charity.post(
             self.path(self.data.alpha, "receipted", "/payment/withdrawal"),
             {"reason": REASON},
@@ -1656,6 +1655,143 @@ class Proof:
             "donation_receipt_requires_payment",
         )
         assert await self.next_receipt_number() == 3
+
+    async def a_void_receipt_is_never_mailed(self, receipt: dict[str, Any]) -> None:
+        """One mail of the receipt failed for good, a second one is on its
+        way, and the worker is sending it while the receipt is declared void.
+        The void waits for that mail; every other job ends without one."""
+
+        base = self.path(self.data.alpha, "receipted", f"/receipts/{receipt['id']}")
+        await self.make_document_available(
+            UUID(receipt["document"]["id"]), "Zuwendungsbestaetigung.pdf"
+        )
+        first = await self.charity.post(f"{base}/deliveries", None, self.key())
+        assert first.status_code == 201, first.text
+        failed_id = UUID(first.json()["id"])
+        await self.dead_letter(failed_id)
+        second = await self.charity.post(f"{base}/deliveries", None, self.key())
+        assert second.status_code == 201, second.text
+        queued_id = UUID(second.json()["id"])
+        record = await self.record("receipted")
+        assert {
+            item["id"]: item["canRetry"] for item in record["receipts"][0]["deliveries"]
+        } == {str(failed_id): True, str(queued_id): False}
+
+        pool = await asyncpg.create_pool(
+            os.environ["CORE_DATABASE_URL"], min_size=1, max_size=2
+        )
+        try:
+            deliveries = AsyncpgInvoiceDeliveryRepository(pool)
+            # The worker is in the middle of sending the queued mail.
+            sending = deliveries.sending(queued_id)
+            assert await sending.__aenter__() is True
+            void = asyncio.create_task(
+                self.charity.post(
+                    f"{base}/void",
+                    {
+                        "reason": "Zahlung gehörte zu einer anderen Spende",
+                        "evidence": "tax_office_informed",
+                    },
+                    self.key(),
+                )
+            )
+            await asyncio.sleep(0.5)
+            # The void waits: the receipt is valid until that mail is out.
+            assert not void.done(), "the void did not wait for the mail on its way"
+            await sending.__aexit__(None, None, None)
+            voided = await void
+            assert voided.status_code == 201, voided.text
+            state = voided.json()["receipts"][0]
+            assert state["void"]["evidence"] == "tax_office_informed"
+            # Both resting jobs ended with the void: none is a dead letter
+            # that stays, none can be started again.
+            assert await self.job_status(failed_id) == "completed"
+            assert await self.job_status(queued_id) == "completed"
+            assert [
+                (item["status"], item["lastErrorCode"], item["canRetry"])
+                for item in state["deliveries"]
+            ] == [("failed", "delivery_withdrawn", False)] * 2
+            audit = await self.db.fetchval(
+                "SELECT payload ->> 'endedDeliveries' FROM audit_event "
+                "WHERE event_type = 'donation_receipt_voided' "
+                "AND payload ->> 'receiptId' = $1",
+                receipt["id"],
+            )
+            assert audit == "2"
+
+            # A job the worker claimed before the void: the worker looks at
+            # the receipt right before it sends, and sends nothing.
+            async with deliveries.sending(queued_id) as may_send:
+                assert may_send is False
+            event = await self.db.fetchrow(
+                "SELECT event.* FROM outbox_event AS event "
+                "JOIN invoice_delivery AS delivery "
+                "ON delivery.outbox_event_id = event.id WHERE delivery.id = $1",
+                queued_id,
+            )
+            assert event is not None
+
+            class NoMail:
+                """Any use of storage or SMTP is a mail that must not go."""
+
+                def __getattr__(self, name: str) -> Any:
+                    raise AssertionError(f"a void receipt reached the mail: {name}")
+
+            await InvoiceSmtpHandler(
+                repository=deliveries,
+                storage=NoMail(),  # type: ignore[arg-type]
+                transport=NoMail(),  # type: ignore[arg-type]
+            ).handle(
+                ClaimedOutboxEvent(
+                    id=event["id"],
+                    aggregate_type=str(event["aggregate_type"]),
+                    aggregate_id=event["aggregate_id"],
+                    event_type=str(event["event_type"]),
+                    idempotency_key=str(event["idempotency_key"]),
+                    payload=json.loads(event["payload"]),
+                    attempts=1,
+                    claim_token=uuid4(),
+                    claimed_by="proof",
+                )
+            )
+            assert (
+                await self.db.fetchval(
+                    "SELECT count(*) FROM mail_delivery WHERE outbox_event_id = $1",
+                    event["id"],
+                )
+                == 0
+            )
+            # The same handler does send a mail of a valid document: it
+            # reaches the storage (and fails on this double).
+            pledge_delivery = await self.db.fetchval(
+                "SELECT delivery.id FROM invoice_delivery AS delivery "
+                "JOIN generated_document AS document "
+                "ON document.id = delivery.generated_document_id "
+                "WHERE document.document_type = 'donation_pledge_pdf' "
+                "AND document.status = 'available' LIMIT 1"
+            )
+            async with deliveries.sending(pledge_delivery) as may_send:
+                assert may_send is True
+        finally:
+            await pool.close()
+
+        # A job that failed after the void (the worker held it then) cannot
+        # be started again either.
+        await self.dead_letter(failed_id)
+        retry = self.path(
+            self.data.alpha, "receipted", f"/pledge/deliveries/{failed_id}/retry"
+        )
+        self.error(await self.charity.post(retry, None), 409, "donation_receipt_void")
+        assert await self.job_status(failed_id) == "dead_letter"
+        record = await self.record("receipted")
+        assert all(
+            item["canRetry"] is False for item in record["receipts"][0]["deliveries"]
+        )
+        self.error(
+            await self.charity.post(f"{base}/deliveries", None, self.key()),
+            409,
+            "donation_receipt_void",
+        )
 
     async def another_legal_entity_cannot_confirm_the_donation(self) -> None:
         """The legal configuration now names another body than the one the

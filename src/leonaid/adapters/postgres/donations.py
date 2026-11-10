@@ -1247,6 +1247,23 @@ class AsyncpgDonationRepository:
                         "Dieser Versand wurde bereits bestätigt und wird nicht "
                         "noch einmal zugestellt.",
                     )
+                if str(row["document_type"]) == "donation_receipt_pdf":
+                    # A receipt declared void is never mailed, whatever
+                    # state its job is in.
+                    if await connection.fetchval(
+                        """
+                        SELECT voided_at IS NOT NULL FROM donation_receipt
+                        WHERE donation_id = $1 AND document_version = $2
+                        FOR SHARE
+                        """,
+                        donation_id,
+                        int(row["version"]),
+                    ):
+                        raise Conflict(
+                            "donation_receipt_void",
+                            "Eine für ungültig erklärte Zuwendungsbestätigung "
+                            "wird nicht versendet.",
+                        )
                 if str(row["status"]) != "dead_letter":
                     raise Conflict(
                         "invoice_delivery_not_retryable",

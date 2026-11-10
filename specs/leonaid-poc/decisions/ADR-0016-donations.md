@@ -194,7 +194,13 @@ Eine Bestätigung ist unveränderlich. „Für ungültig erklären“ verlangt e
 Grund und die Angabe, was mit dem Original beim Spender geschehen ist: Es
 liegt wieder vor, oder das Finanzamt des Spenders ist informiert. Ohne eine
 der beiden Angaben gibt es kein Ungültig-Erklären und damit keine neue
-Bestätigung. Das PDF bleibt gespeichert. Danach kann eine neue Bestätigung
+Bestätigung. Das PDF bleibt gespeichert. Eine ungültige Bestätigung wird nie
+mehr versendet: Das Ungültig-Erklären beendet in derselben Transaktion jeden
+ruhenden Versandauftrag ihres PDFs (wartend oder endgültig fehlgeschlagen),
+der Neustart eines Versands wird abgelehnt (`donation_receipt_void`), und der
+Mail-Worker prüft die Bestätigung unmittelbar vor dem Senden. Er hält sie
+dabei gegen eine Änderung fest: Ein Ungültig-Erklären während des Sendens
+wartet, bis die E-Mail verbucht ist. Danach kann eine neue Bestätigung
 mit der nächsten Nummer ausgestellt werden. Solange eine gültige Bestätigung
 besteht, lässt sich die Zahlung der Spende nicht zurücknehmen.
 
