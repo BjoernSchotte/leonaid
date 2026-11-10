@@ -216,7 +216,11 @@ pilot-create-system-admin` an (Anmeldemail, kein Passwort).
     AO allows (`donation_receipt_notice_expired`). The amount in words covers
     0 to 999,999,999 euro.
   - A privacy erasure lists the donations of the subject and keeps them, as
-    it keeps issued invoices.
+    it keeps issued invoices. The lookup goes by e-mail address: it finds a
+    donation by the donor's address, by the order it came with, or by the
+    donor's CRM party when that party has an order or a consent record under
+    the address. A donor recorded as free text without an e-mail address is
+    not found; look such a donor up by name on the page "Spenden".
   - Re-seeding the golden data deletes every donation of the installation,
     because it replaces the legal configuration they point at.
   - The wording blocks are proposals ("LEGAL REVIEW PENDING",

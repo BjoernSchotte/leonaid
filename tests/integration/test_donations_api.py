@@ -1184,6 +1184,7 @@ class Proof:
             UUID(donation["id"]),
         )
         assert after == before
+        await self.a_donor_without_an_email_address_is_found()
         # A subject without a donation gets no such reason.
         unknown = await system.post(
             "/api/v1/admin/privacy/lookup",
@@ -1191,6 +1192,63 @@ class Proof:
         )
         assert unknown.status_code == 200, unknown.text
         assert unknown.json()["found"] is False
+
+    async def a_donor_without_an_email_address_is_found(self) -> None:
+        """The donor's e-mail is optional. A donation without one is found
+        through the CRM party of the donor, when the subject's address is
+        known for that party."""
+
+        system = self.sessions["system"]
+        company = uuid4()
+        email = f"partei.{self.data.tag.lower()}@donor.leonaid.invalid"
+        body = self.draft("crm_donor", email=False)
+        body["donor"] = {
+            **body["donor"],  # type: ignore[dict-item]
+            "partyKind": "company",
+            "twentyId": str(company),
+        }
+        created = await self.charity.post(self.path(self.data.alpha), body, self.key())
+        assert created.status_code == 201, created.text
+        donation = created.json()
+        assert donation["donor"]["email"] is None
+        unknown = await system.post("/api/v1/admin/privacy/lookup", {"email": email})
+        assert unknown.status_code == 200, unknown.text
+        assert unknown.json()["found"] is False
+        # The club knows this address for the same CRM party.
+        await self.db.execute(
+            """
+            INSERT INTO consent_record (
+                id, action_id, commitment_id, twenty_company_id,
+                twenty_person_id, normalized_recipient, purpose, channel,
+                text_version, source, evidence_kind, legal_basis_status,
+                granted_at
+            )
+            VALUES ($1, $2, NULL, $3, NULL, $4, 'acquisition', 'email',
+                    'donation-proof-v1', 'acquisition_contact',
+                    'notice_acknowledgement', 'legal_review_pending',
+                    CURRENT_TIMESTAMP)
+            """,
+            uuid4(),
+            self.data.alpha,
+            company,
+            email,
+        )
+        found = await system.post("/api/v1/admin/privacy/lookup", {"email": email})
+        assert found.status_code == 200, found.text
+        references = [
+            item
+            for item in found.json()["references"]
+            if item["referenceType"] == "donation"
+        ]
+        assert [item["id"] for item in references] == [donation["id"]], references
+        erased = await system.post(
+            "/api/v1/admin/privacy/erasures", {"email": email, "confirmation": email}
+        )
+        assert erased.status_code == 200, erased.text
+        assert any(
+            "Spenden und ihre Dokumente" in item
+            for item in erased.json()["retentionReasons"]
+        )
 
     async def the_capability_stays_while_donations_exist(self) -> None:
         """Without the capability the donations of an action, their pledges
