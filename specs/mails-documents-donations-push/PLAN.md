@@ -85,16 +85,16 @@ arrive; a mail to a buyer after erasure; a second mail by a retry storm.
 
 ## 4. Terms
 
-| Term                 | Meaning                                                                                                                                        |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Order number         | `commitment.public_reference` (`LA-…`), from now on for every order.                                                                           |
-| Buyer mail           | A plain-text mail to the buyer of one order: confirmation, cancellation notice, delivery day.                                                  |
-| Document series      | A gapless counter for one kind of document and one prefix, for the whole installation.                                                         |
+| Term | Meaning |
+|---|---|
+| Order number | `commitment.public_reference` (`LA-…`), from now on for every order. |
+| Buyer mail | A plain-text mail to the buyer of one order: confirmation, cancellation notice, delivery day. |
+| Document series | A gapless counter for one kind of document and one prefix, for the whole installation. |
 | Cancellation invoice | "Stornorechnung": a document with its own number from the invoice series, negative amounts, and the number and date of the invoice it cancels. |
-| Donation             | Money given without anything in return, for the purpose of the action.                                                                         |
-| Donation pledge      | "Spendenzusage": the numbered document that asks the donor to pay the donation. Not an invoice.                                                |
-| Donation receipt     | "Zuwendungsbestätigung" after § 10b EStG, issued for money received.                                                                           |
-| Receiving body       | The tax-privileged body that receives donations and signs receipts (often the club's "Förderverein").                                          |
+| Donation | Money given without anything in return, for the purpose of the action. |
+| Donation pledge | "Spendenzusage": the numbered document that asks the donor to pay the donation. Not an invoice. |
+| Donation receipt | "Zuwendungsbestätigung" after § 10b EStG, issued for money received. |
+| Receiving body | The tax-privileged body that receives donations and signs receipts (often the club's "Förderverein"). |
 
 ## 5. Foundations (stage 1 and stage 3)
 
@@ -151,12 +151,12 @@ the sentence:
 New settings row `action_buyer_mail_configuration`, one per action, created
 with the action and by migration for existing ones:
 
-| Column                   | Default | Meaning                                                                               |
-| ------------------------ | ------- | ------------------------------------------------------------------------------------- |
-| `internal_order_mails`   | false   | Confirmation and cancellation notice for orders with source `acquisition` or `admin`. |
-| `delivery_day_mail`      | false   | The delivery-day mail, for orders of every source.                                    |
-| `delivery_day_send_time` | 07:00   | Local time of the action (`action_delivery_configuration.timezone`). 05:00–12:00.     |
-| `revision`               | 1       | Optimistic lock.                                                                      |
+| Column | Default | Meaning |
+|---|---|---|
+| `internal_order_mails` | false | Confirmation and cancellation notice for orders with source `acquisition` or `admin`. |
+| `delivery_day_mail` | false | The delivery-day mail, for orders of every source. |
+| `delivery_day_send_time` | 07:00 | Local time of the action (`action_delivery_configuration.timezone`). 05:00–12:00. |
+| `revision` | 1 | Optimistic lock. |
 
 - Mails for public-form orders stay as they are: always sent, not behind a
   switch (D-M1).
@@ -311,17 +311,17 @@ the donor's name and address go to it (§13, P6).
 
 `donation`:
 
-| Field                                           | Notes                                                                                 |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `id`, `action_id`                               |                                                                                       |
-| `number`                                        | From the `donation` series, when the receiving body is configured. Unique.            |
-| `donor_snapshot`                                | Name, street, postal code, city, country, e-mail (optional), CRM party id (optional). |
-| `pledged_minor`, `currency`                     | `> 0`, EUR. What the donor promised.                                                  |
-| `received_minor`, `received_on`, `payment_note` | Null until the payment is recorded. One payment per donation (D-D7).                  |
-| `source`                                        | `public_form`, `admin`, `acquisition`.                                                |
-| `commitment_id`                                 | Set when the donation came with an order.                                             |
-| `status`                                        | `pledged`, `paid`, `cancelled`.                                                       |
-| `pledged_at`, `created_by`                      |                                                                                       |
+| Field | Notes |
+|---|---|
+| `id`, `action_id` | |
+| `number` | From the `donation` series, when the receiving body is configured. Unique. |
+| `donor_snapshot` | Name, street, postal code, city, country, e-mail (optional), CRM party id (optional). |
+| `pledged_minor`, `currency` | `> 0`, EUR. What the donor promised. |
+| `received_minor`, `received_on`, `payment_note` | Null until the payment is recorded. One payment per donation (D-D7). |
+| `source` | `public_form`, `admin`, `acquisition`. |
+| `commitment_id` | Set when the donation came with an order. |
+| `status` | `pledged`, `paid`, `cancelled`. |
+| `pledged_at`, `created_by` | |
 
 Payment: "Zahlung erfassen" records the day and the amount that arrived,
 once. The amount may differ from the pledge in either direction; the
@@ -431,7 +431,7 @@ cancelling need a fresh login. Audit events for every write.
 ## 9. Sponsors in the search (stage 7)
 
 - Table `sponsor_search_entry(party_kind, twenty_id, display_name, city,
-synced_at)`, primary key `(party_kind, twenty_id)`. Nothing else: no
+  synced_at)`, primary key `(party_kind, twenty_id)`. Nothing else: no
   e-mail, phone or street (D-S1).
 - Filled only for parties that have an `acquisition_assignment`:
   - on assignment creation, with the name core already holds from the
@@ -441,9 +441,9 @@ synced_at)`, primary key `(party_kind, twenty_id)`. Nothing else: no
   - by a full pass once a night: every referenced party is read in ID
     batches, entries without an assignment or without a CRM record are
     deleted.
-    The loop spends at most 30 CRM requests per run and stops on the first
-    429: the limit of 100 per minute counts per process, and the API needs
-    the rest.
+  The loop spends at most 30 CRM requests per run and stops on the first
+  429: the limit of 100 per minute counts per process, and the API needs
+  the rest.
 - Search: one more query, `ILIKE` on `display_name` and `city`, joined to
   `acquisition_assignment` for the scope of `authorized_scope`: managers see
   all assignments of their actions, acquirers their own that are not handed
@@ -501,16 +501,16 @@ synced_at)`, primary key `(party_kind, twenty_id)`. Nothing else: no
 
 Each stage is one PR, mergeable alone, with its switches off by default.
 
-| Stage | Content                                                                     | Depends on |
-| ----- | --------------------------------------------------------------------------- | ---------- |
-| 1     | §5.1 order number, §6.1, §6.2, §6.4                                         | –          |
-| 2     | §6.3 delivery-day mail                                                      | 1          |
-| 3     | §5.2, §5.3, §7 cancellation invoice, ADR-0015                               | –          |
-| 4     | §8.1 to §8.4, §8.7: capability, model, pledge, payments, admin UI, ADR-0016 | 3          |
-| 5     | §8.5 donation receipt                                                       | 4          |
-| 6     | §8.6 extra donation in the order forms                                      | 1, 4       |
-| 7     | §9 sponsor search                                                           | –          |
-| 8     | §10 push, ADR-0017                                                          | –          |
+| Stage | Content | Depends on |
+|---|---|---|
+| 1 | §5.1 order number, §6.1, §6.2, §6.4 | – |
+| 2 | §6.3 delivery-day mail | 1 |
+| 3 | §5.2, §5.3, §7 cancellation invoice, ADR-0015 | – |
+| 4 | §8.1 to §8.4, §8.7: capability, model, pledge, payments, admin UI, ADR-0016 | 3 |
+| 5 | §8.5 donation receipt | 4 |
+| 6 | §8.6 extra donation in the order forms | 1, 4 |
+| 7 | §9 sponsor search | – |
+| 8 | §10 push, ADR-0017 | – |
 
 Tracks that run in parallel: mails (1, 2), invoices (3), search (7), push
 (8). Donations (4, 5, 6) start when stage 3 is merged.
@@ -693,18 +693,18 @@ Cover mail:
 
 Receiving body of the dev tenant:
 
-| Field      | Value                                                                                                                                                                                                           |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Name       | Förderverein Lions Club Musterstadt e. V.                                                                                                                                                                       |
-| Address    | Marktplatz 1, 12345 Musterstadt                                                                                                                                                                                 |
-| Tax office | Finanzamt Musterstadt                                                                                                                                                                                           |
-| Tax number | 123/456/78901                                                                                                                                                                                                   |
-| Notice     | Freistellungsbescheid vom 15.03.2025 für den Veranlagungszeitraum 2021 bis 2023                                                                                                                                 |
-| Purposes   | Förderung der Jugendhilfe, der Bildung und mildtätiger Zwecke                                                                                                                                                   |
-| Bank       | Förderverein Lions Club Musterstadt e. V., IBAN DE02 1203 0000 0000 2020 51, BIC BYLADEM1001 (an example IBAN with a valid checksum; not the invoice account of the golden data, `DE89 3704 0044 0532 0130 00`) |
-| Signatory  | Erika Mustermann, Schatzmeisterin                                                                                                                                                                               |
-| Signing    | `machine`, notified to the Finanzamt Musterstadt on 01.04.2025                                                                                                                                                  |
-| Prefixes   | `SP26-` (pledge), `ZB26-` (receipt), width 4                                                                                                                                                                    |
+| Field | Value |
+|---|---|
+| Name | Förderverein Lions Club Musterstadt e. V. |
+| Address | Marktplatz 1, 12345 Musterstadt |
+| Tax office | Finanzamt Musterstadt |
+| Tax number | 123/456/78901 |
+| Notice | Freistellungsbescheid vom 15.03.2025 für den Veranlagungszeitraum 2021 bis 2023 |
+| Purposes | Förderung der Jugendhilfe, der Bildung und mildtätiger Zwecke |
+| Bank | Förderverein Lions Club Musterstadt e. V., IBAN DE02 1203 0000 0000 2020 51, BIC BYLADEM1001 (an example IBAN with a valid checksum; not the invoice account of the golden data, `DE89 3704 0044 0532 0130 00`) |
+| Signatory | Erika Mustermann, Schatzmeisterin |
+| Signing | `machine`, notified to the Finanzamt Musterstadt on 01.04.2025 |
+| Prefixes | `SP26-` (pledge), `ZB26-` (receipt), width 4 |
 
 Donation pledge:
 
