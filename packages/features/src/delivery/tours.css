@@ -637,17 +637,37 @@ html:has(.tour-dock) .toaster {
   margin: 0 0 var(--s-4);
 }
 
-/* Columns side by side; with many drivers the row scrolls, not the page. */
+/* Columns side by side; with many drivers the row scrolls, not the page.
+   The scrollbar shows here (the app hides them elsewhere): it is the only
+   sign that more drivers wait to the right. */
 .tour-lanes {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(320px, 1fr);
+  grid-auto-columns: minmax(256px, 1fr);
   gap: var(--s-4);
   align-items: start;
   overflow-x: auto;
-  padding-bottom: var(--s-2);
+  padding-bottom: var(--s-3);
+  border-radius: var(--r-lg);
+  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-width: thin;
+}
+.tour-lanes::-webkit-scrollbar {
+  display: block;
+  height: 8px;
+}
+.tour-lanes::-webkit-scrollbar-thumb {
+  border-radius: var(--r-pill);
+  background: var(--border-strong);
+}
+.tour-lanes:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 .tour-lane {
+  /* The driver's colour on the map (.tour-pin--driver-N below). */
+  --pin-h: 205;
+  --pin-c: 0.13;
   display: grid;
   min-width: 0;
   border: var(--hair) solid var(--border);
@@ -665,9 +685,31 @@ html:has(.tour-dock) .toaster {
 }
 .tour-lane-head {
   display: grid;
-  gap: var(--s-2);
-  padding: var(--s-4);
+  gap: var(--s-1);
+  padding: var(--s-3) var(--s-2) var(--s-3) var(--s-4);
   border-bottom: var(--hair) solid var(--border);
+}
+/* The column's colour on the map, beside the name. */
+.tour-lane-tone {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: oklch(var(--zl) calc(var(--pin-c) * var(--zk)) var(--pin-h));
+}
+.tour-lane-suggest.btn {
+  flex: none;
+  margin-inline-start: auto;
+}
+/* What a drop does, and the stops still on their way. */
+.tour-lane-drop {
+  margin: 0;
+  padding: var(--s-2) var(--s-4);
+  border-bottom: var(--hair) solid var(--zone-line);
+  background: var(--zone-soft);
+  color: var(--zone-ink);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
 }
 .tour-lane-title {
   display: flex;
@@ -687,6 +729,7 @@ html:has(.tour-dock) .toaster {
 .tour-lane-meta {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--s-1) var(--s-2);
   color: var(--text-2);
   font-size: var(--fs-sm);
@@ -699,18 +742,24 @@ html:has(.tour-dock) .toaster {
   color: var(--text-2);
   font-size: var(--fs-sm);
 }
+/* "Fahrer hat eigene Reihenfolge": a quiet line while the planning shows.
+   It becomes a box only when it changes what the column shows. */
 .tour-lane-hint {
-  display: grid;
-  gap: var(--s-2);
-  padding: var(--s-2) var(--s-3);
-  border: var(--hair) solid var(--zone-line);
-  border-radius: var(--r-md);
-  background: var(--zone-soft);
-  color: var(--zone-ink);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-2);
+  margin-inline-end: var(--s-2);
+  color: var(--text-2);
   font-size: var(--fs-sm);
 }
 .tour-lane-hint.is-viewing {
-  border-style: dashed;
+  margin-block-start: var(--s-1);
+  padding: var(--s-2) var(--s-3);
+  border: var(--hair) dashed var(--zone-line);
+  border-radius: var(--r-md);
+  background: var(--zone-soft);
+  color: var(--zone-ink);
 }
 .tour-lane-hint-actions,
 .tour-lane-actions {
@@ -760,11 +809,54 @@ html:has(.tour-dock) .toaster {
 .tour-plan .tour-stop:last-child {
   border-bottom: 0;
 }
+/* The stop in the hand is the ghost at the pointer (.tour-drag-ghost);
+   its row stays as the place it came from. */
 .tour-plan .tour-stop[data-dragging] {
-  z-index: 2;
+  opacity: 0.4;
+}
+.tour-plan .tour-stop.is-moving {
+  opacity: 0.6;
+}
+.tour-stop-moving {
+  color: var(--zone-ink);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+}
+.tour-drag-ghost {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--s-2);
+  align-items: center;
+  width: max-content;
+  max-width: 280px;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
   background: var(--surface);
   box-shadow: var(--shadow-2);
+  color: var(--text-3);
   cursor: grabbing;
+}
+.tour-drag-ghost-name {
+  overflow: hidden;
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tour-drag-ghost-sub {
+  grid-column: 2;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+}
+/* The grip is the way to another driver: a real target, not a 14 px icon. */
+.tour-plan .task-order-handle {
+  flex: none;
+  width: 28px;
+  height: 36px;
+}
+.tour-plan .task-handle-space {
+  flex: none;
+  width: 28px;
 }
 .tour-stop-check {
   flex: none;
@@ -780,6 +872,13 @@ html:has(.tour-dock) .toaster {
   min-width: 22px;
   height: 22px;
   font-size: var(--fs-xs);
+}
+/* The number in the column carries the colour of the driver's pins. */
+.tour-lane[data-tone] .tour-pos {
+  background: oklch(
+    var(--zl-soft) calc(var(--pin-c) * var(--zk-soft)) var(--pin-h)
+  );
+  color: oklch(var(--zl-ink) calc(var(--pin-c) * var(--zk-ink)) var(--pin-h));
 }
 .tour-stop-main {
   flex: 1;
@@ -821,6 +920,46 @@ html:has(.tour-dock) .toaster {
   flex: none;
   gap: 2px;
 }
+/* With a mouse the tools wait at the row's end until the row is pointed at
+   or holds the focus: at rest a column is a list of stops. Touch has no
+   hover, so there they stay in the row. */
+@media (hover: hover) and (pointer: fine) {
+  .tour-plan .tour-stop {
+    --row-bg: var(--surface);
+  }
+  .tour-plan .tour-stop:hover {
+    --row-bg: var(--row-hover);
+  }
+  .tour-plan .tour-stop.is-done,
+  .tour-lane-window.is-closed .tour-stop {
+    --row-bg: var(--surface-2);
+  }
+  .tour-plan .tour-stop.is-checked {
+    --row-bg: oklch(from var(--accent-soft) l c h / 1);
+  }
+  .tour-plan .tour-stop-tools {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-end: var(--s-2);
+    align-items: center;
+    height: min(100%, 52px);
+    padding-inline-start: var(--s-4);
+    background: linear-gradient(to right, transparent, var(--row-bg) 12px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-1) var(--ease-out);
+  }
+  .tour-plan .tour-stop:hover .tour-stop-tools,
+  .tour-plan .tour-stop:focus-within .tour-stop-tools,
+  .tour-plan .tour-stop-tools.is-active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  /* The pin line of a stop without coordinates keeps the row's own end. */
+  .tour-plan .tour-stop:has(> .tour-stop-pin) .tour-stop-tools {
+    height: 52px;
+  }
+}
 /* The end of a window: no arrow, the same space, so the others line up. */
 .tour-stop-tools-space {
   display: inline-block;
@@ -857,6 +996,7 @@ html:has(.tour-dock) .toaster {
   .tour .row,
   .tour-row-chevron,
   .tour-plan .row,
+  .tour-plan .tour-stop-tools,
   .tour-lane {
     transition: none !important;
   }
@@ -948,31 +1088,38 @@ html:has(.tour-dock) .toaster {
   font-weight: 700;
   line-height: 1;
 }
-.tour-pin--driver-1 {
+.tour-pin--driver-1,
+.tour-lane[data-tone="driver-1"] {
   --pin-h: 262;
   --pin-c: 0.15;
 }
-.tour-pin--driver-2 {
+.tour-pin--driver-2,
+.tour-lane[data-tone="driver-2"] {
   --pin-h: 27;
   --pin-c: 0.17;
 }
-.tour-pin--driver-3 {
+.tour-pin--driver-3,
+.tour-lane[data-tone="driver-3"] {
   --pin-h: 150;
   --pin-c: 0.13;
 }
-.tour-pin--driver-4 {
+.tour-pin--driver-4,
+.tour-lane[data-tone="driver-4"] {
   --pin-h: 300;
   --pin-c: 0.15;
 }
-.tour-pin--driver-5 {
+.tour-pin--driver-5,
+.tour-lane[data-tone="driver-5"] {
   --pin-h: 60;
   --pin-c: 0.15;
 }
-.tour-pin--driver-6 {
+.tour-pin--driver-6,
+.tour-lane[data-tone="driver-6"] {
   --pin-h: 340;
   --pin-c: 0.15;
 }
-.tour-pin--driver-7 {
+.tour-pin--driver-7,
+.tour-lane[data-tone="driver-7"] {
   --pin-h: 100;
   --pin-c: 0.12;
 }
@@ -1106,11 +1253,15 @@ html:has(.tour-dock) .toaster {
 }
 
 /* ---------- planner map (§6.1, §6.4) ---------- */
+/* The map is a choice ("Karte"): without it the columns have the page. */
 .tour-plan-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(340px, 32%);
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s-4);
   align-items: start;
+}
+.tour-plan-body.has-map {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 26%);
 }
 .tour-plan-map {
   position: sticky;
@@ -1164,7 +1315,7 @@ html:has(.tour-dock) .toaster {
   min-height: 28px;
 }
 @media (max-width: 1100px) {
-  .tour-plan-body {
+  .tour-plan-body.has-map {
     grid-template-columns: minmax(0, 1fr);
   }
   .tour-plan-map {

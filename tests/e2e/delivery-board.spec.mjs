@@ -329,6 +329,8 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
       ),
     ).toBeVisible();
     await expect(open_(anna)).toHaveCount(openCount - 1);
+    // The row's tools show when the row is pointed at.
+    await stop(anna, second).hover();
     await stop(anna, second)
       .getByRole("button", { name: /nach oben/ })
       .click();
@@ -341,8 +343,50 @@ test("managers plan a tour; the driver reorders, delivers and sees a later stop 
     );
     expect(planned.slice(-2)).toEqual([second, first]);
 
+    // One stop to another driver by its grip: the stop follows the pointer
+    // as a ghost, the column under it says what the drop does, and a drop on
+    // the column's head counts (not only on a stop). "Rückgängig" gives the
+    // stop back.
+    const waiting = stop(unassigned, third);
+    const grip = await waiting
+      .getByRole("button", { name: /^Stopp verschieben: / })
+      .boundingBox();
+    const head = await anna.getByRole("heading", { level: 2 }).boundingBox();
+    expect(grip && head).toBeTruthy();
+    // A real target with a grab cursor, not a bare icon.
+    expect(grip.width).toBeGreaterThanOrEqual(28);
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(head.x + head.width / 2, head.y + head.height / 2, {
+      steps: 16,
+    });
+    await expect(page.getByTestId("tour-drag-ghost")).toBeVisible();
+    await expect(anna.getByTestId("tour-lane-drop")).toContainText(
+      "Loslassen: ans Ende von",
+    );
+    await page.mouse.up();
+    const assigned = page.getByTestId("toast").filter({
+      hasText:
+        "1 Stopp Anna Akquise zugeordnet. Sie stehen am Ende ihres Fensters.",
+    });
+    await expect(assigned).toBeVisible();
+    await expect(stop(anna, third)).toBeVisible();
+    await expect(unassigned.locator("li.tour-stop")).toHaveCount(0);
+    await assigned.getByRole("button", { name: "Rückgängig" }).click();
+    await expect(
+      page
+        .getByTestId("toast")
+        .filter({ hasText: "Zuordnung zurückgenommen." }),
+    ).toBeVisible();
+    await expect(stop(unassigned, third)).toBeVisible();
+
     // The map (§6.1, §6.4): the test stack cannot geocode, so Klara sets
     // two of Anna's pins by a click on the map. Pins stay between runs.
+    // The map is a choice; at this width it starts closed.
+    const mapToggle = page.getByTestId("tour-map-toggle");
+    if ((await mapToggle.getAttribute("aria-pressed")) !== "true") {
+      await mapToggle.click();
+    }
     const plannerMap = page.getByTestId("tour-plan-map");
     const plannerCanvas = plannerMap.getByTestId("tour-map-canvas");
     await expect(plannerCanvas).toHaveAttribute("data-ready", "true");
