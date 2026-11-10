@@ -4,9 +4,9 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 20
-reviewedRevision: 20
-verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
+contentRevision: 21
+reviewedRevision: 21
+verifiedAgainst: 52718b176309716b363998e37aa2c91349cdbe8f
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -72,6 +72,25 @@ die Outbox-Zähler unter **System › Hintergrundaufgaben** (`/admin/system/jobs
 für das Aufbewahrungsfenster. `docker compose run --rm worker python -m
 leonaid.entrypoints.worker.outbox retention-sweep` startet einen Durchlauf von
 Hand.
+
+## E-Mail am Liefertag
+
+Der Worker führt eine Schleife `delivery_day_mail` aus. Alle fünf Minuten
+legt sie für Aktionen mit eingeschalteter **E-Mail am Liefertag** je fälliger
+Bestellung einen Job `order.delivery_day.mail.v1` an (höchstens 200 pro
+Durchlauf, ein voller Stapel läuft nach einer Sekunde weiter). Laufen mehrere
+Worker, arbeitet immer nur einer (Advisory-Lock); die anderen überspringen den
+Durchlauf. Die Schleife sendet nichts selbst: Den Versand übernimmt die
+Outbox wie bei jeder E-Mail. Der Job enthält nur IDs und die Links zu
+`/impressum` und `/datenschutz`. Diese Links baut der Worker selbst und
+braucht dafür `LEONAID_PUBLIC_BASE_URL` und `LEONAID_SITE_BASE_URL` mit
+denselben Werten wie die API; die Compose-Dateien reichen sie durch, und der
+Pilot-Vertrag (`tools/pilot_deployment/validate.py`) lehnt abweichende Werte
+ab. Logs enthalten nur die Anzahl (`worker.delivery_day_mail.queued`); die
+Metrik `leonaid_worker_delivery_day_mails_queued_total` zählt die angelegten
+Jobs, `/health/ready` des Workers meldet die Schleife als `delivery_day_mail`.
+`docker compose run --rm worker python -m leonaid.entrypoints.worker.outbox
+delivery-day-mail-sweep` startet einen Durchlauf von Hand.
 
 ## Geocoding der Lieferadressen
 

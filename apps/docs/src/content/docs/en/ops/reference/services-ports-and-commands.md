@@ -4,9 +4,9 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 20
-reviewedRevision: 20
-verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
+contentRevision: 21
+reviewedRevision: 21
+verifiedAgainst: 52718b176309716b363998e37aa2c91349cdbe8f
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -68,6 +68,24 @@ start with `worker.configuration.invalid`. The metric
 outbox counters under **System › Hintergrundaufgaben** (`/admin/system/jobs`) therefore show completed jobs of the
 retention window only. `docker compose run --rm worker python -m
 leonaid.entrypoints.worker.outbox retention-sweep` runs one sweep by hand.
+
+## E-mail on the delivery day
+
+The worker runs a `delivery_day_mail` loop. Every five minutes it writes one
+job `order.delivery_day.mail.v1` per due order, for campaigns that have the
+**E-Mail am Liefertag** switched on (at most 200 per run; a full batch
+continues after a second). With several workers only one sweeps at a time
+(advisory lock); the others skip the run. The loop sends nothing itself: the
+outbox delivers the mail like every other. The job holds ids and the links to
+`/impressum` and `/datenschutz` only. The worker builds these links itself
+and needs `LEONAID_PUBLIC_BASE_URL` and `LEONAID_SITE_BASE_URL` with the same
+values as the API; the Compose files pass them on, and the pilot contract
+(`tools/pilot_deployment/validate.py`) refuses differing values. Logs hold
+the count only (`worker.delivery_day_mail.queued`); the metric
+`leonaid_worker_delivery_day_mails_queued_total` counts the jobs written, and
+the worker's `/health/ready` reports the loop as `delivery_day_mail`.
+`docker compose run --rm worker python -m leonaid.entrypoints.worker.outbox
+delivery-day-mail-sweep` runs one sweep by hand.
 
 ## Geocoding of delivery addresses
 

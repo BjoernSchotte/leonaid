@@ -4,9 +4,9 @@ description: Cancel an order that is not delivered yet, with a reason, including
 docId: DOC-P047
 audience: [user]
 diataxis: how-to
-contentRevision: 4
-reviewedRevision: 4
-verifiedAgainst: c936ec580b1ef13d6175b551ab34d2f597e2bb2d
+contentRevision: 5
+reviewedRevision: 5
+verifiedAgainst: 52718b176309716b363998e37aa2c91349cdbe8f
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -103,8 +103,11 @@ The detail pane of every order shows its order number (**Bestellnummer**,
 of the list also finds the order by this number.
 
 The section **E-Mails an den Käufer** shows one row per e-mail:
-**Bestellbestätigung** (order confirmation) and, after a cancellation,
-**Stornierung** (cancellation notice). The state is **Gesendet** (sent) with
+**Bestellbestätigung** (order confirmation), for orders with a delivery
+window the **Liefertags-E-Mail** (delivery-day e-mail, when the campaign
+sends it, see
+[Manage delivery windows](/en/user/how-to/manage-delivery-windows/#e-mail-on-the-delivery-day))
+and, after a cancellation, **Stornierung** (cancellation notice). The state is **Gesendet** (sent) with
 date and time, **Wartet** (waiting), **Fehlgeschlagen** (failed), **Nicht
 gesendet** (not sent) or **Nicht fällig** (not due); the reason stands below
 it, for example that the order has no e-mail address or that the campaign has
@@ -113,6 +116,8 @@ the e-mails switched off.
 If the buyer did not get an e-mail, select **Erneut senden** (send again).
 The button exists for e-mails that were sent or that failed. It is absent
 while the e-mail waits, when the address is missing, when the campaign has
-the e-mails switched off, and for the confirmation of a cancelled order. At
-most ten order e-mails go to one mailbox per hour; above that the delivery
+the e-mails switched off, and for the confirmation of a cancelled order. The
+delivery-day e-mail can be sent again only on the delivery day, until the
+window ends or the delivery is ticked off; before that the row says **Wird am
+Liefertag gesendet** (will be sent on the delivery day). At most ten order e-mails go to one mailbox per hour; above that the delivery
 fails, and you send again later.

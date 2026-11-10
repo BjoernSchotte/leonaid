@@ -4,9 +4,9 @@ description: Enable campaign delivery planning, add time windows, and retire exi
 docId: DOC-P012
 audience: [user]
 diataxis: how-to
-contentRevision: 7
-reviewedRevision: 7
-verifiedAgainst: 0902dfb1bf60793cde4dd67936e7f8424c58a8db
+contentRevision: 8
+reviewedRevision: 8
+verifiedAgainst: 52718b176309716b363998e37aa2c91349cdbe8f
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -107,3 +107,38 @@ again.
 Booked orders appear per window on the **Auslieferung** (delivery) page. There
 you assign drivers, tick off deliveries and close windows; see
 [Work the delivery board](/en/user/how-to/work-delivery-board/).
+
+## E-mail on the delivery day
+
+LeonAid can send buyers an e-mail with their delivery window on the day of
+the delivery: **Ihre Lieferung kommt heute zwischen 10:00 und 12:00 Uhr**
+(your delivery comes today between 10:00 and 12:00). It names the order
+number, the delivery window, the delivery address, the ordered quantities and
+the club's contact details. Names or phone numbers of drivers, the note for
+the driver, prices and an arrival time per address are not in it.
+
+1. Open the campaign and select **Bearbeiten**.
+2. In the section **E-Mails an Käufer**, switch on **E-Mail am Liefertag**.
+   The switch applies at once, also while the campaign runs. For campaigns
+   without the function **Auslieferung** it stays off.
+3. Under **E-Mail am Liefertag senden ab**, select the time between 05:00 and
+   12:00 (default 07:00). It applies in the time zone of the delivery windows.
+
+From that time on the delivery day, the e-mail goes to every order whose
+window starts on that day, if the order is ready for review, confirmed or
+invoiced, holds an e-mail address of the buyer and is not ticked off on the
+**Auslieferung** board yet. This applies to every origin, also to orders from
+the public form. LeonAid checks every five minutes, so the e-mail arrives up
+to five minutes after the selected time. An order that is added on the
+delivery day itself gets the e-mail at the next check, as long as its window
+is not over.
+
+Cancelled orders, drafts, deliveries already ticked off, orders without an
+e-mail address and windows that end before the selected time get no e-mail.
+Each order gets the e-mail for its window once. At most ten order e-mails go
+to one mailbox per hour.
+
+The section **E-Mails an den Käufer** in the order shows whether the e-mail
+went out (row **Liefertags-E-Mail**). There you can also send it again on the
+delivery day, until the window ends or the delivery is ticked off; see
+[Cancel an order](/en/user/how-to/cancel-order/#see-the-e-mails-of-an-order-and-send-one-again).

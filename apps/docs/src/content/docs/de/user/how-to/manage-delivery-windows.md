@@ -4,9 +4,9 @@ description: Lieferplanung einer Aktion aktivieren, Zeitfenster ergänzen und be
 docId: DOC-P012
 audience: [user]
 diataxis: how-to
-contentRevision: 7
-reviewedRevision: 7
-verifiedAgainst: 0902dfb1bf60793cde4dd67936e7f8424c58a8db
+contentRevision: 8
+reviewedRevision: 8
+verifiedAgainst: 52718b176309716b363998e37aa2c91349cdbe8f
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -112,3 +112,38 @@ anwenden** und speichere erneut.
 Gebuchte Bestellungen erscheinen pro Fenster auf der Seite **Auslieferung**.
 Dort weist du Ausfahrer zu, hakst Lieferungen ab und schließt Fenster ab; siehe
 [Auslieferung abhaken](/de/user/how-to/work-delivery-board/).
+
+## E-Mail am Liefertag
+
+LeonAid kann Käufern am Tag der Lieferung eine E-Mail mit ihrem Lieferfenster
+senden: **Ihre Lieferung kommt heute zwischen 10:00 und 12:00 Uhr**. Sie nennt
+Bestellnummer, Lieferfenster, Lieferadresse, die bestellten Mengen und die
+Kontaktdaten des Clubs. Namen oder Telefonnummern von Ausfahrern, der Hinweis
+für den Fahrer, Preise und eine Ankunftszeit je Adresse stehen nicht darin.
+
+1. Öffne die Aktion und wähle **Bearbeiten**.
+2. Schalte im Abschnitt **E-Mails an Käufer** den Schalter **E-Mail am
+   Liefertag** ein. Er gilt sofort, auch während die Aktion läuft. Bei
+   Aktionen ohne die Funktion **Auslieferung** bleibt er aus.
+3. Wähle bei **E-Mail am Liefertag senden ab** die Uhrzeit zwischen 05:00 und
+   12:00 Uhr (voreingestellt 07:00 Uhr). Sie gilt in der Zeitzone der
+   Lieferfenster.
+
+Ab dieser Uhrzeit geht die E-Mail am Liefertag an jede Bestellung, deren
+Fenster an diesem Tag beginnt, wenn die Bestellung prüfbereit, bestätigt oder
+fakturiert ist, eine E-Mail-Adresse des Käufers enthält und auf der Tafel
+**Auslieferung** noch nicht abgehakt ist. Das gilt für jede Herkunft, auch für
+Bestellungen aus dem öffentlichen Formular. LeonAid prüft alle fünf Minuten;
+die E-Mail kommt also bis zu fünf Minuten nach der gewählten Uhrzeit. Eine
+Bestellung, die erst am Liefertag selbst dazukommt, bekommt die E-Mail beim
+nächsten Durchlauf, solange ihr Fenster nicht vorbei ist.
+
+Keine E-Mail bekommen stornierte Bestellungen, Entwürfe, bereits abgehakte
+Lieferungen, Bestellungen ohne E-Mail-Adresse und Fenster, die vor der
+gewählten Uhrzeit enden. Jede Bestellung bekommt die E-Mail für ihr Fenster
+einmal. An dasselbe Postfach gehen höchstens zehn Bestell-E-Mails pro Stunde.
+
+Ob die E-Mail hinausging, zeigt der Abschnitt **E-Mails an den Käufer** in
+der Bestellung (Zeile **Liefertags-E-Mail**). Dort kannst du sie am Liefertag
+auch erneut senden, bis das Fenster endet oder die Lieferung abgehakt ist;
+siehe [Bestellung stornieren](/de/user/how-to/cancel-order/#e-mails-einer-bestellung-ansehen-und-erneut-senden).

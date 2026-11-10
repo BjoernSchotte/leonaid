@@ -136,10 +136,20 @@ Punkte sind keine stillschweigenden Produktzusagen.
   (`resendBuyerMail`, audit event `order_mail_resent`, no fresh login, the
   mailbox limit applies). A mail that was never queued or that was skipped
   cannot be sent from there, and retention deletes completed jobs, so an old
-  skipped mail later reads as "not requested". Not covered: an HTML version,
-  a club sender address (the configured `MAIL_FROM` sends), a mail on the
-  delivery day (stage 2 of the spec), and mails for later order changes
-  (delivery window moved, invoice issued). Fulfilment mails ignore
+  skipped mail later reads as "not requested". The mail on the delivery day
+  (`order.delivery_day.mail.v1`, switch `delivery_day_mail` and send time
+  05:00 to 12:00 per action, orders of every source) is queued by a worker
+  sweep every five minutes (`delivery_day_mail` loop, singleton by advisory
+  lock, key per order and window) for orders whose window starts today in the
+  action's zone and is not over, that are review-ready, confirmed or
+  invoiced, have a buyer address and no recorded drop state. The worker
+  checks the same rule when it sends; a job that waited past its window sends
+  nothing. A window that ends before the send time never gets the mail. The
+  mail names window, delivery address and quantities only: no arrival time
+  per stop, no driver, no campaign link (the worker has no host directory),
+  and no mail when a delivery is late. Not covered: an HTML version, a club
+  sender address (the configured `MAIL_FROM` sends), and mails for later
+  order changes (delivery window moved, invoice issued). Fulfilment mails ignore
   the marketing/acquisition suppression list. The campaign link is the
   permanent edition URL on the campaign host (decision D8), else the public
   host page (`edition_link`).

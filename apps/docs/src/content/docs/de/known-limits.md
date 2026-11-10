@@ -4,9 +4,9 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 8
-reviewedRevision: 8
-verifiedAgainst: c936ec580b1ef13d6175b551ab34d2f597e2bb2d
+contentRevision: 9
+reviewedRevision: 9
+verifiedAgainst: 52718b176309716b363998e37aa2c91349cdbe8f
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -41,8 +41,12 @@ allgemeine Produktionsfreigabe.
   sie prüfbereit ist. Bestellungen ohne E-Mail-Adresse des Käufers, Entwürfe
   und Bestellungen von vor dem Einschalten erhalten keine E-Mail. Eine
   gesendete oder fehlgeschlagene E-Mail lässt sich in der Bestellung erneut
-  senden; eine E-Mail, die nie angelegt wurde, nicht. Eine E-Mail am Liefertag
-  gibt es noch nicht. Der Link zur Aktion zeigt auf die dauerhafte Adresse
+  senden; eine E-Mail, die nie angelegt wurde, nicht. Die E-Mail am Liefertag
+  (je Aktion einschaltbar, für Bestellungen jeder Herkunft) nennt nur das
+  Lieferfenster: keine Ankunftszeit je Adresse, kein Fahrer, keine Nachricht
+  bei Verspätung oder wenn ein Fenster verlegt wird. Sie geht bis zu fünf
+  Minuten nach der gewählten Uhrzeit hinaus und enthält keinen Link zur
+  Aktionsseite. Der Link zur Aktion zeigt auf die dauerhafte Adresse
   der Aktion auf ihrer Kampagnen-Domain, sonst auf die Aktionsseite des
   öffentlichen Hosts. Absender ist die konfigurierte Systemadresse, nicht der
   Club.
