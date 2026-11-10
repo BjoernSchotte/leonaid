@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -88,11 +89,9 @@ function show(
 
 describe("assignment of a sponsor the CRM no longer has", () => {
   it("uses the label of the server", () => {
+    // Vitest runs in apps/web; the server source is two levels up.
     const server = readFileSync(
-      new URL(
-        "../../../src/leonaid/application/activities.py",
-        import.meta.url,
-      ),
+      resolve(process.cwd(), "../../src/leonaid/application/activities.py"),
       "utf8",
     );
     expect(server).toContain(
