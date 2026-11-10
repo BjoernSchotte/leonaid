@@ -5,12 +5,17 @@ Runs on the Golden seed with the real Twenty of the test stack. It proves
 the three ways the index is filled (assignment creation, changed pass, full
 pass), the request budget, the stop on a real 429, and that every sponsor
 hit opens through the endpoint behind its target for each role.
+
+``forget-index`` and ``worker-loop`` frame the proof of the worker process
+(``tools/testing/acquisition_contracts.sh``): the index is emptied, the
+real worker starts, and its own loop must fill the index again.
 """
 
 from __future__ import annotations
 
 import asyncio
 import os
+import sys
 import time
 from collections.abc import Mapping
 from datetime import datetime, timezone
@@ -778,10 +783,62 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
     )
 
 
+async def prove_worker_loop(connection: asyncpg.Connection[Any]) -> None:
+    """The running worker filled the emptied index by itself and is ready."""
+
+    pool = await create_pool(require_env("CORE_DATABASE_URL"), maximum_size=2)
+    # Only the comparison reads Twenty here; it may wait out a 429.
+    gateway = TwentyCrmGateway(
+        TwentyGatewaySettings(
+            base_url=require_env("TWENTY_BASE_URL").rstrip("/"),
+            api_key=SecretStr(require_env("TWENTY_INTEGRATION_API_KEY")),
+        )
+    )
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            stack = Stack(connection, pool, gateway, Api(client, {}))
+            deadline = time.monotonic() + 300
+            while True:
+                state = await stack.index.sync_state()
+                if state.full_pass_completed_at is not None:
+                    break
+                check(
+                    time.monotonic() < deadline,
+                    "The worker did not finish a full pass within five minutes",
+                )
+                await asyncio.sleep(1)
+            parties = await stack.index_matches_twenty()
+            ready = await client.get("http://worker:8010/health/ready")
+            check(ready.status_code == 200, f"Worker is not ready: {ready.text}")
+            check(
+                ready.json()["checks"].get("sponsor_search_sync") == "ready",
+                f"Worker does not report the sync loop: {ready.text}",
+            )
+    finally:
+        await gateway.close()
+        await pool.close()
+    print(
+        f"sponsor-search-contract: OK: the worker loop filled the index for "
+        f"{parties} parties and reports ready"
+    )
+
+
 async def main() -> None:
+    command = sys.argv[1] if len(sys.argv) > 1 else "exercise"
     connection = await asyncpg.connect(require_env("CORE_DATABASE_URL"))
     try:
-        await exercise(connection)
+        if command == "exercise":
+            await exercise(connection)
+        elif command == "forget-index":
+            await connection.execute("DELETE FROM sponsor_search_entry")
+            await connection.execute(
+                "UPDATE sponsor_search_sync SET full_pass_completed_at = NULL, "
+                "full_pass_after_kind = NULL, full_pass_after_id = NULL"
+            )
+        elif command == "worker-loop":
+            await prove_worker_loop(connection)
+        else:
+            raise ContractFailure(f"Unknown command: {command}")
     finally:
         await connection.close()
 

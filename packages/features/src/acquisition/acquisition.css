@@ -323,7 +323,7 @@
   text-decoration-color: currentcolor;
 }
 
-/* The row whose detail is open (a search hit lands here). */
+/* The row whose detail is open or was open last (a search hit lands here). */
 .acq-admin-table-wrap tbody tr[aria-current="true"] {
   background: var(--accent-soft);
   box-shadow: inset 3px 0 0 var(--accent);

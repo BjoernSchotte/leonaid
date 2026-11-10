@@ -13,6 +13,8 @@ const disabledModules = (process.env.LEONAID_PALETTE_DISABLED_MODULES ?? "")
   .split(",")
   .filter(Boolean);
 const actionId = "20000000-0000-4000-8000-000000000001";
+// Screenshots for the review of the sponsor target; optional.
+const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
 
 if (!baseUrl || !klaraSession || !simoneSession) {
   throw new Error("Command palette browser environment is incomplete");
@@ -296,6 +298,11 @@ test.describe("enabled modules", () => {
       await expect(page.getByTestId("acquisition-admin-action")).toHaveValue(
         actionId,
       );
+      if (artifactDirectory) {
+        await page.screenshot({
+          path: `${artifactDirectory}/ux-sponsor-search-detail.png`,
+        });
+      }
       const axe = await analyzeAccessibility(page, {
         include: "dialog.modal[open]",
         tags: WCAG_TAGS,
@@ -306,13 +313,20 @@ test.describe("enabled modules", () => {
         ),
       ).toEqual([]);
 
-      // Closing drops ?open= and the mark; the row opens the detail again.
+      // Closing drops ?open=; the row stays marked and opens the detail
+      // again.
       await detail.getByRole("button", { name: "Schließen" }).click();
       await expect(detail).toBeHidden();
       await expect(page).toHaveURL(
         new RegExp(`/admin/acquisition\\?action=${actionId}$`),
       );
-      await expect(row).not.toHaveAttribute("aria-current", "true");
+      await expect(row).toHaveAttribute("aria-current", "true");
+      await expect(row).toBeInViewport();
+      if (artifactDirectory) {
+        await page.screenshot({
+          path: `${artifactDirectory}/ux-sponsor-search-row.png`,
+        });
+      }
       await row.getByRole("button", { name: "Musterwerk GmbH" }).click();
       await expect(detail).toBeVisible();
       await expect(page).toHaveURL(new RegExp(`[?&]open=${hit.id}$`));

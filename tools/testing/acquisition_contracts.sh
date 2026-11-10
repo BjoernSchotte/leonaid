@@ -38,6 +38,7 @@ cleanup() {
     compose ps >&2 || true
     compose logs --no-color --tail=120 \
       api core-postgres twenty-server twenty-worker >&2 || true
+    compose logs --no-color --tail=120 worker >&2 2>/dev/null || true
     /bin/sh "$root/tools/ci/capture-failure.sh" \
       "$root" "$proof" "$project" || true
   fi
@@ -54,8 +55,7 @@ shared_services="api twenty-worker mailpit"
 
 golden_seed
 
-for contract in "$@"; do
-  echo "acquisition-contracts: $contract"
+run_contract() {
   compose run --rm --user "$(id -u):$(id -g)" --no-deps \
     --env-from-file "$env_file" \
     --env-from-file "$proof/integration.env" \
@@ -65,7 +65,27 @@ for contract in "$@"; do
     --volume "$root:/repo:ro" \
     --workdir /repo \
     --entrypoint python \
-    api "$contract"
+    api "$@"
+}
+
+for contract in "$@"; do
+  echo "acquisition-contracts: $contract"
+  run_contract "$contract"
+  if [ "$contract" = tools/sponsor_search/contract.py ]; then
+    # The real worker process: its loop must fill the emptied index by
+    # itself. A fresh container, so its first run comes after the reset.
+    echo "acquisition-contracts: $contract (worker loop)"
+    run_contract "$contract" forget-index
+    compose up --no-build --detach --wait --wait-timeout 420 \
+      --no-deps --force-recreate worker
+    run_contract "$contract" worker-loop
+    if ! compose logs --no-color worker |
+      grep -q 'worker\.sponsor_search\.synced.*"mode":"full"'; then
+      echo "acquisition-contracts: ERROR: the worker logged no full pass" >&2
+      exit 1
+    fi
+    compose stop worker
+  fi
 done
 contract=""
 

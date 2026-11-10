@@ -66,6 +66,8 @@ EXPECTED_TABLES = {
     "public_action_alias",
     "site_binding",
     "site_host",
+    "sponsor_search_entry",
+    "sponsor_search_sync",
     "privacy_erasure_case",
     "suppression_entry",
     "task",

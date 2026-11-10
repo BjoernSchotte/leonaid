@@ -124,6 +124,8 @@ export function AcquisitionAdminPage({
   // The assignment whose detail is open. A link may ask for one of any
   // status, so it wins over a `?status=` in the same link.
   const [openId, setOpenId] = useState(requestedAssignment);
+  // The row stays marked after its detail closes, so the eye finds it again.
+  const [markedId, setMarkedId] = useState(openId);
   const [filter, setFilter] = useState<AssignmentFilter>(
     !openId &&
       ["open", "contacted", "committed", "declined", "handed_over"].includes(
@@ -173,6 +175,7 @@ export function AcquisitionAdminPage({
   const openMissing = Boolean(openId) && board.isSuccess && !openItem;
   const openAssignment = useCallback((assignmentId: string | null) => {
     setOpenId(assignmentId);
+    if (assignmentId) setMarkedId(assignmentId);
     replaceOpenInUrl(assignmentId);
   }, []);
   // Bring the row of the open assignment into view once per assignment: a
@@ -216,6 +219,7 @@ export function AcquisitionAdminPage({
             onChange={(event) => {
               // The open assignment belongs to the action that is left.
               openAssignment(null);
+              setMarkedId(null);
               setActionId(event.target.value);
             }}
             value={actionId}
@@ -339,7 +343,7 @@ export function AcquisitionAdminPage({
                   {visible.map((item) => (
                     <tr
                       aria-current={
-                        item.assignmentId === openId ? "true" : undefined
+                        item.assignmentId === markedId ? "true" : undefined
                       }
                       data-assignment-id={item.assignmentId}
                       data-status={item.status}
