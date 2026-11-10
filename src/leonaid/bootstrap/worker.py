@@ -28,6 +28,9 @@ from leonaid.adapters.postgres.activity_projection import (
     ActionProgressActivityHandler,
 )
 from leonaid.adapters.nominatim import NominatimGeocoder
+from leonaid.adapters.postgres.delivery_day_mails import (
+    AsyncpgDeliveryDayMailRepository,
+)
 from leonaid.adapters.postgres.delivery_geo import AsyncpgDeliveryGeoRepository
 from leonaid.adapters.postgres.documents import AsyncpgGeneratedDocumentRepository
 from leonaid.adapters.postgres.feature_flags import AsyncpgFeatureFlagRepository
@@ -43,9 +46,11 @@ from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.storage import S3ObjectStorage
 from leonaid.adapters.twenty.gateway import TwentyCrmGateway, TwentyGatewaySettings
 from leonaid.adapters.typst import TypstInvoiceRenderer
+from leonaid.application.delivery_day_mails import DeliveryDayMailSweep
 from leonaid.application.delivery_geo import GeocodingJob
 from leonaid.application.documents import InvoiceDocumentStorageHandler
 from leonaid.application.feature_flags import FeatureFlagService
+from leonaid.application.links import LinkBuilder
 from leonaid.application.crm import CrmGateway
 from leonaid.application.object_storage import ObjectStorage
 from leonaid.application.order_mails import (
@@ -188,7 +193,8 @@ def _action_handlers(
         "charity_action.progress.recorded.v1": ActionProgressActivityHandler(
             dependencies.pool
         ),
-        # The buyer's order confirmation and cancellation notice.
+        # The buyer's order confirmation, cancellation notice and the mail
+        # on the delivery day.
         **{
             EVENT_TYPES[kind]: OrderMailHandler(
                 kind, reader=reader, legal_configuration=legal, sender=sender
@@ -354,6 +360,14 @@ async def build_worker(
         on_close=crm.close if crm is not None else None,
     )
     return pool, queue, worker
+
+
+def build_delivery_day_mail_sweep(
+    pool: asyncpg.Pool[Any], links: LinkBuilder
+) -> DeliveryDayMailSweep:
+    """The sweep that queues the mail on the delivery day."""
+
+    return DeliveryDayMailSweep(AsyncpgDeliveryDayMailRepository(pool), links)
 
 
 def build_geocoding_job(

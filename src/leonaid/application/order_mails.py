@@ -1,7 +1,8 @@
 """Transactional mails to the buyer of an order.
 
-Two mails: the order confirmation and the cancellation notice after
-``cancelCommitment`` cancelled the order. A public order is confirmed when it
+Three mails: the order confirmation, the cancellation notice after
+``cancelCommitment`` cancelled the order, and the mail on the delivery day
+(``application.delivery_day_mails`` queues it, see below). A public order is confirmed when it
 is recorded. An order that a member or acquirer entered is confirmed when it
 becomes ``review_ready`` (at creation or by ``completeCommitment``), and only
 while the action has ``internal_order_mails`` switched on
@@ -10,6 +11,14 @@ transaction as the order, its completion or the cancellation. The job payload
 holds ids and the non-personal links only; the worker reads the order from
 Core when it sends, so a privacy erasure that ran in between leaves nothing
 to send, and no copy of the buyer's data waits in the queue.
+
+The delivery-day mail tells the buyer the window on the day of the delivery,
+for orders of every source, while the action has ``delivery_day_mail`` on. A
+sweep in the worker queues it (``delivery_day_not_due_reason`` is the rule);
+its key also names the window, so an order that moved to another window gets
+the mail for the new one. The worker checks the rule again when it sends: a
+cancelled, delivered, erased or moved order gets nothing, and neither does a
+job that was held up until the window was over.
 
 One job per order and kind: the job id and the idempotency key are derived
 from the order id, and the HTTP replay of an order or a cancellation returns
@@ -51,7 +60,7 @@ import hashlib
 from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, replace
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 from enum import StrEnum
 from typing import Protocol
 from uuid import UUID, uuid5
@@ -76,7 +85,12 @@ from leonaid.domain.text import single_line
 ORDER_MAIL_NAMESPACE = UUID("f3b0c6a2-5d1e-4c8b-9a57-0e6d2b4f8c13")
 ORDER_CONFIRMATION_MAIL = "order.confirmation.mail.v1"
 ORDER_CANCELLATION_MAIL = "order.cancellation.mail.v1"
-ORDER_MAIL_EVENT_TYPES = (ORDER_CONFIRMATION_MAIL, ORDER_CANCELLATION_MAIL)
+ORDER_DELIVERY_DAY_MAIL = "order.delivery_day.mail.v1"
+ORDER_MAIL_EVENT_TYPES = (
+    ORDER_CONFIRMATION_MAIL,
+    ORDER_CANCELLATION_MAIL,
+    ORDER_DELIVERY_DAY_MAIL,
+)
 RECIPIENT_LIMIT = 10
 RECIPIENT_WINDOW = timedelta(hours=1)
 
@@ -94,13 +108,19 @@ WEEKDAYS = (
 class OrderMailKind(StrEnum):
     CONFIRMATION = "confirmation"
     CANCELLATION = "cancellation"
+    DELIVERY_DAY = "delivery_day"
 
 
 EVENT_TYPES = {
     OrderMailKind.CONFIRMATION: ORDER_CONFIRMATION_MAIL,
     OrderMailKind.CANCELLATION: ORDER_CANCELLATION_MAIL,
+    OrderMailKind.DELIVERY_DAY: ORDER_DELIVERY_DAY_MAIL,
 }
-KEY_PREFIXES = {kind: f"order-{kind.value}-mail:" for kind in OrderMailKind}
+KEY_PREFIXES = {
+    OrderMailKind.CONFIRMATION: "order-confirmation-mail:",
+    OrderMailKind.CANCELLATION: "order-cancellation-mail:",
+    OrderMailKind.DELIVERY_DAY: "order-delivery-day-mail:",
+}
 RESEND_MARKER = ":resend:"
 ORDER_MAIL_KEY_PREFIXES = tuple(KEY_PREFIXES.values())
 
@@ -172,11 +192,24 @@ class OrderMailLinkResolver:
 
 
 def order_mail_key(
-    kind: OrderMailKind, commitment_id: UUID, *, resend: int | None = None
+    kind: OrderMailKind,
+    commitment_id: UUID,
+    *,
+    window_id: UUID | None = None,
+    resend: int | None = None,
 ) -> str:
-    """``order-{kind}-mail:{order id}``, plus ``:resend:{n}`` for a resend."""
+    """``order-{kind}-mail:{order id}``, plus ``:resend:{n}`` for a resend.
 
+    The delivery-day mail also names its window, after the order id:
+    ``order-delivery-day-mail:{order id}:{window id}``. The order id is the
+    second segment of every key (``recent_order_mails`` joins on it).
+    """
+
+    if (kind is OrderMailKind.DELIVERY_DAY) != (window_id is not None):
+        raise ValueError("Only the delivery-day mail is keyed by a window.")
     key = f"{KEY_PREFIXES[kind]}{commitment_id}"
+    if window_id is not None:
+        key = f"{key}:{window_id}"
     if resend is None:
         return key
     if resend < 1:
@@ -191,10 +224,11 @@ def order_mail_event(
     commitment_id: UUID,
     links: OrderMailLinks,
     resend: int | None = None,
+    window_id: UUID | None = None,
 ) -> PendingOutboxEvent:
     """The single job of one mail kind for one order, or its n-th resend."""
 
-    key = order_mail_key(kind, commitment_id, resend=resend)
+    key = order_mail_key(kind, commitment_id, window_id=window_id, resend=resend)
     return PendingOutboxEvent(
         id=uuid5(ORDER_MAIL_NAMESPACE, key),
         aggregate_type="commitment",
@@ -204,6 +238,7 @@ def order_mail_event(
         payload={
             "actionId": str(action_id),
             "commitmentId": str(commitment_id),
+            **({"windowId": str(window_id)} if window_id is not None else {}),
             **links.payload(),
         },
     )
@@ -228,9 +263,27 @@ class OrderMailFacts:
     cancellation: OrderCancellationFacts | None = None
     # The action's switch for orders that members and acquirers enter.
     internal_order_mails: bool = False
+    # The action's switch for the mail on the delivery day, the zone its
+    # delivery days are counted in, and what the board recorded for the order
+    # ("delivered" or "missed").
+    delivery_day_mail: bool = False
+    delivery_zone: ZoneInfo = INSTALLATION_TIME_ZONE
+    drop_state: str | None = None
+
+    def delivery_day_not_due_reason(self, *, now: datetime) -> MailNotDueReason | None:
+        """Why the delivery-day mail is not sent now; ``None`` when it is."""
+
+        return delivery_day_not_due_reason(
+            self.commitment,
+            delivery_day_mail=self.delivery_day_mail,
+            drop_state=self.drop_state,
+            zone=self.delivery_zone,
+            now=now,
+        )
 
     def not_due_reason(self) -> MailNotDueReason | None:
-        """Why this order gets no mail now; ``None`` when a mail is due."""
+        """Why this order gets no confirmation or cancellation notice now;
+        ``None`` when one is due."""
 
         return mail_not_due_reason(
             self.commitment,
@@ -506,6 +559,62 @@ def render_order_cancellation(
     )
 
 
+def render_delivery_day(
+    facts: OrderMailFacts,
+    legal: LegalConfigurationVersion,
+    links: OrderMailLinks,
+    *,
+    now: datetime,
+) -> RenderedOrderMail:
+    """ "Your delivery comes today between 10:00 and 12:00."
+
+    The window, the delivery address, the quantities and the club's contact.
+    Nothing about the tour: no driver, no phone of a driver, no note for the
+    driver and no delivery contact.
+    """
+
+    commitment = facts.commitment
+    snapshot = commitment.delivery_window_snapshot
+    if snapshot is None:
+        raise OrderMailError("order_mail_window_missing")
+    recipient = _recipient(commitment)
+    zone = facts.delivery_zone
+    starts = datetime.fromisoformat(snapshot["startsAt"]).astimezone(zone)
+    ends = datetime.fromisoformat(snapshot["endsAt"]).astimezone(zone)
+    between = f"zwischen {starts:%H:%M} und {ends:%H:%M} Uhr"
+    issuer = legal.configuration.issuer
+    phone = legal.configuration.imprint_phone
+    lines = [
+        "Guten Morgen," if now.astimezone(zone).hour < 11 else "Guten Tag,",
+        "",
+        f"Ihre Bestellung {_reference(commitment)} bei der Aktion "
+        f"„{_clean(facts.action_name)}“ wird heute, "
+        f"{WEEKDAYS[starts.weekday()]}, {starts:%d.%m.%Y}, {between} geliefert.",
+    ]
+    if commitment.delivery_recipient is not None:
+        lines.extend(["", "Lieferadresse:", *_address(commitment.delivery_recipient)])
+    lines.extend(
+        [
+            "",
+            "Bestellt:",
+            *(
+                f"- {_clean(line.description_snapshot)}: {_quantity(line)}"
+                for line in commitment.lines
+            ),
+            "",
+            "Ist in dieser Zeit niemand da, schreiben Sie uns bitte an "
+            f"{_clean(issuer.email)}"
+            + (f" oder rufen Sie uns an: {_clean(phone)}." if phone else "."),
+            *_footer(legal, links),
+        ]
+    )
+    return RenderedOrderMail(
+        recipient=recipient,
+        subject=f"Ihre Lieferung kommt heute {between}",
+        text="\n".join(lines) + "\n",
+    )
+
+
 def _recipient(commitment: Commitment) -> str:
     email = commitment.buyer.email
     if email is None or not email.strip():
@@ -554,6 +663,11 @@ class MailNotDueReason(StrEnum):
     NO_EMAIL = "no_email"
     SWITCHED_OFF = "switched_off"
     ORDER_DRAFT = "order_draft"
+    # Delivery-day mail only.
+    ORDER_CANCELLED = "order_cancelled"
+    DELIVERY_RECORDED = "delivery_recorded"
+    SCHEDULED = "scheduled"
+    WINDOW_OVER = "window_over"
 
 
 def mail_not_due_reason(
@@ -595,6 +709,53 @@ def mail_due(
         )
         is None
     )
+
+
+def delivery_day_not_due_reason(
+    commitment: Commitment,
+    *,
+    delivery_day_mail: bool,
+    drop_state: str | None,
+    zone: ZoneInfo,
+    now: datetime,
+    send_time: time | None = None,
+) -> MailNotDueReason | None:
+    """The rule of the delivery-day mail; ``None`` when it is due now.
+
+    Due: the buyer has an address, the action has ``delivery_day_mail``, the
+    order is review-ready, confirmed or invoiced, the board recorded nothing
+    for it yet, its window starts today in the action's zone and is not over.
+    With ``send_time`` (the sweep and the status) the mail is also not due
+    before that local time; the worker, which sends a job that the sweep
+    already queued, passes none. Orders of every source follow this rule.
+    """
+
+    snapshot = commitment.delivery_window_snapshot
+    if snapshot is None:
+        raise ValueError("The delivery-day mail needs an order with a window.")
+    if commitment.buyer.email is None or not commitment.buyer.email.strip():
+        return MailNotDueReason.NO_EMAIL
+    if not delivery_day_mail:
+        return MailNotDueReason.SWITCHED_OFF
+    if commitment.status is CommitmentStatus.CANCELLED:
+        return MailNotDueReason.ORDER_CANCELLED
+    if commitment.status is CommitmentStatus.DRAFT:
+        return MailNotDueReason.ORDER_DRAFT
+    if drop_state is not None:
+        return MailNotDueReason.DELIVERY_RECORDED
+    if now >= datetime.fromisoformat(snapshot["endsAt"]):
+        return MailNotDueReason.WINDOW_OVER
+    today = now.astimezone(zone)
+    delivery_day = datetime.fromisoformat(snapshot["startsAt"]).astimezone(zone).date()
+    if today.date() < delivery_day:
+        return MailNotDueReason.SCHEDULED
+    if (
+        send_time is not None
+        and today.date() == delivery_day
+        and today.time().replace(tzinfo=None) < send_time
+    ):
+        return MailNotDueReason.SCHEDULED
+    return None
 
 
 class OrderMailReader(Protocol):
@@ -647,6 +808,16 @@ class OrderMailHandler:
         self._sender = sender
         self._clock = clock or (lambda: datetime.now(timezone.utc))
 
+    @staticmethod
+    def _window_id(event: ClaimedOutboxEvent) -> UUID:
+        value = event.payload.get("windowId")
+        if not isinstance(value, str):
+            raise OrderMailError("order_mail_payload_invalid")
+        try:
+            return UUID(value)
+        except ValueError as error:
+            raise OrderMailError("order_mail_payload_invalid") from error
+
     async def handle(self, event: ClaimedOutboxEvent) -> None:
         commitment_value = event.payload.get("commitmentId")
         if not isinstance(commitment_value, str):
@@ -659,9 +830,21 @@ class OrderMailHandler:
             raise OrderMailError("order_mail_payload_invalid")
         links = OrderMailLinks.from_payload(event.payload)
         facts = await self._reader.facts(commitment_id, self._kind)
-        if facts is None or facts.not_due_reason() is not None:
-            # Nothing to send: the order is gone or erased, or the action
-            # switched the mails for internal orders off meanwhile.
+        if facts is None:
+            # The order is gone.
+            return
+        if self._kind is OrderMailKind.DELIVERY_DAY:
+            if (
+                facts.commitment.delivery_window_id != self._window_id(event)
+                or facts.delivery_day_not_due_reason(now=self._clock()) is not None
+            ):
+                # Moved to another window (the sweep queues that one under
+                # its own key), cancelled, delivered, erased, switched off,
+                # or the job waited until the window was over.
+                return
+        elif facts.not_due_reason() is not None:
+            # Nothing to send: the buyer is erased, or the action switched
+            # the mails for internal orders off meanwhile.
             return
         if (
             self._kind is OrderMailKind.CONFIRMATION
@@ -678,12 +861,12 @@ class OrderMailHandler:
         if legal is None:
             # Retried: the mail must name the club; it waits for a version.
             raise OrderMailError("order_mail_legal_configuration_missing")
-        render = (
-            render_order_confirmation
-            if self._kind is OrderMailKind.CONFIRMATION
-            else render_order_cancellation
-        )
-        mail = render(facts, legal, links)
+        if self._kind is OrderMailKind.DELIVERY_DAY:
+            mail = render_delivery_day(facts, legal, links, now=self._clock())
+        elif self._kind is OrderMailKind.CONFIRMATION:
+            mail = render_order_confirmation(facts, legal, links)
+        else:
+            mail = render_order_cancellation(facts, legal, links)
         async with self._reader.recipient_lock(limit_digest(mail.recipient)):
             if await self._reader.was_sent(event.idempotency_key):
                 return

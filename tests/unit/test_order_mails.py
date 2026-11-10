@@ -6,7 +6,8 @@ import hashlib
 import json
 from contextlib import asynccontextmanager
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -26,6 +27,7 @@ from leonaid.application.order_mails import (
     OrderMailLinkResolver,
     OrderMailLinks,
     MailNotDueReason,
+    delivery_day_not_due_reason,
     delivery_window_label,
     limit_digest,
     mail_due,
@@ -33,8 +35,15 @@ from leonaid.application.order_mails import (
     mailbox_key,
     order_mail_event,
     order_mail_key,
+    render_delivery_day,
     render_order_cancellation,
     render_order_confirmation,
+)
+from leonaid.application.delivery_day_mails import (
+    DeliveryDayMailSweep,
+    DueDeliveryDayMail,
+    delivery_day_event,
+    delivery_day_links,
 )
 from leonaid.domain.action_templates import OfferingUnit
 from leonaid.domain.commitments import (
@@ -1060,3 +1069,422 @@ async def test_a_resend_is_sent_under_its_own_key_and_counts_for_the_limit() -> 
     assert [sent.idempotency_key for sent in sender.events] == [
         f"order-confirmation-mail:{ORDER_ID}:resend:1"
     ]
+
+
+# ---- the mail on the delivery day -------------------------------------
+
+BERLIN = ZoneInfo("Europe/Berlin")
+# The order's window: Saturday 14.02.2026, 09:00–11:00 in Berlin.
+DELIVERY_MORNING = datetime(2026, 2, 14, 7, 5, tzinfo=BERLIN)
+DAY_KEY = f"order-delivery-day-mail:{ORDER_ID}:{WINDOW_ID}"
+
+
+def day_facts(commitment: Commitment | None = None, **changes: Any) -> OrderMailFacts:
+    values: dict[str, Any] = {
+        "delivery_day_mail": True,
+        "delivery_zone": BERLIN,
+        **changes,
+    }
+    return replace(facts(commitment), **values)
+
+
+def day_reason(
+    commitment: Commitment | None = None,
+    *,
+    now: datetime = DELIVERY_MORNING,
+    send_time: time | None = time(7, 0),
+    delivery_day_mail: bool = True,
+    drop_state: str | None = None,
+) -> MailNotDueReason | None:
+    return delivery_day_not_due_reason(
+        commitment or order(),
+        delivery_day_mail=delivery_day_mail,
+        drop_state=drop_state,
+        zone=BERLIN,
+        now=now,
+        send_time=send_time,
+    )
+
+
+def claimed_day(
+    window_id: UUID = WINDOW_ID, *, resend: int | None = None
+) -> ClaimedOutboxEvent:
+    event = order_mail_event(
+        OrderMailKind.DELIVERY_DAY,
+        action_id=ACTION_ID,
+        commitment_id=ORDER_ID,
+        links=replace(LINKS, campaign_url=None),
+        window_id=window_id,
+        resend=resend,
+    )
+    return ClaimedOutboxEvent(
+        id=event.id,
+        aggregate_type=event.aggregate_type,
+        aggregate_id=event.aggregate_id,
+        event_type=event.event_type,
+        idempotency_key=event.idempotency_key,
+        payload=json.loads(json.dumps(event.payload)),
+        attempts=1,
+        claim_token=uuid4(),
+        claimed_by="unit",
+    )
+
+
+def day_handler(
+    value: OrderMailFacts | None,
+    sender: RecordingSender,
+    *,
+    now: datetime = DELIVERY_MORNING,
+    recent: int = 0,
+) -> OrderMailHandler:
+    return OrderMailHandler(
+        OrderMailKind.DELIVERY_DAY,
+        reader=Reader(value, recent=recent),
+        legal_configuration=Legal(legal()),
+        sender=sender,
+        clock=lambda: now,
+    )
+
+
+def test_the_delivery_day_job_is_keyed_by_order_and_window() -> None:
+    event = order_mail_event(
+        OrderMailKind.DELIVERY_DAY,
+        action_id=ACTION_ID,
+        commitment_id=ORDER_ID,
+        links=LINKS,
+        window_id=WINDOW_ID,
+    )
+    other_window = uuid4()
+
+    assert event.event_type == "order.delivery_day.mail.v1"
+    assert event.idempotency_key == DAY_KEY
+    # ``recent_order_mails`` joins the order through the second segment.
+    assert event.idempotency_key.split(":")[1] == str(ORDER_ID)
+    assert event.payload["windowId"] == str(WINDOW_ID)
+    assert "@" not in json.dumps(event.payload)
+    # Another window is another mail; a resend keeps order and window.
+    assert order_mail_key(
+        OrderMailKind.DELIVERY_DAY, ORDER_ID, window_id=other_window
+    ) == (f"order-delivery-day-mail:{ORDER_ID}:{other_window}")
+    assert order_mail_key(
+        OrderMailKind.DELIVERY_DAY, ORDER_ID, window_id=WINDOW_ID, resend=2
+    ) == (f"{DAY_KEY}:resend:2")
+    with pytest.raises(ValueError):
+        order_mail_key(OrderMailKind.DELIVERY_DAY, ORDER_ID)
+    with pytest.raises(ValueError):
+        order_mail_key(OrderMailKind.CONFIRMATION, ORDER_ID, window_id=WINDOW_ID)
+    # The other kinds carry no window.
+    assert "windowId" not in claimed(OrderMailKind.CONFIRMATION).payload
+
+
+@pytest.mark.parametrize("source", tuple(CommitmentSource))
+@pytest.mark.parametrize(
+    "status",
+    [
+        CommitmentStatus.REVIEW_READY,
+        CommitmentStatus.CONFIRMED,
+        CommitmentStatus.INVOICED,
+    ],
+)
+def test_the_delivery_day_mail_is_due_for_every_source_on_the_day(
+    source: CommitmentSource, status: CommitmentStatus
+) -> None:
+    assert day_reason(order(source=source, status=status)) is None
+
+
+def test_the_delivery_day_mail_waits_for_the_day_and_the_send_time() -> None:
+    def at(*moment: int) -> datetime:
+        return datetime(*moment, tzinfo=BERLIN)
+
+    # The day before, also late in the evening.
+    assert day_reason(now=at(2026, 2, 13, 23, 59)) is MailNotDueReason.SCHEDULED
+    # On the day before the send time.
+    assert day_reason(now=at(2026, 2, 14, 6, 59)) is MailNotDueReason.SCHEDULED
+    assert day_reason(now=at(2026, 2, 14, 7, 0)) is None
+    # Until the window ends, also after it began.
+    assert day_reason(now=at(2026, 2, 14, 10, 59)) is None
+    assert day_reason(now=at(2026, 2, 14, 11, 0)) is MailNotDueReason.WINDOW_OVER
+    assert day_reason(now=at(2026, 2, 15, 8, 0)) is MailNotDueReason.WINDOW_OVER
+    # The worker sends a queued job whatever the send time is now.
+    assert day_reason(now=at(2026, 2, 14, 5, 0), send_time=None) is None
+    assert day_reason(now=at(2026, 2, 13, 23, 0), send_time=None) is (
+        MailNotDueReason.SCHEDULED
+    )
+
+
+def test_the_delivery_day_is_counted_in_the_zone_of_the_action() -> None:
+    # 00:30–02:00 in Berlin on 14.02. is still 13.02. in UTC.
+    night = order(
+        delivery_window_snapshot={
+            "windowId": str(WINDOW_ID),
+            "startsAt": "2026-02-13T23:30:00+00:00",
+            "endsAt": "2026-02-14T01:00:00+00:00",
+            "timezone": "Europe/Berlin",
+        }
+    )
+    late_evening = datetime(2026, 2, 13, 22, 50, tzinfo=timezone.utc)
+    after_midnight = datetime(2026, 2, 13, 23, 10, tzinfo=timezone.utc)
+
+    assert day_reason(night, now=late_evening, send_time=None) is (
+        MailNotDueReason.SCHEDULED
+    )
+    assert day_reason(night, now=after_midnight, send_time=None) is None
+    # With the send time the mail could only go out after the window: never.
+    assert day_reason(night, now=after_midnight) is MailNotDueReason.SCHEDULED
+    # An action in UTC counts the same window as a delivery of the 13th.
+    assert (
+        delivery_day_not_due_reason(
+            night,
+            delivery_day_mail=True,
+            drop_state=None,
+            zone=ZoneInfo("UTC"),
+            now=late_evening,
+        )
+        is None
+    )
+
+
+def test_the_delivery_day_mail_is_not_due_without_address_switch_or_open_delivery() -> (
+    None
+):
+    erased = BuyerSnapshot(
+        party_kind=CommitmentPartyKind.COMPANY,
+        twenty_id=uuid4(),
+        display_name="Anonymisiert",
+        email=None,
+    )
+    assert day_reason(order(buyer=erased)) is MailNotDueReason.NO_EMAIL
+    assert day_reason(delivery_day_mail=False) is MailNotDueReason.SWITCHED_OFF
+    assert day_reason(order(status=CommitmentStatus.CANCELLED)) is (
+        MailNotDueReason.ORDER_CANCELLED
+    )
+    assert day_reason(order(status=CommitmentStatus.DRAFT)) is (
+        MailNotDueReason.ORDER_DRAFT
+    )
+    for state in ("delivered", "missed"):
+        assert day_reason(drop_state=state) is MailNotDueReason.DELIVERY_RECORDED
+    with pytest.raises(ValueError):
+        day_reason(order(delivery_window_id=None, delivery_window_snapshot=None))
+
+
+def test_delivery_day_mail_names_window_address_and_quantities_only() -> None:
+    mail = render_delivery_day(
+        day_facts(), legal(), replace(LINKS, campaign_url=None), now=DELIVERY_MORNING
+    )
+    reference = f"LA-{ORDER_ID.hex.upper()}"
+
+    assert mail.recipient == "einkauf@musterwerk.invalid"
+    assert mail.subject == "Ihre Lieferung kommt heute zwischen 09:00 und 11:00 Uhr"
+    text = mail.text
+    for expected in (
+        "Guten Morgen,",
+        f"Ihre Bestellung {reference} bei der Aktion „Krapfentaxi 2026“ wird heute, "
+        "Samstag, 14.02.2026, zwischen 09:00 und 11:00 Uhr geliefert.",
+        "Lieferadresse:\n  Musterwerk Empfang\n  Lieferstraße 7\n  86152 Augsburg",
+        "Bestellt:\n- Krapfen-Box: 3 Boxen (72 Stück)\n- Einzelkrapfen: 1 Stück",
+        "Ist in dieser Zeit niemand da, schreiben Sie uns bitte an "
+        "rechnung@hilfswerk.test oder rufen Sie uns an: +49 821 123456.",
+        "Datenschutzerklärung: https://krapfen.leonaid.invalid/datenschutz",
+        "Anbieter\nLions Hilfswerk Augsburg e.V.\nLöwenweg 12, 86150 Augsburg",
+        "Impressum: https://krapfen.leonaid.invalid/impressum",
+    ):
+        assert expected in text, expected
+    # Nothing about the tour, the driver or the delivery contact, no prices,
+    # no billing address and no campaign link.
+    for forbidden in (
+        "Hofeinfahrt links",
+        "Pforte",
+        "999999",
+        "Hintereingang",
+        "4711",
+        "€",
+        "Rechnungsweg",
+        "Zur Aktion",
+        "Fahrer",
+    ):
+        assert forbidden not in text, forbidden
+
+
+def test_delivery_day_mail_greets_by_the_local_hour_and_copes_without_phone() -> None:
+    no_phone = legal()
+    no_phone = replace(
+        no_phone, configuration=replace(no_phone.configuration, imprint_phone=None)
+    )
+    noon = datetime(2026, 2, 14, 11, 0, tzinfo=BERLIN)
+    mail = render_delivery_day(day_facts(), no_phone, LINKS, now=noon)
+
+    assert mail.text.startswith("Guten Tag,\n")
+    assert (
+        "Ist in dieser Zeit niemand da, schreiben Sie uns bitte an "
+        "rechnung@hilfswerk.test.\n" in mail.text
+    )
+    assert "rufen Sie uns an" not in mail.text
+    # The window is shown in the action's zone, whatever zone the clock has.
+    utc_now = DELIVERY_MORNING.astimezone(timezone.utc)
+    assert (
+        render_delivery_day(day_facts(), legal(), LINKS, now=utc_now).subject
+        == "Ihre Lieferung kommt heute zwischen 09:00 und 11:00 Uhr"
+    )
+
+
+@pytest.mark.asyncio
+async def test_handler_sends_the_delivery_day_mail_under_its_key() -> None:
+    sender = RecordingSender()
+    event = claimed_day()
+
+    await day_handler(day_facts(), sender).handle(event)
+
+    assert [sent.idempotency_key for sent in sender.events] == [DAY_KEY]
+    assert sender.events[0].payload["to"] == "einkauf@musterwerk.invalid"
+    assert "wird heute, Samstag, 14.02.2026" in str(sender.events[0].payload["text"])
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        day_facts(delivery_day_mail=False),
+        day_facts(order(status=CommitmentStatus.CANCELLED)),
+        day_facts(drop_state="delivered"),
+        day_facts(drop_state="missed"),
+        day_facts(
+            order(
+                buyer=BuyerSnapshot(
+                    party_kind=CommitmentPartyKind.COMPANY,
+                    twenty_id=uuid4(),
+                    display_name="Anonymisiert",
+                    email=None,
+                )
+            )
+        ),
+    ],
+    ids=["order-gone", "switched-off", "cancelled", "delivered", "missed", "erased"],
+)
+@pytest.mark.asyncio
+async def test_handler_skips_a_delivery_day_mail_that_is_not_due_any_more(
+    value: OrderMailFacts | None,
+) -> None:
+    sender = RecordingSender()
+
+    await day_handler(value, sender).handle(claimed_day())
+
+    assert sender.events == []
+
+
+@pytest.mark.asyncio
+async def test_handler_skips_the_job_of_a_window_the_order_has_left() -> None:
+    sender = RecordingSender()
+
+    # The job names another window than the order has now.
+    await day_handler(day_facts(), sender).handle(claimed_day(uuid4()))
+
+    assert sender.events == []
+
+
+@pytest.mark.asyncio
+async def test_handler_skips_a_delivery_day_job_that_waited_past_the_window() -> None:
+    sender = RecordingSender()
+    after = datetime(2026, 2, 14, 11, 1, tzinfo=BERLIN)
+
+    await day_handler(day_facts(), sender, now=after).handle(claimed_day())
+
+    assert sender.events == []
+
+
+@pytest.mark.asyncio
+async def test_delivery_day_job_without_its_window_is_invalid() -> None:
+    event = claimed_day()
+    broken = replace(
+        event, payload={k: v for k, v in event.payload.items() if k != "windowId"}
+    )
+
+    with pytest.raises(OrderMailError) as captured:
+        await day_handler(day_facts(), RecordingSender()).handle(broken)
+
+    assert captured.value.code == "order_mail_payload_invalid"
+
+
+@pytest.mark.asyncio
+async def test_the_mailbox_limit_holds_for_the_delivery_day_mail_and_its_resend() -> (
+    None
+):
+    sender = RecordingSender()
+
+    for event in (claimed_day(), claimed_day(resend=1)):
+        with pytest.raises(OrderMailError) as captured:
+            await day_handler(day_facts(), sender, recent=RECIPIENT_LIMIT).handle(event)
+        assert captured.value.code == "order_mail_recipient_limit"
+        assert captured.value.retryable is False
+    assert sender.events == []
+
+    await day_handler(day_facts(), sender, recent=RECIPIENT_LIMIT - 1).handle(
+        claimed_day(resend=1)
+    )
+    assert [sent.idempotency_key for sent in sender.events] == [f"{DAY_KEY}:resend:1"]
+
+
+class SweepRepository:
+    def __init__(self, result: int | None) -> None:
+        self.result = result
+        self.calls: list[tuple[datetime, int, OrderMailLinks]] = []
+
+    async def queue_due(
+        self, *, now: datetime, limit: int, links: OrderMailLinks
+    ) -> int | None:
+        self.calls.append((now, limit, links))
+        return self.result
+
+
+@pytest.mark.asyncio
+async def test_the_sweep_queues_with_the_legal_links_of_the_public_host() -> None:
+    repository = SweepRepository(3)
+    links = LinkBuilder(
+        admin_base_url="https://app.leonaid.invalid",
+        site_base_url="https://club.leonaid.invalid",
+    )
+    sweep = DeliveryDayMailSweep(repository, links)
+
+    assert await sweep.run_once(now=DELIVERY_MORNING, limit=50) == 3
+    assert repository.calls == [
+        (
+            DELIVERY_MORNING,
+            50,
+            OrderMailLinks(
+                campaign_url=None,
+                privacy_url="https://club.leonaid.invalid/datenschutz",
+                imprint_url="https://club.leonaid.invalid/impressum",
+            ),
+        )
+    ]
+    assert delivery_day_links(links).campaign_url is None
+    with pytest.raises(ValueError):
+        await sweep.run_once(now=datetime(2026, 2, 14, 7, 5))
+
+
+@pytest.mark.asyncio
+async def test_a_sweep_that_another_worker_runs_queues_nothing_here() -> None:
+    sweep = DeliveryDayMailSweep(
+        SweepRepository(None), LinkBuilder.single_host("https://app.leonaid.invalid")
+    )
+
+    assert await sweep.run_once(now=DELIVERY_MORNING) == 0
+
+
+def test_the_sweep_writes_the_same_job_for_an_order_and_window() -> None:
+    due = DueDeliveryDayMail(
+        action_id=ACTION_ID, commitment_id=ORDER_ID, window_id=WINDOW_ID
+    )
+    links = replace(LINKS, campaign_url=None)
+
+    first = delivery_day_event(due, links)
+    assert first == delivery_day_event(due, links)
+    assert first.idempotency_key == DAY_KEY
+    assert first.payload == {
+        "actionId": str(ACTION_ID),
+        "commitmentId": str(ORDER_ID),
+        "windowId": str(WINDOW_ID),
+        "campaignUrl": None,
+        "privacyUrl": LINKS.privacy_url,
+        "imprintUrl": LINKS.imprint_url,
+    }
+    assert timedelta(0) < RECIPIENT_WINDOW

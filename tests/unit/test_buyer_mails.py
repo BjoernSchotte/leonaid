@@ -3,21 +3,20 @@
 from __future__ import annotations
 
 from datetime import datetime, time, timedelta, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
+from leonaid.application import buyer_mails as subject
 from leonaid.application.buyer_mails import (
     BuyerMailJob,
     BuyerMailLedger,
     BuyerMailReason,
     BuyerMailState,
     BuyerMailStatus,
-    buyer_mail_status,
-    buyer_mail_statuses,
     last_sequence,
-    resend_refusal,
 )
+from leonaid.application.errors import Conflict
 from leonaid.application.order_mails import OrderMailKind, order_mail_key
 from leonaid.domain.buyer_mails import BuyerMailConfiguration
 from leonaid.domain.commitments import (
@@ -27,9 +26,37 @@ from leonaid.domain.commitments import (
     CommitmentStatus,
 )
 from leonaid.domain.errors import DomainInvariantError
-from tests.unit.test_order_mails import ORDER_ID, order
+from tests.unit.test_order_mails import (
+    BERLIN,
+    DELIVERY_MORNING,
+    ORDER_ID,
+    WINDOW_ID,
+    order,
+)
 
 SENT_AT = datetime(2026, 2, 10, 9, 0, tzinfo=timezone.utc)
+# Two days before the order's delivery window (14.02.2026, 09:00–11:00 Berlin).
+NOW = datetime(2026, 2, 12, 9, 0, tzinfo=timezone.utc)
+
+
+def buyer_mail_status(
+    kind: OrderMailKind, value: BuyerMailLedger, *, now: datetime = NOW
+) -> BuyerMailStatus:
+    return subject.buyer_mail_status(kind, value, now=now)
+
+
+def buyer_mail_statuses(
+    value: BuyerMailLedger, *, now: datetime = NOW
+) -> tuple[BuyerMailStatus, ...]:
+    return subject.buyer_mail_statuses(value, now=now)
+
+
+def resend_refusal(
+    kind: OrderMailKind, value: BuyerMailLedger, *, now: datetime = NOW
+) -> Conflict | None:
+    return subject.resend_refusal(kind, value, now=now)
+
+
 CONFIRMATION = OrderMailKind.CONFIRMATION
 CANCELLATION = OrderMailKind.CANCELLATION
 
@@ -44,6 +71,8 @@ def ledger(
     sent: tuple[tuple[str, datetime], ...] = (),
     internal_order_mails: bool = False,
     previous_status: CommitmentStatus | None = None,
+    delivery_day_mail: bool = False,
+    drop_state: str | None = None,
     **changes: object,
 ) -> BuyerMailLedger:
     return BuyerMailLedger(
@@ -52,6 +81,10 @@ def ledger(
         previous_status=previous_status,
         jobs=jobs,
         sent=sent,
+        delivery_day_mail=delivery_day_mail,
+        delivery_day_send_time=time(7, 0),
+        delivery_zone=BERLIN,
+        drop_state=drop_state,
     )
 
 
@@ -292,3 +325,171 @@ def test_a_cancelled_internal_draft_has_no_notice_to_send() -> None:
         BuyerMailReason.ORDER_DRAFT,
         BuyerMailReason.ORDER_DRAFT,
     ]
+
+
+# ---- the mail on the delivery day -------------------------------------
+
+DELIVERY_DAY = OrderMailKind.DELIVERY_DAY
+
+
+def day_key(resend: int | None = None, window_id: UUID = WINDOW_ID) -> str:
+    return order_mail_key(DELIVERY_DAY, ORDER_ID, window_id=window_id, resend=resend)
+
+
+def test_the_delivery_day_mail_is_listed_for_an_order_with_a_window_and_the_switch() -> (
+    None
+):
+    with_window = ledger(delivery_day_mail=True)
+    kinds = [status.kind for status in buyer_mail_statuses(with_window)]
+    assert kinds == [CONFIRMATION, DELIVERY_DAY]
+
+    # Not while the action does not send it, and never without a window.
+    assert DELIVERY_DAY not in [s.kind for s in buyer_mail_statuses(ledger())]
+    no_window = ledger(
+        delivery_day_mail=True, delivery_window_id=None, delivery_window_snapshot=None
+    )
+    assert [s.kind for s in buyer_mail_statuses(no_window)] == [CONFIRMATION]
+    refusal = resend_refusal(DELIVERY_DAY, no_window)
+    assert refusal is not None and refusal.code == "buyer_mail_not_applicable"
+    # A mail that went out stays visible after the action switched it off.
+    switched_off = ledger(sent=((day_key(), SENT_AT),))
+    assert DELIVERY_DAY in [s.kind for s in buyer_mail_statuses(switched_off)]
+    # Cancelled: confirmation, delivery day, cancellation notice.
+    cancelled = ledger(
+        delivery_day_mail=True,
+        status=CommitmentStatus.CANCELLED,
+        previous_status=CommitmentStatus.REVIEW_READY,
+    )
+    assert [s.kind for s in buyer_mail_statuses(cancelled)] == [
+        CONFIRMATION,
+        DELIVERY_DAY,
+        CANCELLATION,
+    ]
+
+
+def test_before_the_delivery_day_the_mail_is_scheduled() -> None:
+    value = ledger(delivery_day_mail=True)
+
+    for now in (
+        NOW,
+        datetime(2026, 2, 14, 6, 59, tzinfo=BERLIN),
+        # Due, and the next sweep queues it.
+        DELIVERY_MORNING,
+    ):
+        assert buyer_mail_status(DELIVERY_DAY, value, now=now) == BuyerMailStatus(
+            DELIVERY_DAY, BuyerMailState.NOT_DUE, reason=BuyerMailReason.SCHEDULED
+        ), now
+        refusal = resend_refusal(DELIVERY_DAY, value, now=now)
+        assert refusal is not None
+        assert refusal.code == "buyer_mail_resend_not_allowed"
+
+
+def test_without_a_job_the_delivery_day_mail_says_why_it_will_not_come() -> None:
+    erased = BuyerSnapshot(
+        party_kind=CommitmentPartyKind.COMPANY,
+        twenty_id=uuid4(),
+        display_name="Firma",
+        email=None,
+    )
+    after = datetime(2026, 2, 14, 11, 0, tzinfo=BERLIN)
+    cases = [
+        (ledger(delivery_day_mail=True, buyer=erased), DELIVERY_MORNING, "no_email"),
+        (
+            ledger(delivery_day_mail=True, status=CommitmentStatus.DRAFT),
+            DELIVERY_MORNING,
+            "order_draft",
+        ),
+        (
+            ledger(delivery_day_mail=True, drop_state="delivered"),
+            DELIVERY_MORNING,
+            "delivery_recorded",
+        ),
+        (ledger(delivery_day_mail=True), after, "window_over"),
+    ]
+    for value, now, reason in cases:
+        status = buyer_mail_status(DELIVERY_DAY, value, now=now)
+        assert status.state is BuyerMailState.NOT_DUE
+        assert status.reason is not None and status.reason.value == reason
+        assert not status.can_resend
+
+
+def test_a_sent_delivery_day_mail_can_be_sent_again_until_the_window_ends() -> None:
+    value = ledger(
+        delivery_day_mail=True,
+        jobs=(BuyerMailJob(day_key(), "completed"),),
+        sent=((day_key(), DELIVERY_MORNING),),
+    )
+    during = datetime(2026, 2, 14, 10, 30, tzinfo=BERLIN)
+    after = datetime(2026, 2, 14, 11, 0, tzinfo=BERLIN)
+
+    assert buyer_mail_status(DELIVERY_DAY, value, now=during) == BuyerMailStatus(
+        DELIVERY_DAY, BuyerMailState.SENT, sent_at=DELIVERY_MORNING, can_resend=True
+    )
+    assert resend_refusal(DELIVERY_DAY, value, now=during) is None
+    # Afterwards it stays "sent", but "today" is over.
+    late = buyer_mail_status(DELIVERY_DAY, value, now=after)
+    assert late.state is BuyerMailState.SENT and not late.can_resend
+    refusal = resend_refusal(DELIVERY_DAY, value, now=after)
+    assert refusal is not None and refusal.code == "buyer_mail_not_due"
+
+
+def test_a_delivered_or_cancelled_order_gets_no_resend_of_the_delivery_day_mail() -> (
+    None
+):
+    sent = ((day_key(), DELIVERY_MORNING),)
+    during = datetime(2026, 2, 14, 9, 30, tzinfo=BERLIN)
+    for value in (
+        ledger(delivery_day_mail=True, sent=sent, drop_state="delivered"),
+        ledger(delivery_day_mail=True, sent=sent, drop_state="missed"),
+        ledger(
+            delivery_day_mail=True,
+            sent=sent,
+            status=CommitmentStatus.CANCELLED,
+            previous_status=CommitmentStatus.REVIEW_READY,
+        ),
+        ledger(delivery_day_mail=False, sent=sent),
+    ):
+        status = buyer_mail_status(DELIVERY_DAY, value, now=during)
+        assert status.state is BuyerMailState.SENT and not status.can_resend
+        refusal = resend_refusal(DELIVERY_DAY, value, now=during)
+        assert refusal is not None and refusal.code == "buyer_mail_not_due"
+
+
+def test_jobs_of_a_window_the_order_left_do_not_count_for_its_window_now() -> None:
+    old_window = uuid4()
+    value = ledger(
+        delivery_day_mail=True,
+        jobs=(BuyerMailJob(day_key(window_id=old_window), "completed"),),
+        sent=((day_key(window_id=old_window), SENT_AT),),
+    )
+
+    assert last_sequence(DELIVERY_DAY, value) is None
+    status = buyer_mail_status(DELIVERY_DAY, value, now=DELIVERY_MORNING)
+    assert status == BuyerMailStatus(
+        DELIVERY_DAY, BuyerMailState.NOT_DUE, reason=BuyerMailReason.SCHEDULED
+    )
+
+
+def test_a_failed_delivery_day_mail_and_its_resend_number() -> None:
+    value = ledger(
+        delivery_day_mail=True,
+        jobs=(
+            BuyerMailJob(day_key(), "completed"),
+            BuyerMailJob(
+                day_key(resend=1), "dead_letter", "order_mail_recipient_limit"
+            ),
+        ),
+        sent=((day_key(), DELIVERY_MORNING),),
+    )
+    during = datetime(2026, 2, 14, 9, 30, tzinfo=BERLIN)
+
+    assert last_sequence(DELIVERY_DAY, value) == 1
+    assert buyer_mail_status(DELIVERY_DAY, value, now=during) == BuyerMailStatus(
+        DELIVERY_DAY,
+        BuyerMailState.FAILED,
+        sent_at=DELIVERY_MORNING,
+        reason=BuyerMailReason.RECIPIENT_LIMIT,
+        can_resend=True,
+    )
+    # The confirmation's jobs are not touched by the delivery-day keys.
+    assert last_sequence(CONFIRMATION, value) is None

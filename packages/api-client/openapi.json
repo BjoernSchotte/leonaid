@@ -22366,7 +22366,7 @@
     },
     "/api/v1/actions/{action_id}/commitments/{commitment_id}/buyer-mails": {
       "get": {
-        "description": "The mails to the buyer of one order: one entry per kind that applies.\n\nThe confirmation always, the cancellation notice once the order is\ncancelled. Managers only. The kind `delivery_day` is reserved for the\nmail on the delivery day and does not appear yet.",
+        "description": "The mails to the buyer of one order: one entry per kind that applies.\n\nThe confirmation always; the mail on the delivery day for an order with\na delivery window, while the action sends it; the cancellation notice\nonce the order is cancelled. Managers only.",
         "operationId": "listBuyerMails",
         "parameters": [
           {
@@ -22470,7 +22470,7 @@
     },
     "/api/v1/actions/{action_id}/commitments/{commitment_id}/buyer-mails/{kind}/resend": {
       "post": {
-        "description": "Send a mail to the buyer again.\n\nAllowed for a mail that was sent or that failed. Answers 409 while the\nmail waits in the queue or is not due (no address, cancelled order for a\nconfirmation, switched off). The worker applies the limit per mailbox.\nIdempotent per `Idempotency-Key`.",
+        "description": "Send a mail to the buyer again.\n\nAllowed for a mail that was sent or that failed. Answers 409 while the\nmail waits in the queue or is not due (no address, cancelled order for a\nconfirmation, delivered order or a window that is over for the\ndelivery-day mail, switched off). The worker applies the limit per mailbox.\nIdempotent per `Idempotency-Key`.",
         "operationId": "resendBuyerMail",
         "parameters": [
           {

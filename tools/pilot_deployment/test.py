@@ -279,6 +279,19 @@ def split_hosts_and_cms(config: dict[str, Any]) -> None:
     )
     mutate("site base URL missing", "api", "LEONAID_SITE_BASE_URL", "")
     mutate(
+        "worker mail links on another public host",
+        "worker",
+        "LEONAID_SITE_BASE_URL",
+        "https://leonaid.invalid",
+    )
+    mutate("worker lacks the public host", "worker", "LEONAID_SITE_BASE_URL", "")
+    mutate(
+        "worker names another admin host",
+        "worker",
+        "LEONAID_PUBLIC_BASE_URL",
+        "https://other.leonaid.org",
+    )
+    mutate(
         "credentialed public origin",
         "api",
         "LEONAID_ALLOWED_ORIGINS",
@@ -361,6 +374,7 @@ def admin_only(split: dict[str, Any]) -> None:
     api["LEONAID_PUBLIC_HOST_ENABLED"] = "false"
     api["LEONAID_PUBLIC_ORIGINS"] = ""
     api["LEONAID_SITE_BASE_URL"] = f"https://{admin}"
+    _environment(config, "worker")["LEONAID_SITE_BASE_URL"] = f"https://{admin}"
     _environment(config, "campaign-site")["LEONAID_SITE_BASE_URL"] = f"https://{admin}"
     _environment(config, "campaign-site")["LEONAID_PUBLIC_HOST_ENABLED"] = "false"
     from tools.pilot_deployment import validate as contract

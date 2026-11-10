@@ -9,6 +9,8 @@ import {
 import {
   Badge,
   ErrorState,
+  Field,
+  Select,
   SkeletonRows,
   StatusMessage,
   Switch,
@@ -25,11 +27,23 @@ interface BuyerMailSectionProps {
   readonly client: LeonAidApiClient;
   /** Archived action: the switches are shown, not changed. */
   readonly disabled: boolean;
+  /** The action has the function "Auslieferung" (delivery windows). */
+  readonly hasDelivery: boolean;
 }
 
 type Change = Partial<
-  Pick<BuyerMailConfigurationResponse, "internalOrderMails">
+  Pick<
+    BuyerMailConfigurationResponse,
+    "internalOrderMails" | "deliveryDayMail" | "deliveryDaySendTime"
+  >
 >;
+
+/** 05:00 to 12:00 in half hours: the times the server accepts. */
+export const SEND_TIMES: readonly string[] = Array.from(
+  { length: 15 },
+  (_, index) =>
+    `${String(5 + Math.floor(index / 2)).padStart(2, "0")}:${index % 2 ? "30" : "00"}`,
+);
 
 /**
  * "E-Mails an Käufer" in the action's settings: the switches of
@@ -41,6 +55,7 @@ export function BuyerMailSection({
   actionId,
   client,
   disabled,
+  hasDelivery,
 }: BuyerMailSectionProps) {
   const cache = useQueryClient();
   const toast = useOptionalToast();
@@ -59,8 +74,9 @@ export function BuyerMailSection({
         expectedRevision: current.revision,
         internalOrderMails:
           change.internalOrderMails ?? current.internalOrderMails,
-        deliveryDayMail: current.deliveryDayMail,
-        deliveryDaySendTime: current.deliveryDaySendTime,
+        deliveryDayMail: change.deliveryDayMail ?? current.deliveryDayMail,
+        deliveryDaySendTime:
+          change.deliveryDaySendTime ?? current.deliveryDaySendTime,
       });
     },
     onMutate: () => setError(undefined),
@@ -73,6 +89,20 @@ export function BuyerMailSection({
           title: result.internalOrderMails
             ? "Käufer erhalten ab jetzt E-Mails zu Bestellungen, die Mitglieder erfassen."
             : "Für Bestellungen, die Mitglieder erfassen, gehen keine E-Mails mehr an Käufer.",
+          tone: "success",
+        });
+      }
+      if (change.deliveryDayMail !== undefined) {
+        toast?.show({
+          title: result.deliveryDayMail
+            ? `Käufer erhalten am Liefertag ab ${result.deliveryDaySendTime} Uhr eine E-Mail mit ihrem Lieferfenster.`
+            : "Am Liefertag geht keine E-Mail mehr an Käufer.",
+          tone: "success",
+        });
+      }
+      if (change.deliveryDaySendTime !== undefined) {
+        toast?.show({
+          title: `Die E-Mail am Liefertag geht ab ${result.deliveryDaySendTime} Uhr hinaus.`,
           tone: "success",
         });
       }
@@ -107,7 +137,7 @@ export function BuyerMailSection({
         id="buyer-mails"
       >
         {heading}
-        <SkeletonRows rows={1} />
+        <SkeletonRows rows={2} />
       </section>
     );
   }
@@ -166,7 +196,67 @@ export function BuyerMailSection({
             }
           />
         </li>
+        <li className="buyer-mail-switch">
+          <div className="buyer-mail-switch-text">
+            <label htmlFor="buyer-mail-delivery-day">
+              <strong>E-Mail am Liefertag</strong>
+            </label>
+            <p className="small muted" id="buyer-mail-delivery-day-description">
+              Der Käufer erhält am Tag der Lieferung eine E-Mail mit seinem
+              Lieferfenster, zum Beispiel „Ihre Lieferung kommt heute zwischen
+              10:00 und 12:00 Uhr“. Sie geht an jede offene Bestellung des Tages
+              mit E-Mail-Adresse, auch an Bestellungen aus dem öffentlichen
+              Formular. Stornierte und schon abgehakte Bestellungen bekommen
+              keine.
+              {hasDelivery
+                ? null
+                : " Diese Aktion hat die Funktion „Auslieferung“ nicht; der Schalter bleibt deshalb aus."}
+            </p>
+          </div>
+          <Badge tone={configuration.deliveryDayMail ? "ok" : "neutral"}>
+            {configuration.deliveryDayMail ? "An" : "Aus"}
+          </Badge>
+          <Switch
+            aria-describedby="buyer-mail-delivery-day-description"
+            checked={configuration.deliveryDayMail}
+            data-testid="buyer-mail-delivery-day"
+            disabled={
+              disabled ||
+              save.isPending ||
+              // Switching off stays possible when the function is gone.
+              (!hasDelivery && !configuration.deliveryDayMail)
+            }
+            id="buyer-mail-delivery-day"
+            onChange={(event) =>
+              save.mutate({ deliveryDayMail: event.target.checked })
+            }
+          />
+        </li>
       </ul>
+      {hasDelivery || configuration.deliveryDayMail ? (
+        <Field
+          className="buyer-mail-send-time"
+          hint="Ortszeit der Aktion (Zeitzone der Lieferfenster). Ein Lieferfenster, das vor dieser Uhrzeit endet, bekommt keine E-Mail."
+          label="E-Mail am Liefertag senden ab"
+        >
+          <Select
+            data-testid="buyer-mail-send-time"
+            disabled={disabled || save.isPending}
+            onChange={(event) =>
+              save.mutate({ deliveryDaySendTime: event.target.value })
+            }
+            value={configuration.deliveryDaySendTime}
+          >
+            {[...new Set([configuration.deliveryDaySendTime, ...SEND_TIMES])]
+              .sort()
+              .map((time) => (
+                <option key={time} value={time}>
+                  {time} Uhr
+                </option>
+              ))}
+          </Select>
+        </Field>
+      ) : null}
       {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
     </section>
   );

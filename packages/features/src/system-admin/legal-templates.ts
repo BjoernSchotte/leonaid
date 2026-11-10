@@ -50,7 +50,7 @@ Wenn Sie an einer Umfrage teilnehmen, verarbeiten wir Ihre Antworten für den Zw
 
 ## E-Mails
 
-LeonAid versendet E-Mails für Anmelde-Links, Einladungen, Bestellbestätigungen und Rechnungen.
+LeonAid versendet E-Mails für Anmelde-Links, Einladungen, Bestellbestätigungen, Hinweise am Liefertag, Stornobestätigungen und Rechnungen.
 
 [[E-Mail-Versanddienstleister eintragen.]]
 

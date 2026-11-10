@@ -6,6 +6,7 @@ import json
 from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 import asyncpg
 
@@ -27,7 +28,11 @@ from leonaid.application.order_mails import (
     OrderMailLinks,
     order_mail_event,
 )
-from leonaid.domain.buyer_mails import BuyerMailConfiguration
+from leonaid.domain.buyer_mails import (
+    DEFAULT_DELIVERY_DAY_SEND_TIME,
+    BuyerMailConfiguration,
+)
+from leonaid.domain.calendar import INSTALLATION_TIME_ZONE
 from leonaid.domain.commitments import CommitmentStatus
 
 RESEND_COMMAND_TYPE = "resend_buyer_mail_v1"
@@ -179,10 +184,18 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
             """
             SELECT COALESCE(mails.internal_order_mails, false)
                     AS internal_order_mails,
+                COALESCE(mails.delivery_day_mail, false) AS delivery_day_mail,
+                mails.delivery_day_send_time,
+                delivery_settings.timezone AS delivery_zone,
+                delivery.state AS drop_state,
                 cancellation.previous_status
             FROM commitment
             LEFT JOIN action_buyer_mail_configuration AS mails
               ON mails.action_id = commitment.action_id
+            LEFT JOIN action_delivery_configuration AS delivery_settings
+              ON delivery_settings.action_id = commitment.action_id
+            LEFT JOIN commitment_delivery AS delivery
+              ON delivery.commitment_id = commitment.id
             LEFT JOIN commitment_cancellation AS cancellation
               ON cancellation.commitment_id = commitment.id
             WHERE commitment.id = $1 AND commitment.action_id = $2
@@ -240,6 +253,18 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
             sent=tuple(
                 (str(item["idempotency_key"]), item["sent_at"]) for item in sent
             ),
+            delivery_day_mail=bool(row["delivery_day_mail"]),
+            delivery_day_send_time=(
+                row["delivery_day_send_time"] or DEFAULT_DELIVERY_DAY_SEND_TIME
+            ),
+            delivery_zone=(
+                ZoneInfo(str(row["delivery_zone"]))
+                if row["delivery_zone"] is not None
+                else INSTALLATION_TIME_ZONE
+            ),
+            drop_state=(
+                str(row["drop_state"]) if row["drop_state"] is not None else None
+            ),
         )
 
     async def resend(
@@ -278,7 +303,7 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
                         "Diese Vorgangs-ID wurde bereits für andere Daten verwendet.",
                     )
                 return ledger
-            refusal = resend_refusal(kind, ledger)
+            refusal = resend_refusal(kind, ledger, now=occurred_at)
             if refusal is not None:
                 # Rolls the command receipt back: the key stays free.
                 raise refusal
@@ -289,6 +314,12 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
                 commitment_id=commitment_id,
                 links=links,
                 resend=number,
+                # The delivery-day mail is keyed by the order's window now.
+                window_id=(
+                    ledger.commitment.delivery_window_id
+                    if kind is OrderMailKind.DELIVERY_DAY
+                    else None
+                ),
             )
             await insert_order_mail_event(connection, event, occurred_at)
             # No address in the audit event: the order may be erased later.

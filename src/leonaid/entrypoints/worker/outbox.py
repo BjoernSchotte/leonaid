@@ -14,9 +14,14 @@ from uuid import UUID
 from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.security import AsyncpgSecurityRateLimitRepository
-from leonaid.bootstrap.worker import build_worker, module_switch_problems
+from leonaid.bootstrap.worker import (
+    build_delivery_day_mail_sweep,
+    build_worker,
+    module_switch_problems,
+)
 from leonaid.configuration import (
     ConfigurationError,
+    load_link_settings,
     load_mail_transport_settings,
     load_map_settings,
     load_module_settings,
@@ -56,6 +61,7 @@ def configuration_problems() -> list[str]:
         load_mail_transport_settings,
         load_retention_settings,
         load_map_settings,
+        load_link_settings,
     ):
         try:
             load()
@@ -83,10 +89,31 @@ async def retention_sweep() -> RetentionResult:
         await pool.close()
 
 
+async def delivery_day_mail_sweep() -> int:
+    """One run of the sweep that queues the mails of today's deliveries."""
+
+    links = load_link_settings().links
+    pool = await create_pool(os.environ["CORE_DATABASE_URL"], maximum_size=1)
+    try:
+        return await build_delivery_day_mail_sweep(pool, links).run_once(
+            now=datetime.now(timezone.utc)
+        )
+    finally:
+        await pool.close()
+
+
 async def execute(arguments: argparse.Namespace) -> int:
     if arguments.command == "retention-sweep":
         # Needs only PostgreSQL, not the mail and storage adapters.
         print(json.dumps(asdict(await retention_sweep()), separators=(",", ":")))
+        return 0
+    if arguments.command == "delivery-day-mail-sweep":
+        # Queues jobs only; the worker loop or ``run-until-idle`` sends them.
+        print(
+            json.dumps(
+                {"queued": await delivery_day_mail_sweep()}, separators=(",", ":")
+            )
+        )
         return 0
     database_url = os.environ["CORE_DATABASE_URL"]
     pool, queue, worker = await build_worker(
@@ -171,6 +198,10 @@ def parser() -> argparse.ArgumentParser:
     subcommands.add_parser(
         "retention-sweep",
         help="Delete expired completed jobs and rate-limit attempts once.",
+    )
+    subcommands.add_parser(
+        "delivery-day-mail-sweep",
+        help="Queue the delivery-day mails that are due now, once.",
     )
     return command_parser
 

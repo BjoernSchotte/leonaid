@@ -103,6 +103,9 @@ services:
       LEONAID_ENV: production
       # The geocoder's User-Agent names the installation (Nominatim policy).
       LEONAID_PUBLIC_BASE_URL: ${LEONAID_PUBLIC_BASE_URL:?LEONAID_PUBLIC_BASE_URL is missing}
+      # The delivery-day mail links /impressum and /datenschutz of the public
+      # host; the worker queues it and so builds these links itself.
+      LEONAID_SITE_BASE_URL: ${LEONAID_SITE_BASE_URL:-}
       MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:?MAIL_SMTP_HOST is missing}
       MAIL_SMTP_PORT: ${MAIL_SMTP_PORT:?MAIL_SMTP_PORT is missing}
       MAIL_FROM: ${MAIL_FROM:?MAIL_FROM is missing}

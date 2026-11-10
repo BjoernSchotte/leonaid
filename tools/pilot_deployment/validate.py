@@ -358,6 +358,13 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
         )
     if worker_environment.get("OBJECT_STORAGE_BUCKET") != bucket:
         raise DeploymentContractError("API and worker use different buckets")
+    # The worker builds the legal links of the delivery-day mail itself; they
+    # must point to the same hosts as the links the API writes into jobs.
+    for key in ("LEONAID_PUBLIC_BASE_URL", "LEONAID_SITE_BASE_URL"):
+        if str(worker_environment.get(key) or "") != str(
+            api_environment.get(key) or ""
+        ):
+            raise DeploymentContractError(f"API and worker use different {key}")
 
     secret_keys = (
         "LEONAID_SECRET_KEY",

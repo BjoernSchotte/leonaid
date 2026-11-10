@@ -9,6 +9,7 @@ from leonaid.configuration import (
     ConfigurationError,
     MailTransportSettings,
     Settings,
+    load_link_settings,
     load_map_settings,
     load_settings,
 )
@@ -466,3 +467,35 @@ def test_map_settings_defaults_and_origin_mismatch(monkeypatch) -> None:
                 load_map_settings()
             # Diagnostics name the variable, never its value.
             assert value not in str(error.value)
+
+
+def test_link_settings_give_the_worker_the_hosts_of_the_api(monkeypatch) -> None:
+    monkeypatch.setenv("LEONAID_PUBLIC_BASE_URL", "https://app.leonaid.org/")
+    monkeypatch.delenv("LEONAID_SITE_BASE_URL", raising=False)
+    # One host: the legal pages are on the admin host.
+    links = load_link_settings().links
+    assert links.site_url("/impressum") == "https://app.leonaid.org/impressum"
+    # Compose passes an unset variable as an empty string.
+    monkeypatch.setenv("LEONAID_SITE_BASE_URL", " ")
+    assert load_link_settings().links == links
+    # With a public host the delivery-day mail links that host, as the mails
+    # the API queues do.
+    monkeypatch.setenv("LEONAID_SITE_BASE_URL", "https://leonaid.org")
+    split = load_link_settings().links
+    assert split.site_url("/datenschutz") == "https://leonaid.org/datenschutz"
+    assert split.admin_url("/login") == "https://app.leonaid.org/login"
+    assert (
+        split
+        == valid_settings(
+            LEONAID_PUBLIC_BASE_URL="https://app.leonaid.org/",
+            LEONAID_SITE_BASE_URL="https://leonaid.org",
+        ).links
+    )
+
+    monkeypatch.setenv("LEONAID_SITE_BASE_URL", "not a url")
+    with raises(ConfigurationError, match="LEONAID_SITE_BASE_URL"):
+        load_link_settings()
+    monkeypatch.delenv("LEONAID_SITE_BASE_URL")
+    monkeypatch.delenv("LEONAID_PUBLIC_BASE_URL")
+    with raises(ConfigurationError, match="LEONAID_PUBLIC_BASE_URL:missing"):
+        load_link_settings()

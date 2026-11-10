@@ -15,11 +15,19 @@ specs/mails-documents-donations-push §5.1, §6.1, §6.2 and §6.4:
 - the cancellation notice with the same rule, and ``buyerMailDue`` on the
   order record;
 - the mail status per order and "send again": numbered resend jobs, replay,
-  refusals without a stored receipt, the mailbox limit, the erased buyer.
+  refusals without a stored receipt, the mailbox limit, the erased buyer;
+- the mail on the delivery day (§6.3): the sweep queues one job per order and
+  window, only on the day, from the send time until the window ends, only
+  for open orders with an address, never twice and not by two workers at
+  once; the worker skips an order that was cancelled, delivered, moved,
+  switched off or is late; a moved order gets the mail for its new window;
+  status and resend follow the same rule.
 
 The worker side runs the real ``OrderMailHandler`` with the real reader. The
 sender writes the ledger row as ``SmtpMailHandler`` does, and the proof marks
-the job as the outbox worker would (completed or dead-lettered).
+the job as the outbox worker would (completed or dead-lettered). The sweep,
+the worker and the status service get the time of day from the proof, so the
+delivery day (forty days ahead) can be walked through hour by hour.
 """
 
 from __future__ import annotations
@@ -30,16 +38,31 @@ import os
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 import asyncpg
 import httpx
+from fastapi import FastAPI
 
+from leonaid.adapters.postgres.buyer_mails import AsyncpgBuyerMailRepository
+from leonaid.adapters.postgres.delivery_day_mails import (
+    DELIVERY_DAY_SWEEP_LOCK,
+    AsyncpgDeliveryDayMailRepository,
+)
 from leonaid.adapters.postgres.order_mails import AsyncpgOrderMailReader
+from leonaid.application.buyer_mails import BuyerMailService
+from leonaid.application.delivery_day_mails import (
+    DeliveryDayMailSweep,
+    delivery_day_links,
+)
+from leonaid.application.links import LinkBuilder
 from leonaid.application.order_mails import (
     EVENT_TYPES,
     OrderMailError,
     OrderMailHandler,
     OrderMailKind,
+    OrderMailLinkResolver,
+    mailbox_key,
     recipient_sha256,
 )
 from leonaid.configuration import Settings
@@ -62,6 +85,8 @@ BASE_URL = "https://buyer-mails.leonaid.invalid"
 CLUB = "Buyer mail proof Hilfswerk e.V."
 CLUB_EMAIL = "kontakt@buyer-mails.leonaid.invalid"
 DRIVER_NOTE = "Hofeinfahrt links, Code 4711"
+BERLIN = ZoneInfo("Europe/Berlin")
+DELIVERY_DAY = OrderMailKind.DELIVERY_DAY
 REASON = "Kunde hat telefonisch abgesagt."
 
 
@@ -146,6 +171,34 @@ class Fixture:
         self.window_starts_at = datetime(
             start_day.year, start_day.month, start_day.day, 7, tzinfo=timezone.utc
         )
+        # The delivery day of the delivery-day mail proof, in the action's
+        # zone, with three windows, and one window on the day after.
+        self.day = date.today() + timedelta(days=40)
+        self.day_windows = {
+            "early": (uuid4(), self.at(7, 30), self.at(8, 30)),
+            "morning": (uuid4(), self.at(10, 0), self.at(12, 0)),
+            "afternoon": (uuid4(), self.at(14, 0), self.at(16, 0)),
+            "next": (
+                uuid4(),
+                self.at(10, 0) + timedelta(days=1),
+                self.at(12, 0) + timedelta(days=1),
+            ),
+        }
+
+    def at(self, hour: int, minute: int = 0) -> datetime:
+        """A time of the delivery day in the action's zone."""
+
+        day = self.day
+        return datetime(day.year, day.month, day.day, hour, minute, tzinfo=BERLIN)
+
+    def snapshot(self, window: str) -> dict[str, str]:
+        window_id, starts_at, ends_at = self.day_windows[window]
+        return {
+            "windowId": str(window_id),
+            "startsAt": starts_at.isoformat(),
+            "endsAt": ends_at.isoformat(),
+            "timezone": "Europe/Berlin",
+        }
 
     def email(self, name: str) -> str:
         return f"{name}.{self.tag}@buyer.leonaid.invalid"
@@ -222,6 +275,15 @@ class Fixture:
             self.window_starts_at,
             self.window_starts_at + timedelta(hours=2),
         )
+        for window_id, starts_at, ends_at in self.day_windows.values():
+            await connection.execute(
+                "INSERT INTO action_delivery_window (id, action_id, starts_at, "
+                "ends_at) VALUES ($1, $2, $3, $4)",
+                window_id,
+                self.action,
+                starts_at,
+                ends_at,
+            )
         await connection.execute(
             "INSERT INTO action_membership (id, action_id, user_id, role) "
             "VALUES ($1, $2, $3, 'acquirer')",
@@ -264,11 +326,21 @@ class Proof:
         data: Fixture,
         connection: asyncpg.Connection[Any],
         pool: asyncpg.Pool[Any],
+        app: FastAPI,
     ) -> None:
         self.client = client
         self.data = data
         self.db = connection
         self.pool = pool
+        # The time the status service sees; None is the real time.
+        self.now: datetime | None = None
+        app.state.buyer_mail_service = BuyerMailService(
+            AsyncpgBuyerMailRepository(pool),
+            mail_links=OrderMailLinkResolver(
+                settings().links, app.state.site_directory.edition_link
+            ),
+            clock=lambda: self.now or datetime.now(timezone.utc),
+        )
         self.orders = f"/api/v1/actions/{data.action}/commitments"
         self.settings = f"/api/v1/actions/{data.action}/buyer-mail-configuration"
         self.sent: list[ClaimedOutboxEvent] = []
@@ -327,6 +399,7 @@ class Proof:
         source: str = "acquisition",
         email: bool = True,
         captured_at: datetime | None = None,
+        window: str | None = None,
     ) -> dict[str, object]:
         body: dict[str, object] = {
             "source": source,
@@ -349,7 +422,9 @@ class Proof:
         }
         if ready:
             body["deliveryRecipient"] = self.address(name)
-            body["deliveryWindowId"] = str(self.data.window)
+            body["deliveryWindowId"] = str(
+                self.data.day_windows[window][0] if window else self.data.window
+            )
             body["deliveryContact"] = {
                 "name": "Pforte Herr Geheim",
                 "phone": "+49 821 999999",
@@ -441,9 +516,18 @@ class Proof:
         )
 
     async def work(
-        self, order_id: str, kind: OrderMailKind, *, recipient_limit: int = 10
+        self,
+        order_id: str,
+        kind: OrderMailKind,
+        *,
+        recipient_limit: int = 10,
+        now: datetime | None = None,
     ) -> str:
-        """Run the newest waiting job of the kind as the outbox worker does."""
+        """Run the newest waiting job of the kind as the outbox worker does.
+
+        ``now`` is the worker's time of day (delivery-day mail); the ledger
+        and the mailbox limit keep the real time.
+        """
 
         proof = self
 
@@ -478,6 +562,7 @@ class Proof:
             legal_configuration=Legal(),
             sender=LedgerSender(),
             recipient_limit=recipient_limit,
+            clock=(lambda: now) if now is not None else None,
         )
         try:
             await handler.handle(
@@ -524,6 +609,7 @@ class Proof:
         await self.mailbox_limit(ready)
         await self.cancellation(ready)
         await self.erased_buyer()
+        await self.delivery_day()
         # Later proofs share this database: leave no waiting or failed job.
         await self.db.execute(
             "DELETE FROM outbox_event WHERE aggregate_type = 'commitment' "
@@ -598,6 +684,10 @@ class Proof:
             "AND event_type = 'buyer_mail_configuration_changed'",
             self.data.action,
         )
+        # Off again: the delivery-day mail has its own part of the proof.
+        off = await self.put(self.settings, body(expectedRevision=2))
+        assert off.status_code == 200, off.text
+        assert off.json()["deliveryDayMail"] is False
         assert audit is not None
         assert audit["actor_user_id"] == self.data.users["charity"]
         assert json.loads(audit["payload"]) == {
@@ -964,6 +1054,340 @@ class Proof:
         assert refused.status_code == 409, refused.text
         assert (await self.record(order["id"]))["buyerMailDue"] is False
 
+    # -- the mail on the delivery day ---------------------------------------
+
+    async def day_mail(self, enabled: bool, send_time: str = "07:00") -> None:
+        current = (await self.get(self.settings)).json()
+        response = await self.put(
+            self.settings,
+            {
+                "expectedRevision": current["revision"],
+                "internalOrderMails": current["internalOrderMails"],
+                "deliveryDayMail": enabled,
+                "deliveryDaySendTime": send_time,
+            },
+        )
+        assert response.status_code == 200, response.text
+
+    async def sweep(self, now: datetime, *, limit: int = 200) -> int:
+        """One run of the worker's sweep at the given time of day.
+
+        Returns the jobs it queued for this proof's action. The sweep covers
+        the installation, and other proofs may share the database.
+        """
+
+        before = await self.day_keys()
+        queued = await DeliveryDayMailSweep(
+            AsyncpgDeliveryDayMailRepository(self.pool),
+            LinkBuilder.single_host(BASE_URL),
+        ).run_once(now=now, limit=limit)
+        new = len(await self.day_keys() - before)
+        assert queued >= new, (queued, new)
+        return new
+
+    async def day_keys(self) -> set[str]:
+        rows = await self.db.fetch(
+            "SELECT idempotency_key FROM outbox_event WHERE event_type = $1 "
+            "AND aggregate_id IN (SELECT id FROM commitment WHERE action_id = $2)",
+            EVENT_TYPES[DELIVERY_DAY],
+            self.data.action,
+        )
+        return {str(row["idempotency_key"]) for row in rows}
+
+    def day_key(self, order: dict[str, Any], window: str) -> str:
+        return (
+            f"order-delivery-day-mail:{order['id']}:{self.data.day_windows[window][0]}"
+        )
+
+    async def record_drop(self, order_id: str, state: str) -> None:
+        """What the delivery board writes when a driver ticks an order off."""
+
+        await self.db.execute(
+            "INSERT INTO commitment_delivery (commitment_id, action_id, state, "
+            "state_changed_at, state_changed_by_user_id) "
+            "VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4)",
+            UUID(order_id),
+            self.data.action,
+            state,
+            self.data.users["charity"],
+        )
+
+    async def delivery_day(self) -> None:
+        at = self.data.at
+        await self.day_mail(True)
+        morning = await self.order("day-morning", window="morning")
+        afternoon = await self.order(
+            "day-afternoon", window="afternoon", user="charity", source="admin"
+        )
+        early = await self.order("day-early", window="early")
+        silent = await self.order("day-silent", window="morning", email=False)
+        cancelled = await self.order("day-cancelled", window="morning")
+        await self.cancel(cancelled["id"])
+        delivered = await self.order("day-delivered", window="morning")
+        await self.record_drop(delivered["id"], "delivered")
+        tomorrow = await self.order("day-next", window="next")
+        draft = await self.order("day-draft", ready=False)
+
+        # Forty days before: the mail is announced, with the reason per order.
+        assert (await self.mails(morning["id"]))["delivery_day"] == {
+            "kind": "delivery_day",
+            "state": "not_due",
+            "sentAt": None,
+            "reason": "scheduled",
+            "canResend": False,
+        }
+        reasons = {
+            name: (await self.mails(order["id"]))["delivery_day"]["reason"]
+            for name, order in (
+                ("silent", silent),
+                ("cancelled", cancelled),
+                ("delivered", delivered),
+            )
+        }
+        assert reasons == {
+            "silent": "no_email",
+            "cancelled": "order_cancelled",
+            "delivered": "delivery_recorded",
+        }
+        assert list(await self.mails(cancelled["id"])) == [
+            "confirmation",
+            "delivery_day",
+            "cancellation",
+        ]
+        # A draft has no window, so no delivery-day mail.
+        assert "delivery_day" not in await self.mails(draft["id"])
+        early_refusal = await self.resend(
+            morning["id"], "delivery_day", self.key("day-too-early")
+        )
+        assert early_refusal.status_code == 409, early_refusal.text
+        assert self.error(early_refusal) == "buyer_mail_resend_not_allowed"
+
+        # The sweep: nothing the evening before and nothing before 07:00.
+        assert await self.sweep(at(7, 0) - timedelta(hours=8)) == 0
+        assert await self.sweep(at(6, 59)) == 0
+        assert await self.day_keys() == set()
+        # While another worker holds the sweep, this one steps aside.
+        await self.db.execute("SELECT pg_advisory_lock($1)", DELIVERY_DAY_SWEEP_LOCK)
+        try:
+            assert (
+                await AsyncpgDeliveryDayMailRepository(self.pool).queue_due(
+                    now=at(9, 0),
+                    limit=200,
+                    links=delivery_day_links(LinkBuilder.single_host(BASE_URL)),
+                )
+                is None
+            )
+            assert await self.sweep(at(9, 0)) == 0
+        finally:
+            await self.db.execute(
+                "SELECT pg_advisory_unlock($1)", DELIVERY_DAY_SWEEP_LOCK
+            )
+        assert await self.day_keys() == set()
+        # At 09:00 two workers sweep at once: the early window is over, the
+        # orders without address, cancelled, delivered or of tomorrow stay
+        # out, and each due order gets exactly one job.
+        workers = [
+            DeliveryDayMailSweep(
+                AsyncpgDeliveryDayMailRepository(self.pool),
+                LinkBuilder.single_host(BASE_URL),
+            )
+            for _ in range(2)
+        ]
+        await asyncio.gather(*(worker.run_once(now=at(9, 0)) for worker in workers))
+        due = {self.day_key(morning, "morning"), self.day_key(afternoon, "afternoon")}
+        assert await self.day_keys() == due
+        assert (
+            await self.db.fetchval(
+                "SELECT count(*) FROM outbox_event WHERE idempotency_key = ANY($1)",
+                list(due),
+            )
+            == 2
+        )
+        assert await self.sweep(at(9, 1)) == 0
+        job = (await self.jobs(morning["id"], DELIVERY_DAY))[0]
+        assert json.loads(job["payload"]) == {
+            "actionId": str(self.data.action),
+            "commitmentId": morning["id"],
+            "windowId": str(self.data.day_windows["morning"][0]),
+            "campaignUrl": None,
+            "privacyUrl": f"{BASE_URL}/datenschutz",
+            "imprintUrl": f"{BASE_URL}/impressum",
+        }
+        assert early["id"] not in "".join(await self.day_keys())
+
+        # The worker sends it; it counts for the mailbox limit of an hour.
+        reader = AsyncpgOrderMailReader(self.pool)
+        address = self.data.email("day-morning")
+
+        async def recent() -> int:
+            return await reader.recent_order_mails(
+                recipient_sha256=recipient_sha256(address),
+                mailbox=mailbox_key(address),
+                since=datetime.now(timezone.utc) - timedelta(hours=1),
+            )
+
+        before = await recent()
+        assert await self.work(morning["id"], DELIVERY_DAY, now=at(9, 5)) == "completed"
+        assert await recent() == before + 1
+        mail = self.sent[-1]
+        assert mail.idempotency_key == self.day_key(morning, "morning")
+        assert mail.payload["to"] == address
+        assert mail.payload["subject"] == (
+            "Ihre Lieferung kommt heute zwischen 10:00 und 12:00 Uhr"
+        )
+        text = str(mail.payload["text"])
+        day = self.data.day
+        for expected in (
+            "Guten Morgen,",
+            f"Ihre Bestellung {morning['publicReference']} bei der Aktion "
+            f"„Aktion {self.data.tag}“ wird heute, ",
+            f"{day:%d.%m.%Y}, zwischen 10:00 und 12:00 Uhr geliefert.",
+            f"Lieferadresse:\n  Bäckerei {self.data.tag} day-morning\n"
+            "  Marktplatz 3\n  86150 Augsburg",
+            "Bestellt:\n- Krapfenbox: 2 Boxen (48 Stück)",
+            f"schreiben Sie uns bitte an {CLUB_EMAIL}.",
+            f"Impressum: {BASE_URL}/impressum",
+        ):
+            assert expected in text, expected
+        # Nothing about the driver, the delivery contact or prices.
+        for forbidden in (DRIVER_NOTE, "Pforte", "999999", "€", "Fahrer"):
+            assert forbidden not in text, forbidden
+
+        # The afternoon order moves to the morning window. Its waiting job
+        # names the old window and sends nothing; the next sweep queues the
+        # mail for the new window under a new key.
+        await self.db.execute(
+            "UPDATE commitment SET delivery_window_id = $2, "
+            "delivery_window_snapshot = $3::jsonb WHERE id = $1",
+            UUID(afternoon["id"]),
+            self.data.day_windows["morning"][0],
+            json.dumps(self.data.snapshot("morning")),
+        )
+        sent = len(self.sent)
+        assert (
+            await self.work(afternoon["id"], DELIVERY_DAY, now=at(9, 10)) == "completed"
+        )
+        assert len(self.sent) == sent
+        assert await self.sweep(at(9, 11)) == 1
+        moved_key = self.day_key(afternoon, "morning")
+        assert moved_key in await self.day_keys()
+        assert (
+            await self.work(afternoon["id"], DELIVERY_DAY, now=at(9, 12)) == "completed"
+        )
+        assert self.sent[-1].idempotency_key == moved_key
+        assert "zwischen 10:00 und 12:00 Uhr" in str(self.sent[-1].payload["subject"])
+
+        # Queued, then cancelled, delivered or switched off: nothing is sent.
+        late_cancel = await self.order("day-late-cancel", window="afternoon")
+        late_drop = await self.order("day-late-drop", window="afternoon")
+        late_switch = await self.order("day-late-switch", window="afternoon")
+        assert await self.sweep(at(9, 20)) == 3
+        await self.cancel(late_cancel["id"])
+        await self.record_drop(late_drop["id"], "missed")
+        sent = len(self.sent)
+        for order in (late_cancel, late_drop):
+            assert (
+                await self.work(order["id"], DELIVERY_DAY, now=at(9, 25)) == "completed"
+            )
+        await self.day_mail(False)
+        assert (
+            await self.work(late_switch["id"], DELIVERY_DAY, now=at(9, 26))
+            == "completed"
+        )
+        assert len(self.sent) == sent
+        # Switched off, the sweep queues nothing new; switched on again it
+        # queues the new order only: an order with a job is never queued twice.
+        fresh = await self.order("day-fresh", window="afternoon")
+        assert await self.sweep(at(9, 30)) == 0
+        await self.day_mail(True)
+        keys = await self.day_keys()
+        assert await self.sweep(at(9, 31), limit=1) == 1
+        assert await self.day_keys() - keys == {self.day_key(fresh, "afternoon")}
+        assert await self.sweep(at(9, 32)) == 0
+        # A job that waits until its window is over sends nothing.
+        assert await self.work(fresh["id"], DELIVERY_DAY, now=at(16, 0)) == "completed"
+        assert len(self.sent) == sent
+
+        # Status and "send again" on the delivery day at 09:40.
+        self.now = at(9, 40)
+        try:
+            status = (await self.mails(morning["id"]))["delivery_day"]
+            assert status["state"] == "sent" and status["canResend"] is True
+            assert {
+                name: (
+                    (await self.mails(order["id"]))["delivery_day"]["state"],
+                    (await self.mails(order["id"]))["delivery_day"]["reason"],
+                )
+                for name, order in (
+                    ("cancelled", late_cancel),
+                    ("missed", late_drop),
+                    ("late", fresh),
+                )
+            } == {
+                "cancelled": ("skipped", "order_cancelled"),
+                "missed": ("skipped", "delivery_recorded"),
+                # Due at 09:40, but its job ended without a mail.
+                "late": ("skipped", "not_sent"),
+            }
+            skipped = await self.resend(
+                late_drop["id"], "delivery_day", self.key("day-skipped")
+            )
+            assert skipped.status_code == 409, skipped.text
+            assert self.error(skipped) == "buyer_mail_resend_not_allowed"
+            # Only managers; then one resend job, keyed by order and window.
+            forbidden_resend = await self.resend(
+                morning["id"], "delivery_day", self.key("day-acquirer"), "acquirer"
+            )
+            assert forbidden_resend.status_code == 403, forbidden_resend.text
+            for _ in range(2):
+                accepted = await self.resend(
+                    morning["id"], "delivery_day", self.key("day-resend")
+                )
+                assert accepted.status_code == 202, accepted.text
+                assert accepted.json()["state"] == "queued"
+            base = self.day_key(morning, "morning")
+            assert await self.keys(morning["id"], DELIVERY_DAY) == [
+                base,
+                f"{base}:resend:1",
+            ]
+            assert (
+                await self.work(morning["id"], DELIVERY_DAY, now=at(9, 41))
+                == "completed"
+            )
+            assert self.sent[-1].idempotency_key == f"{base}:resend:1"
+            assert self.sent[-1].payload["to"] == address
+            # The sweep ignores resend jobs and queues no second first mail.
+            assert await self.sweep(at(9, 42)) == 0
+            # Delivered meanwhile: the mail stays "sent", but not again.
+            await self.record_drop(morning["id"], "delivered")
+            status = (await self.mails(morning["id"]))["delivery_day"]
+            assert status["state"] == "sent" and status["canResend"] is False
+            done = await self.resend(
+                morning["id"], "delivery_day", self.key("day-done")
+            )
+            assert done.status_code == 409, done.text
+            assert self.error(done) == "buyer_mail_not_due"
+            # The moved order: sent for its new window, resend until 12:00.
+            moved = (await self.mails(afternoon["id"]))["delivery_day"]
+            assert moved["state"] == "sent" and moved["canResend"] is True
+            self.now = at(12, 0)
+            moved = (await self.mails(afternoon["id"]))["delivery_day"]
+            assert moved["state"] == "sent" and moved["canResend"] is False
+            over = await self.resend(
+                afternoon["id"], "delivery_day", self.key("day-over")
+            )
+            assert over.status_code == 409, over.text
+            assert self.error(over) == "buyer_mail_not_due"
+            # The order of tomorrow is still announced, and due tomorrow.
+            assert (await self.mails(tomorrow["id"]))["delivery_day"]["reason"] == (
+                "scheduled"
+            )
+        finally:
+            self.now = None
+        assert await self.sweep(at(9, 0) + timedelta(days=1)) == 1
+        assert self.day_key(tomorrow, "next") in await self.day_keys()
+        await self.day_mail(False)
+
 
 async def main() -> None:
     os.environ.pop("LEONAID_SURVEY_ERASURE_ARCHIVE_DIR", None)
@@ -979,14 +1403,15 @@ async def main() -> None:
             async with httpx.AsyncClient(
                 transport=httpx.ASGITransport(app=app), base_url=BASE_URL
             ) as client:
-                await Proof(client, data, connection, pool).run()
+                await Proof(client, data, connection, pool, app).run()
     finally:
         await pool.close()
         await connection.close()
     print(
         "buyer-mails-api: OK: order numbers, settings row, confirmation once "
         "per internal order, cancellation notice, mail status, resend, "
-        "mailbox limit and erased buyer proven against PostgreSQL"
+        "mailbox limit, erased buyer and the delivery-day mail (sweep, worker "
+        "rules, moved order, status, resend) proven against PostgreSQL"
     )
 
 

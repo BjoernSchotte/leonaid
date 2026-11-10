@@ -528,6 +528,7 @@ export function ManageActionPage({
                     actionId={actionId}
                     client={client}
                     disabled={archived}
+                    hasDelivery={hasDelivery}
                   />
                 ) : null}
                 <AdministratorsSection {...shared} />

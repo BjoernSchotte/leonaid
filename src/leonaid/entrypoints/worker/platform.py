@@ -17,8 +17,13 @@ from leonaid.adapters.operations import structured_event
 from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.security import AsyncpgSecurityRateLimitRepository
+from leonaid.application.delivery_day_mails import (
+    SWEEP_BATCH,
+    SWEEP_INTERVAL_SECONDS,
+)
 from leonaid.bootstrap.worker import (
     background_loops,
+    build_delivery_day_mail_sweep,
     build_geocoding_job,
     build_worker,
 )
@@ -26,6 +31,7 @@ from leonaid.entrypoints.worker.health import LoopHealth, error_location
 from leonaid.bootstrap.registry import RegistrationError
 from leonaid.configuration import (
     ConfigurationError,
+    load_link_settings,
     load_map_settings,
     load_module_settings,
     load_retention_settings,
@@ -83,6 +89,13 @@ geocoding_health = LoopHealth(
 )
 GEOCODING_LOOKUPS = {"total": 0}
 
+# The sweep runs every five minutes; one run is one short transaction.
+delivery_day_mail_health = LoopHealth(
+    "delivery_day_mail",
+    stall_after_seconds=SWEEP_INTERVAL_SECONDS + 120,
+)
+DELIVERY_DAY_MAILS_QUEUED = {"total": 0}
+
 
 def _module_loops() -> tuple[BackgroundLoop, ...]:
     # Module loops need only the database URL and the module switches. Invalid
@@ -106,6 +119,7 @@ LOOPS = (
     *MODULE_LOOP_HEALTH,
     retention_health,
     geocoding_health,
+    delivery_day_mail_health,
 )
 if len({loop.name for loop in LOOPS}) != len(LOOPS):
     raise RuntimeError("Worker loop names must be unique.")
@@ -190,6 +204,9 @@ def metrics_document() -> str:
             "# HELP leonaid_worker_geocoding_lookups_total Geocoder lookups since worker start.",
             "# TYPE leonaid_worker_geocoding_lookups_total counter",
             f"leonaid_worker_geocoding_lookups_total {GEOCODING_LOOKUPS['total']}",
+            "# HELP leonaid_worker_delivery_day_mails_queued_total Delivery-day mail jobs queued by the sweep since worker start.",
+            "# TYPE leonaid_worker_delivery_day_mails_queued_total counter",
+            f"leonaid_worker_delivery_day_mails_queued_total {DELIVERY_DAY_MAILS_QUEUED['total']}",
         ]
     )
     return "\n".join(lines) + "\n"
@@ -399,10 +416,46 @@ async def geocoding_loop() -> None:
                 await pool.close()
 
 
+async def delivery_day_mail_loop() -> None:
+    """Queues the mails of today's deliveries (``delivery_day_mail_sweep``).
+
+    Every five minutes one bounded run; a full batch continues after a
+    second. Several workers may run this loop: an advisory lock lets one of
+    them sweep. Logged by count only, never with an order or an address.
+    """
+    links = load_link_settings().links
+    while True:
+        pool = None
+        try:
+            pool = await create_pool(os.environ["CORE_DATABASE_URL"], maximum_size=1)
+            sweep = build_delivery_day_mail_sweep(pool, links)
+            while True:
+                queued = await sweep.run_once(now=datetime.now(timezone.utc))
+                record_success(delivery_day_mail_health)
+                if queued:
+                    DELIVERY_DAY_MAILS_QUEUED["total"] += queued
+                    print(
+                        structured_event(
+                            "worker.delivery_day_mail.queued", jobs=queued
+                        ),
+                        flush=True,
+                    )
+                await asyncio.sleep(
+                    1.0 if queued >= SWEEP_BATCH else SWEEP_INTERVAL_SECONDS
+                )
+        except Exception as error:
+            delay = record_failure(delivery_day_mail_health, error)
+            await asyncio.sleep(delay)
+        finally:
+            if pool is not None:
+                await pool.close()
+
+
 async def service_loop() -> None:
     """Runs every loop; SIGTERM drains the outbox worker and stops the rest.
 
-    The sweeps (readiness, module loops, retention, geocoding) work in short database
+    The sweeps (readiness, module loops, retention, geocoding, delivery-day
+    mails) work in short database
     transactions, so cancelling them rolls back at most one batch. Only the
     outbox worker holds a job that must not be cut off; it stops claiming and
     finishes the job in hand (compose.yml stop_grace_period covers the
@@ -419,6 +472,7 @@ async def service_loop() -> None:
         ),
         asyncio.create_task(retention_loop()),
         asyncio.create_task(geocoding_loop()),
+        asyncio.create_task(delivery_day_mail_loop()),
     ]
     # The loops never return on their own: the first one to finish is the
     # drained worker after SIGTERM, or a loop that crashed.
