@@ -336,5 +336,7 @@ mkdir -p "$root/.artifacts/poc062"
 cp "$proof"/pwa-*.png "$root/.artifacts/poc062/"
 
 echo "pwa-test: OK ($mode): PWA, real visibility boundaries, contacts, 5 browser/viewport projects,"
-echo "pwa-test:     a11y, text scaling, touch, offline, update, empty and outage states proven;"
-echo "pwa-test:     push page and service worker push handlers with a synthetic push (no vendor push service)"
+echo "pwa-test:     a11y, text scaling, touch, offline, update, empty and outage states proven"
+if [ "$ui" = true ]; then
+  echo "pwa-test:     push page and service worker push handlers with a synthetic push (no vendor push service)"
+fi
