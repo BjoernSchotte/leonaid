@@ -963,6 +963,18 @@ describe("order cancellation", () => {
     // On by default: the buyer who got the invoice gets its cancellation.
     expect(box.checked).toBe(true);
     expect(dialog.textContent).toContain("einkauf@example.org");
+    // The note about mails is true next to the option, ticked or not.
+    expect(dialog.textContent).toContain(
+      "Der Rechnungsempfänger erhält die Stornorechnung per E-Mail.",
+    );
+    expect(dialog.textContent).not.toContain(
+      "LeonAid benachrichtigt den Besteller nicht automatisch.",
+    );
+    fireEvent.click(box);
+    expect(dialog.textContent).toContain(
+      "LeonAid benachrichtigt den Besteller nicht automatisch.",
+    );
+    fireEvent.click(box);
     fireEvent.change(reasonField(dialog), {
       target: { value: "Sponsor hat die Bestellung zurückgezogen" },
     });

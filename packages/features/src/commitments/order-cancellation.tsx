@@ -70,6 +70,22 @@ export function notifiesBuyer(record: CommitmentRecordResponse): boolean {
   );
 }
 
+/**
+ * What reaches the buyer by e-mail: the cancellation notice of a public
+ * order, the cancellation invoice when it is sent with the cancellation,
+ * both, or nothing.
+ */
+export function buyerNotice(notice: boolean, cancellationInvoice: boolean) {
+  if (notice) {
+    return cancellationInvoice
+      ? "Der Besteller erhält eine E-Mail über die Stornierung, ohne Grund und Notiz. Die Stornorechnung geht in einer eigenen E-Mail an den Rechnungsempfänger."
+      : "Der Besteller erhält eine E-Mail über die Stornierung, ohne Grund und Notiz.";
+  }
+  return cancellationInvoice
+    ? "Der Rechnungsempfänger erhält die Stornorechnung per E-Mail. Eine eigene Nachricht über die Stornierung der Bestellung sendet LeonAid nicht."
+    : "LeonAid benachrichtigt den Besteller nicht automatisch. Bitte informieren Sie ihn selbst über die Stornierung.";
+}
+
 const draftKey = (commitmentId: string) => `order-cancellation:${commitmentId}`;
 const commandStorageKey = (commitmentId: string) =>
   `leonaid.order-cancellation.${commitmentId}`;
@@ -313,9 +329,7 @@ export function OrderCancellationDialog({
               />
             </Field>
             <StatusMessage tone="info">
-              {notifiesBuyer(record)
-                ? "Der Besteller erhält eine E-Mail über die Stornierung, ohne Grund und Notiz."
-                : "LeonAid benachrichtigt den Besteller nicht automatisch. Bitte informieren Sie ihn selbst über die Stornierung."}
+              {buyerNotice(notifiesBuyer(record), sendInvoiceCancellation)}
             </StatusMessage>
           </>
         )}
