@@ -386,7 +386,7 @@ buyer_mail_state() {
   printf '%s\n' "$legacy_number SELECT count(*) FROM commitment WHERE public_reference IS NULL; SELECT count(*) FROM charity_action AS action WHERE NOT EXISTS (SELECT 1 FROM action_buyer_mail_configuration AS mails WHERE mails.action_id = action.id AND NOT mails.internal_order_mails AND NOT mails.delivery_day_mail AND mails.delivery_day_send_time = '07:00' AND mails.revision = 1);" | preference_sql | tr '\n' ' '
 }
 state=$(buyer_mail_state)
-[ "$state" = "LA-80000000000040008000000000000001 0 0 " ] || {
+[ "$state" = "LA-3DKFX85Y 0 0 " ] || {
   echo "poc021-test: ERROR: 0062 left an order without a number or an action without switched-off mail settings: $state" >&2
   exit 1
 }
@@ -404,12 +404,18 @@ state=$(printf '%s\n' "SELECT count(*) FROM commitment WHERE source <> 'public_f
   echo "poc021-test: ERROR: 0062 downgrade did not restore the old order-number rule: $state" >&2
   exit 1
 }
+# Before the next upgrade: a public order that already holds the number the
+# legacy order would get, and a second internal order. The backfill must keep
+# the public number, give the legacy order its next candidate and number the
+# second order as the application would.
+printf '%s\n' "CREATE TEMP TABLE numbered AS SELECT * FROM commitment WHERE id = '80000000-0000-4000-8000-000000000001'; UPDATE numbered SET id = '80000000-0000-4000-8000-0000000000b1', source = 'public_form', public_reference = 'LA-3DKFX85Y', idempotency_key = 'poc021:0062:public', delivery_recipient_snapshot = jsonb_build_object('recipientName', 'Proof', 'streetLine1', 'Weg 1', 'postalCode', '00000', 'city', 'Proof', 'countryCode', 'DE'); INSERT INTO commitment SELECT * FROM numbered; UPDATE numbered SET id = '80000000-0000-4000-8000-0000000000b2', source = 'admin', public_reference = NULL, idempotency_key = 'poc021:0062:internal', delivery_recipient_snapshot = NULL; INSERT INTO commitment SELECT * FROM numbered;" | preference_sql
 compose run --rm --no-deps --entrypoint alembic api upgrade head
-state=$(buyer_mail_state)
-[ "$state" = "LA-80000000000040008000000000000001 0 0 " ] || {
-  echo "poc021-test: ERROR: 0062 upgrade after a downgrade lost the order number: $state" >&2
+state=$(printf '%s\n' "SELECT string_agg(public_reference, ' ' ORDER BY id) FROM commitment WHERE id IN ('80000000-0000-4000-8000-000000000001', '80000000-0000-4000-8000-0000000000b1', '80000000-0000-4000-8000-0000000000b2'); SELECT count(*) FROM commitment WHERE public_reference IS NULL;" | preference_sql | tr '\n' ' ')
+[ "$state" = "LA-NG8RY6CW LA-3DKFX85Y LA-JCJUN4BF 0 " ] || {
+  echo "poc021-test: ERROR: 0062 did not number the orders as the application does: $state" >&2
   exit 1
 }
+printf '%s\n' "DELETE FROM commitment WHERE id IN ('80000000-0000-4000-8000-0000000000b1', '80000000-0000-4000-8000-0000000000b2');" | preference_sql
 
 echo "poc021-test: 0050 downgrade refuses payment data the old schema cannot hold"
 payment_guard() {

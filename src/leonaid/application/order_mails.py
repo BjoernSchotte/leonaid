@@ -228,10 +228,25 @@ class OrderMailFacts:
     cancellation: OrderCancellationFacts | None = None
     # The action's switch for orders that members and acquirers enter.
     internal_order_mails: bool = False
+    # The action's status and whether it issues invoices; what the delivery
+    # board recorded for the order ("delivered" or "missed").
+    action_status: str = "active"
+    invoicing: bool = True
+    drop_state: str | None = None
 
-    def not_due_reason(self) -> MailNotDueReason | None:
-        """Why this order gets no mail now; ``None`` when a mail is due."""
+    def not_due_reason(
+        self, kind: OrderMailKind, *, now: datetime
+    ) -> MailNotDueReason | None:
+        """Why this order gets no mail of the kind now; ``None`` when due."""
 
+        if kind is OrderMailKind.CONFIRMATION:
+            return confirmation_not_due_reason(
+                self.commitment,
+                internal_order_mails=self.internal_order_mails,
+                drop_state=self.drop_state,
+                action_status=self.action_status,
+                now=now,
+            )
         return mail_not_due_reason(
             self.commitment,
             internal_order_mails=self.internal_order_mails,
@@ -447,14 +462,9 @@ def render_order_confirmation(
         lines.extend(
             ["", "Rechnungsanschrift:", *_address(commitment.invoice_recipient)]
         )
-    lines.extend(
-        [
-            "",
-            "Wie es weitergeht",
-            "Ein Clubmitglied prüft Ihre Bestellung. Die Rechnung erhalten Sie "
-            "separat, sobald der Club die Bestellung geprüft hat.",
-        ]
-    )
+    next_steps = _next_steps(facts)
+    if next_steps:
+        lines.extend(["", "Wie es weitergeht", next_steps])
     if links.campaign_url is not None:
         lines.extend(["", f"Zur Aktion: {links.campaign_url}"])
     lines.extend(["", _contact(legal, "zu Ihrer Bestellung"), *_footer(legal, links)])
@@ -463,6 +473,35 @@ def render_order_confirmation(
         subject=f"Ihre Bestellung bei {_clean(facts.action_name)} · {reference}",
         text="\n".join(lines) + "\n",
     )
+
+
+def _next_steps(facts: OrderMailFacts) -> str:
+    """What is still to come for this order, as it is when the mail goes out.
+
+    The mail may be sent, or sent again, at any later status: it must not
+    promise a review that is done or an invoice that the action never
+    issues or has issued already.
+    """
+
+    status = facts.commitment.status
+    if status is CommitmentStatus.INVOICED:
+        return (
+            "Die Rechnung zu dieser Bestellung ist ausgestellt."
+            if facts.invoicing
+            else ""
+        )
+    if status is CommitmentStatus.CONFIRMED:
+        return (
+            "Ihre Bestellung ist bestätigt. Die Rechnung erhalten Sie separat."
+            if facts.invoicing
+            else "Ihre Bestellung ist bestätigt."
+        )
+    if facts.invoicing:
+        return (
+            "Ein Clubmitglied prüft Ihre Bestellung. Die Rechnung erhalten Sie "
+            "separat, sobald der Club die Bestellung geprüft hat."
+        )
+    return "Ein Clubmitglied prüft Ihre Bestellung."
 
 
 def render_order_cancellation(
@@ -554,6 +593,15 @@ class MailNotDueReason(StrEnum):
     NO_EMAIL = "no_email"
     SWITCHED_OFF = "switched_off"
     ORDER_DRAFT = "order_draft"
+    # Confirmation only: it would come too late or tell the buyer nothing.
+    ORDER_CANCELLED = "order_cancelled"
+    DELIVERY_RECORDED = "delivery_recorded"
+    WINDOW_OVER = "window_over"
+    ACTION_CLOSED = "action_closed"
+
+
+# An action whose order period is over: orders are only recorded afterwards.
+CLOSED_ACTION_STATUSES = frozenset({"completed", "archived"})
 
 
 def mail_not_due_reason(
@@ -583,6 +631,54 @@ def mail_not_due_reason(
     return None
 
 
+def confirmation_not_due_reason(
+    commitment: Commitment,
+    *,
+    internal_order_mails: bool,
+    drop_state: str | None,
+    action_status: str,
+    now: datetime,
+) -> MailNotDueReason | None:
+    """The rule of the order confirmation, at any moment it could go out.
+
+    On top of ``mail_not_due_reason``: a confirmation is no news for an order
+    that is cancelled (the cancellation notice covers it), whose delivery the
+    board already recorded, whose delivery window is over, or whose action is
+    completed or archived. That keeps a late sync from the PWA queue, a
+    manager who records a delivery afterwards and "send again" from thanking
+    a buyer for an order that is long done.
+    """
+
+    reason = mail_not_due_reason(commitment, internal_order_mails=internal_order_mails)
+    if reason is not None:
+        return reason
+    if commitment.status is CommitmentStatus.CANCELLED:
+        return MailNotDueReason.ORDER_CANCELLED
+    if drop_state is not None:
+        return MailNotDueReason.DELIVERY_RECORDED
+    snapshot = commitment.delivery_window_snapshot
+    if snapshot is not None and now >= datetime.fromisoformat(snapshot["endsAt"]):
+        return MailNotDueReason.WINDOW_OVER
+    if action_status in CLOSED_ACTION_STATUSES:
+        return MailNotDueReason.ACTION_CLOSED
+    return None
+
+
+def mail_key_sequence(idempotency_key: str) -> tuple[str, int]:
+    """The first key of a mail and the job's place in its resends.
+
+    ``("order-confirmation-mail:{order id}", 0)`` for the first job and
+    ``(…, n)`` for ``…:resend:{n}``.
+    """
+
+    base, marker, number = idempotency_key.partition(RESEND_MARKER)
+    if not marker:
+        return idempotency_key, 0
+    if not (number.isascii() and number.isdigit()):
+        raise OrderMailError("order_mail_payload_invalid")
+    return base, int(number)
+
+
 def mail_due(
     commitment: Commitment,
     *,
@@ -603,6 +699,10 @@ class OrderMailReader(Protocol):
     ) -> OrderMailFacts | None: ...
 
     async def was_sent(self, idempotency_key: str) -> bool: ...
+
+    async def sent_keys(self, first_key: str) -> tuple[str, ...]:
+        """The ledger's keys of one mail: its first key and its resends."""
+        ...
 
     async def recent_order_mails(
         self, *, recipient_sha256: str, mailbox: str, since: datetime
@@ -647,6 +747,15 @@ class OrderMailHandler:
         self._sender = sender
         self._clock = clock or (lambda: datetime.now(timezone.utc))
 
+    async def _superseded(self, idempotency_key: str) -> bool:
+        """A newer job of this mail (a later resend) is already sent."""
+
+        first_key, sequence = mail_key_sequence(idempotency_key)
+        return any(
+            mail_key_sequence(key)[1] > sequence
+            for key in await self._reader.sent_keys(first_key)
+        )
+
     async def handle(self, event: ClaimedOutboxEvent) -> None:
         commitment_value = event.payload.get("commitmentId")
         if not isinstance(commitment_value, str):
@@ -659,20 +768,21 @@ class OrderMailHandler:
             raise OrderMailError("order_mail_payload_invalid")
         links = OrderMailLinks.from_payload(event.payload)
         facts = await self._reader.facts(commitment_id, self._kind)
-        if facts is None or facts.not_due_reason() is not None:
-            # Nothing to send: the order is gone or erased, or the action
-            # switched the mails for internal orders off meanwhile.
-            return
         if (
-            self._kind is OrderMailKind.CONFIRMATION
-            and facts.commitment.status is CommitmentStatus.CANCELLED
+            facts is None
+            or facts.not_due_reason(self._kind, now=self._clock()) is not None
         ):
-            # Cancelled before the confirmation went out: the cancellation
-            # notice tells the buyer everything.
+            # Nothing to send: the order is gone or erased, the action
+            # switched the mails for internal orders off meanwhile, or (a
+            # confirmation) the order is cancelled, delivered or closed.
             return
         if await self._reader.was_sent(event.idempotency_key):
             # A re-run of a sent job (lost completion): nothing to send, and
             # the limit must not dead-letter it.
+            return
+        if await self._superseded(event.idempotency_key):
+            # An operator retried an old failed job after a manager already
+            # sent the mail again: the buyer has it.
             return
         legal = await self._legal_configuration.active_configuration()
         if legal is None:
@@ -685,7 +795,9 @@ class OrderMailHandler:
         )
         mail = render(facts, legal, links)
         async with self._reader.recipient_lock(limit_digest(mail.recipient)):
-            if await self._reader.was_sent(event.idempotency_key):
+            if await self._reader.was_sent(
+                event.idempotency_key
+            ) or await self._superseded(event.idempotency_key):
                 return
             recent = await self._reader.recent_order_mails(
                 recipient_sha256=recipient_sha256(mail.recipient),

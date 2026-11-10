@@ -5,6 +5,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -1126,10 +1127,11 @@ describe("order number and buyer mails in the order pane", () => {
         _commitmentId: string,
         kind: Mail["kind"],
         _options?: unknown,
-      ): Promise<Mail> => ({
+      ): Promise<Mail & { replayed: boolean }> => ({
         canResend: false,
         kind,
         reason: null,
+        replayed: false,
         sentAt: "2026-11-05T10:15:00Z",
         state: "queued",
       }),
@@ -1252,5 +1254,196 @@ describe("order number and buyer mails in the order pane", () => {
         /Diese E-Mail wartet bereits auf den Versand\./,
       ),
     ).toBeTruthy();
+  });
+});
+
+describe("buyer mails: first send, lost answer and the other states", () => {
+  type Mail = Awaited<
+    ReturnType<LeonAidApiClient["listBuyerMails"]>
+  >["mails"][number];
+
+  function clientWithMails(mails: Mail[], replayed = false) {
+    const client = fakeClient();
+    const listBuyerMails = vi.fn(
+      async (_action: string, commitmentId: string) => ({
+        commitmentId,
+        mails,
+      }),
+    );
+    const resendBuyerMail = vi.fn(
+      async (
+        _action: string,
+        _commitmentId: string,
+        kind: Mail["kind"],
+        _options?: unknown,
+      ) => ({
+        canResend: false,
+        kind,
+        reason: null,
+        replayed,
+        sentAt: null,
+        state: "queued" as const,
+      }),
+    );
+    Object.assign(client, { listBuyerMails, resendBuyerMail });
+    return { client, listBuyerMails, resendBuyerMail };
+  }
+
+  const neverSent: Mail = {
+    canResend: true,
+    kind: "confirmation",
+    reason: "not_requested",
+    sentAt: null,
+    state: "not_due",
+  };
+
+  it("offers Senden for a mail that is due and never went out", async () => {
+    const { client, resendBuyerMail } = clientWithMails([neverSent]);
+    await renderPage("?view=all&open=c1", client);
+    const block = await screen.findByTestId("buyer-mails");
+    const button = await within(block).findByRole("button", {
+      name: "Bestellbestätigung senden",
+    });
+    expect(button.textContent).toBe("Senden");
+    // The server does not know why: the text claims no reason.
+    expect(block.textContent).toContain(
+      "Für diese Bestellung ist noch keine E-Mail hinausgegangen.",
+    );
+    expect(block.textContent).not.toContain("ausgeschaltet");
+    fireEvent.click(button);
+    await screen.findByText("Bestellbestätigung wird gesendet.");
+    expect(resendBuyerMail).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers Senden after a job that ended without a mail", async () => {
+    const { client } = clientWithMails([
+      { ...neverSent, reason: "not_sent", state: "skipped" },
+    ]);
+    await renderPage("?view=all&open=c1", client);
+    const block = await screen.findByTestId("buyer-mails");
+    await within(block).findByRole("button", {
+      name: "Bestellbestätigung senden",
+    });
+    expect(block.textContent).toContain("Nicht gesendet");
+    expect(block.textContent).toContain("Die E-Mail ist nicht hinausgegangen.");
+  });
+
+  it("says that a repeated click after a lost answer sent nothing new", async () => {
+    const { client } = clientWithMails(
+      [
+        {
+          ...neverSent,
+          sentAt: "2026-11-04T08:30:00Z",
+          state: "sent",
+          reason: null,
+        },
+      ],
+      true,
+    );
+    await renderPage("?view=all&open=c1", client);
+    const block = await screen.findByTestId("buyer-mails");
+    fireEvent.click(
+      await within(block).findByRole("button", {
+        name: "Bestellbestätigung erneut senden",
+      }),
+    );
+    await screen.findByText(
+      "Bestellbestätigung: Der Auftrag von vorhin ist angekommen. Es geht keine weitere E-Mail hinaus.",
+    );
+    expect(screen.queryByText(/wird erneut gesendet/)).toBeNull();
+  });
+
+  it("keeps the key after a lost answer and drops it after a refusal", async () => {
+    const { client, resendBuyerMail } = clientWithMails([
+      {
+        ...neverSent,
+        sentAt: "2026-11-04T08:30:00Z",
+        state: "sent",
+        reason: null,
+      },
+    ]);
+    resendBuyerMail.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await renderPage("?view=all&open=c1", client);
+    const block = await screen.findByTestId("buyer-mails");
+    const button = await within(block).findByRole("button", {
+      name: "Bestellbestätigung erneut senden",
+    });
+    fireEvent.click(button);
+    await within(block).findByText(/konnte gerade nicht gespeichert werden/);
+    const kept = window.sessionStorage.getItem(
+      "leonaid.buyer-mail-resend.c1.confirmation",
+    );
+    expect(kept).toMatch(/^buyer-mail-resend:/);
+    // The next click sends the same key: the server replays, no second mail.
+    fireEvent.click(
+      await within(block).findByRole("button", {
+        name: "Bestellbestätigung erneut senden",
+      }),
+    );
+    await waitFor(() => expect(resendBuyerMail).toHaveBeenCalledTimes(2));
+    const keys = resendBuyerMail.mock.calls.map(
+      (call) =>
+        (call[3] as { headers: Record<string, string> }).headers[
+          "Idempotency-Key"
+        ],
+    );
+    expect(keys).toEqual([kept, kept]);
+  });
+
+  it("shows a waiting mail without a button and asks again", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { client, listBuyerMails } = clientWithMails([
+        {
+          canResend: false,
+          kind: "confirmation",
+          reason: null,
+          sentAt: "2026-11-04T08:30:00Z",
+          state: "queued",
+        },
+      ]);
+      await renderPage("?view=all&open=c1", client);
+      const block = await screen.findByTestId("buyer-mails");
+      await within(block).findByText("Wartet");
+      expect(block.textContent).toContain(
+        "Wartet auf den Versand. Zuletzt gesendet am 04.11.2026, 09:30.",
+      );
+      expect(within(block).queryByRole("button")).toBeNull();
+      const calls = listBuyerMails.mock.calls.length;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5100);
+      });
+      expect(listBuyerMails.mock.calls.length).toBeGreaterThan(calls);
+      // Not for ever: after two minutes the block stops asking.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5 * 60_000);
+      });
+      const settled = listBuyerMails.mock.calls.length;
+      expect(settled).toBeLessThanOrEqual(calls + 25);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      expect(listBuyerMails.mock.calls.length).toBe(settled);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("names the reasons a confirmation comes too late", async () => {
+    for (const [reason, text] of [
+      ["delivery_recorded", "Die Lieferung ist schon als geliefert"],
+      ["window_over", "Das Lieferfenster ist vorbei."],
+      ["action_closed", "Die Aktion ist abgeschlossen."],
+    ] as const) {
+      const { client } = clientWithMails([
+        { ...neverSent, canResend: false, reason },
+      ]);
+      await renderPage("?view=all&open=c1", client);
+      const block = await screen.findByTestId("buyer-mails");
+      await within(block).findByText("Bestellbestätigung");
+      expect(block.textContent).toContain(text);
+      expect(within(block).queryByRole("button")).toBeNull();
+      cleanup();
+    }
   });
 });

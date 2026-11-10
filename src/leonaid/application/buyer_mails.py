@@ -12,6 +12,7 @@ would not reach now.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
@@ -27,6 +28,7 @@ from leonaid.application.order_mails import (
     OrderMailKind,
     OrderMailLinkResolver,
     OrderMailLinks,
+    confirmation_not_due_reason,
     mail_not_due_reason,
 )
 from leonaid.application.policies import require_action_manager
@@ -52,12 +54,17 @@ class BuyerMailReason(StrEnum):
     NO_EMAIL = MailNotDueReason.NO_EMAIL.value
     SWITCHED_OFF = MailNotDueReason.SWITCHED_OFF.value
     ORDER_DRAFT = MailNotDueReason.ORDER_DRAFT.value
-    # A confirmation of an order that is cancelled meanwhile.
-    ORDER_CANCELLED = "order_cancelled"
-    # The mail would be due now, but no job was written when the order was
-    # recorded or cancelled (for example the switch was off then).
+    # A confirmation that would come too late: the order is cancelled, its
+    # delivery is recorded, its window is over or its action is closed.
+    ORDER_CANCELLED = MailNotDueReason.ORDER_CANCELLED.value
+    DELIVERY_RECORDED = MailNotDueReason.DELIVERY_RECORDED.value
+    WINDOW_OVER = MailNotDueReason.WINDOW_OVER.value
+    ACTION_CLOSED = MailNotDueReason.ACTION_CLOSED.value
+    # The mail is due now, but no job exists (for example the switch was off
+    # when the order was recorded). A manager can send it.
     NOT_REQUESTED = "not_requested"
-    # The job ended without a mail and the reason no longer holds.
+    # The newest job ended without a mail and the mail is due now. A manager
+    # can send it.
     NOT_SENT = "not_sent"
     RECIPIENT_LIMIT = "recipient_limit"
     DELIVERY_FAILED = "delivery_failed"
@@ -83,6 +90,10 @@ class BuyerMailLedger:
     jobs: tuple[BuyerMailJob, ...] = ()
     # Ledger rows: job key and send time.
     sent: tuple[tuple[str, datetime], ...] = ()
+    # The action's status and what the delivery board recorded for the order
+    # ("delivered" or "missed").
+    action_status: str = "active"
+    drop_state: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +102,9 @@ class BuyerMailStatus:
     state: BuyerMailState
     sent_at: datetime | None = None
     reason: BuyerMailReason | None = None
+    # A manager can send the mail now: it is due and no job waits. That is a
+    # resend of a mail that went out or failed, and the first send of one
+    # that was never queued or whose job ended without a mail.
     can_resend: bool = False
 
 
@@ -121,24 +135,36 @@ def last_sequence(kind: OrderMailKind, ledger: BuyerMailLedger) -> int | None:
     return max(numbers, default=None)
 
 
-def _not_due(kind: OrderMailKind, ledger: BuyerMailLedger) -> BuyerMailReason | None:
-    reason = mail_not_due_reason(
-        ledger.commitment,
-        internal_order_mails=ledger.internal_order_mails,
-        status=ledger.previous_status,
+def _not_due(
+    kind: OrderMailKind, ledger: BuyerMailLedger, now: datetime
+) -> BuyerMailReason | None:
+    reason = (
+        confirmation_not_due_reason(
+            ledger.commitment,
+            internal_order_mails=ledger.internal_order_mails,
+            drop_state=ledger.drop_state,
+            action_status=ledger.action_status,
+            now=now,
+        )
+        if kind is OrderMailKind.CONFIRMATION
+        else mail_not_due_reason(
+            ledger.commitment,
+            internal_order_mails=ledger.internal_order_mails,
+            status=ledger.previous_status,
+        )
     )
-    if reason is not None:
-        return BuyerMailReason(reason.value)
-    if (
-        kind is OrderMailKind.CONFIRMATION
-        and ledger.commitment.status is CommitmentStatus.CANCELLED
-    ):
-        return BuyerMailReason.ORDER_CANCELLED
-    return None
+    return BuyerMailReason(reason.value) if reason is not None else None
 
 
-def buyer_mail_status(kind: OrderMailKind, ledger: BuyerMailLedger) -> BuyerMailStatus:
-    """The state of one mail kind: its newest job decides."""
+def buyer_mail_status(
+    kind: OrderMailKind, ledger: BuyerMailLedger, *, now: datetime
+) -> BuyerMailStatus:
+    """The state of one mail kind: its newest job decides.
+
+    ``can_resend`` follows one rule in every state: the mail is due now and
+    no job of it waits. So a mail that was never queued, or whose newest job
+    ended without a mail, is no dead end.
+    """
 
     order_id = ledger.commitment.id
     sent = {
@@ -152,17 +178,19 @@ def buyer_mail_status(kind: OrderMailKind, ledger: BuyerMailLedger) -> BuyerMail
         if (number := _sequence(kind, order_id, job.key)) is not None
     }
     sent_at = max(sent.values(), default=None)
-    not_due = _not_due(kind, ledger)
+    not_due = _not_due(kind, ledger, now)
+    due = not_due is None
     latest = last_sequence(kind, ledger)
     if latest is None:
         return BuyerMailStatus(
             kind,
             BuyerMailState.NOT_DUE,
             reason=not_due or BuyerMailReason.NOT_REQUESTED,
+            can_resend=due,
         )
     if latest in sent:
         return BuyerMailStatus(
-            kind, BuyerMailState.SENT, sent_at=sent_at, can_resend=not_due is None
+            kind, BuyerMailState.SENT, sent_at=sent_at, can_resend=due
         )
     job = jobs[latest]
     if job.status in {"pending", "processing"}:
@@ -177,7 +205,7 @@ def buyer_mail_status(kind: OrderMailKind, ledger: BuyerMailLedger) -> BuyerMail
                 if job.error_code == RECIPIENT_LIMIT_ERROR
                 else BuyerMailReason.DELIVERY_FAILED
             ),
-            can_resend=not_due is None,
+            can_resend=due,
         )
     # Completed without a ledger row: the worker found nothing to send.
     return BuyerMailStatus(
@@ -185,7 +213,16 @@ def buyer_mail_status(kind: OrderMailKind, ledger: BuyerMailLedger) -> BuyerMail
         BuyerMailState.SKIPPED,
         sent_at=sent_at,
         reason=not_due or BuyerMailReason.NOT_SENT,
+        can_resend=due,
     )
+
+
+def next_sequence(kind: OrderMailKind, ledger: BuyerMailLedger) -> int:
+    """The number of the job a manager's send writes: 0 is the first key
+    (the mail was never queued), n the n-th resend."""
+
+    latest = last_sequence(kind, ledger)
+    return 0 if latest is None else latest + 1
 
 
 def applicable_kinds(ledger: BuyerMailLedger) -> tuple[OrderMailKind, ...]:
@@ -196,19 +233,25 @@ def applicable_kinds(ledger: BuyerMailLedger) -> tuple[OrderMailKind, ...]:
     return (OrderMailKind.CONFIRMATION,)
 
 
-def buyer_mail_statuses(ledger: BuyerMailLedger) -> tuple[BuyerMailStatus, ...]:
-    return tuple(buyer_mail_status(kind, ledger) for kind in applicable_kinds(ledger))
+def buyer_mail_statuses(
+    ledger: BuyerMailLedger, *, now: datetime
+) -> tuple[BuyerMailStatus, ...]:
+    return tuple(
+        buyer_mail_status(kind, ledger, now=now) for kind in applicable_kinds(ledger)
+    )
 
 
-def resend_refusal(kind: OrderMailKind, ledger: BuyerMailLedger) -> Conflict | None:
-    """Why the mail cannot be sent again now; ``None`` when it can."""
+def resend_refusal(
+    kind: OrderMailKind, ledger: BuyerMailLedger, *, now: datetime
+) -> Conflict | None:
+    """Why the mail cannot be sent now; ``None`` when it can."""
 
     if kind not in applicable_kinds(ledger):
         return Conflict(
             "buyer_mail_not_applicable",
             "Diese E-Mail gibt es für die Bestellung nicht.",
         )
-    status = buyer_mail_status(kind, ledger)
+    status = buyer_mail_status(kind, ledger, now=now)
     if status.can_resend:
         return None
     if status.state is BuyerMailState.QUEUED:
@@ -216,16 +259,12 @@ def resend_refusal(kind: OrderMailKind, ledger: BuyerMailLedger) -> Conflict | N
             "buyer_mail_already_queued",
             "Diese E-Mail wartet bereits auf den Versand.",
         )
-    if status.state in {BuyerMailState.SENT, BuyerMailState.FAILED}:
-        return Conflict(
-            "buyer_mail_not_due",
-            "Diese E-Mail kann nicht mehr gesendet werden: Die Bestellung ist "
-            "storniert, hat keine E-Mail-Adresse mehr oder die E-Mails der "
-            "Aktion sind ausgeschaltet.",
-        )
     return Conflict(
-        "buyer_mail_resend_not_allowed",
-        "Nur eine gesendete oder fehlgeschlagene E-Mail kann erneut gesendet werden.",
+        "buyer_mail_not_due",
+        "Diese E-Mail kann jetzt nicht gesendet werden: Die Bestellung ist "
+        "ein Entwurf, storniert oder schon geliefert, hat keine "
+        "E-Mail-Adresse, ihr Lieferfenster ist vorbei, die Aktion ist "
+        "abgeschlossen oder die E-Mails der Aktion sind ausgeschaltet.",
     )
 
 
@@ -266,8 +305,12 @@ class BuyerMailRepository(Protocol):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
-    ) -> BuyerMailLedger:
-        """Queue the next resend job, or replay the stored command."""
+    ) -> tuple[BuyerMailLedger, bool]:
+        """Queue the next job of the mail, or replay the stored command.
+
+        Returns the order's ledger afterwards and whether the command was a
+        replay (no new job).
+        """
         ...
 
 
@@ -277,9 +320,11 @@ class BuyerMailService:
         repository: BuyerMailRepository,
         *,
         mail_links: OrderMailLinkResolver,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._repository = repository
         self._mail_links = mail_links
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
 
     async def configuration(
         self, actor: IdentityPrincipal, action_id: UUID
@@ -310,7 +355,8 @@ class BuyerMailService:
         return buyer_mail_statuses(
             await self._repository.ledger(
                 action_id=action_id, commitment_id=commitment_id
-            )
+            ),
+            now=self._clock(),
         )
 
     async def resend(
@@ -323,7 +369,10 @@ class BuyerMailService:
         idempotency_key: str,
         request_id: str,
         occurred_at: datetime | None = None,
-    ) -> BuyerMailStatus:
+    ) -> tuple[BuyerMailStatus, bool]:
+        """Send the mail (again); the status afterwards and whether the
+        command was a replay that wrote no new job."""
+
         require_action_manager(actor, action_id)
         if not IDEMPOTENCY_KEY.fullmatch(idempotency_key):
             raise DomainInvariantError(
@@ -332,7 +381,8 @@ class BuyerMailService:
             )
         # Resolved before the transaction holds a connection.
         links = await self._mail_links.for_action(action_id)
-        ledger = await self._repository.resend(
+        moment = occurred_at or self._clock()
+        ledger, replayed = await self._repository.resend(
             action_id=action_id,
             commitment_id=commitment_id,
             kind=kind,
@@ -346,6 +396,6 @@ class BuyerMailService:
                 actor_user_id=actor.account.id,
             ),
             request_id=request_id,
-            occurred_at=occurred_at or datetime.now(timezone.utc),
+            occurred_at=moment,
         )
-        return buyer_mail_status(kind, ledger)
+        return buyer_mail_status(kind, ledger, now=moment), replayed

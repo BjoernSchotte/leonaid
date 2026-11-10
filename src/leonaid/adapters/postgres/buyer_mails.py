@@ -16,7 +16,7 @@ from leonaid.application.buyer_mails import (
     BuyerMailJob,
     BuyerMailLedger,
     BuyerMailRepository,
-    last_sequence,
+    next_sequence,
     resend_refusal,
 )
 from leonaid.application.errors import Conflict, ResourceNotFound
@@ -179,10 +179,15 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
             """
             SELECT COALESCE(mails.internal_order_mails, false)
                     AS internal_order_mails,
+                action.status AS action_status,
+                delivery.state AS drop_state,
                 cancellation.previous_status
             FROM commitment
+            JOIN charity_action AS action ON action.id = commitment.action_id
             LEFT JOIN action_buyer_mail_configuration AS mails
               ON mails.action_id = commitment.action_id
+            LEFT JOIN commitment_delivery AS delivery
+              ON delivery.commitment_id = commitment.id
             LEFT JOIN commitment_cancellation AS cancellation
               ON cancellation.commitment_id = commitment.id
             WHERE commitment.id = $1 AND commitment.action_id = $2
@@ -240,6 +245,10 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
             sent=tuple(
                 (str(item["idempotency_key"]), item["sent_at"]) for item in sent
             ),
+            action_status=str(row["action_status"]),
+            drop_state=(
+                str(row["drop_state"]) if row["drop_state"] is not None else None
+            ),
         )
 
     async def resend(
@@ -254,7 +263,7 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
-    ) -> BuyerMailLedger:
+    ) -> tuple[BuyerMailLedger, bool]:
         async with self._pool.acquire() as connection, connection.transaction():
             await connection.execute(
                 "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
@@ -277,20 +286,36 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
                         "idempotency_conflict",
                         "Diese Vorgangs-ID wurde bereits für andere Daten verwendet.",
                     )
-                return ledger
-            refusal = resend_refusal(kind, ledger)
+                return ledger, True
+            refusal = resend_refusal(kind, ledger, now=occurred_at)
             if refusal is not None:
                 # Rolls the command receipt back: the key stays free.
                 raise refusal
-            number = (last_sequence(kind, ledger) or 0) + 1
+            # 0: the mail was never queued, this writes its first job.
+            number = next_sequence(kind, ledger)
             event = order_mail_event(
                 kind,
                 action_id=action_id,
                 commitment_id=commitment_id,
                 links=links,
-                resend=number,
+                resend=number or None,
             )
             await insert_order_mail_event(connection, event, occurred_at)
+            # Older failed jobs of this mail are settled by this send: an
+            # operator who retried one later would mail the buyer twice. (The
+            # worker also skips a job that a newer sent one superseded.)
+            await connection.execute(
+                """
+                UPDATE outbox_event
+                SET status = 'completed', completed_at = $3,
+                    dead_lettered_at = NULL, claim_token = NULL, claimed_by = NULL
+                WHERE aggregate_type = 'commitment' AND aggregate_id = $1
+                  AND event_type = $2 AND status = 'dead_letter'
+                """,
+                commitment_id,
+                EVENT_TYPES[kind],
+                occurred_at,
+            )
             # No address in the audit event: the order may be erased later.
             await connection.execute(
                 """
@@ -326,4 +351,4 @@ class AsyncpgBuyerMailRepository(BuyerMailRepository):
                 ),
                 occurred_at,
             )
-            return await self._ledger(connection, action_id, commitment_id)
+            return await self._ledger(connection, action_id, commitment_id), False

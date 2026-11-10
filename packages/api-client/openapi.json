@@ -2270,11 +2270,11 @@
         "title": "BuyerMailListResponse",
         "type": "object"
       },
-      "BuyerMailStatusResponse": {
+      "BuyerMailResendResponse": {
         "additionalProperties": false,
         "properties": {
           "canResend": {
-            "description": "`resendBuyerMail` is allowed for this kind now.",
+            "description": "`resendBuyerMail` is allowed for this kind now: the mail is due and no job of it waits. With `sentAt` null it is the first send.",
             "title": "Canresend",
             "type": "boolean"
           },
@@ -2300,8 +2300,10 @@
                   "recipient_limit",
                   "delivery_failed",
                   "delivery_recorded",
+                  "window_over",
+                  "action_closed",
                   "scheduled",
-                  "window_over"
+                  "window_before_send_time"
                 ],
                 "type": "string"
               },
@@ -2309,7 +2311,92 @@
                 "type": "null"
               }
             ],
-            "description": "Set for `not_due`, `skipped` and `failed`. The last three belong to the delivery-day mail: the delivery is already recorded, the mail goes out on the delivery day, or the window is over.",
+            "description": "Set for `not_due`, `skipped` and `failed`. `not_requested` and `not_sent` mean that the mail is due but never went out; `canResend` is then true. `scheduled` and `window_before_send_time` belong to the delivery-day mail.",
+            "title": "Reason"
+          },
+          "replayed": {
+            "description": "The `Idempotency-Key` was used before: this call wrote no new job and sends no further mail.",
+            "title": "Replayed",
+            "type": "boolean"
+          },
+          "sentAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the mail of this kind was last sent, if ever.",
+            "title": "Sentat"
+          },
+          "state": {
+            "enum": [
+              "not_due",
+              "queued",
+              "sent",
+              "failed",
+              "skipped"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "state",
+          "sentAt",
+          "reason",
+          "canResend",
+          "replayed"
+        ],
+        "title": "BuyerMailResendResponse",
+        "type": "object"
+      },
+      "BuyerMailStatusResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "canResend": {
+            "description": "`resendBuyerMail` is allowed for this kind now: the mail is due and no job of it waits. With `sentAt` null it is the first send.",
+            "title": "Canresend",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "confirmation",
+              "cancellation",
+              "delivery_day"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "no_email",
+                  "switched_off",
+                  "order_draft",
+                  "order_cancelled",
+                  "not_requested",
+                  "not_sent",
+                  "recipient_limit",
+                  "delivery_failed",
+                  "delivery_recorded",
+                  "window_over",
+                  "action_closed",
+                  "scheduled",
+                  "window_before_send_time"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set for `not_due`, `skipped` and `failed`. `not_requested` and `not_sent` mean that the mail is due but never went out; `canResend` is then true. `scheduled` and `window_before_send_time` belong to the delivery-day mail.",
             "title": "Reason"
           },
           "sentAt": {
@@ -3478,6 +3565,18 @@
                 "type": "null"
               }
             ]
+          },
+          "deliveryDayMail": {
+            "default": false,
+            "description": "The action sends the buyer a mail on the delivery day.",
+            "title": "Deliverydaymail",
+            "type": "boolean"
+          },
+          "internalOrderMails": {
+            "default": false,
+            "description": "The action sends the order confirmation and the cancellation notice to the buyer of an order recorded here. The capture form shows the address they go to.",
+            "title": "Internalordermails",
+            "type": "boolean"
           },
           "offerings": {
             "items": {
@@ -22470,7 +22569,7 @@
     },
     "/api/v1/actions/{action_id}/commitments/{commitment_id}/buyer-mails/{kind}/resend": {
       "post": {
-        "description": "Send a mail to the buyer again.\n\nAllowed for a mail that was sent or that failed. Answers 409 while the\nmail waits in the queue or is not due (no address, cancelled order for a\nconfirmation, switched off). The worker applies the limit per mailbox.\nIdempotent per `Idempotency-Key`.",
+        "description": "Send a mail to the buyer, again or for the first time.\n\nAllowed whenever the mail is due and no job of it waits (`canResend`):\nafter it was sent or failed, and when it never went out (never queued,\nor its job ended without a mail). Answers 409 while the mail waits in\nthe queue or is not due (no address, switched off, draft; for a\nconfirmation also a cancelled or delivered order, a delivery window that\nis over, a completed action). The worker applies the limit per mailbox.\nIdempotent per `Idempotency-Key`; `replayed` tells a repeated call.",
         "operationId": "resendBuyerMail",
         "parameters": [
           {
@@ -22513,7 +22612,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BuyerMailStatusResponse"
+                  "$ref": "#/components/schemas/BuyerMailResendResponse"
                 }
               }
             },

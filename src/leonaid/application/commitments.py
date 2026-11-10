@@ -164,6 +164,10 @@ class CommitmentCaptureContext:
     action_name: str
     offerings: tuple[Offering, ...]
     delivery_configuration: DeliveryConfiguration | None = None
+    # The action sends mails to the buyer of an order recorded here: the
+    # capture form then shows the address they go to.
+    internal_order_mails: bool = False
+    delivery_day_mail: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -482,5 +486,7 @@ class CommitmentService:
             ),
             request_id=request_id,
             occurred_at=moment,
-            mail_links=await self._links(action_id),
+            # A draft queues no mail: no link lookup for it (the PWA queue
+            # sends many drafts in a row).
+            mail_links=await self._links(action_id) if ready_for_review else None,
         )

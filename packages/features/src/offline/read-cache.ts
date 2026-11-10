@@ -74,7 +74,10 @@ export function minimizeBoard(
   };
 }
 
-/** Offerings and delivery windows: no personal data, kept as served. */
+/**
+ * Offerings, delivery windows and the action's buyer-mail switches: no
+ * personal data, kept as served.
+ */
 export function minimizeCaptureContext(
   context: CommitmentCaptureContextResponse,
 ): CommitmentCaptureContextResponse {
@@ -83,6 +86,9 @@ export function minimizeCaptureContext(
     actionName: context.actionName,
     deliveryConfiguration: context.deliveryConfiguration ?? null,
     offerings: context.offerings.map((offering) => ({ ...offering })),
+    // A copy from before these fields existed has none: no notice then.
+    internalOrderMails: context.internalOrderMails ?? false,
+    deliveryDayMail: context.deliveryDayMail ?? false,
   };
 }
 

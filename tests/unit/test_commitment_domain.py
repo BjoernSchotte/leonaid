@@ -10,6 +10,8 @@ import pytest
 
 from leonaid.domain.action_templates import OfferingStatus, OfferingUnit
 from leonaid.domain.commitments import (
+    ORDER_NUMBER_ALPHABET,
+    PUBLIC_REFERENCE,
     BuyerSnapshot,
     Commitment,
     CommitmentLine,
@@ -164,11 +166,21 @@ def test_commitment_sources_keep_buyer_recipient_and_lines_separate(
     )
 
     # Every order has an order number, whatever its source.
-    assert commitment.public_reference == "LA-80000000000040008000000000000099"
     assert commitment.public_reference == order_number(commitment.id)
-    with pytest.raises(DomainInvariantError) as captured:
-        replace(commitment, public_reference="LA-7F3K2")
-    assert captured.value.code == "commitment_public_reference_invalid"
+    assert commitment.public_reference == "LA-E7ZGJCEY"
+    # The long number of an older public order stays valid.
+    old = replace(commitment, public_reference="LA-80000000000040008000000000000099")
+    assert old.public_reference == "LA-80000000000040008000000000000099"
+    for invalid in (
+        "LA-7F3K2",
+        "LA-ABCDEFG0",
+        "LA-ABCDEFGI",
+        "la-23456789",
+        "23456789",
+    ):
+        with pytest.raises(DomainInvariantError) as captured:
+            replace(commitment, public_reference=invalid)
+        assert captured.value.code == "commitment_public_reference_invalid"
     assert commitment.buyer.display_name == "Musterwerk GmbH"
     assert commitment.invoice_recipient is not None
     assert commitment.invoice_recipient.recipient_name == "Musterwerk Rechnungseingang"
@@ -209,3 +221,27 @@ def test_commitment_rejects_a_tampered_total() -> None:
             total=Money(1, "EUR"),
         )
     assert captured.value.code == "commitment_total_invalid"
+
+
+def test_order_numbers_are_short_readable_and_follow_from_the_order_id() -> None:
+    order_id = UUID("80000000-0000-4000-8000-000000000001")
+
+    # The same rule as the backfill of migration 0062 (tools/schema/test.sh
+    # asserts these two values after the SQL ran).
+    assert order_number(order_id) == "LA-3DKFX85Y"
+    assert order_number(order_id, 1) == "LA-NG8RY6CW"
+    assert order_number(order_id) == order_number(order_id, 0)
+    numbers = {
+        order_number(UUID(int=value), attempt)
+        for value in range(400)
+        for attempt in range(3)
+    }
+    assert len(numbers) == 1200
+    for number in numbers:
+        assert PUBLIC_REFERENCE.fullmatch(number), number
+        assert len(number) == 11
+        # Nothing a buyer could mix up on the phone.
+        assert not set(number[3:]) & set("01OIL"), number
+        assert set(number[3:]) <= set(ORDER_NUMBER_ALPHABET)
+    with pytest.raises(ValueError):
+        order_number(order_id, -1)

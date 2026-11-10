@@ -12,6 +12,7 @@ import asyncpg
 
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.order_mail_jobs import (
+    SENT_KEY_RANGE,
     insert_order_mail_event,
     internal_order_mails_enabled,
 )
@@ -42,12 +43,21 @@ class AsyncpgOrderMailReader:
             row = await connection.fetchrow(
                 """
                 SELECT commitment.created_at, action.name AS action_name,
+                    action.status AS action_status,
+                    EXISTS (
+                        SELECT 1 FROM charity_action_capability AS capability
+                        WHERE capability.action_id = action.id
+                          AND capability.capability = 'invoicing'
+                    ) AS invoicing,
                     COALESCE(mails.internal_order_mails, false)
-                        AS internal_order_mails
+                        AS internal_order_mails,
+                    delivery.state AS drop_state
                 FROM commitment
                 JOIN charity_action AS action ON action.id = commitment.action_id
                 LEFT JOIN action_buyer_mail_configuration AS mails
                   ON mails.action_id = commitment.action_id
+                LEFT JOIN commitment_delivery AS delivery
+                  ON delivery.commitment_id = commitment.id
                 WHERE commitment.id = $1
                 """,
                 commitment_id,
@@ -90,6 +100,11 @@ class AsyncpgOrderMailReader:
             ordered_at=row["created_at"],
             cancellation=cancellation,
             internal_order_mails=bool(row["internal_order_mails"]),
+            action_status=str(row["action_status"]),
+            invoicing=bool(row["invoicing"]),
+            drop_state=(
+                str(row["drop_state"]) if row["drop_state"] is not None else None
+            ),
         )
 
     async def was_sent(self, idempotency_key: str) -> bool:
@@ -101,6 +116,15 @@ class AsyncpgOrderMailReader:
                     idempotency_key,
                 )
             )
+
+    async def sent_keys(self, first_key: str) -> tuple[str, ...]:
+        async with self._pool.acquire() as connection:
+            rows = await connection.fetch(
+                "SELECT idempotency_key FROM mail_delivery "
+                f"WHERE status = 'sent' AND {SENT_KEY_RANGE}",
+                first_key,
+            )
+        return tuple(str(row["idempotency_key"]) for row in rows)
 
     async def recent_order_mails(
         self, *, recipient_sha256: str, mailbox: str, since: datetime

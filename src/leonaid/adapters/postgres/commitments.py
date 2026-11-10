@@ -14,10 +14,11 @@ from leonaid.adapters.postgres.retry import (
     serialization_pause,
 )
 from leonaid.adapters.postgres.invoice_payment_state import ACTIVE_PAID_MINOR_SQL
-from leonaid.adapters.postgres.order_mail_jobs import (
-    insert_order_mail_event,
-    internal_order_mails_enabled,
+from leonaid.adapters.postgres.order_numbers import (
+    free_order_number,
+    order_number_taken,
 )
+from leonaid.adapters.postgres.order_mail_jobs import queue_confirmation
 from leonaid.adapters.postgres.delivery import (
     guard_window_booking,
     read_configuration,
@@ -36,12 +37,7 @@ from leonaid.application.commitments import (
     CommitmentRepository,
 )
 from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFound
-from leonaid.application.order_mails import (
-    OrderMailKind,
-    OrderMailLinks,
-    mail_due,
-    order_mail_event,
-)
+from leonaid.application.order_mails import OrderMailLinks, mail_due
 from leonaid.domain.action_templates import OfferingStatus, OfferingUnit
 from leonaid.domain.captures import bounded_captured_at
 from leonaid.domain.commitments import (
@@ -54,7 +50,6 @@ from leonaid.domain.commitments import (
     InvoiceRecipientSnapshot,
     Money,
     Offering,
-    order_number,
 )
 from leonaid.domain.invoices import InvoiceStatus
 from leonaid.domain.order_cancellation import OrderCancellation, OrderInvoiceState
@@ -345,30 +340,10 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         mail_links: OrderMailLinks | None,
         occurred_at: datetime,
     ) -> None:
-        """Queue the confirmation of an internal order that is review-ready.
+        """See ``order_mail_jobs.queue_confirmation``."""
 
-        Called in the transaction that makes the order ``review_ready`` (its
-        creation or the completion of its draft), once: a replay of either
-        command returns before this point, and the job key is the order's.
-        A later change of window or address sends no second confirmation.
-        """
-
-        if mail_links is None or not mail_due(
-            commitment,
-            internal_order_mails=await internal_order_mails_enabled(
-                connection, commitment.action_id
-            ),
-        ):
-            return
-        await insert_order_mail_event(
-            connection,
-            order_mail_event(
-                OrderMailKind.CONFIRMATION,
-                action_id=commitment.action_id,
-                commitment_id=commitment.id,
-                links=mail_links,
-            ),
-            occurred_at,
+        await queue_confirmation(
+            connection, commitment, mail_links=mail_links, occurred_at=occurred_at
         )
 
     async def capture_context(
@@ -432,7 +407,22 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 action_name=str(action["name"]),
                 offerings=offerings,
                 delivery_configuration=await read_configuration(connection, action_id),
+                **await self._buyer_mail_switches(connection, action_id),
             )
+
+    @staticmethod
+    async def _buyer_mail_switches(
+        connection: asyncpg.Connection[Any], action_id: UUID
+    ) -> dict[str, bool]:
+        row = await connection.fetchrow(
+            "SELECT internal_order_mails, delivery_day_mail "
+            "FROM action_buyer_mail_configuration WHERE action_id = $1",
+            action_id,
+        )
+        return {
+            "internal_order_mails": bool(row and row["internal_order_mails"]),
+            "delivery_day_mail": bool(row and row["delivery_day_mail"]),
+        }
 
     async def list_for_action(
         self,
@@ -556,7 +546,13 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                             occurred_at=occurred_at,
                             mail_links=mail_links,
                         )
-                except RETRYABLE_ERRORS:
+                except (*RETRYABLE_ERRORS, asyncpg.UniqueViolationError) as error:
+                    # A taken order number is retried like a lost
+                    # serialization check: the next run derives a new one.
+                    if isinstance(
+                        error, asyncpg.UniqueViolationError
+                    ) and not order_number_taken(error):
+                        raise
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "commitment_concurrent_retry",
@@ -703,7 +699,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             delivery_window_snapshot=window_snapshot,
             delivery_contact=draft.delivery_contact,
             message=draft.message,
-            public_reference=order_number(commitment_id),
+            public_reference=await free_order_number(connection, commitment_id),
             idempotency_key=idempotency_key,
             captured_at=captured_at,
         )

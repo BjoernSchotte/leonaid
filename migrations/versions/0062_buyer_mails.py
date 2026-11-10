@@ -7,9 +7,12 @@ specs/mails-documents-donations-push §5.1 and §6.1.
 
 `commitment.public_reference` was reserved for orders of the public form
 (`ck_commitment_public_reference`). Every order gets a number now: the check
-goes, older internal orders get theirs by the rule the application uses
-(`LA-` plus the order id in upper-case hex, `domain.commitments.order_number`)
-and the column becomes NOT NULL. The unique constraint of 0011 stays.
+goes, older internal orders get theirs by the rule the application uses for
+every new order (`LA-` plus eight characters a buyer can read out on the
+phone, derived from the order id, `domain.commitments.order_number`) and the
+column becomes NOT NULL. Orders of the public form keep the long number they
+have (`LA-` plus the order id in hex): buyers hold it in their mails. The
+unique constraint of 0011 stays.
 
 `action_buyer_mail_configuration` is the settings row with the switches for
 mails to buyers, one per action, all off. It is created for every existing
@@ -21,7 +24,10 @@ Two indexes serve the mail status of one order: the jobs of an order
 (`mail_delivery`, in byte order, which the database collation does not give).
 
 The downgrade restores the old rule: internal orders lose their number (it
-can be derived from the id again), the settings are dropped.
+can be derived from the id again), the settings are dropped. An older
+application cannot read orders written after this migration: it refuses an
+internal order with a number and a public order with a short one. Roll the
+database back before the application (infra/upgrade/README.md).
 """
 
 from __future__ import annotations
@@ -35,11 +41,48 @@ down_revision: str | None = "0061_delivery_geo_regeocode"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 DATA_MIGRATION_REFERENCE = (
-    "Orders without an order number get one derived from their id; no "
-    "existing number changes. Every action gets a buyer-mail settings row "
+    "Orders without an order number get a short one derived from their id; "
+    "no existing number changes. Every action gets a buyer-mail settings row "
     "with all switches off. Two indexes are added."
 )
 BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
+
+# `domain.commitments.order_number` in SQL: "LA-" plus eight characters of an
+# alphabet without 0/O and 1/I/L, taken from sha256("<order id>:<attempt>").
+# A number that an order already has is skipped by the next attempt, so the
+# result does not depend on anything but the stored orders and their order.
+BACKFILL = """
+DO $backfill$
+DECLARE
+    item record;
+    candidate text;
+    attempt integer;
+    digest bytea;
+    alphabet CONSTANT text := '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+BEGIN
+    FOR item IN
+        SELECT id FROM commitment
+        WHERE public_reference IS NULL
+        ORDER BY created_at, id
+    LOOP
+        attempt := 0;
+        LOOP
+            digest := sha256(convert_to(item.id::text || ':' || attempt, 'UTF8'));
+            candidate := 'LA-';
+            FOR place IN 0..7 LOOP
+                candidate := candidate
+                    || substr(alphabet, mod(get_byte(digest, place), 31) + 1, 1);
+            END LOOP;
+            EXIT WHEN NOT EXISTS (
+                SELECT 1 FROM commitment WHERE public_reference = candidate
+            );
+            attempt := attempt + 1;
+        END LOOP;
+        UPDATE commitment SET public_reference = candidate WHERE id = item.id;
+    END LOOP;
+END
+$backfill$
+"""
 
 OLD_REFERENCE_RULE = (
     "(source = 'public_form' AND public_reference IS NOT NULL) "
@@ -50,13 +93,7 @@ OLD_REFERENCE_RULE = (
 def upgrade() -> None:
     op.execute("SET LOCAL lock_timeout = '5s'")
     op.drop_constraint("ck_commitment_public_reference", "commitment", type_="check")
-    op.execute(
-        """
-        UPDATE commitment
-        SET public_reference = 'LA-' || upper(replace(id::text, '-', ''))
-        WHERE public_reference IS NULL
-        """
-    )
+    op.execute(BACKFILL)
     op.execute("ALTER TABLE commitment ALTER COLUMN public_reference SET NOT NULL")
     op.execute(
         """

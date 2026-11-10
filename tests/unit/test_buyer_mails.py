@@ -7,17 +7,17 @@ from uuid import uuid4
 
 import pytest
 
+from leonaid.application import buyer_mails as subject
 from leonaid.application.buyer_mails import (
     BuyerMailJob,
     BuyerMailLedger,
     BuyerMailReason,
     BuyerMailState,
     BuyerMailStatus,
-    buyer_mail_status,
-    buyer_mail_statuses,
     last_sequence,
-    resend_refusal,
+    next_sequence,
 )
+from leonaid.application.errors import Conflict
 from leonaid.application.order_mails import OrderMailKind, order_mail_key
 from leonaid.domain.buyer_mails import BuyerMailConfiguration
 from leonaid.domain.commitments import (
@@ -30,6 +30,29 @@ from leonaid.domain.errors import DomainInvariantError
 from tests.unit.test_order_mails import ORDER_ID, order
 
 SENT_AT = datetime(2026, 2, 10, 9, 0, tzinfo=timezone.utc)
+# Two days before the order's delivery window (14.02.2026, 08:00–10:00 UTC).
+NOW = datetime(2026, 2, 12, 9, 0, tzinfo=timezone.utc)
+WINDOW_END = datetime(2026, 2, 14, 10, 0, tzinfo=timezone.utc)
+
+
+def buyer_mail_status(
+    kind: OrderMailKind, value: BuyerMailLedger, *, now: datetime = NOW
+) -> BuyerMailStatus:
+    return subject.buyer_mail_status(kind, value, now=now)
+
+
+def buyer_mail_statuses(
+    value: BuyerMailLedger, *, now: datetime = NOW
+) -> tuple[BuyerMailStatus, ...]:
+    return subject.buyer_mail_statuses(value, now=now)
+
+
+def resend_refusal(
+    kind: OrderMailKind, value: BuyerMailLedger, *, now: datetime = NOW
+) -> Conflict | None:
+    return subject.resend_refusal(kind, value, now=now)
+
+
 CONFIRMATION = OrderMailKind.CONFIRMATION
 CANCELLATION = OrderMailKind.CANCELLATION
 
@@ -44,6 +67,8 @@ def ledger(
     sent: tuple[tuple[str, datetime], ...] = (),
     internal_order_mails: bool = False,
     previous_status: CommitmentStatus | None = None,
+    action_status: str = "active",
+    drop_state: str | None = None,
     **changes: object,
 ) -> BuyerMailLedger:
     return BuyerMailLedger(
@@ -52,6 +77,8 @@ def ledger(
         previous_status=previous_status,
         jobs=jobs,
         sent=sent,
+        action_status=action_status,
+        drop_state=drop_state,
     )
 
 
@@ -201,11 +228,8 @@ def test_an_order_without_any_job_says_why_no_mail_is_due() -> None:
             ),
             BuyerMailReason.ORDER_DRAFT,
         ),
-        # Recorded while the switch was off, switched on later.
-        (
-            ledger(source=CommitmentSource.ADMIN, internal_order_mails=True),
-            BuyerMailReason.NOT_REQUESTED,
-        ),
+        (ledger(drop_state="delivered"), BuyerMailReason.DELIVERY_RECORDED),
+        (ledger(action_status="completed"), BuyerMailReason.ACTION_CLOSED),
     ]
     for value, reason in cases:
         status = buyer_mail_status(CONFIRMATION, value)
@@ -214,20 +238,88 @@ def test_an_order_without_any_job_says_why_no_mail_is_due() -> None:
         ), reason
         refusal = resend_refusal(CONFIRMATION, value)
         assert refusal is not None
-        assert refusal.code == "buyer_mail_resend_not_allowed"
+        assert refusal.code == "buyer_mail_not_due"
+    over = buyer_mail_status(CONFIRMATION, ledger(), now=WINDOW_END)
+    assert over.reason is BuyerMailReason.WINDOW_OVER and not over.can_resend
+
+
+def test_a_mail_that_is_due_but_was_never_queued_can_be_sent() -> None:
+    """Recorded while the switch was off, switched on later: no dead end."""
+
+    value = ledger(source=CommitmentSource.ADMIN, internal_order_mails=True)
+
+    assert buyer_mail_status(CONFIRMATION, value) == BuyerMailStatus(
+        CONFIRMATION,
+        BuyerMailState.NOT_DUE,
+        reason=BuyerMailReason.NOT_REQUESTED,
+        can_resend=True,
+    )
+    assert resend_refusal(CONFIRMATION, value) is None
+    # The send writes the mail's first job, not a resend.
+    assert next_sequence(CONFIRMATION, value) == 0
 
 
 def test_a_job_that_ended_without_a_mail_is_skipped_with_the_reason() -> None:
     switched_off = ledger(
         source=CommitmentSource.ADMIN, jobs=(BuyerMailJob(key(), "completed"),)
     )
-    unknown = ledger(jobs=(BuyerMailJob(key(), "completed"),))
 
     assert buyer_mail_status(CONFIRMATION, switched_off) == BuyerMailStatus(
         CONFIRMATION, BuyerMailState.SKIPPED, reason=BuyerMailReason.SWITCHED_OFF
     )
-    assert buyer_mail_status(CONFIRMATION, unknown).reason is BuyerMailReason.NOT_SENT
-    assert not buyer_mail_status(CONFIRMATION, unknown).can_resend
+    refusal = resend_refusal(CONFIRMATION, switched_off)
+    assert refusal is not None and refusal.code == "buyer_mail_not_due"
+
+
+def test_a_skipped_mail_that_is_due_now_can_be_sent() -> None:
+    """Switched off between queue and worker, switched on again."""
+
+    first = ledger(
+        source=CommitmentSource.ADMIN,
+        internal_order_mails=True,
+        jobs=(BuyerMailJob(key(), "completed"),),
+    )
+    assert buyer_mail_status(CONFIRMATION, first) == BuyerMailStatus(
+        CONFIRMATION,
+        BuyerMailState.SKIPPED,
+        reason=BuyerMailReason.NOT_SENT,
+        can_resend=True,
+    )
+    assert resend_refusal(CONFIRMATION, first) is None
+    assert next_sequence(CONFIRMATION, first) == 1
+    # A skipped resend of a mail that went out before: the same.
+    later = ledger(
+        jobs=(
+            BuyerMailJob(key(), "completed"),
+            BuyerMailJob(key(resend=1), "completed"),
+        ),
+        sent=((key(), SENT_AT),),
+    )
+    status = buyer_mail_status(CONFIRMATION, later)
+    assert status.state is BuyerMailState.SKIPPED
+    assert status.sent_at == SENT_AT and status.can_resend
+    assert next_sequence(CONFIRMATION, later) == 2
+
+
+@pytest.mark.parametrize(
+    ("changes", "now"),
+    [
+        ({"drop_state": "delivered"}, NOW),
+        ({"drop_state": "missed"}, NOW),
+        ({"action_status": "completed"}, NOW),
+        ({"action_status": "archived"}, NOW),
+        ({}, WINDOW_END),
+    ],
+)
+def test_a_sent_confirmation_is_not_sent_again_once_the_order_is_done(
+    changes: dict[str, str], now: datetime
+) -> None:
+    value = ledger(sent=((key(), SENT_AT),), **changes)
+
+    status = buyer_mail_status(CONFIRMATION, value, now=now)
+    assert status.state is BuyerMailState.SENT and not status.can_resend
+    refusal = resend_refusal(CONFIRMATION, value, now=now)
+    assert refusal is not None and refusal.code == "buyer_mail_not_due"
 
 
 def test_a_cancelled_order_lists_both_kinds_and_resends_only_the_notice() -> None:
@@ -289,6 +381,7 @@ def test_a_cancelled_internal_draft_has_no_notice_to_send() -> None:
     )
 
     assert [status.reason for status in buyer_mail_statuses(value)] == [
-        BuyerMailReason.ORDER_DRAFT,
+        BuyerMailReason.ORDER_CANCELLED,
         BuyerMailReason.ORDER_DRAFT,
     ]
+    assert not any(status.can_resend for status in buyer_mail_statuses(value))

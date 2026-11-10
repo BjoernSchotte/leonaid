@@ -96,10 +96,14 @@ Punkte sind keine stillschweigenden Produktzusagen.
   defer it). An active (not reversed) payment entry blocks the
   cancellation until it is reversed ("Zurückbuchen" in the invoice pane);
   LeonAid books no refunds. A cancelled order cannot be reopened.
-- Every order has an order number (`commitment.public_reference`, `LA-` plus
-  the order id in hex; migration 0062 backfilled internal orders). The number
-  is 35 characters long; a short number a buyer can read out is not
-  implemented. The invoice PDF does not print it.
+- Every order has an order number (`commitment.public_reference`). A new
+  order of every source gets `LA-` plus eight characters of an alphabet
+  without `0`/`O` and `1`/`I`/`L` (`domain.commitments.order_number`, unique
+  by a second candidate on a collision); the buyer-mail migration backfilled
+  internal orders the same way. Public orders from before keep their long
+  number (`LA-` plus 32 hex digits), so two shapes exist. The invoice PDF
+  does not print the number. An application from before that migration
+  cannot read the migrated orders (rollback: `infra/upgrade/README.md`).
 - Buyer mails (`application/order_mails.py`): a public-form order sends one
   plain-text order confirmation, and its cancellation one cancellation
   notice, through the outbox (`order.confirmation.mail.v1`,
@@ -132,11 +136,24 @@ Punkte sind keine stillschweigenden Produktzusagen.
   The mail repeats the full delivery and billing address so the buyer can
   check it. The order detail shows the state of each mail (`listBuyerMails`:
   `not_due`, `queued`, `sent`, `failed`, `skipped`, derived from the SMTP
-  ledger and the outbox) and a manager can send a sent or failed mail again
-  (`resendBuyerMail`, audit event `order_mail_resent`, no fresh login, the
-  mailbox limit applies). A mail that was never queued or that was skipped
-  cannot be sent from there, and retention deletes completed jobs, so an old
-  skipped mail later reads as "not requested". Not covered: an HTML version,
+  ledger and the outbox) and a manager can send a mail whenever it is due and none
+  waits (`resendBuyerMail`, audit event `order_mail_resent`, no fresh login,
+  the mailbox limit applies): again after it was sent or failed, and for the
+  first time when it never went out (recorded before the switch was set, or
+  its job ended without a mail). A confirmation is not due, neither
+  automatically nor by a manager, for a cancelled order, after the delivery
+  was recorded, after the delivery window ended, or in a completed or
+  archived action; an order completed late (PWA sync after the window, a
+  manager recording a delivery afterwards) is therefore never confirmed by
+  mail. Its text follows the order's status and promises an invoice only in
+  an action with invoicing. A send settles older failed jobs of the same
+  mail, and the worker skips a job that a later sent one superseded, so an
+  operator's retry cannot mail a buyer twice. Retention deletes completed
+  jobs, so the status of an old order without a ledger row reads as "no mail
+  went out yet". The buyer's address of an internal order is the sponsor's
+  from the CRM, not one named for the order; the capture form shows it to
+  the member. LeonAid does not check that the club's privacy notice names
+  these mails. Not covered: an HTML version,
   a club sender address (the configured `MAIL_FROM` sends), a mail on the
   delivery day (stage 2 of the spec), and mails for later order changes
   (delivery window moved, invoice issued). Fulfilment mails ignore

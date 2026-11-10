@@ -28,6 +28,7 @@ from leonaid.domain.actions import (
     CharityAction,
     CharityActionStatus,
 )
+from leonaid.domain.commitments import order_number
 from leonaid.domain.delivery import DeliveryWindow
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import (
@@ -370,7 +371,7 @@ def main() -> None:
             ).fetchall()
         } == {
             order[0]["id"]: order[0]["public_reference"]
-            or f"LA-{order[0]['id'].replace('-', '').upper()}"
+            or order_number(UUID(order[0]["id"]))
             for order in baseline_order
         }
         assert any(order[0]["public_reference"] is None for order in baseline_order)

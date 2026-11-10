@@ -6,6 +6,8 @@ import {
   type LeonAidApiClient,
 } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
+
+import { BuyerMailNotice } from "./buyer-mail-notice";
 import {
   DeliveryFields,
   DeliverySummary,
@@ -87,6 +89,14 @@ export function DeliveryCompletion({
     queryKey: ["delivery-configuration", order.actionId],
     queryFn: () => client.getDeliveryConfiguration(order.actionId),
     refetchOnWindowFocus: false,
+  });
+  // Completing a draft makes it review-ready, which sends the confirmation.
+  const buyerMails = useQuery({
+    enabled: baseline.status === "draft",
+    queryKey: ["buyer-mail-configuration", order.actionId],
+    queryFn: () => client.getBuyerMailConfiguration(order.actionId),
+    refetchOnWindowFocus: false,
+    retry: false,
   });
   useEffect(() => {
     if (error || saved) message.current?.focus();
@@ -389,6 +399,14 @@ export function DeliveryCompletion({
           Die Lieferung wird nachträglich für ein vergangenes Zeitfenster
           erfasst.
         </p>
+      ) : null}
+      {baseline.status === "draft" && !historicalChoice ? (
+        <BuyerMailNotice
+          address="Sie"
+          deliveryDayMail={buyerMails.data?.deliveryDayMail}
+          email={baseline.buyer.email}
+          internalOrderMails={buyerMails.data?.internalOrderMails}
+        />
       ) : null}
       <Button
         data-testid="delivery-completion-submit"

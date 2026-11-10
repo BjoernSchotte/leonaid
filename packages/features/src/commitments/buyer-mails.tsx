@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Send } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   ApiError,
@@ -52,17 +52,28 @@ const reasonTexts: Readonly<Record<Reason, string>> = {
     "E-Mails für Bestellungen, die Mitglieder erfassen, sind in der Aktion ausgeschaltet.",
   order_draft: "Ein Entwurf sendet keine E-Mail.",
   order_cancelled: "Die Bestellung ist storniert.",
-  not_requested:
-    "Für diese Bestellung wurde keine E-Mail angelegt; die E-Mails der Aktion waren damals ausgeschaltet.",
-  not_sent: "Beim Versand gab es nichts zu senden.",
+  delivery_recorded:
+    "Die Lieferung ist schon als geliefert oder nicht zugestellt erfasst.",
+  window_over: "Das Lieferfenster ist vorbei.",
+  action_closed: "Die Aktion ist abgeschlossen.",
+  // The server knows only that no mail went out, not why.
+  not_requested: "Für diese Bestellung ist noch keine E-Mail hinausgegangen.",
+  not_sent: "Die E-Mail ist nicht hinausgegangen.",
   recipient_limit:
     "An dieses Postfach gingen in der letzten Stunde zu viele E-Mails. Senden Sie die E-Mail später erneut.",
   delivery_failed: "Der Versand ist fehlgeschlagen.",
-  delivery_recorded:
-    "Die Lieferung ist schon als geliefert oder nicht zugestellt erfasst.",
   scheduled: "Wird am Liefertag gesendet.",
-  window_over: "Das Lieferfenster ist vorbei.",
+  window_before_send_time:
+    "Keine E-Mail: Das Lieferfenster endet vor der Versandzeit.",
 };
+
+/** "Senden" for a mail that never went out, "Erneut senden" after that. */
+export const sendLabel = (mail: BuyerMailStatusResponse) =>
+  mail.sentAt ? "Erneut senden" : "Senden";
+
+/** The block asks again every 5 s while a mail waits, for two minutes. */
+const POLL_MS = 5000;
+const MAX_POLLS = 24;
 
 /** What the row says under the kind: when it was sent, why it was not. */
 export function buyerMailDetail(mail: BuyerMailStatusResponse): string {
@@ -91,8 +102,9 @@ interface BuyerMailsProps {
 
 /**
  * "E-Mails an den Käufer" in the order detail: one row per mail kind with
- * its state and time, and "Erneut senden" where the server allows it
- * (`canResend`). The server derives every state; nothing is decided here.
+ * its state and time, and "Senden" or "Erneut senden" where the server
+ * allows it (`canResend`). The server derives every state; nothing is
+ * decided here.
  */
 export function BuyerMails({
   actionId,
@@ -103,19 +115,29 @@ export function BuyerMails({
   const cache = useQueryClient();
   const toast = useOptionalToast();
   const [error, setError] = useState<string>();
+  const polls = useRef(0);
   const queryKey = [...buyerMailsKey(actionId, commitmentId), version] as const;
   const query = useQuery({
     queryKey,
     queryFn: () => client.listBuyerMails(actionId, commitmentId),
-    // A waiting mail usually goes out within seconds.
-    refetchInterval: (current) =>
-      current.state.data?.mails.some((mail) => mail.state === "queued")
-        ? 5000
-        : false,
+    // A waiting mail usually goes out within seconds. If the worker is
+    // down the block stops asking after two minutes; opening the order
+    // again or sending starts it anew.
+    refetchInterval: (current) => {
+      const waiting = current.state.data?.mails.some(
+        (mail) => mail.state === "queued",
+      );
+      if (!waiting) {
+        polls.current = 0;
+        return false;
+      }
+      polls.current += 1;
+      return polls.current <= MAX_POLLS ? POLL_MS : false;
+    },
     retry: false,
   });
   const resend = useMutation({
-    mutationFn: (kind: Kind) =>
+    mutationFn: ({ kind }: { kind: Kind; first: boolean }) =>
       client.resendBuyerMail(actionId, commitmentId, kind, {
         headers: {
           // One key per attempt: a repeated click after a lost answer
@@ -127,15 +149,27 @@ export function BuyerMails({
         },
       }),
     onMutate: () => setError(undefined),
-    async onSuccess(_result, kind) {
+    async onSuccess(result, { kind, first }) {
       forgetCommandKey(resendStorageKey(commitmentId, kind));
+      polls.current = 0;
       await cache.invalidateQueries({ queryKey });
-      toast?.show({
-        title: `${kindLabels[kind]} wird erneut gesendet.`,
-        tone: "success",
-      });
+      toast?.show(
+        result.replayed
+          ? {
+              // The earlier click reached the server and its answer was
+              // lost: this one sent nothing new.
+              title: `${kindLabels[kind]}: Der Auftrag von vorhin ist angekommen. Es geht keine weitere E-Mail hinaus.`,
+              tone: "info",
+            }
+          : {
+              title: first
+                ? `${kindLabels[kind]} wird gesendet.`
+                : `${kindLabels[kind]} wird erneut gesendet.`,
+              tone: "success",
+            },
+      );
     },
-    async onError(cause, kind) {
+    async onError(cause, { kind }) {
       // An answer from the server ends the attempt; without one the key
       // stays, so the next click cannot send a second mail.
       if (cause instanceof ApiError)
@@ -180,16 +214,22 @@ export function BuyerMails({
                 </span>
                 {mail.canResend ? (
                   <Button
-                    aria-label={`${kindLabels[mail.kind]} erneut senden`}
+                    aria-label={`${kindLabels[mail.kind]} ${
+                      mail.sentAt ? "erneut senden" : "senden"
+                    }`}
                     data-testid={`buyer-mail-resend-${mail.kind}`}
                     disabled={resend.isPending}
                     icon={Send}
-                    loading={resend.isPending && resend.variables === mail.kind}
-                    onClick={() => resend.mutate(mail.kind)}
+                    loading={
+                      resend.isPending && resend.variables?.kind === mail.kind
+                    }
+                    onClick={() =>
+                      resend.mutate({ kind: mail.kind, first: !mail.sentAt })
+                    }
                     size="sm"
                     variant="ghost"
                   >
-                    Erneut senden
+                    {sendLabel(mail)}
                   </Button>
                 ) : null}
               </li>

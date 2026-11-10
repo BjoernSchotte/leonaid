@@ -681,6 +681,10 @@ describe("action detail", () => {
     const client = await renderPage("#overview/edit");
     const section = await screen.findByTestId("buyer-mail-section");
     expect(section.textContent).toContain("E-Mails an Käufer");
+    // The privacy notice is the club's part: the section says so.
+    expect(screen.getByTestId("buyer-mail-privacy").textContent).toContain(
+      "Die Datenschutzerklärung des Clubs muss diese E-Mails nennen",
+    );
     // The switch says what the buyer gets and when.
     expect(section.textContent).toContain(
       "Der Käufer erhält eine Bestellbestätigung, sobald die Bestellung prüfbereit ist, und eine Nachricht, wenn sie storniert wird.",

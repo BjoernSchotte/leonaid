@@ -55,7 +55,8 @@ export type Body_createMaterial = { readonly actionId?: string | null; readonly 
 export type BuyerMailConfigurationRequest = { readonly deliveryDayMail: boolean; readonly deliveryDaySendTime: string; readonly expectedRevision: number; readonly internalOrderMails: boolean; };
 export type BuyerMailConfigurationResponse = { readonly actionId: string; readonly deliveryDayMail: boolean; readonly deliveryDaySendTime: string; readonly internalOrderMails: boolean; readonly revision: number; };
 export type BuyerMailListResponse = { readonly commitmentId: string; readonly mails: Array<BuyerMailStatusResponse>; };
-export type BuyerMailStatusResponse = { readonly canResend: boolean; readonly kind: "confirmation" | "cancellation" | "delivery_day"; readonly reason: "no_email" | "switched_off" | "order_draft" | "order_cancelled" | "not_requested" | "not_sent" | "recipient_limit" | "delivery_failed" | "delivery_recorded" | "scheduled" | "window_over" | null; readonly sentAt: string | null; readonly state: "not_due" | "queued" | "sent" | "failed" | "skipped"; };
+export type BuyerMailResendResponse = { readonly canResend: boolean; readonly kind: "confirmation" | "cancellation" | "delivery_day"; readonly reason: "no_email" | "switched_off" | "order_draft" | "order_cancelled" | "not_requested" | "not_sent" | "recipient_limit" | "delivery_failed" | "delivery_recorded" | "window_over" | "action_closed" | "scheduled" | "window_before_send_time" | null; readonly replayed: boolean; readonly sentAt: string | null; readonly state: "not_due" | "queued" | "sent" | "failed" | "skipped"; };
+export type BuyerMailStatusResponse = { readonly canResend: boolean; readonly kind: "confirmation" | "cancellation" | "delivery_day"; readonly reason: "no_email" | "switched_off" | "order_draft" | "order_cancelled" | "not_requested" | "not_sent" | "recipient_limit" | "delivery_failed" | "delivery_recorded" | "window_over" | "action_closed" | "scheduled" | "window_before_send_time" | null; readonly sentAt: string | null; readonly state: "not_due" | "queued" | "sent" | "failed" | "skipped"; };
 export type CampaignAliasItemResponse = { readonly actionId: string; readonly alias: string; readonly aliasId: string; readonly enabled: boolean; readonly isPrimary: boolean; readonly revision: number; };
 export type CampaignAliasListResponse = { readonly actionId: string; readonly canonicalPath: string; readonly items: Array<CampaignAliasItemResponse>; readonly targets: Array<CampaignAliasTargetResponse>; };
 export type CampaignAliasMutationResponse = { readonly actionId: string; readonly alias: string; readonly aliasId: string; readonly enabled: boolean; readonly removed: boolean; readonly revision: number; };
@@ -81,7 +82,7 @@ export type CommitmentBuyerRequest = { readonly displayName: string; readonly em
 export type CommitmentBuyerResponse = { readonly displayName: string; readonly email: string | null; readonly partyKind: "company" | "person"; readonly twentyId: string; };
 export type CommitmentCancellationResponse = { readonly id: string; readonly invoiceCancellationId?: string | null; readonly invoiceNumber?: string | null; readonly note?: string | null; readonly previousStatus: "draft" | "review_ready" | "confirmed" | "invoiced"; readonly reason: string; readonly requestedAt: string; readonly requestedByDisplayName?: string | null; };
 export type CommitmentCancellationResultResponse = { readonly cancellation: CommitmentCancellationResponse; readonly commitment: CommitmentResponse; readonly replayed: boolean; };
-export type CommitmentCaptureContextResponse = { readonly actionId: string; readonly actionName: string; readonly deliveryConfiguration?: DeliveryConfigurationResponse | null; readonly offerings: Array<ConfiguredOfferingResponse>; };
+export type CommitmentCaptureContextResponse = { readonly actionId: string; readonly actionName: string; readonly deliveryConfiguration?: DeliveryConfigurationResponse | null; readonly deliveryDayMail?: boolean; readonly internalOrderMails?: boolean; readonly offerings: Array<ConfiguredOfferingResponse>; };
 export type CommitmentCurrencyTotalResponse = { readonly currency: string; readonly totalMinor: number; };
 export type CommitmentInvoiceRecipientRequest = { readonly city: string; readonly countryCode?: string; readonly email?: string | null; readonly postalCode: string; readonly recipientName: string; readonly streetLine1: string; };
 export type CommitmentInvoiceRecipientResponse = { readonly city: string; readonly countryCode: string; readonly email: string | null; readonly postalCode: string; readonly recipientName: string; readonly streetLine1: string; };
@@ -949,8 +950,8 @@ export class LeonAidApiClient {
     commitmentId: string,
     kind: "confirmation" | "cancellation" | "delivery_day",
     options: RequestOptions = {},
-  ): Promise<BuyerMailStatusResponse> {
-    return this.request<BuyerMailStatusResponse>(
+  ): Promise<BuyerMailResendResponse> {
+    return this.request<BuyerMailResendResponse>(
       `/api/v1/actions/${encodeURIComponent(String(actionId))}/commitments/${encodeURIComponent(String(commitmentId))}/buyer-mails/${encodeURIComponent(String(kind))}/resend`,
       { method: "POST" },
       options,
