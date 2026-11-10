@@ -224,8 +224,21 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --entrypoint python \
   api tools/invoice_delivery/contract.py assert-resend /proof/state.json
 
+# "Stornorechnung gleich senden": the cancel command queues the mail, the
+# worker renders the cancellation invoice and then sends it.
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+  --env-from-file "$env_file" \
+  --env API_BASE_URL=http://api:8000 \
+  --env PYTHONPATH=/repo:/workspace/src \
+  --volume "$root:/repo:ro" \
+  --volume "$proof:/proof" \
+  --workdir /repo \
+  --entrypoint python \
+  api tools/invoice_delivery/contract.py cancel-and-send /proof/state.json
+
 mkdir -p "$root/.artifacts/poc094"
 cp "$proof"/invoice-delivery-*.png "$root/.artifacts/poc094/"
 
 echo "invoice-delivery-test: OK: real SMTP outage, visible retry,"
-echo "invoice-delivery-test:     MIME/PDF hash and deliberate resend proven"
+echo "invoice-delivery-test:     MIME/PDF hash, deliberate resend and the"
+echo "invoice-delivery-test:     cancellation invoice sent with the cancel proven"

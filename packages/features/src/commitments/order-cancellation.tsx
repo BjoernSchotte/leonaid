@@ -168,7 +168,7 @@ export function OrderCancellationDialog({
       toast?.show({
         title: "Bestellung storniert.",
         description: invoiceNumber
-          ? `Rechnung ${invoiceNumber} ist ebenfalls storniert.`
+          ? `Rechnung ${invoiceNumber} ist ebenfalls storniert. Eine Stornorechnung wurde ausgestellt.`
           : undefined,
         tone: "success",
       });
@@ -239,8 +239,9 @@ export function OrderCancellationDialog({
               <StatusMessage tone="warning">
                 <strong>Rechnung {invoice.number} wird mitstorniert.</strong>{" "}
                 Sie bleibt mit Nummer, Daten und PDF unverändert erhalten und
-                ist danach als storniert markiert. Dafür bestätigen Sie Ihre
-                Anmeldung gegebenenfalls erneut.
+                ist danach als storniert markiert. LeonAid stellt dazu eine
+                Stornorechnung aus. Dafür bestätigen Sie Ihre Anmeldung
+                gegebenenfalls erneut.
               </StatusMessage>
             ) : null}
             <Field

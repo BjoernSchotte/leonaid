@@ -151,6 +151,17 @@ if [ ! -s "$proof/document-pdf-preview.png" ]; then
   exit 1
 fi
 
+# The running worker renders the cancellation invoice of the golden
+# cancelled invoice; the API serves the stored bytes.
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+  --env-from-file "$env_file" \
+  --env API_BASE_URL=http://api:8000 \
+  --env PYTHONPATH=/repo:/workspace/src \
+  --volume "$root:/repo:ro" \
+  --workdir /repo \
+  --entrypoint python \
+  api tools/documents/contract.py cancellation-invoice
+
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --env API_BASE_URL=http://api:8000 \
@@ -164,4 +175,5 @@ mkdir -p "$root/.artifacts/poc093"
 cp "$proof"/document-*.png "$root/.artifacts/poc093/"
 
 echo "document-test: OK: all domain references, roles, RustFS metadata,"
-echo "document-test:     byte-identical browser download and missing object proven"
+echo "document-test:     byte-identical browser download, the cancellation invoice"
+echo "document-test:     rendered by the worker and missing object proven"

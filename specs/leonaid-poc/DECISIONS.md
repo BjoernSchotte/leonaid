@@ -25,6 +25,7 @@ unabhängige Implementierung.
 | LEG-003 | Nummern werden transaktional eindeutig vergeben und nie wiederverwendet; Storno/Korrektur überschreibt keinen Beleg | Produktverantwortlicher / Implementierung | 2026-07-27 | ADR-0004 |
 | LEG-006 | Im PoC wird nur eine exakte Vollzahlung verbucht; Storno ist ein eigener begründeter Vorgang und verändert Rechnung oder PDF nicht | Produktverantwortlicher / Implementierung | 2026-07-27 | ADR-0009 |
 | LEG-007 | Eine Rechnung hält mehrere Zahlungseinträge; offen, teilweise bezahlt, bezahlt und überzahlt folgen aus der Summe; Einträge werden begründet zurückgebucht statt gelöscht. Ersetzt den Vollzahlungsteil von LEG-006 | Produktverantwortlicher / Implementierung | 2026-11-06 | ADR-0014 |
+| LEG-008 | Ein Nummernkreis je Belegart und Präfix gilt für die Installation, nicht je Aktion; jede Nummer gibt es einmal. Ein Storno stellt eine Stornorechnung mit der nächsten Nummer des Rechnungsnummernkreises aus; die Rechnung bleibt unverändert. Ersetzt „pro Aktion und Präfix“ aus LEG-003 | Produktverantwortlicher / Implementierung | 2026-11-10 | ADR-0015 |
 
 ## Offene Entscheidungen mit spätestem Klärpunkt
 

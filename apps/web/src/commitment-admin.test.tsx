@@ -927,11 +927,16 @@ describe("order cancellation", () => {
       "Rechnung KT26-0001 wird mitstorniert.",
     );
     expect(dialog.textContent).toContain("Nummer, Daten und PDF");
+    expect(dialog.textContent).toContain(
+      "LeonAid stellt dazu eine Stornorechnung aus.",
+    );
     fireEvent.change(reasonField(dialog), {
       target: { value: "Sponsor hat die Bestellung zurückgezogen" },
     });
     fireEvent.click(within(dialog).getByTestId("cancel-order"));
-    await screen.findByText("Rechnung KT26-0001 ist ebenfalls storniert.");
+    await screen.findByText(
+      "Rechnung KT26-0001 ist ebenfalls storniert. Eine Stornorechnung wurde ausgestellt.",
+    );
     expect(cancel).toHaveBeenCalledTimes(1);
   });
 
