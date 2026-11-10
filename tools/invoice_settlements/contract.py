@@ -1156,9 +1156,47 @@ async def assert_after_browser(
         raise ContractFailure(
             "Cancellation changed the historical invoice or Typst document state"
         )
+    # The browser's cancel issued the cancellation invoice in the same
+    # step: a number of the invoice series and a pending PDF of its own.
+    issued = await connection.fetchrow(
+        """
+        SELECT cancellation.number, cancellation.issued_on,
+               cancellation.snapshot ->> 'originalNumber' AS original_number,
+               invoice.number AS invoice_number,
+               (
+                 SELECT count(*) FROM generated_document AS document
+                 WHERE document.invoice_id = invoice.id
+                   AND document.document_type = 'invoice_cancellation_pdf'
+               ) AS documents,
+               EXISTS (
+                 SELECT 1 FROM document_number
+                 WHERE document_number.number = cancellation.number
+                   AND document_number.kind = 'invoice_cancellation'
+               ) AS registered
+        FROM invoice_cancellation AS cancellation
+        JOIN invoice ON invoice.id = cancellation.invoice_id
+        WHERE cancellation.invoice_id = $1
+        """,
+        cancellation_invoice_id,
+    )
+    if (
+        issued is None
+        or issued["number"] is None
+        or not str(issued["number"]).startswith("KT26-")
+        or issued["number"] == issued["invoice_number"]
+        or issued["original_number"] != issued["invoice_number"]
+        or issued["issued_on"] is None
+        or issued["documents"] != 1
+        or not issued["registered"]
+    ):
+        raise ContractFailure(
+            f"The browser's cancellation issued no cancellation invoice: "
+            f"{dict(issued or {})}"
+        )
     print(
         "invoice-settlement-contract: partial, over and full payments, reversals, "
-        "cancellation, audit, replay and unchanged Typst PDF durably proven"
+        "cancellation with its cancellation invoice, audit, replay and unchanged "
+        "Typst PDF durably proven"
     )
 
 

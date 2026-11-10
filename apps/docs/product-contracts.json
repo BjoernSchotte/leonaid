@@ -194,11 +194,7 @@
   "DOC-P021": [
     {
       "file": "leonaid",
-      "contains": [
-        "  bootstrap)",
-        "doctor) doctor ;;",
-        "test-handoff)"
-      ]
+      "contains": ["  bootstrap)", "doctor) doctor ;;", "test-handoff)"]
     },
     {
       "file": "infra/compose/README.md",
@@ -879,45 +875,27 @@
     },
     {
       "file": "packages/features/src/offline/sign-out.tsx",
-      "contains": [
-        "Erst senden",
-        "Trotzdem abmelden",
-        "Abbrechen"
-      ]
+      "contains": ["Erst senden", "Trotzdem abmelden", "Abbrechen"]
     },
     {
       "file": "packages/features/src/offline/queue-sheet.tsx",
-      "contains": [
-        "Warteschlange",
-        "Jetzt senden",
-        "wartet auf deine Prüfung"
-      ]
+      "contains": ["Warteschlange", "Jetzt senden", "wartet auf deine Prüfung"]
     },
     {
       "file": "packages/features/src/offline/entry-choices.tsx",
-      "contains": [
-        "Jetzt prüfen"
-      ]
+      "contains": ["Jetzt prüfen"]
     },
     {
       "file": "packages/features/src/offline/read-cache.ts",
-      "contains": [
-        "READ_CACHE_SHOW_DAYS = 7",
-        "READ_CACHE_KEEP_DAYS = 14"
-      ]
+      "contains": ["READ_CACHE_SHOW_DAYS = 7", "READ_CACHE_KEEP_DAYS = 14"]
     },
     {
       "file": "packages/features/src/offline/queue.ts",
-      "contains": [
-        "QUEUE_KEEP_DAYS = 14",
-        "SETTLED_KEEP_DAYS = 2"
-      ]
+      "contains": ["QUEUE_KEEP_DAYS = 14", "SETTLED_KEEP_DAYS = 2"]
     },
     {
       "file": "src/leonaid/domain/feature_flags.py",
-      "contains": [
-        "Offline-Erfassung in der Akquise-App"
-      ]
+      "contains": ["Offline-Erfassung in der Akquise-App"]
     }
   ],
   "DOC-P053": [

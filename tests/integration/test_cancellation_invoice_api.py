@@ -566,6 +566,7 @@ class Proof:
         await self.older_cancellations_get_their_document()
         await self.delivery()
         await self.numbers_are_unique_and_final()
+        await self.every_action_with_invoicing_gets_a_profile()
 
     async def cancel(
         self,
@@ -1076,6 +1077,108 @@ class Proof:
         assert queued["status"] == "queued"
         assert f"Stornorechnung {now.json()['number']} " in queued["subject"]
         assert (await self.documents("send_now"))[0]["status"] == "pending"
+
+    async def create_action(self, name: str, capabilities: list[str]) -> dict[str, Any]:
+        response = await self.charity.post(
+            "/api/v1/actions",
+            {
+                "carrierName": "Series proof",
+                "name": f"Aktion {self.data.tag} {name}",
+                "purpose": "Proof",
+                "startsOn": "2027-02-01",
+                "endsOn": "2027-03-31",
+                "archiveSlug": f"series-proof-{self.data.tag.lower()}-{name.lower()}",
+                "capabilities": capabilities,
+                "beneficiaries": [
+                    {
+                        "organizationName": "Bildungshafen Beispielstadt",
+                        "publicDescription": "Finanziert Lernmaterial für Kinder.",
+                    }
+                ],
+                "goal": {
+                    "goalValue": "100",
+                    "actualValue": "0",
+                    "unit": "EUR",
+                    "currency": "EUR",
+                },
+            },
+        )
+        assert response.status_code == 201, response.text
+        return dict(response.json())
+
+    async def profile_of(self, action_id: str) -> dict[str, Any] | None:
+        context = await self.charity.get(f"/api/v1/actions/{action_id}/invoice-context")
+        assert context.status_code == 200, context.text
+        profile = context.json()["profile"]
+        return None if profile is None else dict(profile)
+
+    async def every_action_with_invoicing_gets_a_profile(self) -> None:
+        """Before, no code created a profile: a new action could not issue."""
+
+        expected_next = self.data.number(await self.next_number())
+        # At creation, from the active legal configuration.
+        created = await self.create_action("Gamma", ["invoicing"])
+        profile = await self.profile_of(created["id"])
+        assert profile is not None
+        assert profile["readyToIssue"] is True
+        assert profile["legalConfigurationVersionId"] == str(self.data.legal_version)
+        assert profile["issuer"]["legalName"] == ISSUER["legalName"]
+        assert profile["paymentDetails"] == BANK
+        # The same series as every other action with this prefix.
+        assert profile["nextInvoiceNumber"] == expected_next
+        # When a draft action gets the capability later.
+        later = await self.create_action("Delta", ["acquisition"])
+        assert (
+            await self.db.fetchval(
+                "SELECT count(*) FROM invoice_profile WHERE action_id = $1",
+                UUID(later["id"]),
+            )
+            == 0
+        )
+        changed = await self.client_put(
+            f"/api/v1/actions/{later['id']}/capabilities",
+            {
+                "revision": later["revision"],
+                "capabilities": ["acquisition", "invoicing"],
+            },
+        )
+        assert changed.status_code == 200, changed.text
+        profile = await self.profile_of(later["id"])
+        assert profile is not None and profile["readyToIssue"] is True
+        # The profile stays when the capability goes and is not doubled when
+        # it comes back.
+        for capabilities in (["acquisition"], ["acquisition", "invoicing"]):
+            revision = changed.json()["revision"]
+            changed = await self.client_put(
+                f"/api/v1/actions/{later['id']}/capabilities",
+                {"revision": revision, "capabilities": capabilities},
+            )
+            assert changed.status_code == 200, changed.text
+        assert (
+            await self.db.fetchval(
+                "SELECT count(*) FROM invoice_profile WHERE action_id = $1",
+                UUID(later["id"]),
+            )
+            == 1
+        )
+        # Without an active legal configuration nothing can be confirmed: no
+        # profile, and the context says so.
+        await self.db.execute(
+            "UPDATE legal_configuration_state SET active_version_id = NULL"
+        )
+        try:
+            unconfigured = await self.create_action("Epsilon", ["invoicing"])
+            assert await self.profile_of(unconfigured["id"]) is None
+        finally:
+            await self.db.execute(
+                "UPDATE legal_configuration_state SET active_version_id = $1",
+                self.data.legal_version,
+            )
+
+    async def client_put(self, path: str, body: dict[str, object]) -> httpx.Response:
+        return await self.charity.client.put(
+            path, headers={**self.charity.headers, "Origin": BASE_URL}, json=body
+        )
 
     async def numbers_are_unique_and_final(self) -> None:
         row = await self.cancellation_row("unpaid")

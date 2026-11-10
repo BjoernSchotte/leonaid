@@ -227,7 +227,21 @@ test("charity admin books partial and full payments and reverses an entry", asyn
       "data-state",
       "available",
     );
+    // The cancel command issued the cancellation invoice: it has a number of
+    // the invoice series at once; its PDF is rendered by the worker later.
+    const cancellationInvoice = cancellation.getByTestId(
+      "cancellation-invoice",
+    );
+    await expect(cancellationInvoice).toHaveAttribute("data-state", "issued");
+    await expect(cancellationInvoice).toContainText(/KT26-\d{4}/);
+    await expect(
+      cancellation.getByTestId("cancellation-document"),
+    ).toHaveAttribute("data-state", /pending|available/);
+    await expect(
+      page.getByText(/Stornorechnung KT26-\d{4} ausgestellt\./),
+    ).toBeVisible();
     await expect(page.getByTestId("invoice-open-total")).toContainText("0,00");
+    await cancellationInvoice.scrollIntoViewIfNeeded();
     await page.screenshot({
       path: `${artifactDirectory}/invoice-cancellation.png`,
       fullPage: true,
