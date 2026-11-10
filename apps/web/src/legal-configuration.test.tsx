@@ -526,6 +526,11 @@ describe("LegalConfigurationPage four-eyes flow", () => {
       /^Datenschutzhinweis für Mitglieder/,
     ) as HTMLTextAreaElement;
     expect(notice.value).toContain("## Speicherung auf deinem Gerät");
+    // The push paragraph (mails-documents-donations-push, Appendix A.4).
+    expect(notice.value).toContain("## Benachrichtigungen auf deinem Gerät");
+    expect(notice.value).toContain(
+      "Rechtsgrundlage ist deine Einwilligung (Art. 6 Abs. 1 Buchst. a DSGVO)",
+    );
     expect(notice.value).toContain("Telefonnummer und E-Mail-Adresse");
     expect(notice.value).toContain("14 Tage");
     expect(notice.value).toContain(

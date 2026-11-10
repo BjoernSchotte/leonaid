@@ -20,6 +20,7 @@ unabhängige Implementierung.
 | ARC-007 | Dokumente werden über explizite Fachreferenzen gefunden; eine zentrale Finanzberechtigung schützt Listen und Download | Produktverantwortlicher / Implementierung | 2026-07-27 | ADR-0007 |
 | ARC-008 | OpenFeature ist die gemeinsame Rollout-Schnittstelle; der PoC nutzt offizielle Python-/React-SDKs und einen PostgreSQL-basierten LeonAid-Provider | Produktverantwortlicher / Implementierung | 2026-07-27 | ADR-0010 |
 | ARC-009 | Betriebssignale werden request-korreliert und payloadfrei geloggt; Dead-Letter-Retry ist eine frische System-Admin-Aktion | Produktverantwortlicher / Implementierung | 2026-07-27 | ADR-0013 |
+| ARC-010 | Web Push ist eine eigene Implementierung nach RFC 8291 und RFC 8292 auf `cryptography` und `httpx`; ein Push trägt nur Art, Anzahl und Zielpfad; gesendet wird nur an die Push-Dienste der Browserhersteller | Produktverantwortlicher / Implementierung | 2026-11-10 | ADR-0017 |
 | LEG-001 | Rechnungsaussteller kommt aus einem je Aktion explizit bestätigten Profil; das Golden-Profil ist synthetisch | Produktverantwortlicher / Implementierung | 2026-07-27 | ADR-0004 |
 | LEG-002 | Steuerfall und Rechtstext sind explizit; Golden nutzt ausschließlich den synthetischen Kleinunternehmerfall | Produktverantwortlicher / Implementierung | 2026-07-27 | ADR-0004 |
 | LEG-003 | Nummern werden transaktional eindeutig vergeben und nie wiederverwendet; Storno/Korrektur überschreibt keinen Beleg | Produktverantwortlicher / Implementierung | 2026-07-27 | ADR-0004 |

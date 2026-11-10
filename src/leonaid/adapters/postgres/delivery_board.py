@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 
 import asyncpg
 
+from leonaid.adapters.postgres.push import enqueue_push
 from leonaid.adapters.postgres.retry import (
     RETRYABLE_ERRORS,
     SERIALIZABLE_ATTEMPTS,
@@ -26,6 +27,7 @@ from leonaid.adapters.postgres.retry import (
 from leonaid.application.delivery_board import DeliveryFollowUp
 from leonaid.application.errors import ResourceNotFound
 from leonaid.domain.calendar import INSTALLATION_TIME_ZONE, local_day
+from leonaid.domain.push import PushKind
 from leonaid.domain.delivery_board import (
     DELIVERABLE_ORDER_STATUSES,
     READ_AUDIT_RETENTION_DAYS,
@@ -802,6 +804,16 @@ class AsyncpgDeliveryBoardRepository:
             occurred_at if driver_user_id else None,
         )
         changed = int(status.rsplit(" ", 1)[-1])
+        if changed and driver_user_id is not None:
+            # A push for the driver who got these stops, if they asked.
+            await enqueue_push(
+                connection,
+                user_ids=[driver_user_id],
+                kind=PushKind.DELIVERY,
+                occurred_at=occurred_at,
+                count=changed,
+                except_user_id=actor_user_id,
+            )
         if changed:
             await insert_audit(
                 connection,

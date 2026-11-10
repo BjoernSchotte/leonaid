@@ -67,6 +67,9 @@ online. No command palette in the PWA.
 - Offline delivery board for drivers. The driver view keeps its no-store rule
   (§14.3).
 - Background Sync on iOS, push notifications, periodic sync.
+  (Push notifications came later with their own spec:
+  `specs/mails-documents-donations-push/PLAN.md` §10, ADR-0017, flag
+  `pwa.push`. They do not send queued captures and wake no sync.)
 - Conflict-free replicated data types or merging of free text. Conflicts are
   resolved by the acquirer, one entry at a time.
 - Offline payments, invoices, exports or anything behind a fresh-login

@@ -21,6 +21,7 @@ TOKENS: dict[str, Callable[[], str]] = {
     "__GENERATE_PASSWORD_32__": lambda: generate_password(32),
     "__GENERATE_IDENTIFIER_20__": lambda: generate_identifier(20),
     "__GENERATE_EMAIL__": lambda: generate_email(),
+    "__GENERATE_P256_PRIVATE_KEY__": lambda: generate_p256_private_key(),
 }
 HOST_PORT_TOKEN = "__HOST_PORT__"
 COMPOSE_PROJECT_TOKEN = "__COMPOSE_PROJECT__"
@@ -36,6 +37,25 @@ def generate_password(length: int) -> str:
 def generate_identifier(length: int) -> str:
     alphabet = string.ascii_uppercase + string.digits
     return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+# Order of the P-256 group; a private key is a scalar in [1, n-1].
+P256_ORDER = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551
+
+
+def p256_private_key(scalar: bytes) -> str | None:
+    """The base64url of a 32-octet P-256 scalar; None when it is no key."""
+    if len(scalar) != 32 or not 1 <= int.from_bytes(scalar, "big") < P256_ORDER:
+        return None
+    return base64.urlsafe_b64encode(scalar).decode().rstrip("=")
+
+
+def generate_p256_private_key() -> str:
+    """A fresh VAPID key for Web Push (LEONAID_VAPID_PRIVATE_KEY)."""
+    while True:
+        key = p256_private_key(secrets.token_bytes(32))
+        if key is not None:
+            return key
 
 
 def generate_email() -> str:
