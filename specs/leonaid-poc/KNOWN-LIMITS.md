@@ -20,7 +20,7 @@ Punkte sind keine stillschweigenden Produktzusagen.
   Editor-Setup, Aktionsschema) läuft mit `./leonaid pilot-cms-provision` auf
   einer laufenden Installation; `pilot-install` richtet das CMS nicht mit ein.
   Die erste LeonAid-Systemadministration legt `./leonaid
-  pilot-create-system-admin` an (Anmeldemail, kein Passwort).
+pilot-create-system-admin` an (Anmeldemail, kein Passwort).
   Die erste EmDash-Einrichtung braucht eine LeonAid-Systemadministration im
   Browser (15-Minuten-Freigabe). Eine unterbrochene Einrichtung gibt
   `--reset-setup` nur frei, solange das CMS unbenutzt ist. Backups enthalten
@@ -180,7 +180,14 @@ Punkte sind keine stillschweigenden Produktzusagen.
   was recorded, after the delivery window ended, or in a completed or
   archived action; an order completed late (PWA sync after the window, a
   manager recording a delivery afterwards) is therefore never confirmed by
-  mail. Its text follows the order's status and promises an invoice only in
+  mail. The rule holds for orders of every source, the public form
+  included. A confirmation that was queued while it was due and that the
+  worker reaches too late (worker or SMTP down past the window) is not sent
+  either, but not silently: its job is dead-lettered with
+  `order_mail_late_<reason>`, counts with the failed mails in the operations
+  view, and the order shows it as failed with the reason; an operator's
+  retry fails again. The form "Angaben ergänzen" asks the same rule
+  (`listBuyerMails.completion`) before a manager completes a draft. Its text follows the order's status and promises an invoice only in
   an action with invoicing. A send settles older failed jobs of the same
   mail, and the worker skips a job that a later sent one superseded, so an
   operator's retry cannot mail a buyer twice. Retention deletes completed

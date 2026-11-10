@@ -1516,35 +1516,38 @@ class BuyerMailConfigurationResponse(TransportModel):
     revision: int = Field(ge=1)
 
 
+BuyerMailReasonValue = Literal[
+    "no_email",
+    "switched_off",
+    "order_draft",
+    "order_cancelled",
+    "not_requested",
+    "not_sent",
+    "recipient_limit",
+    "delivery_failed",
+    "delivery_recorded",
+    "window_over",
+    "action_closed",
+    "scheduled",
+    "window_before_send_time",
+]
+
+
 class BuyerMailStatusResponse(TransportModel):
     kind: BuyerMailKindValue
     state: Literal["not_due", "queued", "sent", "failed", "skipped"]
     sent_at: datetime | None = Field(
         description="When the mail of this kind was last sent, if ever."
     )
-    reason: (
-        Literal[
-            "no_email",
-            "switched_off",
-            "order_draft",
-            "order_cancelled",
-            "not_requested",
-            "not_sent",
-            "recipient_limit",
-            "delivery_failed",
-            "delivery_recorded",
-            "window_over",
-            "action_closed",
-            "scheduled",
-            "window_before_send_time",
-        ]
-        | None
-    ) = Field(
+    reason: BuyerMailReasonValue | None = Field(
         description=(
             "Set for `not_due`, `skipped` and `failed`. `not_requested` and "
             "`not_sent` mean that the mail is due but never went out; "
-            "`canResend` is then true. `scheduled` and "
-            "`window_before_send_time` belong to the delivery-day mail."
+            "`canResend` is then true. A `failed` confirmation with "
+            "`delivery_recorded`, `window_over` or `action_closed` was queued "
+            "in time and reached by the worker too late; it is not sent any "
+            "more. `scheduled` and `window_before_send_time` belong to the "
+            "delivery-day mail."
         )
     )
     can_resend: bool = Field(
@@ -1564,9 +1567,25 @@ class BuyerMailResendResponse(BuyerMailStatusResponse):
     )
 
 
+class BuyerMailCompletionResponse(TransportModel):
+    confirmation_due: bool = Field(
+        description=("Whether completing the draft now sends the order confirmation.")
+    )
+    reason: BuyerMailReasonValue | None = Field(
+        description="Why no confirmation would be sent; null when one is due."
+    )
+
+
 class BuyerMailListResponse(TransportModel):
     commitment_id: UUID
     mails: list[BuyerMailStatusResponse]
+    completion: BuyerMailCompletionResponse | None = Field(
+        description=(
+            "Only for a draft: what completing it now would send. The rule is "
+            "the one of the mail status. A delivery window that the completion "
+            "itself selects is not known here."
+        )
+    )
 
 
 class CommitmentCurrencyTotalResponse(TransportModel):

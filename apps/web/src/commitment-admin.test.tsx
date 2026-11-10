@@ -176,6 +176,7 @@ function fakeClient() {
     listCommitments: vi.fn(async () => list),
     listBuyerMails: vi.fn(async (_action: string, commitmentId: string) => ({
       commitmentId,
+      completion: null,
       mails: [
         {
           canResend: false,
@@ -1118,6 +1119,7 @@ describe("order number and buyer mails in the order pane", () => {
     const listBuyerMails = vi.fn(
       async (_action: string, commitmentId: string) => ({
         commitmentId,
+        completion: null,
         mails,
       }),
     );
@@ -1267,6 +1269,7 @@ describe("buyer mails: first send, lost answer and the other states", () => {
     const listBuyerMails = vi.fn(
       async (_action: string, commitmentId: string) => ({
         commitmentId,
+        completion: null,
         mails,
       }),
     );
@@ -1391,6 +1394,27 @@ describe("buyer mails: first send, lost answer and the other states", () => {
         ],
     );
     expect(keys).toEqual([kept, kept]);
+  });
+
+  it("says that a confirmation came too late and is not sent any more", async () => {
+    // R1: queued in time, reached by the worker after the window.
+    const { client } = clientWithMails([
+      {
+        canResend: false,
+        kind: "confirmation",
+        reason: "window_over",
+        sentAt: null,
+        state: "failed",
+      },
+    ]);
+    await renderPage("?view=all&open=c1", client);
+    const block = await screen.findByTestId("buyer-mails");
+    await within(block).findByText("Bestellbestätigung");
+    expect(block.textContent).toContain("Fehlgeschlagen");
+    expect(block.textContent).toContain(
+      "Die E-Mail kam nicht rechtzeitig hinaus und wird nicht mehr gesendet. Das Lieferfenster ist vorbei.",
+    );
+    expect(within(block).queryByRole("button")).toBeNull();
   });
 
   it("shows a waiting mail without a button and asks again", async () => {

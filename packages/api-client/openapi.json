@@ -2170,6 +2170,49 @@
         "title": "Body_createMaterial",
         "type": "object"
       },
+      "BuyerMailCompletionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "confirmationDue": {
+            "description": "Whether completing the draft now sends the order confirmation.",
+            "title": "Confirmationdue",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "no_email",
+                  "switched_off",
+                  "order_draft",
+                  "order_cancelled",
+                  "not_requested",
+                  "not_sent",
+                  "recipient_limit",
+                  "delivery_failed",
+                  "delivery_recorded",
+                  "window_over",
+                  "action_closed",
+                  "scheduled",
+                  "window_before_send_time"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why no confirmation would be sent; null when one is due.",
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "confirmationDue",
+          "reason"
+        ],
+        "title": "BuyerMailCompletionResponse",
+        "type": "object"
+      },
       "BuyerMailConfigurationRequest": {
         "additionalProperties": false,
         "properties": {
@@ -2255,6 +2298,17 @@
             "title": "Commitmentid",
             "type": "string"
           },
+          "completion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BuyerMailCompletionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only for a draft: what completing it now would send. The rule is the one of the mail status. A delivery window that the completion itself selects is not known here."
+          },
           "mails": {
             "items": {
               "$ref": "#/components/schemas/BuyerMailStatusResponse"
@@ -2265,7 +2319,8 @@
         },
         "required": [
           "commitmentId",
-          "mails"
+          "mails",
+          "completion"
         ],
         "title": "BuyerMailListResponse",
         "type": "object"
@@ -2311,7 +2366,7 @@
                 "type": "null"
               }
             ],
-            "description": "Set for `not_due`, `skipped` and `failed`. `not_requested` and `not_sent` mean that the mail is due but never went out; `canResend` is then true. `scheduled` and `window_before_send_time` belong to the delivery-day mail.",
+            "description": "Set for `not_due`, `skipped` and `failed`. `not_requested` and `not_sent` mean that the mail is due but never went out; `canResend` is then true. A `failed` confirmation with `delivery_recorded`, `window_over` or `action_closed` was queued in time and reached by the worker too late; it is not sent any more. `scheduled` and `window_before_send_time` belong to the delivery-day mail.",
             "title": "Reason"
           },
           "replayed": {
@@ -2396,7 +2451,7 @@
                 "type": "null"
               }
             ],
-            "description": "Set for `not_due`, `skipped` and `failed`. `not_requested` and `not_sent` mean that the mail is due but never went out; `canResend` is then true. `scheduled` and `window_before_send_time` belong to the delivery-day mail.",
+            "description": "Set for `not_due`, `skipped` and `failed`. `not_requested` and `not_sent` mean that the mail is due but never went out; `canResend` is then true. A `failed` confirmation with `delivery_recorded`, `window_over` or `action_closed` was queued in time and reached by the worker too late; it is not sent any more. `scheduled` and `window_before_send_time` belong to the delivery-day mail.",
             "title": "Reason"
           },
           "sentAt": {
@@ -22465,7 +22520,7 @@
     },
     "/api/v1/actions/{action_id}/commitments/{commitment_id}/buyer-mails": {
       "get": {
-        "description": "The mails to the buyer of one order: one entry per kind that applies.\n\nThe confirmation always, the cancellation notice once the order is\ncancelled. Managers only. The kind `delivery_day` is reserved for the\nmail on the delivery day and does not appear yet.",
+        "description": "The mails to the buyer of one order: one entry per kind that applies.\n\nThe confirmation always, the cancellation notice once the order is\ncancelled. Managers only. The kind `delivery_day` is reserved for the\nmail on the delivery day and does not appear yet. For a draft,\n`completion` says whether completing it now sends the confirmation.",
         "operationId": "listBuyerMails",
         "parameters": [
           {

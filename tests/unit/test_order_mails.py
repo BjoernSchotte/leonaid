@@ -27,6 +27,8 @@ from leonaid.application.order_mails import (
     OrderMailLinks,
     MailNotDueReason,
     confirmation_not_due_reason,
+    late_error_code,
+    late_reason,
     mail_key_sequence,
     delivery_window_label,
     limit_digest,
@@ -1096,6 +1098,7 @@ def confirmation_reason(
     drop_state: str | None = None,
     action_status: str = "active",
     now: datetime = ORDERED_AT,
+    status: CommitmentStatus | None = None,
 ) -> MailNotDueReason | None:
     return confirmation_not_due_reason(
         commitment or order(source=CommitmentSource.ACQUISITION),
@@ -1103,6 +1106,7 @@ def confirmation_reason(
         drop_state=drop_state,
         action_status=action_status,
         now=now,
+        status=status,
     )
 
 
@@ -1145,33 +1149,125 @@ def test_the_first_reasons_of_a_confirmation_are_the_common_ones() -> None:
     ) is (MailNotDueReason.ORDER_DRAFT)
 
 
-@pytest.mark.parametrize(
-    ("value", "now"),
-    [
-        (facts(drop_state="delivered"), ORDERED_AT),
-        (facts(drop_state="missed"), ORDERED_AT),
-        (facts(action_status="completed"), ORDERED_AT),
-        (facts(action_status="archived"), ORDERED_AT),
-        (facts(), WINDOW_END),
-    ],
-    ids=["delivered", "missed", "action-completed", "action-archived", "window-over"],
-)
-@pytest.mark.asyncio
-async def test_handler_sends_no_confirmation_that_comes_too_late(
-    value: OrderMailFacts, now: datetime
-) -> None:
-    sender = RecordingSender()
-    late = OrderMailHandler(
+LATE_CASES = [
+    (facts(drop_state="delivered"), ORDERED_AT, "delivery_recorded"),
+    (facts(drop_state="missed"), ORDERED_AT, "delivery_recorded"),
+    (facts(action_status="completed"), ORDERED_AT, "action_closed"),
+    (facts(action_status="archived"), ORDERED_AT, "action_closed"),
+    (facts(), WINDOW_END, "window_over"),
+    # Orders from the public form follow the same rule.
+    (facts(order(source=CommitmentSource.PUBLIC_FORM)), WINDOW_END, "window_over"),
+]
+LATE_IDS = [
+    "delivered",
+    "missed",
+    "action-completed",
+    "action-archived",
+    "window-over",
+    "public-window-over",
+]
+
+
+def late_handler(
+    value: OrderMailFacts, now: datetime, sender: RecordingSender, *, sent: bool = False
+) -> OrderMailHandler:
+    return OrderMailHandler(
         OrderMailKind.CONFIRMATION,
-        reader=Reader(value),
+        reader=Reader(value, sent=sent),
         legal_configuration=Legal(legal()),
         sender=sender,
         clock=lambda: now,
     )
 
-    await late.handle(claimed(OrderMailKind.CONFIRMATION))
+
+@pytest.mark.parametrize(("value", "now", "reason"), LATE_CASES, ids=LATE_IDS)
+@pytest.mark.asyncio
+async def test_a_confirmation_that_comes_too_late_is_not_sent_and_fails_for_good(
+    value: OrderMailFacts, now: datetime, reason: str
+) -> None:
+    sender = RecordingSender()
+
+    # Not silent: the job is dead-lettered with the reason (R1).
+    with pytest.raises(OrderMailError) as captured:
+        await late_handler(value, now, sender).handle(
+            claimed(OrderMailKind.CONFIRMATION)
+        )
+
+    assert captured.value.code == f"order_mail_late_{reason}"
+    assert captured.value.retryable is False
+    assert late_reason(captured.value.code) is MailNotDueReason(reason)
+    assert sender.events == []
+
+
+@pytest.mark.parametrize(("value", "now", "reason"), LATE_CASES, ids=LATE_IDS)
+@pytest.mark.asyncio
+async def test_a_late_rerun_of_a_sent_confirmation_is_no_failure(
+    value: OrderMailFacts, now: datetime, reason: str
+) -> None:
+    sender = RecordingSender()
+
+    # The mail went out in time; only its completion was lost.
+    await late_handler(value, now, sender, sent=True).handle(
+        claimed(OrderMailKind.CONFIRMATION)
+    )
 
     assert sender.events == []
+
+
+@pytest.mark.asyncio
+async def test_a_confirmation_that_is_no_news_is_skipped_without_a_failure() -> None:
+    sender = RecordingSender()
+    erased = BuyerSnapshot(
+        party_kind=CommitmentPartyKind.COMPANY,
+        twenty_id=uuid4(),
+        display_name="Anonymisiert",
+        email=None,
+    )
+    for value in (
+        # Cancelled (the notice covers it), even after the window.
+        facts(order(status=CommitmentStatus.CANCELLED)),
+        facts(order(buyer=erased)),
+        facts(order(source=CommitmentSource.ADMIN), internal_order_mails=False),
+    ):
+        await late_handler(value, WINDOW_END, sender).handle(
+            claimed(OrderMailKind.CONFIRMATION)
+        )
+    assert sender.events == []
+
+
+def test_only_late_codes_name_a_late_reason() -> None:
+    assert late_error_code(MailNotDueReason.WINDOW_OVER) == (
+        "order_mail_late_window_over"
+    )
+    for code in (
+        None,
+        "order_mail_recipient_limit",
+        "order_mail_late_",
+        "order_mail_late_no_email",
+        "order_mail_late_order_cancelled",
+        "order_mail_late_unknown",
+    ):
+        assert late_reason(code) is None, code
+
+
+def test_the_confirmation_rule_can_judge_a_draft_as_completed() -> None:
+    draft = order(source=CommitmentSource.ADMIN, status=CommitmentStatus.DRAFT)
+    ready = CommitmentStatus.REVIEW_READY
+
+    assert confirmation_reason(draft) is MailNotDueReason.ORDER_DRAFT
+    assert confirmation_reason(draft, status=ready) is None
+    assert confirmation_reason(draft, status=ready, action_status="completed") is (
+        MailNotDueReason.ACTION_CLOSED
+    )
+    assert confirmation_reason(draft, status=ready, now=WINDOW_END) is (
+        MailNotDueReason.WINDOW_OVER
+    )
+    assert confirmation_reason(draft, status=ready, drop_state="delivered") is (
+        MailNotDueReason.DELIVERY_RECORDED
+    )
+    assert confirmation_reason(draft, status=ready, internal_order_mails=False) is (
+        MailNotDueReason.SWITCHED_OFF
+    )
 
 
 @pytest.mark.asyncio

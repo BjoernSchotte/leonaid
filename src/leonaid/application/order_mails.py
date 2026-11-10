@@ -43,6 +43,13 @@ the unauthenticated form nor a repeated "send again" must make the club
 flood an address it does not own. A job over the limit is dead-lettered with
 ``order_mail_recipient_limit`` and shows in the operations view, where an
 operator can retry it later.
+
+A confirmation is never sent late (``confirmation_not_due_reason``), for an
+order of any source. A job that was queued while the confirmation was due
+and that the worker reaches too late (worker or SMTP down past the delivery
+window, for example) is not dropped silently: it is dead-lettered with
+``order_mail_late_<reason>``, so it counts with the failed mails in the
+operations view and the order's mail status says "failed" with the reason.
 """
 
 from __future__ import annotations
@@ -603,6 +610,34 @@ class MailNotDueReason(StrEnum):
 # An action whose order period is over: orders are only recorded afterwards.
 CLOSED_ACTION_STATUSES = frozenset({"completed", "archived"})
 
+# Why a confirmation that was due when it was queued can come too late.
+LATE_REASONS = frozenset(
+    {
+        MailNotDueReason.DELIVERY_RECORDED,
+        MailNotDueReason.WINDOW_OVER,
+        MailNotDueReason.ACTION_CLOSED,
+    }
+)
+LATE_ERROR_PREFIX = "order_mail_late_"
+
+
+def late_error_code(reason: MailNotDueReason) -> str:
+    """The outbox error code of a confirmation the worker reached too late."""
+
+    return f"{LATE_ERROR_PREFIX}{reason.value}"
+
+
+def late_reason(error_code: str | None) -> MailNotDueReason | None:
+    """The reason in ``late_error_code``; ``None`` for any other failure."""
+
+    if error_code is None or not error_code.startswith(LATE_ERROR_PREFIX):
+        return None
+    try:
+        reason = MailNotDueReason(error_code.removeprefix(LATE_ERROR_PREFIX))
+    except ValueError:
+        return None
+    return reason if reason in LATE_REASONS else None
+
 
 def mail_not_due_reason(
     commitment: Commitment,
@@ -638,8 +673,13 @@ def confirmation_not_due_reason(
     drop_state: str | None,
     action_status: str,
     now: datetime,
+    status: CommitmentStatus | None = None,
 ) -> MailNotDueReason | None:
     """The rule of the order confirmation, at any moment it could go out.
+
+    Orders of every source follow it, public orders included. ``status``
+    judges the order as if it had that status (a draft about to be
+    completed).
 
     On top of ``mail_not_due_reason``: a confirmation is no news for an order
     that is cancelled (the cancellation notice covers it), whose delivery the
@@ -649,10 +689,12 @@ def confirmation_not_due_reason(
     a buyer for an order that is long done.
     """
 
-    reason = mail_not_due_reason(commitment, internal_order_mails=internal_order_mails)
+    reason = mail_not_due_reason(
+        commitment, internal_order_mails=internal_order_mails, status=status
+    )
     if reason is not None:
         return reason
-    if commitment.status is CommitmentStatus.CANCELLED:
+    if (status or commitment.status) is CommitmentStatus.CANCELLED:
         return MailNotDueReason.ORDER_CANCELLED
     if drop_state is not None:
         return MailNotDueReason.DELIVERY_RECORDED
@@ -768,22 +810,27 @@ class OrderMailHandler:
             raise OrderMailError("order_mail_payload_invalid")
         links = OrderMailLinks.from_payload(event.payload)
         facts = await self._reader.facts(commitment_id, self._kind)
-        if (
-            facts is None
-            or facts.not_due_reason(self._kind, now=self._clock()) is not None
-        ):
-            # Nothing to send: the order is gone or erased, the action
-            # switched the mails for internal orders off meanwhile, or (a
-            # confirmation) the order is cancelled, delivered or closed.
+        if facts is None:
+            # The order is gone.
+            return
+        not_due = facts.not_due_reason(self._kind, now=self._clock())
+        if not_due is not None and not_due not in LATE_REASONS:
+            # Nothing to send: the buyer is erased, the action switched the
+            # mails for internal orders off meanwhile, or (a confirmation)
+            # the order is cancelled.
             return
         if await self._reader.was_sent(event.idempotency_key):
             # A re-run of a sent job (lost completion): nothing to send, and
-            # the limit must not dead-letter it.
+            # neither the limit nor the late rule must dead-letter it.
             return
         if await self._superseded(event.idempotency_key):
             # An operator retried an old failed job after a manager already
             # sent the mail again: the buyer has it.
             return
+        if not_due is not None:
+            # The confirmation was due when it was queued and comes too
+            # late now. Not sent, and not silent: the job fails for good.
+            raise OrderMailError(late_error_code(not_due), retryable=False)
         legal = await self._legal_configuration.active_configuration()
         if legal is None:
             # Retried: the mail must name the club; it waits for a version.

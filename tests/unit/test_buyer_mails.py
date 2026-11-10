@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, time, timedelta, timezone
 from uuid import uuid4
 
@@ -145,11 +146,56 @@ def test_a_waiting_job_is_queued_and_cannot_be_sent_again(job_status: str) -> No
 
 
 @pytest.mark.parametrize(
+    ("changes", "now", "reason"),
+    [
+        ({"drop_state": "delivered"}, NOW, BuyerMailReason.DELIVERY_RECORDED),
+        ({"action_status": "completed"}, NOW, BuyerMailReason.ACTION_CLOSED),
+        ({}, WINDOW_END, BuyerMailReason.WINDOW_OVER),
+    ],
+    ids=["delivered", "action-closed", "window-over"],
+)
+def test_a_confirmation_the_worker_reached_too_late_is_failed_with_the_reason(
+    changes: dict[str, str], now: datetime, reason: BuyerMailReason
+) -> None:
+    # R1: queued in time, reached too late (an outage): not silent.
+    value = ledger(
+        jobs=(BuyerMailJob(key(), "dead_letter", f"order_mail_late_{reason.value}"),),
+        **changes,
+    )
+
+    assert buyer_mail_status(CONFIRMATION, value, now=now) == BuyerMailStatus(
+        CONFIRMATION, BuyerMailState.FAILED, reason=reason
+    )
+    refusal = resend_refusal(CONFIRMATION, value, now=now)
+    assert refusal is not None and refusal.code == "buyer_mail_not_due"
+
+
+def test_completing_a_draft_is_judged_by_the_rule_of_the_confirmation() -> None:
+    draft = {"source": CommitmentSource.ADMIN, "status": CommitmentStatus.DRAFT}
+
+    def preview(now: datetime = NOW, **changes: object) -> BuyerMailReason | None:
+        return subject.confirmation_on_completion(
+            ledger(**{"internal_order_mails": True, **draft, **changes}), now=now
+        )
+
+    assert preview() is None
+    assert preview(internal_order_mails=False) is BuyerMailReason.SWITCHED_OFF
+    assert preview(action_status="archived") is BuyerMailReason.ACTION_CLOSED
+    assert preview(drop_state="missed") is BuyerMailReason.DELIVERY_RECORDED
+    assert preview(now=WINDOW_END) is BuyerMailReason.WINDOW_OVER
+    assert preview(buyer=replace(order().buyer, email=None)) is (
+        BuyerMailReason.NO_EMAIL
+    )
+
+
+@pytest.mark.parametrize(
     ("error_code", "reason"),
     [
         ("order_mail_recipient_limit", BuyerMailReason.RECIPIENT_LIMIT),
         ("smtp_unavailable", BuyerMailReason.DELIVERY_FAILED),
         (None, BuyerMailReason.DELIVERY_FAILED),
+        # Not a late code: the reason of a late job is never guessed.
+        ("order_mail_late_no_email", BuyerMailReason.DELIVERY_FAILED),
     ],
 )
 def test_a_dead_job_is_failed_with_its_reason_and_can_be_sent_again(

@@ -311,6 +311,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     BuyerMailConfigurationRequest,
     BuyerMailConfigurationResponse,
     BuyerMailKindValue,
+    BuyerMailCompletionResponse,
     BuyerMailListResponse,
     BuyerMailResendResponse,
     BuyerMailStatusResponse,
@@ -4172,16 +4173,26 @@ async def list_buyer_mails(
 
     The confirmation always, the cancellation notice once the order is
     cancelled. Managers only. The kind `delivery_day` is reserved for the
-    mail on the delivery day and does not appear yet.
+    mail on the delivery day and does not appear yet. For a draft,
+    `completion` says whether completing it now sends the confirmation.
     """
     actor = await identity_service(request).authenticate(session_token(request))
-    statuses = await buyer_mail_service(request).statuses(
+    overview = await buyer_mail_service(request).overview(
         actor, action_id, commitment_id
     )
     response.headers["Cache-Control"] = "private, no-store"
+    late = overview.confirmation_on_completion
     return BuyerMailListResponse(
         commitment_id=commitment_id,
-        mails=[buyer_mail_status_response(status) for status in statuses],
+        mails=[buyer_mail_status_response(status) for status in overview.statuses],
+        completion=(
+            BuyerMailCompletionResponse(
+                confirmation_due=late is None,
+                reason=late.value if late is not None else None,
+            )
+            if overview.draft
+            else None
+        ),
     )
 
 
