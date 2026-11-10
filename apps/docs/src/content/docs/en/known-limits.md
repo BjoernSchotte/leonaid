@@ -4,9 +4,9 @@ description: Verified limits of the current LeonAid development and pilot state.
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 7
-reviewedRevision: 7
-verifiedAgainst: e0a3533c57747a914cde695a334e31fb90ffbc60
+contentRevision: 8
+reviewedRevision: 8
+verifiedAgainst: c936ec580b1ef13d6175b551ab34d2f597e2bb2d
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -33,10 +33,16 @@ general production approval.
 - Public orders require a published campaign with an active order form and an
   available offering. When delivery planning is enabled, an available delivery
   window is also required.
-- The order confirmation and the cancellation notice are plain-text mails and
-  go only to buyers from the public form. Orders that members or acquirers
-  enter send no e-mail. The campaign link points to the campaign page on the
-  public host; own campaign domains follow with stage 2. The sender is the
+- The order confirmation and the cancellation notice are plain-text mails
+  and go to buyers from the public form. For orders that members or acquirers
+  enter, the campaign's managers switch them on per campaign (**E-Mails an
+  Käufer**); an order is then confirmed once, as soon as it is ready for
+  review. Orders without an e-mail address of the buyer, drafts, and orders
+  from before the switch was set get no e-mail. An e-mail that was sent or
+  that failed can be sent again in the order; an e-mail that was never
+  created cannot. There is no e-mail on the delivery day yet. The campaign
+  link points to the permanent address of the campaign on its campaign
+  domain, else to the campaign page on the public host. The sender is the
   configured system address, not the club.
 - An issued invoice and its PDF are never overwritten. Corrections use a
   cancellation and a new transaction.

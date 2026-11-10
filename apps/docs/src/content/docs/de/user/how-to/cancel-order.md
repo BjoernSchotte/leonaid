@@ -4,9 +4,9 @@ description: Eine noch nicht gelieferte Bestellung mit Grund stornieren, samt of
 docId: DOC-P047
 audience: [user]
 diataxis: how-to
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: e0a3533c57747a914cde695a334e31fb90ffbc60
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: c936ec580b1ef13d6175b551ab34d2f597e2bb2d
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -48,14 +48,20 @@ Menge und Betrag zählen sie nicht mehr mit.
   Weil dabei ein Beleg geändert wird, bestätigst du deine Anmeldung
   gegebenenfalls erneut. Grund und Notiz bleiben dabei erhalten; nach der
   Anmeldung öffnet sich der Dialog wieder, und du bestätigst noch einmal.
-- **Besteller:** Kam die Bestellung über das öffentliche Bestellformular,
-  erhält der Besteller kurz darauf eine E-Mail **Stornierung Ihrer Bestellung
-  bei …** an die Adresse aus dem Formular. Sie nennt Bestellnummer, Positionen,
-  Betrag, eine mit stornierte Rechnung und die Kontaktdaten des Clubs aus den
+- **Besteller:** Der Dialog sagt vor dem Stornieren, ob der Besteller eine
+  E-Mail bekommt. Kam die Bestellung über das öffentliche Bestellformular,
+  erhält er kurz darauf die E-Mail **Stornierung Ihrer Bestellung bei …** an
+  die Adresse aus dem Formular. Sie nennt Bestellnummer, Positionen, Betrag,
+  eine mit stornierte Rechnung und die Kontaktdaten des Clubs aus den
   rechtlichen Angaben. Grund und Notiz stehen nicht darin; sie bleiben intern.
-  Wiederholst du den Vorgang, geht keine zweite E-Mail hinaus. Bestellungen, die
-  Mitglieder oder Akquisiteure erfasst haben, lösen keine E-Mail aus: Informiere
-  diese Besteller selbst.
+  Wiederholst du den Vorgang, geht keine zweite E-Mail hinaus.
+
+  Für Bestellungen, die Mitglieder oder Akquisiteure erfasst haben, gilt
+  dasselbe nur, wenn in der Aktion der Schalter **E-Mails für Bestellungen,
+  die Mitglieder erfassen** an ist (siehe unten) und in der Bestellung eine
+  E-Mail-Adresse des Käufers steht. Ein stornierter Entwurf sendet nichts.
+  Sagt der Dialog, dass LeonAid nicht benachrichtigt, informiere den
+  Besteller selbst.
 
 ## Wenn es nicht geht
 
@@ -74,3 +80,45 @@ Menge und Betrag zählen sie nicht mehr mit.
 
 Ein Storno ist endgültig. Eine stornierte Bestellung lässt sich nicht wieder
 öffnen; erfasse bei Bedarf eine neue Bestellung.
+
+## E-Mails für Bestellungen, die Mitglieder erfassen
+
+Bestellungen aus dem öffentlichen Formular erhalten Bestellbestätigung und
+Stornohinweis immer. Für Bestellungen aus der Akquise und aus der Verwaltung
+schaltest du die E-Mails je Aktion ein:
+
+1. Öffne im Backoffice **Aktionen**, wähle die Aktion und dann
+   **Bearbeiten**.
+2. Schalte im Abschnitt **E-Mails an Käufer** den Schalter **E-Mails für
+   Bestellungen, die Mitglieder erfassen** ein. Der Schalter gilt sofort, auch
+   während die Aktion läuft, und du kannst ihn jederzeit wieder ausschalten.
+
+Ab dann erhält der Käufer die Bestellbestätigung, sobald seine Bestellung
+prüfbereit ist: beim Erfassen, beim Abschließen eines Entwurfs oder wenn die
+Verwaltung fehlende Angaben ergänzt. Das gilt auch für Bestellungen, die die
+App offline gespeichert und später gesendet hat. Die E-Mail sagt, dass ein
+Mitglied des Clubs die Bestellung erfasst hat. Jede Bestellung wird einmal
+bestätigt; eine spätere Änderung von Adresse oder Lieferfenster sendet keine
+zweite Bestätigung. Ohne E-Mail-Adresse des Käufers in der Bestellung geht
+nichts hinaus, und Bestellungen, die vor dem Einschalten erfasst wurden,
+werden nicht nachträglich bestätigt.
+
+## E-Mails einer Bestellung ansehen und erneut senden
+
+Der Detailbereich jeder Bestellung zeigt oben ihre **Bestellnummer**
+(`LA-…`); jede Bestellung hat eine, egal wie sie erfasst wurde. Die Suche der
+Liste findet die Bestellung auch über diese Nummer.
+
+Der Abschnitt **E-Mails an den Käufer** zeigt je E-Mail eine Zeile:
+**Bestellbestätigung** und, nach einem Storno, **Stornierung**. Der Stand ist
+**Gesendet** mit Datum und Uhrzeit, **Wartet**, **Fehlgeschlagen**, **Nicht
+gesendet** oder **Nicht fällig**; darunter steht der Grund, zum Beispiel dass
+die Bestellung keine E-Mail-Adresse hat oder die E-Mails der Aktion
+ausgeschaltet sind.
+
+Hat der Käufer eine E-Mail nicht bekommen, wähle **Erneut senden**. Die
+Schaltfläche gibt es für gesendete und fehlgeschlagene E-Mails. Sie fehlt,
+solange die E-Mail wartet, wenn die Adresse fehlt, wenn die E-Mails der Aktion
+ausgeschaltet sind und für die Bestätigung einer stornierten Bestellung. An
+dasselbe Postfach gehen höchstens zehn Bestell-E-Mails pro Stunde; darüber
+schlägt der Versand fehl, und du sendest später erneut.

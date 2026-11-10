@@ -4,9 +4,9 @@ description: Cancel an order that is not delivered yet, with a reason, including
 docId: DOC-P047
 audience: [user]
 diataxis: how-to
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: e0a3533c57747a914cde695a334e31fb90ffbc60
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: c936ec580b1ef13d6175b551ab34d2f597e2bb2d
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -44,13 +44,19 @@ finds all cancelled orders. Quantity and amount totals no longer count them.
   becomes **Storniert**. Because this changes a financial record, you may have
   to confirm your sign-in again. Reason and note are kept; after the sign-in
   the dialog opens again and you confirm once more.
-- **Buyer:** if the order came in through the public order form, the buyer
-  soon gets an e-mail **Stornierung Ihrer Bestellung bei …** (your order was
+- **Buyer:** before you cancel, the dialog says whether the buyer gets an
+  e-mail. If the order came in through the public order form, the buyer soon
+  gets the e-mail **Stornierung Ihrer Bestellung bei …** (your order was
   cancelled) at the address from the form. It names the order number, items,
   total, an invoice cancelled with it and the club's contact details from the
   legal settings. Reason and note are not in it; they stay internal. Repeating
-  the command sends no second e-mail. Orders that members or acquirers entered
-  send no e-mail: tell those buyers yourself.
+  the command sends no second e-mail.
+
+  For orders that members or acquirers entered, the same applies only when
+  the action has the switch **E-Mails für Bestellungen, die Mitglieder
+  erfassen** on (see below) and the order holds an e-mail address of the
+  buyer. A cancelled draft sends nothing. When the dialog says that LeonAid
+  does not notify the buyer, tell the buyer yourself.
 
 ## When it does not work
 
@@ -68,3 +74,45 @@ finds all cancelled orders. Quantity and amount totals no longer count them.
 
 A cancellation is final. A cancelled order cannot be reopened; capture a new
 order if needed.
+
+## E-mails for orders that members enter
+
+Orders from the public form always get the order confirmation and the
+cancellation notice. For orders from acquisition and from the back office you
+switch the e-mails on per campaign:
+
+1. Open **Aktionen** in the back office, select the campaign and then
+   **Bearbeiten**.
+2. In the section **E-Mails an Käufer**, switch on **E-Mails für
+   Bestellungen, die Mitglieder erfassen**. The switch applies at once, also
+   while the campaign runs, and you can switch it off again at any time.
+
+From then on the buyer gets the order confirmation as soon as the order is
+ready for review: when it is captured, when a draft is completed, or when a
+manager adds missing details. This also applies to orders that the app saved
+offline and sent later. The e-mail says that a member of the club recorded
+the order. Each order is confirmed once; a later change of address or
+delivery window sends no second confirmation. Without an e-mail address of
+the buyer in the order nothing is sent, and orders captured before you
+switched the e-mails on are not confirmed afterwards.
+
+## See the e-mails of an order and send one again
+
+The detail pane of every order shows its order number (**Bestellnummer**,
+`LA-…`) at the top; every order has one, however it was captured. The search
+of the list also finds the order by this number.
+
+The section **E-Mails an den Käufer** shows one row per e-mail:
+**Bestellbestätigung** (order confirmation) and, after a cancellation,
+**Stornierung** (cancellation notice). The state is **Gesendet** (sent) with
+date and time, **Wartet** (waiting), **Fehlgeschlagen** (failed), **Nicht
+gesendet** (not sent) or **Nicht fällig** (not due); the reason stands below
+it, for example that the order has no e-mail address or that the campaign has
+the e-mails switched off.
+
+If the buyer did not get an e-mail, select **Erneut senden** (send again).
+The button exists for e-mails that were sent or that failed. It is absent
+while the e-mail waits, when the address is missing, when the campaign has
+the e-mails switched off, and for the confirmation of a cancelled order. At
+most ten order e-mails go to one mailbox per hour; above that the delivery
+fails, and you send again later.

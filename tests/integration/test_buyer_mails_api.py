@@ -497,6 +497,7 @@ class Proof:
             assert error.retryable is False, error.code
             await self.db.execute(
                 "UPDATE outbox_event SET status = 'dead_letter', "
+                "attempts = attempts + 1, "
                 "dead_lettered_at = CURRENT_TIMESTAMP, last_error_code = $2 "
                 "WHERE id = $1",
                 job["id"],
@@ -504,7 +505,7 @@ class Proof:
             )
             return error.code
         await self.db.execute(
-            "UPDATE outbox_event SET status = 'completed', "
+            "UPDATE outbox_event SET status = 'completed', attempts = attempts + 1, "
             "completed_at = CURRENT_TIMESTAMP WHERE id = $1",
             job["id"],
         )
@@ -523,6 +524,12 @@ class Proof:
         await self.mailbox_limit(ready)
         await self.cancellation(ready)
         await self.erased_buyer()
+        # Later proofs share this database: leave no waiting or failed job.
+        await self.db.execute(
+            "DELETE FROM outbox_event WHERE aggregate_type = 'commitment' "
+            "AND aggregate_id IN (SELECT id FROM commitment WHERE action_id = $1)",
+            self.data.action,
+        )
 
     async def settings_row(self) -> None:
         initial = await self.get(self.settings)

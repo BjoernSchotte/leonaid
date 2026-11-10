@@ -96,11 +96,26 @@ Punkte sind keine stillschweigenden Produktzusagen.
   defer it). An active (not reversed) payment entry blocks the
   cancellation until it is reversed ("Zurückbuchen" in the invoice pane);
   LeonAid books no refunds. A cancelled order cannot be reopened.
+- Every order has an order number (`commitment.public_reference`, `LA-` plus
+  the order id in hex; migration 0062 backfilled internal orders). The number
+  is 35 characters long; a short number a buyer can read out is not
+  implemented. The invoice PDF does not print it.
 - Buyer mails (`application/order_mails.py`): a public-form order sends one
   plain-text order confirmation, and its cancellation one cancellation
   notice, through the outbox (`order.confirmation.mail.v1`,
   `order.cancellation.mail.v1`; one job and one SMTP ledger row per order
-  and kind). The job holds ids and links only; the worker reads the order
+  and kind). An order that a member or acquirer entered sends the same two
+  mails only while its action has `internal_order_mails` on
+  (`action_buyer_mail_configuration`, section "E-Mails an Käufer", off by
+  default, changeable in every status): the confirmation once when the order
+  becomes `review_ready` (creation, completion of a draft, also from the PWA
+  queue, manager completion), never for a draft, and no second one after a
+  later change. Orders recorded before the switch was set are not confirmed
+  afterwards. There is no consent record for these buyers; the legal basis
+  is the contract, and the sentence for the privacy notice
+  (specs/mails-documents-donations-push, P1) awaits Björn's signature before
+  a club switches the mails on in production. The job holds ids and links
+  only; the worker reads the order
   and the active legal configuration when it sends, so an erased buyer gets
   nothing. Delivery is at least once: a crash between the SMTP server
   accepting a mail and the ledger write sends it again on the retry. A
@@ -115,10 +130,16 @@ Punkte sind keine stillschweigenden Produktzusagen.
   recipient name, street and city also refuse `://`, `www.` and `@`. The
   mail strips such characters from older data.
   The mail repeats the full delivery and billing address so the buyer can
-  check it. Not covered: orders entered by members or acquirers (no mail,
-  also no cancellation notice), an HTML version, a club sender address (the
-  configured `MAIL_FROM` sends), a resend button, and mails for later order
-  changes (delivery window moved, invoice issued). Fulfilment mails ignore
+  check it. The order detail shows the state of each mail (`listBuyerMails`:
+  `not_due`, `queued`, `sent`, `failed`, `skipped`, derived from the SMTP
+  ledger and the outbox) and a manager can send a sent or failed mail again
+  (`resendBuyerMail`, audit event `order_mail_resent`, no fresh login, the
+  mailbox limit applies). A mail that was never queued or that was skipped
+  cannot be sent from there, and retention deletes completed jobs, so an old
+  skipped mail later reads as "not requested". Not covered: an HTML version,
+  a club sender address (the configured `MAIL_FROM` sends), a mail on the
+  delivery day (stage 2 of the spec), and mails for later order changes
+  (delivery window moved, invoice issued). Fulfilment mails ignore
   the marketing/acquisition suppression list. The campaign link is the
   permanent edition URL on the campaign host (decision D8), else the public
   host page (`edition_link`).

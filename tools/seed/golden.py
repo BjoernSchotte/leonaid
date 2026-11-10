@@ -42,6 +42,17 @@ GOLDEN_PRIVACY_POLICY = (
     "## Verantwortlicher\n\n"
     "Verantwortlich ist der im Impressum genannte Golden-Verein. Diese "
     "Datenschutzerklärung ist ein synthetischer Testtext.\n\n"
+    # specs/mails-documents-donations-push, Appendix A.1 (P1): the dev
+    # tenant's sentence for mails to buyers whose order a member entered.
+    "## Bestellungen, die ein Mitglied für Sie erfasst\n\n"
+    "Nimmt ein Mitglied des Lions Club Musterstadt Ihre Bestellung "
+    "persönlich oder am Telefon auf, speichern wir Ihren Namen, Ihre Liefer- "
+    "und Rechnungsanschrift und, wenn Sie sie nennen, Ihre E-Mail-Adresse. "
+    "An diese Adresse senden wir die Bestellbestätigung, am Liefertag einen "
+    "Hinweis auf das Lieferfenster und, falls die Bestellung storniert wird, "
+    "eine Stornobestätigung. Rechtsgrundlage ist die Erfüllung des Vertrags "
+    "mit Ihnen (Art. 6 Abs. 1 Buchst. b DSGVO). Werbung senden wir an diese "
+    "Adresse nicht.\n\n"
     "## Ihre Rechte\n\n"
     "- Auskunft\n"
     "- Berichtigung\n"
