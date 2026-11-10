@@ -4,9 +4,9 @@ description: Für eine bezahlte Spende die Zuwendungsbestätigung ausstellen, un
 docId: DOC-P060
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 1c7cedc2a1d2733b336d30a146b28874c28e8eb1
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 026a2d563f8c79f01ba6f77016dbcf7334a4d602
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -79,6 +79,11 @@ erklärst du sie für ungültig und stellst eine neue aus.
    Ohne eine der beiden Angaben geht es nicht: Sonst könnte der Spender zwei
    Bestätigungen für eine Spende einreichen.
 4. Bestätige mit **Für ungültig erklären**.
+
+Eine ungültige Zuwendungsbestätigung wird nicht mehr versendet: Ein Versand,
+der noch wartet oder fehlgeschlagen ist, endet mit dem Ungültig-Erklären und
+lässt sich nicht neu starten. Geht gerade eine E-Mail hinaus, wartet LeonAid
+kurz, bis sie verbucht ist; sie steht dann als gesendet bei der Bestätigung.
 
 Die Bestätigung und ihr PDF bleiben gespeichert und stehen unter **Ungültige
 Zuwendungsbestätigungen**. Das lässt sich nicht rückgängig machen. Danach

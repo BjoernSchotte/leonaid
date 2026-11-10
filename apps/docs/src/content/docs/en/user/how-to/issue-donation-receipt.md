@@ -4,9 +4,9 @@ description: Issue the donation receipt for a paid donation, sign or send it, an
 docId: DOC-P060
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 1c7cedc2a1d2733b336d30a146b28874c28e8eb1
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 026a2d563f8c79f01ba6f77016dbcf7334a4d602
 reviewer: Claude Code (review by Björn Schotte pending)
 ---
 
@@ -76,6 +76,11 @@ and issue a new one.
    One of the two is required: otherwise the donor could hand in two receipts
    for one donation.
 4. Confirm with **Für ungültig erklären**.
+
+A void donation receipt is not sent any more: a delivery that still waits or
+has failed ends with the void and cannot be started again. If an e-mail is
+going out at that moment, LeonAid waits briefly until it is recorded; it is
+then shown as sent at the receipt.
 
 The receipt and its PDF stay stored and are listed under **Ungültige
 Zuwendungsbestätigungen**. This cannot be undone. Afterwards you can issue a

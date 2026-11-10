@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 3
 reviewedRevision: 3
-verifiedAgainst: __SHA__
+verifiedAgainst: 026a2d563f8c79f01ba6f77016dbcf7334a4d602
 reviewer: Claude Code (review by Björn Schotte pending)
 ---
 
