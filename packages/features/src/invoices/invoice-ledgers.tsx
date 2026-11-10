@@ -207,7 +207,7 @@ export function DocumentsLedger({
       <LedgerBody state={state}>
         {shown.length === 0 ? (
           <EmptyState
-            description="Das PDF einer Rechnung entsteht beim Ausstellen."
+            description="Das PDF einer Rechnung entsteht beim Ausstellen, das einer Stornorechnung beim Stornieren."
             headingLevel={2}
             icon={FileText}
             title="Noch keine Dokumente"
@@ -262,10 +262,17 @@ function DocumentRow({
   readonly record: GeneratedDocumentRecordResponse;
 }) {
   const { document: generated } = record;
-  const title = record.invoiceNumber
-    ? `Rechnung ${record.invoiceNumber} · ${record.buyerDisplayName}`
-    : (generated.filename ?? "Rechnungs-PDF");
-  const filename = generated.filename ?? "Rechnung.pdf";
+  const cancellation = generated.documentType === "invoice_cancellation_pdf";
+  const kind = cancellation ? "Stornorechnung" : "Rechnung";
+  // A cancellation invoice has its own number; the invoice number stays the
+  // cancelled invoice's.
+  const number = cancellation
+    ? (record.documentNumber ?? null)
+    : record.invoiceNumber;
+  const title = number
+    ? `${kind} ${number} · ${record.buyerDisplayName}`
+    : (generated.filename ?? `${kind}s-PDF`);
+  const filename = generated.filename ?? `${kind}.pdf`;
   const { busy, download, errorMessage } = useDocumentDownload(
     client,
     actionId,
@@ -301,7 +308,7 @@ function DocumentRow({
           </span>
         ) : null}
       </td>
-      <td>Rechnung</td>
+      <td>{kind}</td>
       <td className="num">
         <time
           dateTime={generated.createdAt}

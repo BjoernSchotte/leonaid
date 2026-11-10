@@ -135,6 +135,7 @@ docker run --rm \
   /repo/tools/typst/render_contract.py \
   /proof/database-snapshots.json \
   /repo/tests/fixtures/golden/v1/documents \
+  /repo/tests/fixtures/golden/v1/cancellations \
   /proof/rendered
 
 verify_pdfs() {
@@ -155,6 +156,7 @@ verify_pdfs() {
     /proof/rendered \
     /proof/pages \
     --template src/leonaid/adapters/typst/templates/invoice-v2.typ \
+    --template src/leonaid/adapters/typst/templates/invoice-cancellation-v1.typ \
     "$@"
 }
 

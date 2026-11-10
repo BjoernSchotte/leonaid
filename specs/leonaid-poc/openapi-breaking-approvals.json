@@ -151,6 +151,28 @@
         "property-newly-required:DeliveryDropContactResponse.driverNote"
       ],
       "rationale": "Delivery tours slices 3 and 4 (specs/krapfentaxi-touren §5.1, §9, §10): the driver note joins the board's drop contact. It is always present (null when the order has no note), like name and phone, so the generator marks it required. The bundle also adds the operation recordMyTourReads (new, not breaking) and description text. No field is removed or narrowed; the new request field is optional. The only clients are the generated client and the apps of this repository, regenerated in the same change. Ratified by the lead under Björn's standing delegation on 2026-11-10 (Ruling 24). Approval is bound to these exact contract hashes and changes."
+    },
+    {
+      "oldSha256": "3ac6dd760bfef8e80cce9b3faf76d416ef53dddabe51981fb6b903cc3b147f17",
+      "newSha256": "9c95d4cf881746b8e7671f4669396657516ed2e1fc51ee835c88f5781f7a421a",
+      "changes": [
+        "property-newly-required:CommitmentCancellationResponse.invoiceCancellationNumber",
+        "property-newly-required:CommitmentInvoiceSummaryResponse.recipientEmail",
+        "property-newly-required:GeneratedDocumentRecordResponse.documentNumber",
+        "property-newly-required:InvoiceCancellationResponse.issuedOn",
+        "property-newly-required:InvoiceCancellationResponse.number",
+        "property-newly-required:InvoiceCancellationResponse.receivedMinor",
+        "property-newly-required:InvoiceCancellationResponse.refundNote",
+        "property-newly-required:InvoiceCancellationResponse.refundOpen",
+        "property-newly-required:InvoiceCancellationResponse.refundSettledAt",
+        "property-newly-required:InvoiceCancellationResponse.refundSettledByDisplayName",
+        "property-newly-required:InvoiceCancellationResponse.refundSettledOn",
+        "property-newly-required:InvoiceCancellationResponse.refundWithdrawals",
+        "property-newly-required:InvoiceDeliveryResponse.kind",
+        "property-newly-required:InvoiceRecordResponse.cancellationDeliveries",
+        "property-type-changed:GeneratedDocumentResponse.documentType"
+      ],
+      "rationale": "Bundle stage 3 (specs/mails-documents-donations-push §5, ADR-0015): the cancellation invoice becomes its own numbered document. Fourteen response fields are new and always present (null or empty when they do not apply), so the generator marks them required; GeneratedDocumentResponse.documentType gains the value for the cancellation invoice, which the checker reports as a type change. No field is removed or narrowed and no request field becomes required on an existing operation. The only clients are the generated client and the apps of this repository, regenerated in the same change. Ratified by the lead under Björn's standing delegation on 2026-11-10 (E-045). Approval is bound to these exact contract hashes and changes."
     }
   ]
 }

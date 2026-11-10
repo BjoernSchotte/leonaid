@@ -1665,6 +1665,22 @@ async def seed_operational_golden(
             "DE89370400440532013000",
             "COBADEFFXXX",
         )
+        # The installation's invoice series (ADR-0015): the golden invoices
+        # below carry the numbers before it. A re-seed deletes the invoices
+        # issued since and puts the counter back.
+        await connection.execute(
+            """
+            INSERT INTO document_series (kind, prefix, next_number, width)
+            VALUES ('invoice', $1, $2, $3)
+            ON CONFLICT (kind, prefix) DO UPDATE
+            SET next_number = EXCLUDED.next_number,
+                width = EXCLUDED.width,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            profile["numberPrefix"],
+            profile["nextNumber"],
+            profile["numberWidth"],
+        )
 
     invoice_status = {
         "OPEN": "issued",

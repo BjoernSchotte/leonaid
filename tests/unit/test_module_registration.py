@@ -300,6 +300,7 @@ def test_worker_handler_set_is_unchanged() -> None:
 
     assert sorted(handlers) == [
         "charity_action.progress.recorded.v1",
+        "document.render.requested.v1",
         "inbox.contact_link.v1",
         "invoice.document.render.requested.v1",
         "invoice.mail.send.requested.v1",

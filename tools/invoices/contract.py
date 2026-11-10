@@ -140,8 +140,16 @@ async def assert_database_result(
         "SELECT count(*) FROM invoice WHERE commitment_id = $1",
         COMMITMENT_ID,
     )
+    # The counter is the installation's invoice series (ADR-0015).
     profile_next = await connection.fetchval(
-        "SELECT next_number FROM invoice_profile WHERE action_id = $1",
+        """
+        SELECT series.next_number
+        FROM invoice_profile AS profile
+        JOIN document_series AS series
+          ON series.kind = 'invoice'
+         AND series.prefix = profile.number_prefix
+        WHERE profile.action_id = $1
+        """,
         ACTION_ID,
     )
     commitment_status = await connection.fetchval(

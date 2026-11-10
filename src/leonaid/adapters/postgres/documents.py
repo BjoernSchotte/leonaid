@@ -13,7 +13,6 @@ from leonaid.application.documents import (
     GeneratedDocumentRecord,
     GeneratedDocumentReference,
     GeneratedDocumentReferenceKind,
-    GeneratedDocumentRenderJob,
     GeneratedDocumentRepository,
 )
 from leonaid.application.invoice_documents import InvoiceDocumentSnapshot
@@ -24,6 +23,7 @@ from leonaid.domain.documents import (
     GeneratedDocumentStatus,
     GeneratedDocumentType,
 )
+from leonaid.domain.invoice_cancellation_documents import InvoiceCancellationDocument
 from leonaid.domain.invoices import (
     InvoiceIssuerSnapshot,
     InvoiceLineSnapshot,
@@ -56,15 +56,22 @@ class AsyncpgGeneratedDocumentRepository(GeneratedDocumentRepository):
     def __init__(self, pool: asyncpg.Pool[Any]) -> None:
         self._pool = pool
 
-    async def render_job(
-        self,
-        document_id: UUID,
-    ) -> GeneratedDocumentRenderJob | None:
+    async def document(self, document_id: UUID) -> GeneratedDocument | None:
+        async with self._pool.acquire() as connection:
+            row = await connection.fetchrow(
+                "SELECT * FROM generated_document WHERE id = $1",
+                document_id,
+            )
+        return None if row is None else self._document(row)
+
+    async def invoice_snapshot(
+        self, invoice_id: UUID
+    ) -> InvoiceDocumentSnapshot | None:
         async with self._pool.acquire() as connection:
             row = await connection.fetchrow(
                 """
                 SELECT
-                    document.*,
+                    invoice.id AS invoice_id,
                     invoice.number AS invoice_number,
                     invoice.issued_at AS invoice_issued_at,
                     invoice.issued_on AS invoice_issued_on,
@@ -82,17 +89,25 @@ class AsyncpgGeneratedDocumentRepository(GeneratedDocumentRepository):
                     invoice.gross_minor AS invoice_gross_minor,
                     invoice.currency AS invoice_currency,
                     invoice.payment_reference AS invoice_payment_reference
-                FROM generated_document AS document
-                JOIN invoice ON invoice.id = document.invoice_id
-                WHERE document.id = $1
+                FROM invoice
+                WHERE invoice.id = $1
                 """,
-                document_id,
+                invoice_id,
             )
-        if row is None:
+        return None if row is None else self._invoice_snapshot(row)
+
+    async def invoice_cancellation_document(
+        self, invoice_id: UUID
+    ) -> InvoiceCancellationDocument | None:
+        async with self._pool.acquire() as connection:
+            snapshot = await connection.fetchval(
+                "SELECT snapshot FROM invoice_cancellation WHERE invoice_id = $1",
+                invoice_id,
+            )
+        if snapshot is None:
             return None
-        return GeneratedDocumentRenderJob(
-            document=self._document(row),
-            invoice_snapshot=self._invoice_snapshot(row),
+        return InvoiceCancellationDocument.from_payload(
+            _json_object(snapshot, label="Stornorechnungs-Snapshot")
         )
 
     async def mark_available(
@@ -197,10 +212,11 @@ class AsyncpgGeneratedDocumentRepository(GeneratedDocumentRepository):
                 WHERE id = $1
                   AND action_id = $2
                   AND status = 'available'
-                  AND document_type = 'invoice_pdf'
+                  AND document_type = ANY($3::text[])
                 """,
                 document_id,
                 action_id,
+                [item.value for item in GeneratedDocumentType],
             )
         return None if row is None else self._document(row)
 
@@ -219,20 +235,32 @@ class AsyncpgGeneratedDocumentRepository(GeneratedDocumentRepository):
         }
         column = reference_columns[reference.kind]
         predicate = "" if column is None else f"AND document.{column} = $2"
-        parameters: tuple[UUID, ...] = (
-            (action_id,) if column is None else (action_id, reference.id)
+        # Rows of a type this release does not know stay out of the list.
+        known_types = [item.value for item in GeneratedDocumentType]
+        parameters: tuple[object, ...] = (
+            (action_id, known_types)
+            if column is None
+            else (action_id, reference.id, known_types)
         )
+        parameter = len(parameters)
         async with self._pool.acquire() as connection:
             rows = await connection.fetch(
                 f"""
                 SELECT
                     document.*,
                     invoice.number AS invoice_number,
+                    CASE
+                        WHEN document.document_type = 'invoice_cancellation_pdf'
+                        THEN cancellation.number
+                    END AS document_number,
                     commitment.customer_snapshot
                 FROM generated_document AS document
                 LEFT JOIN invoice ON invoice.id = document.invoice_id
+                LEFT JOIN invoice_cancellation AS cancellation
+                  ON cancellation.invoice_id = document.invoice_id
                 LEFT JOIN commitment ON commitment.id = document.commitment_id
                 WHERE document.action_id = $1
+                  AND document.document_type = ANY(${parameter}::text[])
                   {predicate}
                 ORDER BY document.created_at DESC, document.id
                 """,
@@ -259,6 +287,11 @@ class AsyncpgGeneratedDocumentRepository(GeneratedDocumentRepository):
                 else None
             ),
             buyer_display_name=buyer_display_name,
+            document_number=(
+                str(row["document_number"])
+                if row["document_number"] is not None
+                else None
+            ),
         )
 
     @staticmethod

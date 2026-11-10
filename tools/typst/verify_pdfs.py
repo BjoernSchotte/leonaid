@@ -1,4 +1,5 @@
-"""Verify Typst invoices with two independent real PDF engines."""
+"""Verify Typst invoices and cancellation invoices with two independent real
+PDF engines."""
 
 from __future__ import annotations
 
@@ -7,6 +8,8 @@ import hashlib
 import json
 import re
 import sys
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -14,8 +17,14 @@ import fitz  # type: ignore[import-untyped]
 from pypdf import PdfReader
 from pypdf.generic import ArrayObject, DictionaryObject, IndirectObject
 
-from leonaid.adapters.typst import RENDER_VERSION, render_payload
+from leonaid.adapters.typst import (
+    CANCELLATION_RENDER_VERSION,
+    RENDER_VERSION,
+    cancellation_render_payload,
+    render_payload,
+)
 from leonaid.application.invoice_documents import InvoiceDocumentSnapshot
+from leonaid.domain.invoice_cancellation_documents import InvoiceCancellationDocument
 
 A4_WIDTH_POINTS = 595.28
 A4_HEIGHT_POINTS = 841.89
@@ -53,12 +62,21 @@ def _forbidden_keys(value: Any, seen: set[tuple[int, int]]) -> set[str]:
     return set()
 
 
-def _assert_expected_text(
-    *,
-    snapshot: InvoiceDocumentSnapshot,
-    extracted: str,
-    engine: str,
-) -> None:
+@dataclass(frozen=True, slots=True)
+class Subject:
+    """What one rendered document must show, whatever its kind."""
+
+    number: str
+    title: str
+    author: str
+    render_version: str
+    created_at: datetime
+    expected_text: tuple[str, ...]
+    # The multi-page edge cases must break the page.
+    needs_page_break: bool
+
+
+def _invoice_subject(snapshot: InvoiceDocumentSnapshot) -> Subject:
     presentation = render_payload(snapshot)
     payment_details = cast(dict[str, object], presentation["paymentDetails"])
     expected = [
@@ -84,44 +102,103 @@ def _assert_expected_text(
     expected.extend(line.description for line in snapshot.lines)
     rendered_lines = cast(list[dict[str, object]], presentation["lines"])
     expected.extend(str(line["gross"]) for line in rendered_lines)
+    return Subject(
+        number=snapshot.number,
+        title=f"Rechnung {snapshot.number}",
+        author=snapshot.issuer.legal_name,
+        render_version=RENDER_VERSION,
+        created_at=snapshot.issued_at,
+        expected_text=tuple(str(value) for value in expected),
+        needs_page_break=snapshot.number == "KT26-LAYOUT-0001",
+    )
+
+
+def _cancellation_subject(document: InvoiceCancellationDocument) -> Subject:
+    presentation = cancellation_render_payload(document)
+    expected = [
+        "Stornorechnung",
+        document.number,
+        presentation["reference"],
+        presentation["introduction"],
+        document.original_number,
+        document.issuer.legal_name,
+        document.issuer.street_line_1,
+        document.recipient.recipient_name,
+        document.recipient.street_line_1,
+        presentation["issuedOn"],
+        presentation["originalIssuedOn"],
+        # Negative amounts: the minus sign is part of the proof.
+        presentation["net"],
+        presentation["tax"],
+        presentation["gross"],
+        document.tax_note,
+        presentation["closing"],
+    ]
+    expected.extend(line.description for line in document.lines)
+    rendered_lines = cast(list[dict[str, object]], presentation["lines"])
+    expected.extend(str(line["gross"]) for line in rendered_lines)
+    return Subject(
+        number=document.number,
+        title=f"Stornorechnung {document.number}",
+        author=document.issuer.legal_name,
+        render_version=CANCELLATION_RENDER_VERSION,
+        created_at=document.issued_at,
+        expected_text=tuple(str(value) for value in expected),
+        needs_page_break=document.number == "KT26-LAYOUT-0002",
+    )
+
+
+def _assert_expected_text(
+    *,
+    subject: Subject,
+    extracted: str,
+    engine: str,
+) -> None:
     normalized = _normal_text(extracted)
     missing = [
-        str(value) for value in expected if _normal_text(str(value)) not in normalized
+        value
+        for value in subject.expected_text
+        if _normal_text(value) not in normalized
     ]
     if missing:
         raise PdfVerificationError(
-            f"{engine} is missing in {snapshot.number}: {missing[:4]}"
+            f"{engine} is missing in {subject.number}: {missing[:4]}"
         )
 
 
-def _snapshot_from_manifest(item: dict[str, object]) -> InvoiceDocumentSnapshot:
+def _subject_from_manifest(item: dict[str, object]) -> Subject:
     snapshot = item.get("snapshot")
     if not isinstance(snapshot, dict) or not all(
         isinstance(key, str) for key in snapshot
     ):
         raise PdfVerificationError("Renderer manifest contains no snapshot.")
-    return InvoiceDocumentSnapshot.from_payload(snapshot)
+    kind = item.get("kind", "invoice")
+    if kind == "invoice":
+        return _invoice_subject(InvoiceDocumentSnapshot.from_payload(snapshot))
+    if kind == "invoice_cancellation":
+        return _cancellation_subject(InvoiceCancellationDocument.from_payload(snapshot))
+    raise PdfVerificationError(f"Renderer manifest names an unknown kind: {kind}")
 
 
 def _verify_metadata(
     *,
-    snapshot: InvoiceDocumentSnapshot,
+    subject: Subject,
     reader: PdfReader,
 ) -> None:
     metadata = reader.metadata
     if metadata is None:
-        raise PdfVerificationError(f"metadata missing: {snapshot.number}")
-    if metadata.title != f"Rechnung {snapshot.number}":
-        raise PdfVerificationError(f"PDF title is wrong: {snapshot.number}")
-    if metadata.author != snapshot.issuer.legal_name:
-        raise PdfVerificationError(f"PDF author is wrong: {snapshot.number}")
+        raise PdfVerificationError(f"metadata missing: {subject.number}")
+    if metadata.title != subject.title:
+        raise PdfVerificationError(f"PDF title is wrong: {subject.number}")
+    if metadata.author != subject.author:
+        raise PdfVerificationError(f"PDF author is wrong: {subject.number}")
     keywords = str(metadata.get("/Keywords", ""))
-    if "LeonAid" not in keywords or RENDER_VERSION not in keywords:
-        raise PdfVerificationError(f"render version missing: {snapshot.number}")
+    if "LeonAid" not in keywords or subject.render_version not in keywords:
+        raise PdfVerificationError(f"render version missing: {subject.number}")
     creation_date = metadata.creation_date
-    if creation_date is None or creation_date != snapshot.issued_at:
+    if creation_date is None or creation_date != subject.created_at:
         raise PdfVerificationError(
-            f"PDF creation time is not the issue time: {snapshot.number}"
+            f"PDF creation time is not the issue time: {subject.number}"
         )
 
 
@@ -169,7 +246,7 @@ def _assert_golden_images(
 def _verify_one(
     *,
     pdf_path: Path,
-    snapshot: InvoiceDocumentSnapshot,
+    snapshot: Subject,
     image_directory: Path,
     golden_directory: Path | None,
 ) -> dict[str, object]:
@@ -182,8 +259,8 @@ def _verify_one(
         if abs(width - A4_WIDTH_POINTS) > 0.5 or abs(height - A4_HEIGHT_POINTS) > 0.5:
             raise PdfVerificationError(f"page format is not A4: {snapshot.number}")
     pypdf_text = "\n".join(page.extract_text() or "" for page in reader.pages)
-    _assert_expected_text(snapshot=snapshot, extracted=pypdf_text, engine="pypdf")
-    _verify_metadata(snapshot=snapshot, reader=reader)
+    _assert_expected_text(subject=snapshot, extracted=pypdf_text, engine="pypdf")
+    _verify_metadata(subject=snapshot, reader=reader)
     forbidden = _forbidden_keys(reader.trailer, set())
     if forbidden:
         raise PdfVerificationError(
@@ -194,7 +271,7 @@ def _verify_one(
         if document.page_count != len(reader.pages):
             raise PdfVerificationError(f"PDF engines disagree on {snapshot.number}.")
         mupdf_text = "\n".join(page.get_text("text") for page in document)
-        _assert_expected_text(snapshot=snapshot, extracted=mupdf_text, engine="MuPDF")
+        _assert_expected_text(subject=snapshot, extracted=mupdf_text, engine="MuPDF")
         font_xrefs = {
             int(font[0])
             for page in document
@@ -211,12 +288,12 @@ def _verify_one(
                 )
         images = _render_pages(document, image_directory, snapshot.number)
 
-    if snapshot.number == "KT26-LAYOUT-0001" and len(images) < 2:
-        raise PdfVerificationError("The layout edge case produces no page break.")
-    if golden_directory is not None and snapshot.number in {
-        "KT26-0001",
-        "KT26-LAYOUT-0001",
-    }:
+    if snapshot.needs_page_break and len(images) < 2:
+        raise PdfVerificationError(
+            f"The layout edge case produces no page break: {snapshot.number}"
+        )
+    # Every rendered document has approved reference images.
+    if golden_directory is not None:
         _assert_golden_images(
             rendered=images,
             golden_directory=golden_directory,
@@ -236,13 +313,14 @@ def verify(
     pdf_directory: Path,
     image_directory: Path,
     golden_directory: Path | None,
-    template: Path,
+    templates: list[Path],
 ) -> list[dict[str, object]]:
-    template_source = template.read_text(encoding="utf-8")
-    if re.search(r"https?://|@preview|#image\s*\(", template_source, re.I):
-        raise PdfVerificationError(
-            "The invoice template references an external runtime resource."
-        )
+    for template in templates:
+        template_source = template.read_text(encoding="utf-8")
+        if re.search(r"https?://|@preview|#image\s*\(", template_source, re.I):
+            raise PdfVerificationError(
+                f"The template {template.name} references an external runtime resource."
+            )
     manifest_value: Any = json.loads(
         (pdf_directory / "contract-manifest.json").read_text(encoding="utf-8")
     )
@@ -255,7 +333,7 @@ def verify(
             isinstance(key, str) for key in value
         ):
             raise PdfVerificationError("Renderer manifest contains an invalid entry.")
-        snapshot = _snapshot_from_manifest(value)
+        snapshot = _subject_from_manifest(value)
         pdf_path = pdf_directory / str(value.get("filename"))
         expected_digest = str(value.get("sha256"))
         actual_digest = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
@@ -284,7 +362,9 @@ def main() -> int:
     parser.add_argument(
         "--template",
         type=Path,
+        action="append",
         required=True,
+        help="A versioned Typst template; repeat for every document kind.",
     )
     arguments = parser.parse_args()
     try:
@@ -292,7 +372,7 @@ def main() -> int:
             pdf_directory=arguments.pdf_directory,
             image_directory=arguments.image_directory,
             golden_directory=arguments.golden_directory,
-            template=arguments.template,
+            templates=arguments.template,
         )
     except (OSError, PdfVerificationError, ValueError) as error:
         print(f"typst-pdf-verification: ERROR: {error}", file=sys.stderr)

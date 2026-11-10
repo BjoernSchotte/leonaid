@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-import hashlib
+import asyncio
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Protocol
 from uuid import UUID
 
+from leonaid.application.rendered_documents import (
+    DocumentRendering,
+    RenderedDocument,
+)
 from leonaid.domain.commitments import InvoiceRecipientSnapshot, Money
+from leonaid.domain.documents import GeneratedDocument
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.invoices import (
     Invoice,
@@ -197,35 +202,45 @@ class InvoiceDocumentSnapshot:
         )
 
 
-@dataclass(frozen=True, slots=True)
-class RenderedInvoiceDocument:
-    content: bytes
-    filename: str
-    media_type: str
-    render_version: str
-    sha256: str
-
-    @classmethod
-    def create(
-        cls,
-        *,
-        content: bytes,
-        filename: str,
-        render_version: str,
-    ) -> RenderedInvoiceDocument:
-        if not content.startswith(b"%PDF-") or b"%%EOF" not in content[-1_024:]:
-            raise DomainInvariantError(
-                "invoice_document_pdf_invalid",
-                "Der Renderer hat kein vollständiges PDF erzeugt.",
-            )
-        return cls(
-            content=content,
-            filename=filename,
-            media_type="application/pdf",
-            render_version=render_version,
-            sha256=hashlib.sha256(content).hexdigest(),
-        )
+# The first document kind named the type; every kind shares it now.
+RenderedInvoiceDocument = RenderedDocument
 
 
 class InvoicePdfRenderer(Protocol):
-    def render(self, snapshot: InvoiceDocumentSnapshot) -> RenderedInvoiceDocument: ...
+    def render(self, snapshot: InvoiceDocumentSnapshot) -> RenderedDocument: ...
+
+
+class InvoiceSnapshotReader(Protocol):
+    async def invoice_snapshot(
+        self, invoice_id: UUID
+    ) -> InvoiceDocumentSnapshot | None: ...
+
+
+class InvoiceDocumentSource:
+    """The ``invoice_pdf`` document: the issued invoice, rendered once."""
+
+    def __init__(
+        self,
+        *,
+        snapshots: InvoiceSnapshotReader,
+        renderer: InvoicePdfRenderer,
+    ) -> None:
+        self._snapshots = snapshots
+        self._renderer = renderer
+
+    async def render(self, document: GeneratedDocument) -> DocumentRendering:
+        if document.invoice_id is None:
+            raise RuntimeError("Das Rechnungsdokument verweist auf keine Rechnung.")
+        snapshot = await self._snapshots.invoice_snapshot(document.invoice_id)
+        if snapshot is None:
+            raise RuntimeError("Die Rechnung des Dokuments wurde nicht gefunden.")
+        # Typst runs as a blocking subprocess; keep the worker event loop free.
+        rendered = await asyncio.to_thread(self._renderer.render, snapshot)
+        return DocumentRendering(
+            rendered=rendered,
+            storage_path=f"invoices/{snapshot.invoice_id}",
+            metadata={
+                "invoice-id": str(snapshot.invoice_id),
+                "invoice-number": snapshot.number,
+            },
+        )

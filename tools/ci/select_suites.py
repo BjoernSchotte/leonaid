@@ -513,6 +513,7 @@ RULES: tuple[Rule, ...] = (
             "tools/invoice_delivery/**",
             "tools/invoice_settlements/**",
             "tests/e2e/invoice-delivery.spec.mjs",
+            "tests/e2e/order-cancellation-send.spec.mjs",
             "tests/e2e/invoice-settlements.spec.mjs",
             "tests/e2e/invoices-keyboard.spec.mjs",
         ),
@@ -527,6 +528,7 @@ RULES: tuple[Rule, ...] = (
         (
             "tools/schema/**",
             "tests/integration/test_order_cancellation_api.py",
+            "tests/integration/test_cancellation_invoice_api.py",
             "tests/integration/test_offline_capture_api.py",
             "tests/integration/test_campaign_renderer_api.py",
         ),

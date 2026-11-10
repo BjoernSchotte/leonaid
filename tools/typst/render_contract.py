@@ -1,4 +1,5 @@
-"""Exercise deterministic normal and multi-page invoice rendering."""
+"""Exercise deterministic normal and multi-page rendering of invoices and
+cancellation invoices."""
 
 from __future__ import annotations
 
@@ -8,9 +9,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from leonaid.adapters.typst import TypstInvoiceRenderer, TypstRenderError
+from leonaid.adapters.typst import (
+    TypstInvoiceCancellationRenderer,
+    TypstInvoiceRenderer,
+    TypstRenderError,
+)
 from leonaid.application.invoice_documents import InvoiceDocumentSnapshot
 from leonaid.domain.errors import DomainInvariantError
+from leonaid.domain.invoice_cancellation_documents import InvoiceCancellationDocument
 
 
 class RenderContractError(RuntimeError):
@@ -76,14 +82,33 @@ def _stress_snapshot(base: dict[str, object]) -> InvoiceDocumentSnapshot:
     return InvoiceDocumentSnapshot.from_payload(payload)
 
 
+def _stress_cancellation(
+    invoice_base: dict[str, object],
+    cancellation_base: dict[str, object],
+) -> InvoiceCancellationDocument:
+    """A cancellation invoice of the multi-page invoice, with money received."""
+
+    original = _stress_snapshot(invoice_base)
+    payload = json.loads(json.dumps(cancellation_base))
+    payload["cancellationId"] = "97000000-0000-4000-8000-000000000091"
+    payload["invoiceId"] = str(original.invoice_id)
+    payload["number"] = "KT26-LAYOUT-0002"
+    payload["originalNumber"] = original.number
+    payload["recipient"] = original.recipient.payload()
+    payload["lines"] = [line.payload() for line in original.lines]
+    payload["totals"] = original.payload()["totals"]
+    payload["receivedMinor"] = original.gross.amount_minor
+    return InvoiceCancellationDocument.from_payload(payload)
+
+
 def _render_twice(
     *,
-    renderer: TypstInvoiceRenderer,
-    snapshot: InvoiceDocumentSnapshot,
+    renderer: TypstInvoiceRenderer | TypstInvoiceCancellationRenderer,
+    snapshot: InvoiceDocumentSnapshot | InvoiceCancellationDocument,
     output: Path,
 ) -> dict[str, object]:
-    first = renderer.render(snapshot)
-    second = renderer.render(snapshot)
+    first = renderer.render(snapshot)  # type: ignore[arg-type]
+    second = renderer.render(snapshot)  # type: ignore[arg-type]
     if first.content != second.content or first.sha256 != second.sha256:
         raise RenderContractError(
             f"rendering is not byte-deterministic: {snapshot.number}"
@@ -91,6 +116,11 @@ def _render_twice(
     target = output / f"{snapshot.number}.pdf"
     target.write_bytes(first.content)
     return {
+        "kind": (
+            "invoice_cancellation"
+            if isinstance(snapshot, InvoiceCancellationDocument)
+            else "invoice"
+        ),
         "number": snapshot.number,
         "filename": target.name,
         "renderVersion": first.render_version,
@@ -104,6 +134,7 @@ def run_contract(
     *,
     database_snapshots: Path,
     fixture_directory: Path,
+    cancellation_directory: Path,
     output: Path,
 ) -> list[dict[str, object]]:
     database_value: Any = json.loads(database_snapshots.read_text(encoding="utf-8"))
@@ -139,6 +170,31 @@ def run_contract(
             output=output,
         )
     )
+    # Cancellation invoices: the versioned snapshots and a multi-page one.
+    cancellation_payloads = [
+        _load_payload(path)
+        for path in sorted(cancellation_directory.glob("KT26-*.json"))
+    ]
+    if not cancellation_payloads:
+        raise RenderContractError("No versioned cancellation invoices found.")
+    cancellation_renderer = TypstInvoiceCancellationRenderer()
+    for payload in cancellation_payloads:
+        manifest.append(
+            _render_twice(
+                renderer=cancellation_renderer,
+                snapshot=InvoiceCancellationDocument.from_payload(payload),
+                output=output,
+            )
+        )
+    manifest.append(
+        _render_twice(
+            renderer=cancellation_renderer,
+            snapshot=_stress_cancellation(
+                fixture_payloads[0], cancellation_payloads[-1]
+            ),
+            output=output,
+        )
+    )
     (output / "contract-manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -150,12 +206,14 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("database_snapshots", type=Path)
     parser.add_argument("fixture_directory", type=Path)
+    parser.add_argument("cancellation_directory", type=Path)
     parser.add_argument("output", type=Path)
     arguments = parser.parse_args()
     try:
         manifest = run_contract(
             database_snapshots=arguments.database_snapshots,
             fixture_directory=arguments.fixture_directory,
+            cancellation_directory=arguments.cancellation_directory,
             output=arguments.output,
         )
     except (
@@ -169,7 +227,7 @@ def main() -> int:
         return 1
     print(
         "typst-render-contract: OK: "
-        f"{len(manifest)} invoices rendered twice with identical bytes"
+        f"{len(manifest)} documents rendered twice with identical bytes"
     )
     return 0
 
