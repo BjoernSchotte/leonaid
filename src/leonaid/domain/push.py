@@ -302,6 +302,16 @@ class PushTarget:
     auth: bytes
 
 
+class SubscriptionRefusal(StrEnum):
+    """Why a device was not registered."""
+
+    # The member has the allowed number of other devices already.
+    DEVICE_LIMIT = "device_limit"
+    # The endpoint is registered for another member, and the keys sent are
+    # not that subscription's keys: this is not the same browser.
+    BOUND_TO_ANOTHER_MEMBER = "bound_to_another_member"
+
+
 @dataclass(frozen=True, slots=True)
 class PushSubscription:
     id: UUID

@@ -4,9 +4,9 @@ description: Referenz für lokale und Pilot-Voraussetzungen, Environment-Dateien
 docId: DOC-P026
 audience: [ops]
 diataxis: reference
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 6d17bcfaca798bedf39427163d35a7ccd859a66e
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: 428f51fa79a89c432e294c6688f5e2059f8e9d0d
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -32,7 +32,11 @@ vor jeder Pilotmutation mit `pilot-doctor`.
 
 Die Akquise-App sendet Benachrichtigungen über die Push-Dienste der
 Browserhersteller (Web Push mit VAPID, ADR-0017). Dafür braucht die
-Installation zwei Werte; API und Worker bekommen dieselben.
+Installation zwei Werte in ihrer Environment-Datei. `infra/compose/compose.yml`
+reicht beide an API und Worker weiter; die Pilot-Datei `infra/pilot/compose.yml`
+liegt als Overlay darüber und ändert daran nichts. `pilot-doctor` meldet
+`web_push_not_passed`, wenn ein gesetzter Wert einen der beiden Dienste nicht
+erreicht.
 
 | Variable                    | Bedeutung                                                                                                                                                                                                 |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

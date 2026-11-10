@@ -4,9 +4,9 @@ description: Switch on, test and switch off notifications of the acquisition app
 docId: DOC-P058
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: b1c08d3c04dbf7a46d1bb477753e36ad369a6fec
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: 987e6a1964c6f231d02ec0df045dff3716d0af22
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -83,19 +83,20 @@ none for something you caused yourself.
 
 ## If it does not work
 
-| What you see                                                  | What it means and what helps                                                                                                                                                       |
-| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The menu **Mehr** has no **Benachrichtigungen**               | Your club has not switched the feature on.                                                                                                                                         |
-| **Benachrichtigungen sind noch nicht eingerichtet.**          | The operator has set no key. Ask the system administration.                                                                                                                        |
-| **Lege LeonAid zuerst auf den Home-Bildschirm.**              | iPhone or iPad in a Safari tab. Follow the three steps on the page.                                                                                                                |
-| **Dieser Browser kann keine Benachrichtigungen empfangen.**   | Use a current Chrome, Edge, Firefox or Safari.                                                                                                                                     |
-| **Benachrichtigungen sind im Browser blockiert.**             | You declined the browser's question. Allow notifications for the page in the browser's settings (the lock or settings icon next to the address) and reload.                        |
-| **Dieses Gerät konnte nicht angemeldet werden.**              | The browser did not reach the notification service. Check the connection and try again.                                                                                            |
-| **Das waren viele Tests in kurzer Zeit.**                     | More than five tests in ten minutes, from whatever device. Wait a few minutes.                                                                                                     |
-| The test does not arrive                                      | Check in the device's settings that notifications for LeonAid (or the browser) are allowed and no "do not disturb" is active. Then switch the device off and on again on the page. |
-| Nothing arrives after a sign-out or a long break              | Sign in, open **Benachrichtigungen** and switch them on again on the device. After 90 days without opening the app the sign-in on the device ends.                                 |
-| LeonAid konnte die Anmeldung des Geräts gerade nicht erneuern | The app was opened very often in the last hour. The device stays switched on; **Test senden** and **Auf diesem Gerät ausschalten** are back in about an hour.                      |
-| **Du hast schon zehn Geräte angemeldet.**                     | Switch notifications off on a device you no longer use.                                                                                                                            |
+| What you see                                                           | What it means and what helps                                                                                                                                                       |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The menu **Mehr** has no **Benachrichtigungen**                        | Your club has not switched the feature on.                                                                                                                                         |
+| **Benachrichtigungen sind noch nicht eingerichtet.**                   | The operator has set no key. Ask the system administration.                                                                                                                        |
+| **Lege LeonAid zuerst auf den Home-Bildschirm.**                       | iPhone or iPad in a Safari tab. Follow the three steps on the page.                                                                                                                |
+| **Dieser Browser kann keine Benachrichtigungen empfangen.**            | Use a current Chrome, Edge, Firefox or Safari.                                                                                                                                     |
+| **Benachrichtigungen sind im Browser blockiert.**                      | You declined the browser's question. Allow notifications for the page in the browser's settings (the lock or settings icon next to the address) and reload.                        |
+| **Dieses Gerät konnte nicht angemeldet werden.**                       | The browser did not reach the notification service. Check the connection and try again.                                                                                            |
+| **Das waren viele Tests in kurzer Zeit.**                              | More than five tests in ten minutes, from whatever device. Wait a few minutes.                                                                                                     |
+| The test does not arrive                                               | Check in the device's settings that notifications for LeonAid (or the browser) are allowed and no "do not disturb" is active. Then switch the device off and on again on the page. |
+| Nothing arrives after a sign-out or a long break                       | Sign in, open **Benachrichtigungen** and switch them on again on the device. After 90 days without opening the app the sign-in on the device ends.                                 |
+| LeonAid konnte die Anmeldung des Geräts gerade nicht erneuern          | The app was opened very often in the last hour. The device stays switched on; **Test senden** and **Auf diesem Gerät ausschalten** are back in about an hour.                      |
+| **Benachrichtigungen ließen sich auf diesem Gerät nicht einschalten.** | LeonAid could not register the device, also not with a new subscription of the browser. Try again later.                                                                           |
+| **Du hast schon zehn Geräte angemeldet.**                              | Switch notifications off on a device you no longer use.                                                                                                                            |
 
 ## Limits
 
