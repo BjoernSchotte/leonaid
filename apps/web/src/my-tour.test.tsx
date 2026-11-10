@@ -896,6 +896,109 @@ describe("Meine Tour", () => {
     expect(names()).toEqual(["Autohaus Nord", "Bäckerei Kern", "Praxis Süd"]);
   });
 
+  it("back on a day whose released save still runs, a move takes that save's revision", async () => {
+    stackRows();
+    const DAY2 = "2099-12-06";
+    const client = fakeClient({ ...myTour(), days: [DAY, DAY2] });
+    const dayB = myTour({
+      day: DAY2,
+      windows: [
+        tourWindow("w9", `${DAY2}T07:00:00Z`, `${DAY2}T09:00:00Z`, [
+          stop(drop("c9", "Hotel Ost", "w9"), 1),
+        ]),
+      ],
+    });
+    const loadFirst = vi.mocked(client.getMyTour).getMockImplementation()!;
+    vi.mocked(client.getMyTour).mockImplementation(
+      async (action: string, query?: { day?: string | null }) =>
+        query?.day === DAY2
+          ? { ...dayB, days: [DAY, DAY2] }
+          : loadFirst(action, query),
+    );
+    strictRevisions(client);
+    const releaseFirst = holdNextSave(client);
+    await renderTour(client);
+    const chooseDay = async (value: string) => {
+      fireEvent.click(screen.getByRole("button", { name: "Tour-Menü" }));
+      fireEvent.change(await screen.findByTestId("tour-day-select"), {
+        target: { value },
+      });
+    };
+    await keyboardMove("Bäckerei Kern", "ArrowDown");
+    // Day B: the move of day A goes out and waits for Core.
+    await chooseDay(DAY2);
+    await waitFor(() => expect(names()).toEqual(["Hotel Ost"]));
+    expect(client.saveMyTourOrder).toHaveBeenCalledTimes(1);
+    // Back on day A (still r1 there), a move before that save returns.
+    await chooseDay(DAY);
+    await waitFor(() =>
+      expect(names()).toEqual(["Bäckerei Kern", "Autohaus Nord", "Praxis Süd"]),
+    );
+    await keyboardMove("Autohaus Nord", "ArrowUp");
+    await releaseFirst();
+    await waitFor(
+      () => expect(client.saveMyTourOrder).toHaveBeenCalledTimes(2),
+      { timeout: 3_000 },
+    );
+    expect(vi.mocked(client.saveMyTourOrder).mock.calls[1]![1]).toEqual({
+      commitmentIds: ["c2", "c1", "c3"],
+      day: DAY,
+      expectedRevision: "r2",
+    });
+    await screen.findByText("Reihenfolge gespeichert.", undefined, {
+      timeout: 3_000,
+    });
+    expect(
+      screen.queryByText("Die Tour wurde inzwischen geändert."),
+    ).toBeNull();
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("a failed undo drops the move waiting behind it: one error, no second save", async () => {
+    stackRows();
+    const client = fakeClient(
+      myTour({
+        windows: [
+          tourWindow("w1", `${DAY}T07:00:00Z`, `${DAY}T09:00:00Z`, [
+            stop(drop("c1", "Bäckerei Kern", "w1"), 1),
+            stop(drop("c2", "Autohaus Nord", "w1"), 2),
+            stop(drop("c3", "Praxis Süd", "w1"), 3),
+          ]),
+        ],
+      }),
+    );
+    await renderTour(client);
+    await keyboardMove("Praxis Süd", "ArrowUp");
+    await screen.findByText("Reihenfolge gespeichert.", undefined, {
+      timeout: 3_000,
+    });
+    const undo = screen.getByRole("button", { name: "Rückgängig" });
+    const releaseSecond = holdNextSave(client);
+    // The undo (third save) meets a change by the planner.
+    vi.mocked(client.saveMyTourOrder).mockRejectedValueOnce(
+      new ApiError(409, {
+        code: "tour_revision_conflict",
+        message: "Die Tour wurde inzwischen geändert.",
+        requestId: "req-undo",
+      }),
+    );
+    await keyboardMove("Praxis Süd", "ArrowUp");
+    await pauseOver();
+    fireEvent.click(undo);
+    await keyboardMove("Autohaus Nord", "ArrowUp");
+    await releaseSecond();
+    await screen.findByText("Die Tour wurde inzwischen geändert.", undefined, {
+      timeout: 3_000,
+    });
+    // The follower's pause runs out: it is not sent.
+    await pauseOver();
+    await pauseOver();
+    expect(client.saveMyTourOrder).toHaveBeenCalledTimes(3);
+    expect(
+      screen.getAllByText("Die Tour wurde inzwischen geändert."),
+    ).toHaveLength(1);
+  });
+
   it("a day switch sends a waiting move of a tour already off screen, without undo", async () => {
     stackRows();
     const DAY2 = "2099-12-06";

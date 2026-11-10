@@ -46,11 +46,14 @@ interface Burst<C> {
   /** This burst is an undo: its toast has no "Rückgängig". */
   readonly undo: boolean;
   /**
-   * Queued behind an own save of its tour that is not through yet (an
-   * undo, or a move made while an undo waits): its first save sends the
-   * revision the last of them returned.
+   * Started while an own save of its tour was not through yet (an undo, a
+   * move made while an undo waits, or a move after a switch back to a tour
+   * whose released save still runs): its first save sends the revision the
+   * last of them returned, and it is dropped if one of them failed.
    */
   readonly follows: boolean;
+  /** Failed saves of its tour when it started (see `follows`). */
+  readonly failuresAtStart: number;
   /** The page left this context: the save still goes out, without undo. */
   released: boolean;
   /**
@@ -83,6 +86,12 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
     const chains = new Map<string, Promise<void>>();
     /** The revision the last own save of each tour returned. */
     const revisions = new Map<string, string>();
+    /** Saves of each tour queued or running. */
+    const pending = new Map<string, number>();
+    /** Failed saves of each tour (shown with onFailed). */
+    const failures = new Map<string, number>();
+    const count = (map: Map<string, number>, key: string, by: number) =>
+      map.set(key, (map.get(key) ?? 0) + by);
 
     const hide = (key: string) =>
       setOrders((current) => {
@@ -110,6 +119,12 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
       // the last of them returned (a newer move may have saved after the
       // toast showed).
       if (burst.follows && burst.sentSeq === 0) {
+        // A save it followed failed: the tour reloads with the server's
+        // order, and this one would only fail again.
+        if ((failures.get(key) ?? 0) !== burst.failuresAtStart) {
+          forget(key, burst);
+          return;
+        }
         burst.revision = revisions.get(key) ?? burst.revision;
       }
       try {
@@ -143,6 +158,7 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
         });
       } catch (error) {
         if (burst.cancelled) return;
+        count(failures, key, 1);
         forget(key, burst);
         options.onFailed(key, error, context);
       }
@@ -151,9 +167,10 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
     const queue = (key: string, burst: Burst<C>) => {
       if (burst.timer) window.clearTimeout(burst.timer);
       burst.timer = null;
-      const chain = (chains.get(key) ?? Promise.resolve()).then(() =>
-        send(key, burst),
-      );
+      count(pending, key, 1);
+      const chain = (chains.get(key) ?? Promise.resolve())
+        .then(() => send(key, burst))
+        .finally(() => count(pending, key, -1));
       chains.set(key, chain);
       return chain;
     };
@@ -181,6 +198,7 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
         timer: null,
         undo,
         follows,
+        failuresAtStart: failures.get(key) ?? 0,
         released: false,
         cancelled: false,
       };
@@ -200,11 +218,19 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
     ) {
       const waiting = bursts.get(key);
       // A move never joins an undo: it becomes its own burst behind it,
-      // with its own toast and "Rückgängig".
+      // with its own toast and "Rückgängig". Behind any save of the tour
+      // still running (also a released one) it takes that save's revision.
       const burst =
         waiting && !waiting.undo
           ? waiting
-          : start(key, current, revision, context, false, Boolean(waiting));
+          : start(
+              key,
+              current,
+              revision,
+              context,
+              false,
+              Boolean(waiting) || (pending.get(key) ?? 0) > 0,
+            );
       burst.ids = next;
       burst.seq += 1;
       if (burst.timer) window.clearTimeout(burst.timer);
