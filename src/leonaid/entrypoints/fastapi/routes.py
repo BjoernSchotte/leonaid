@@ -1595,6 +1595,13 @@ def public_action_route_response(
                             route.order_form.configuration.require_billing_address
                         ),
                         allow_message=route.order_form.configuration.allow_message,
+                        donation_receiving_body=(
+                            legal_configuration.configuration.donations.legal_name
+                            if route.order_form.configuration.allow_donation
+                            and ActionCapability.DONATIONS in action.capabilities
+                            and legal_configuration.configuration.donations is not None
+                            else None
+                        ),
                         access_token=access_token,
                         privacy_notice_version=(
                             legal_configuration.configuration.consent_text_version
@@ -1693,6 +1700,7 @@ def charity_action_configuration_response(
                     configuration.order_form.configuration.require_billing_address
                 ),
                 allow_message=(configuration.order_form.configuration.allow_message),
+                allow_donation=(configuration.order_form.configuration.allow_donation),
             )
             if configuration.order_form is not None
             else None
@@ -2555,6 +2563,7 @@ def public_order_draft(body: CreatePublicOrderRequest) -> PublicOrderDraft:
         binding_order_confirmed=body.binding_order_confirmed,
         privacy_notice_version=body.privacy_notice_version,
         website=body.website,
+        donation_amount_minor=body.donation_amount_minor,
     )
 
 

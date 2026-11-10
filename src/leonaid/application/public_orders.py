@@ -42,6 +42,10 @@ from leonaid.domain.commitments import (
     InvoiceRecipientSnapshot,
 )
 from leonaid.domain.delivery import DeliveryContactSnapshot, DeliveryConfiguration
+from leonaid.domain.donations import (
+    ORDER_DONATION_MAXIMUM_MINOR,
+    ORDER_DONATION_MINIMUM_MINOR,
+)
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.legal_configuration import LegalConfigurationVersion
 from leonaid.domain.text import has_link_markers, has_unsafe_characters
@@ -229,10 +233,21 @@ class PublicOrderDraft:
 
     delivery_window_id: UUID | None = None
     delivery_contact: DeliveryContactSnapshot | None = None
+    # A voluntary extra donation, not part of the order total (ADR-0016).
+    donation_amount_minor: int | None = None
 
     def __post_init__(self) -> None:
         if self.delivery_contact is not None and self.delivery_contact.empty:
             object.__setattr__(self, "delivery_contact", None)
+        if self.donation_amount_minor is not None and not (
+            ORDER_DONATION_MINIMUM_MINOR
+            <= self.donation_amount_minor
+            <= ORDER_DONATION_MAXIMUM_MINOR
+        ):
+            raise DomainInvariantError(
+                "public_order_donation_amount_invalid",
+                "Eine Zusatzspende beträgt zwischen 1,00 € und 10.000,00 €.",
+            )
         if not self.lines:
             raise DomainInvariantError(
                 "public_order_lines_required",
@@ -363,6 +378,8 @@ class PublicOrderDraft:
             payload["deliveryWindowId"] = str(self.delivery_window_id)
         if self.delivery_contact is not None:
             payload["deliveryContact"] = self.delivery_contact.payload()
+        if self.donation_amount_minor is not None:
+            payload["donationAmountMinor"] = self.donation_amount_minor
         canonical = json.dumps(
             payload,
             ensure_ascii=False,
@@ -530,6 +547,9 @@ class PublicOrderContext:
     # True when the action has the delivery capability (physical goods that
     # are handed over at an address).
     delivers: bool = False
+    # Name of the receiving body when the form may carry an extra donation:
+    # the form allows it, the action takes donations, a body is configured.
+    donation_receiving_body: str | None = None
 
     @property
     def requires_delivery_recipient(self) -> bool:
@@ -759,6 +779,14 @@ class PublicOrderService:
             raise DomainInvariantError(
                 "public_order_message_forbidden",
                 "Für dieses Formular ist keine Nachricht vorgesehen.",
+            )
+        if (
+            draft.donation_amount_minor is not None
+            and context.donation_receiving_body is None
+        ):
+            raise Conflict(
+                "public_order_donation_not_offered",
+                "Über dieses Formular kann derzeit keine Spende zugesagt werden.",
             )
 
     async def _resolve_party(

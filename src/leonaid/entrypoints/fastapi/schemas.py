@@ -1050,6 +1050,13 @@ class PublicOrderFormResponse(TransportModel):
     require_delivery_address: bool
     require_billing_address: bool
     allow_message: bool
+    donation_receiving_body: str | None = Field(
+        description=(
+            "Name of the body that receives an extra donation. Null: this "
+            "form offers no donation (flag off, capability off or no "
+            "receiving body configured)."
+        ),
+    )
     access_token: str
     privacy_notice_version: str
     privacy_notice_text: str
@@ -1221,6 +1228,10 @@ class CreatePublicOrderRequest(TransportModel):
         pattern=r"^[a-z0-9][a-z0-9._-]{2,63}$",
     )
     website: str | None = Field(default=None, max_length=300)
+    # A voluntary extra donation in cents (1,00 € to 10.000,00 €); only when
+    # the form offers it (`orderForm.donationReceivingBody`). Not part of
+    # the order total.
+    donation_amount_minor: int | None = Field(default=None, ge=100, le=1_000_000)
 
 
 class PublicOrderQuantityResponse(TransportModel):
@@ -1319,6 +1330,7 @@ class OrderFormConfigurationResponse(TransportModel):
     require_delivery_address: bool
     require_billing_address: bool
     allow_message: bool
+    allow_donation: bool
 
 
 class CharityActionConfigurationResponse(TransportModel):

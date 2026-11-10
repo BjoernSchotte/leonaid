@@ -145,7 +145,8 @@ class DonationPledgeDeliveryDraft:
     recipient_email: str
     subject: str
     text: str
-    requested_by_user_id: UUID
+    # None: the pledge mail that follows a public order by itself.
+    requested_by_user_id: UUID | None
     requested_at: datetime
 
 
@@ -153,7 +154,7 @@ def pledge_delivery_draft(
     context: DonationPledgeDeliveryContext,
     *,
     idempotency_key: str,
-    requested_by_user_id: UUID,
+    requested_by_user_id: UUID | None,
     requested_at: datetime,
 ) -> DonationPledgeDeliveryDraft:
     """The cover mail of a donation pledge; sender is the receiving body."""

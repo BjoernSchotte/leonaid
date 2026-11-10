@@ -19,7 +19,12 @@ from leonaid.adapters.postgres.delivery import (
     write_order_delivery,
 )
 
+from leonaid.adapters.postgres.donations import (
+    donation_offered,
+    pledge_order_donation,
+)
 from leonaid.adapters.postgres.order_mails import insert_order_mail_event
+from leonaid.domain.donations import DonationSource
 from leonaid.adapters.postgres.order_numbers import (
     ORDER_NUMBER_ATTEMPTS,
     free_order_number,
@@ -321,6 +326,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
                 form.require_delivery_address,
                 form.require_billing_address,
                 form.allow_message,
+                form.allow_donation,
                 EXISTS (
                     SELECT 1
                     FROM charity_action_capability
@@ -378,6 +384,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
             action_name=str(row["name"]),
             delivery_configuration=await lock_configuration(connection, action_id),
             delivers=bool(row["delivery_enabled"]),
+            donation_receiving_body=await donation_offered(connection, action_id),
             order_form=OrderFormConfiguration(
                 form_key=str(row["form_key"]),
                 title=str(row["title"]),
@@ -390,6 +397,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
                 require_delivery_address=bool(row["require_delivery_address"]),
                 require_billing_address=bool(row["require_billing_address"]),
                 allow_message=bool(row["allow_message"]),
+                allow_donation=bool(row["allow_donation"]),
             ),
         )
 
@@ -471,6 +479,32 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
         commitment = await self._insert_numbered(
             connection, commitment=commitment, occurred_at=occurred_at
         )
+        if draft.donation_amount_minor is not None:
+            if context.donation_receiving_body is None:
+                raise Conflict(
+                    "public_order_donation_not_offered",
+                    "Über dieses Formular kann derzeit keine Spende zugesagt werden.",
+                )
+            # A public order is binding at once: the donation gets its
+            # number here, and its pledge goes out by mail by itself.
+            await connection.execute(
+                "UPDATE commitment SET donation_pledge_minor = $2 WHERE id = $1",
+                commitment.id,
+                draft.donation_amount_minor,
+            )
+            await pledge_order_donation(
+                connection,
+                action_id=action_id,
+                commitment_id=commitment.id,
+                amount_minor=draft.donation_amount_minor,
+                recipient=draft.invoice_recipient,
+                buyer=party.buyer,
+                source=DonationSource.PUBLIC_FORM,
+                actor_user_id=None,
+                request_id=request_id,
+                occurred_at=occurred_at,
+                send_pledge=True,
+            )
         consent_person_id = party.contact_twenty_id or party.buyer.person_id
         consent_company_id = (
             party.buyer.company_id if consent_person_id is None else None
