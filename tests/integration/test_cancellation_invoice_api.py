@@ -1453,7 +1453,10 @@ class Proof:
             await self.db.execute(
                 """
                 UPDATE outbox_event
-                SET status = 'dead_letter', dead_lettered_at = CURRENT_TIMESTAMP
+                SET status = 'dead_letter', dead_lettered_at = CURRENT_TIMESTAMP,
+                    attempts = 5, last_attempt_at = CURRENT_TIMESTAMP,
+                    last_error_code = 'typstrendererror',
+                    last_error_detail = 'typstrendererror'
                 WHERE aggregate_type = 'generated_document' AND aggregate_id = $1
                 """,
                 document["id"],
@@ -1476,7 +1479,9 @@ class Proof:
             """
             UPDATE outbox_event
             SET status = 'dead_letter', dead_lettered_at = CURRENT_TIMESTAMP,
-                attempts = 1, last_error_code = 'invoice_delivery_document_failed'
+                attempts = 1, last_attempt_at = CURRENT_TIMESTAMP,
+                last_error_code = 'invoice_delivery_document_failed',
+                last_error_detail = 'invoice_delivery_document_failed'
             WHERE id = (
                 SELECT outbox_event_id FROM invoice_delivery WHERE id = $1
             )

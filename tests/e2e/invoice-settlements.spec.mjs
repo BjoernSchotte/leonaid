@@ -297,6 +297,38 @@ test("charity admin books partial and full payments and reverses an entry", asyn
       fullPage: true,
     });
 
+    // A wrong click does not stay: the marker is taken back with a reason,
+    // the refund is open again, and the record keeps both people.
+    await older.getByTestId("open-refund-withdrawal-form").click();
+    const withdrawalDialog = page.getByRole("alertdialog", {
+      name: /Erstattung für KT26-0003 zurücknehmen\?/,
+    });
+    await expect(withdrawalDialog).toBeVisible();
+    await withdrawalDialog
+      .getByTestId("refund-withdrawal-reason")
+      .fill("Falsche Rechnung angeklickt");
+    await withdrawalDialog.getByTestId("withdraw-refund").click();
+    await expect(withdrawalDialog).toBeHidden();
+    await expect(older.getByTestId("invoice-refund-open")).toContainText(
+      "Erstattung offen",
+    );
+    await expect(
+      older.getByTestId("cancellation-refund-withdrawal"),
+    ).toContainText("Falsche Rechnung angeklickt");
+    await olderInvoice.scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: `${artifactDirectory}/invoice-refund-withdrawn.png`,
+      fullPage: true,
+    });
+    await older.getByTestId("open-refund-form").click();
+    await page
+      .getByRole("dialog", { name: /Erstattung für KT26-0003 erledigt\?/ })
+      .getByTestId("settle-refund")
+      .click();
+    await expect(older.getByTestId("cancellation-refund")).toContainText(
+      "Erstattung erledigt am",
+    );
+
     await expectNoSeriousAccessibilityViolations(page);
     expect(pageErrors).toEqual([]);
   } finally {

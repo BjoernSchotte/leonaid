@@ -170,6 +170,7 @@ for screenshot in \
   invoice-cancellation-older.png \
   invoice-refund-dialog.png \
   invoice-refund-settled.png \
+  invoice-refund-withdrawn.png \
   invoice-finance-readonly-mobile.png \
   invoice-keyboard-filter.png; do
   if [ ! -s "$proof/$screenshot" ]; then

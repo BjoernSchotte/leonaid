@@ -1224,9 +1224,16 @@ async def assert_after_browser(
                  WHERE entity_id = cancellation.id
                    AND event_type IN (
                      'invoice_cancellation_document_issued',
-                     'invoice_refund_settled'
+                     'invoice_refund_settled',
+                     'invoice_refund_withdrawn'
                    )
-               ) AS audits
+               ) AS audits,
+               (
+                 SELECT count(*) FROM invoice_refund_withdrawal AS withdrawal
+                 WHERE withdrawal.invoice_cancellation_id = cancellation.id
+                   AND withdrawal.settled_by_user_id
+                       = withdrawal.withdrawn_by_user_id
+               ) AS withdrawals
         FROM invoice_cancellation AS cancellation
         WHERE cancellation.invoice_id = $1
         """,
@@ -1239,11 +1246,13 @@ async def assert_after_browser(
         or older["issued_at"] <= older["requested_at"]
         or older["received_minor"] != "3600"
         or older["refund_settled_on"] is None
-        or older["audits"] != 2
+        # Issued once, settled, withdrawn, settled again.
+        or older["audits"] != 4
+        or older["withdrawals"] != 1
     ):
         raise ContractFailure(
-            "The older cancellation got no cancellation invoice or refund "
-            f"marker in the browser: {dict(older or {})}"
+            "The older cancellation got no cancellation invoice, refund "
+            f"marker or withdrawal in the browser: {dict(older or {})}"
         )
     print(
         "invoice-settlement-contract: partial, over and full payments, reversals, "
