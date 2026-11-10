@@ -147,6 +147,19 @@ class AcquirerDashboard:
 
 
 @dataclass(frozen=True, slots=True)
+class DonationOverview:
+    """Donations of the action, next to its order figures (ADR-0016)."""
+
+    # The action has the ``donations`` capability.
+    enabled: bool = False
+    pledged: int = 0
+    paid: int = 0
+    # What arrived, and what is pledged and not paid yet.
+    received_minor: int = 0
+    pledged_open_minor: int = 0
+
+
+@dataclass(frozen=True, slots=True)
 class CharityAdminDashboard:
     pipeline: PipelineCounts
     commitments: CommitmentCounts
@@ -154,6 +167,7 @@ class CharityAdminDashboard:
     # The last ORDER_VALUE_WEEKS weeks, oldest first; the last one is current.
     order_value_weeks: tuple[OrderValueWeek, ...] = ()
     delivery: DeliveryOverview = DeliveryOverview()
+    donations: DonationOverview = DonationOverview()
 
 
 @dataclass(frozen=True, slots=True)

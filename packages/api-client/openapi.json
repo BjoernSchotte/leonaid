@@ -2986,6 +2986,9 @@
           "delivery": {
             "$ref": "#/components/schemas/DashboardDeliveryResponse"
           },
+          "donations": {
+            "$ref": "#/components/schemas/DashboardDonationResponse"
+          },
           "invoices": {
             "$ref": "#/components/schemas/DashboardInvoiceResponse"
           },
@@ -3005,7 +3008,8 @@
           "commitments",
           "invoices",
           "orderValueWeeks",
-          "delivery"
+          "delivery",
+          "donations"
         ],
         "title": "CharityAdminDashboardResponse",
         "type": "object"
@@ -5629,6 +5633,45 @@
           "fullyBooked"
         ],
         "title": "DashboardDeliveryWindowResponse",
+        "type": "object"
+      },
+      "DashboardDonationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "description": "The action has the donations capability.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "paid": {
+            "minimum": 0.0,
+            "title": "Paid",
+            "type": "integer"
+          },
+          "pledged": {
+            "minimum": 0.0,
+            "title": "Pledged",
+            "type": "integer"
+          },
+          "pledgedOpenMinor": {
+            "minimum": 0.0,
+            "title": "Pledgedopenminor",
+            "type": "integer"
+          },
+          "receivedMinor": {
+            "minimum": 0.0,
+            "title": "Receivedminor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled",
+          "pledged",
+          "paid",
+          "receivedMinor",
+          "pledgedOpenMinor"
+        ],
+        "title": "DashboardDonationResponse",
         "type": "object"
       },
       "DashboardGoalResponse": {

@@ -411,6 +411,7 @@ def navigation_for(
     *,
     delivery: bool = False,
     cms: bool = False,
+    donations: bool = False,
 ) -> tuple[NavigationItem, ...]:
     """Core navigation plus registered module items, filtered by the server.
 
@@ -490,6 +491,12 @@ def navigation_for(
         items.append(
             NavigationItem("invoices", "Rechnungen", ADMIN_BASE + "invoices", "web")
         )
+    # Only where an action the account manages or reads the finances of
+    # takes donations (``donations``: the capability is on).
+    if donations:
+        items.append(
+            NavigationItem("donations", "Spenden", ADMIN_BASE + "donations", "web")
+        )
     if ActionRole.ACQUIRER in action_roles:
         items.extend(
             (
@@ -548,6 +555,8 @@ class IdentityQueryService:
         | None = None,
         delivery_navigation: Callable[[IdentityPrincipal], Awaitable[bool]]
         | None = None,
+        donations_navigation: Callable[[IdentityPrincipal], Awaitable[bool]]
+        | None = None,
         cms_enabled: bool = False,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
@@ -557,6 +566,7 @@ class IdentityQueryService:
         self._cms_enabled = cms_enabled
         self._module_navigation = module_navigation
         self._delivery_navigation = delivery_navigation
+        self._donations_navigation = donations_navigation
         self._fresh_login_window = fresh_login_window
         self._clock = clock or (lambda: datetime.now(timezone.utc))
 
@@ -648,6 +658,11 @@ class IdentityQueryService:
                 else False
             ),
             cms=self._cms_enabled,
+            donations=(
+                await self._donations_navigation(principal)
+                if self._donations_navigation is not None
+                else False
+            ),
         )
         return CurrentIdentity(
             user_id=principal.account.id,

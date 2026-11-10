@@ -348,6 +348,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     DashboardCommitmentResponse,
     DashboardGoalResponse,
     DashboardDeliveryResponse,
+    DashboardDonationResponse,
     DashboardDeliveryWindowResponse,
     DashboardInvoiceResponse,
     DashboardOrderValueWeekResponse,
@@ -1324,6 +1325,13 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                     )
                     for window in admin.delivery.windows
                 ],
+            ),
+            donations=DashboardDonationResponse(
+                enabled=admin.donations.enabled,
+                pledged=admin.donations.pledged,
+                paid=admin.donations.paid,
+                received_minor=admin.donations.received_minor,
+                pledged_open_minor=admin.donations.pledged_open_minor,
             ),
         )
 

@@ -396,6 +396,45 @@ class AsyncpgIdentityRepository:
                 )
             )
 
+    async def sees_donations(self, principal: IdentityPrincipal) -> bool:
+        """Whether the principal manages or reads the finances of an action
+        with the ``donations`` capability.
+
+        Gates the "Spenden" navigation entry. System admins and the global
+        finance roles see every action; charity admins and finance readers
+        their own.
+        """
+        everything = (
+            principal.is_system_admin
+            or GlobalRole.FINANCE_READER in principal.global_roles
+            or GlobalRole.FINANCE_MANAGER in principal.global_roles
+        )
+        own = [
+            membership.action_id
+            for membership in principal.action_memberships
+            if membership.role in (ActionRole.CHARITY_ADMIN, ActionRole.FINANCE_READER)
+        ]
+        if not everything and not own:
+            return False
+        async with self._pool.acquire() as connection:
+            return bool(
+                await connection.fetchval(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM charity_action_capability AS capability
+                        JOIN charity_action AS action
+                          ON action.id = capability.action_id
+                        WHERE capability.capability = 'donations'
+                          AND action.status <> 'archived'
+                          AND ($1::uuid[] IS NULL
+                               OR capability.action_id = ANY($1::uuid[]))
+                    )
+                    """,
+                    None if everything else own,
+                )
+            )
+
     async def principal_for_session(
         self,
         token_digest: str,

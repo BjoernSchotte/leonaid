@@ -1900,12 +1900,21 @@ class AcquirerDashboardResponse(TransportModel):
     activity_count: int = Field(ge=0)
 
 
+class DashboardDonationResponse(TransportModel):
+    enabled: bool = Field(description="The action has the donations capability.")
+    pledged: int = Field(ge=0)
+    paid: int = Field(ge=0)
+    received_minor: int = Field(ge=0)
+    pledged_open_minor: int = Field(ge=0)
+
+
 class CharityAdminDashboardResponse(TransportModel):
     pipeline: DashboardPipelineResponse
     commitments: DashboardCommitmentResponse
     invoices: DashboardInvoiceResponse
     order_value_weeks: list[DashboardOrderValueWeekResponse]
     delivery: DashboardDeliveryResponse
+    donations: DashboardDonationResponse
 
 
 class DashboardMetricDefinitionResponse(TransportModel):
