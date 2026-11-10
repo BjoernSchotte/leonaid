@@ -462,6 +462,10 @@ describe("bulk invoice release", () => {
         row.getAttribute("data-release-id"),
       ),
     ).toEqual(["c1"]);
+    // Each row names its order by the order number, not by a part of the id.
+    expect(dialog.querySelector("[data-release-id]")?.textContent).toContain(
+      "LA-000000000000000000000000000000C1",
+    );
     expect(dialog.textContent).toContain("Bäckerei Kern (nicht prüfbereit)");
     expect(within(dialog).getByTestId("bulk-release-total").textContent).toBe(
       "72,00\u00a0€",
