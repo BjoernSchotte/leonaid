@@ -910,15 +910,16 @@ export function MyTourPage({
   const toggleExpanded = toggle(setExpanded);
   const toggleWindow = toggle(setOpenedWindows);
 
-  // A waiting move goes out first, for the day and action it was made in.
+  // A waiting move goes out first, for the day and action it was made in;
+  // every tour's, also one a refetch took off the screen meanwhile.
   const chooseAction = (value: string) => {
-    if (tourKey) void autosave.release(tourKey);
+    autosave.releaseAll();
     setDay(null);
     setShownId(null);
     replaceActionInUrl(value);
   };
   const chooseDay = (value: string) => {
-    if (tourKey) void autosave.release(tourKey);
+    autosave.releaseAll();
     setDay(value);
     setShownId(null);
   };

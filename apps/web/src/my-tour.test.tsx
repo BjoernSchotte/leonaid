@@ -792,6 +792,143 @@ describe("Meine Tour", () => {
     window.history.replaceState({}, "", "/");
   });
 
+  it("three moves during one slow save: the last save finishes the burst with a toast", async () => {
+    stackRows();
+    const client = fakeClient(
+      myTour({
+        windows: [
+          tourWindow("w1", `${DAY}T07:00:00Z`, `${DAY}T09:00:00Z`, [
+            stop(drop("c1", "Bäckerei Kern", "w1"), 1),
+            stop(drop("c2", "Autohaus Nord", "w1"), 2),
+            stop(drop("c3", "Praxis Süd", "w1"), 3),
+          ]),
+        ],
+      }),
+    );
+    strictRevisions(client);
+    const releaseFirst = holdNextSave(client);
+    await renderTour(client);
+    await keyboardMove("Praxis Süd", "ArrowUp");
+    await pauseOver();
+    // Save 1 runs; move 2 queues behind it, move 3 joins move 2.
+    await keyboardMove("Praxis Süd", "ArrowUp");
+    await pauseOver();
+    await keyboardMove("Bäckerei Kern", "ArrowDown");
+    await releaseFirst();
+    await screen.findByText("Reihenfolge gespeichert.", undefined, {
+      timeout: 3_000,
+    });
+    expect(
+      vi
+        .mocked(client.saveMyTourOrder)
+        .mock.calls.map(([, body]) => [
+          body.commitmentIds,
+          body.expectedRevision,
+        ]),
+    ).toEqual([
+      [["c1", "c3", "c2"], "r1"],
+      [["c3", "c2", "c1"], "r2"],
+    ]);
+    expect(screen.getByRole("button", { name: "Rückgängig" })).toBeTruthy();
+    // Nothing waits any more: no third save after another pause.
+    await pauseOver();
+    expect(client.saveMyTourOrder).toHaveBeenCalledTimes(2);
+    expect(names()).toEqual(["Praxis Süd", "Autohaus Nord", "Bäckerei Kern"]);
+  });
+
+  it("a move while an undo waits is its own save with its own toast and Rückgängig", async () => {
+    stackRows();
+    const client = fakeClient(
+      myTour({
+        windows: [
+          tourWindow("w1", `${DAY}T07:00:00Z`, `${DAY}T09:00:00Z`, [
+            stop(drop("c1", "Bäckerei Kern", "w1"), 1),
+            stop(drop("c2", "Autohaus Nord", "w1"), 2),
+            stop(drop("c3", "Praxis Süd", "w1"), 3),
+          ]),
+        ],
+      }),
+    );
+    strictRevisions(client);
+    await renderTour(client);
+    await keyboardMove("Praxis Süd", "ArrowUp");
+    await screen.findByText("Reihenfolge gespeichert.", undefined, {
+      timeout: 3_000,
+    });
+    const undo = screen.getByRole("button", { name: "Rückgängig" });
+    const releaseSecond = holdNextSave(client);
+    await keyboardMove("Praxis Süd", "ArrowUp");
+    await pauseOver();
+    // The undo waits behind save 2; a new move comes meanwhile.
+    fireEvent.click(undo);
+    await keyboardMove("Autohaus Nord", "ArrowUp");
+    await releaseSecond();
+    await screen.findByText(
+      "Vorherige Reihenfolge wiederhergestellt.",
+      undefined,
+      { timeout: 3_000 },
+    );
+    // The first toast left with its "Rückgängig" click: this one is the
+    // new move's.
+    await screen.findByText("Reihenfolge gespeichert.", undefined, {
+      timeout: 3_000,
+    });
+    expect(
+      vi
+        .mocked(client.saveMyTourOrder)
+        .mock.calls.map(([, body]) => [
+          body.commitmentIds,
+          body.expectedRevision,
+        ]),
+    ).toEqual([
+      [["c1", "c3", "c2"], "r1"],
+      [["c3", "c1", "c2"], "r2"],
+      [["c1", "c2", "c3"], "r3"],
+      [["c2", "c1", "c3"], "r4"],
+    ]);
+    expect(
+      screen.queryByText("Die Tour wurde inzwischen geändert."),
+    ).toBeNull();
+    // The new move's toast offers its own undo.
+    expect(screen.getAllByRole("button", { name: "Rückgängig" })).toHaveLength(
+      1,
+    );
+    expect(names()).toEqual(["Autohaus Nord", "Bäckerei Kern", "Praxis Süd"]);
+  });
+
+  it("a day switch sends a waiting move of a tour already off screen, without undo", async () => {
+    stackRows();
+    const DAY2 = "2099-12-06";
+    const client = fakeClient({ ...myTour(), days: [DAY, DAY2] });
+    const { queries } = await renderTour(client);
+    await keyboardMove("Bäckerei Kern", "ArrowDown");
+    // A refetch takes the tour off the screen while the move waits.
+    act(() => {
+      queries.setQueryData<MyTourResponse>(
+        ["my-tour", actionId, null],
+        (current) => (current ? { ...current, tour: null } : current),
+      );
+    });
+    await waitFor(() => expect(screen.queryByTestId("tour-stop")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Tour-Menü" }));
+    fireEvent.change(await screen.findByTestId("tour-day-select"), {
+      target: { value: DAY2 },
+    });
+    // Sent at the switch, not after the pause.
+    await waitFor(
+      () =>
+        expect(client.saveMyTourOrder).toHaveBeenCalledWith(actionId, {
+          commitmentIds: ["c2", "c1", "c3"],
+          day: DAY,
+          expectedRevision: "r1",
+        }),
+      { timeout: 300 },
+    );
+    await screen.findByText("Reihenfolge gespeichert.");
+    expect(screen.queryByRole("button", { name: "Rückgängig" })).toBeNull();
+    window.history.replaceState({}, "", "/");
+  });
+
   it("Rückgängig while a newer move of the tour saves waits and sends its revision", async () => {
     stackRows();
     const client = fakeClient(
@@ -1572,7 +1709,7 @@ describe("PWA delivery route", () => {
     );
     flags(true);
     const view = render(start());
-    // Never the acquirer start page while the flag loads or after.
+    // Never the acquirer start page while the flag loads ...
     expect(screen.queryByText("Start page")).toBeNull();
     // The URL moves in an effect after the render: wait for it.
     await waitFor(() =>
@@ -1580,9 +1717,9 @@ describe("PWA delivery route", () => {
         `/app/delivery?action=${actionId}`,
       ),
     );
-    view.unmount();
-
+    // ... nor once it is on: the skeleton waits for the route.
     expect(screen.queryByText("Start page")).toBeNull();
+    expect(view.container.querySelector(".delivery")).not.toBeNull();
     view.unmount();
 
     window.history.replaceState({}, "", "/app/");

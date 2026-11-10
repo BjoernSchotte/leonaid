@@ -45,6 +45,12 @@ interface Burst<C> {
   timer: number | null;
   /** This burst is an undo: its toast has no "Rückgängig". */
   readonly undo: boolean;
+  /**
+   * Queued behind an own save of its tour that is not through yet (an
+   * undo, or a move made while an undo waits): its first save sends the
+   * revision the last of them returned.
+   */
+  readonly follows: boolean;
   /** The page left this context: the save still goes out, without undo. */
   released: boolean;
   /**
@@ -60,7 +66,7 @@ interface Burst<C> {
  * was made in. Saves of one tour run one after the other. A success shows
  * a toast with "Rückgängig"; a failure drops the local order, so the
  * server's shows again. Before the page switches day or action it calls
- * `release`: a waiting move goes out at once for its own context and no
+ * `releaseAll`: a waiting move goes out at once for its own context and no
  * longer shows.
  *
  * `key` names one tour (action, day and lane): a burst, its chain of saves
@@ -100,10 +106,10 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
       if (burst.cancelled || burst.sentSeq === burst.seq) return;
       const { context, ids, seq } = burst;
       const { options } = latest.current;
-      // An undo runs after every earlier save of its tour, so it sends the
-      // revision the last of them returned (a newer move may have saved
-      // after the toast showed).
-      if (burst.undo && burst.sentSeq === 0) {
+      // Runs after every earlier save of its tour, so it sends the revision
+      // the last of them returned (a newer move may have saved after the
+      // toast showed).
+      if (burst.follows && burst.sentSeq === 0) {
         burst.revision = revisions.get(key) ?? burst.revision;
       }
       try {
@@ -114,7 +120,10 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
         options.onSaved(key, saved, context);
         // Dropped meanwhile, or a newer move waits for its own save: this
         // one stays silent.
-        if (burst.cancelled || burst.seq !== seq || burst.timer) return;
+        if (burst.cancelled || burst.seq !== seq) return;
+        // This save carried every move of the burst; a pause still running
+        // (a move joined while the save waited in the chain) has nothing
+        // left to send.
         forget(key, burst);
         const revision = burst.revision;
         latest.current.toast?.show({
@@ -160,6 +169,7 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
       revision: string,
       context: C,
       undo: boolean,
+      follows: boolean,
     ) => {
       const burst: Burst<C> = {
         baseline: current,
@@ -170,6 +180,7 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
         sentSeq: 0,
         timer: null,
         undo,
+        follows,
         released: false,
         cancelled: false,
       };
@@ -187,8 +198,13 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
       revision: string,
       context: C,
     ) {
+      const waiting = bursts.get(key);
+      // A move never joins an undo: it becomes its own burst behind it,
+      // with its own toast and "Rückgängig".
       const burst =
-        bursts.get(key) ?? start(key, current, revision, context, false);
+        waiting && !waiting.undo
+          ? waiting
+          : start(key, current, revision, context, false, Boolean(waiting));
       burst.ids = next;
       burst.seq += 1;
       if (burst.timer) window.clearTimeout(burst.timer);
@@ -200,7 +216,9 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
     /**
      * "Rückgängig" on a saved toast: `baseline` goes out at once for the
      * toast's tour and context. A newer move of that tour gives way: a
-     * waiting one is dropped, a running one finishes first.
+     * running one finishes first, a waiting one is dropped and its order
+     * leaves the screen (the user sees the order from before the toast's
+     * move again).
      */
     function undo(
       key: string,
@@ -211,7 +229,7 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
     ) {
       const newer = bursts.get(key);
       if (newer) forget(key, newer);
-      const burst = start(key, saved, revision, context, true);
+      const burst = start(key, saved, revision, context, true, true);
       burst.ids = baseline;
       burst.seq = 1;
       show(key, baseline);
@@ -244,9 +262,9 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
     }
 
     /**
-     * Leaving the page (route or campaign switch): as `release` for every
+     * Leaving the page or switching day or action: as `release` for every
      * tour, so waiting moves go out and no toast offers an undo for a tour
-     * that is gone.
+     * that is gone (also one that left the screen before the switch).
      */
     const releaseAll = () => {
       for (const key of [...bursts.keys()]) void release(key);
@@ -275,7 +293,7 @@ export function useOrderAutosave<T, C>(options: OrderAutosaveOptions<T, C>) {
     ) => saver.move(key, next, current, revision, context),
     /** Sends a waiting move now. */
     flush: saver.flush,
-    release: saver.release,
+    releaseAll: saver.releaseAll,
     cancel: saver.cancel,
   };
 }

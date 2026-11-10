@@ -437,12 +437,12 @@ export function TourPlanner({
     }
   };
 
-  /** Sends waiting moves first, then runs `leave` (day or view change). */
+  /**
+   * Sends waiting moves first, then runs `leave` (day or view change);
+   * every lane's, also one whose tour left the columns meanwhile.
+   */
   const guarded = (leave: () => void) => {
-    for (const lane of lanes) {
-      const key = saveKey(lane);
-      if (key) void autosave.release(key);
-    }
+    autosave.releaseAll();
     leave();
   };
 
