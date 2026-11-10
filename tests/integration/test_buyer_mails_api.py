@@ -794,6 +794,15 @@ class Proof:
             str(uuid4()), "confirmation", self.key("resend-missing")
         )
         assert missing.status_code == 404, missing.text
+        # The delivery-day mail does not exist yet: refused, also by role.
+        for user, status in (("acquirer", 403), ("charity", 409)):
+            reserved = await self.resend(
+                order_id, "delivery_day", self.key(f"resend-day-{user}"), user
+            )
+            assert reserved.status_code == status, reserved.text
+            assert await self.receipts(self.key(f"resend-day-{user}")) == 0
+        assert self.error(reserved) == "buyer_mail_not_applicable"
+        assert "delivery_day" not in await self.mails(order_id)
         # An open order has no cancellation notice.
         early = await self.resend(order_id, "cancellation", self.key("resend-early"))
         assert early.status_code == 409, early.text

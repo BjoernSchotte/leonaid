@@ -2281,7 +2281,8 @@
           "kind": {
             "enum": [
               "confirmation",
-              "cancellation"
+              "cancellation",
+              "delivery_day"
             ],
             "title": "Kind",
             "type": "string"
@@ -2297,7 +2298,10 @@
                   "not_requested",
                   "not_sent",
                   "recipient_limit",
-                  "delivery_failed"
+                  "delivery_failed",
+                  "delivery_recorded",
+                  "scheduled",
+                  "window_over"
                 ],
                 "type": "string"
               },
@@ -2305,7 +2309,7 @@
                 "type": "null"
               }
             ],
-            "description": "Set for `not_due`, `skipped` and `failed`.",
+            "description": "Set for `not_due`, `skipped` and `failed`. The last three belong to the delivery-day mail: the delivery is already recorded, the mail goes out on the delivery day, or the window is over.",
             "title": "Reason"
           },
           "sentAt": {
@@ -22362,7 +22366,7 @@
     },
     "/api/v1/actions/{action_id}/commitments/{commitment_id}/buyer-mails": {
       "get": {
-        "description": "The mails to the buyer of one order: one entry per kind that applies.\n\nThe confirmation always, the cancellation notice once the order is\ncancelled. Managers only.",
+        "description": "The mails to the buyer of one order: one entry per kind that applies.\n\nThe confirmation always, the cancellation notice once the order is\ncancelled. Managers only. The kind `delivery_day` is reserved for the\nmail on the delivery day and does not appear yet.",
         "operationId": "listBuyerMails",
         "parameters": [
           {
@@ -22496,7 +22500,8 @@
             "schema": {
               "enum": [
                 "confirmation",
-                "cancellation"
+                "cancellation",
+                "delivery_day"
               ],
               "title": "Kind",
               "type": "string"

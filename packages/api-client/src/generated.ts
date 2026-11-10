@@ -55,7 +55,7 @@ export type Body_createMaterial = { readonly actionId?: string | null; readonly 
 export type BuyerMailConfigurationRequest = { readonly deliveryDayMail: boolean; readonly deliveryDaySendTime: string; readonly expectedRevision: number; readonly internalOrderMails: boolean; };
 export type BuyerMailConfigurationResponse = { readonly actionId: string; readonly deliveryDayMail: boolean; readonly deliveryDaySendTime: string; readonly internalOrderMails: boolean; readonly revision: number; };
 export type BuyerMailListResponse = { readonly commitmentId: string; readonly mails: Array<BuyerMailStatusResponse>; };
-export type BuyerMailStatusResponse = { readonly canResend: boolean; readonly kind: "confirmation" | "cancellation"; readonly reason: "no_email" | "switched_off" | "order_draft" | "order_cancelled" | "not_requested" | "not_sent" | "recipient_limit" | "delivery_failed" | null; readonly sentAt: string | null; readonly state: "not_due" | "queued" | "sent" | "failed" | "skipped"; };
+export type BuyerMailStatusResponse = { readonly canResend: boolean; readonly kind: "confirmation" | "cancellation" | "delivery_day"; readonly reason: "no_email" | "switched_off" | "order_draft" | "order_cancelled" | "not_requested" | "not_sent" | "recipient_limit" | "delivery_failed" | "delivery_recorded" | "scheduled" | "window_over" | null; readonly sentAt: string | null; readonly state: "not_due" | "queued" | "sent" | "failed" | "skipped"; };
 export type CampaignAliasItemResponse = { readonly actionId: string; readonly alias: string; readonly aliasId: string; readonly enabled: boolean; readonly isPrimary: boolean; readonly revision: number; };
 export type CampaignAliasListResponse = { readonly actionId: string; readonly canonicalPath: string; readonly items: Array<CampaignAliasItemResponse>; readonly targets: Array<CampaignAliasTargetResponse>; };
 export type CampaignAliasMutationResponse = { readonly actionId: string; readonly alias: string; readonly aliasId: string; readonly enabled: boolean; readonly removed: boolean; readonly revision: number; };
@@ -947,7 +947,7 @@ export class LeonAidApiClient {
   async resendBuyerMail(
     actionId: string,
     commitmentId: string,
-    kind: "confirmation" | "cancellation",
+    kind: "confirmation" | "cancellation" | "delivery_day",
     options: RequestOptions = {},
   ): Promise<BuyerMailStatusResponse> {
     return this.request<BuyerMailStatusResponse>(

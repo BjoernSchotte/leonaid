@@ -4168,7 +4168,8 @@ async def list_buyer_mails(
     """The mails to the buyer of one order: one entry per kind that applies.
 
     The confirmation always, the cancellation notice once the order is
-    cancelled. Managers only.
+    cancelled. Managers only. The kind `delivery_day` is reserved for the
+    mail on the delivery day and does not appear yet.
     """
     actor = await identity_service(request).authenticate(session_token(request))
     statuses = await buyer_mail_service(request).statuses(
@@ -4207,6 +4208,14 @@ async def resend_buyer_mail(
     Idempotent per `Idempotency-Key`.
     """
     actor = await identity_service(request).authenticate(session_token(request))
+    if kind == "delivery_day":
+        # The delivery-day mail comes with stage 2 of the buyer mails; until
+        # then no order has one. Managers learn that, others get the 403.
+        await buyer_mail_service(request).statuses(actor, action_id, commitment_id)
+        raise Conflict(
+            "buyer_mail_not_applicable",
+            "Diese E-Mail gibt es für die Bestellung nicht.",
+        )
     result = await buyer_mail_service(request).resend(
         actor,
         action_id,

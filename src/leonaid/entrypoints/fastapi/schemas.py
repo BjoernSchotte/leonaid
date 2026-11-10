@@ -1472,7 +1472,10 @@ class CommitmentCancellationResultResponse(TransportModel):
     replayed: bool
 
 
-BuyerMailKindValue = Literal["confirmation", "cancellation"]
+# "delivery_day" is the mail on the delivery day (stage 2 of the buyer mails,
+# specs/mails-documents-donations-push §6.3). Until that stage ships, the
+# list never returns it and a resend of it answers 409.
+BuyerMailKindValue = Literal["confirmation", "cancellation", "delivery_day"]
 
 
 class BuyerMailConfigurationRequest(TransportModel):
@@ -1517,9 +1520,18 @@ class BuyerMailStatusResponse(TransportModel):
             "not_sent",
             "recipient_limit",
             "delivery_failed",
+            "delivery_recorded",
+            "scheduled",
+            "window_over",
         ]
         | None
-    ) = Field(description="Set for `not_due`, `skipped` and `failed`.")
+    ) = Field(
+        description=(
+            "Set for `not_due`, `skipped` and `failed`. The last three belong "
+            "to the delivery-day mail: the delivery is already recorded, the "
+            "mail goes out on the delivery day, or the window is over."
+        )
+    )
     can_resend: bool = Field(
         description="`resendBuyerMail` is allowed for this kind now."
     )

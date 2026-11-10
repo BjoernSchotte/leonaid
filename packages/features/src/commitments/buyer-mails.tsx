@@ -27,6 +27,7 @@ type Reason = NonNullable<BuyerMailStatusResponse["reason"]>;
 export const kindLabels: Readonly<Record<Kind, string>> = {
   confirmation: "Bestellbestätigung",
   cancellation: "Stornierung",
+  delivery_day: "Liefertags-E-Mail",
 };
 
 const stateLabels: Readonly<Record<State, string>> = {
@@ -57,6 +58,10 @@ const reasonTexts: Readonly<Record<Reason, string>> = {
   recipient_limit:
     "An dieses Postfach gingen in der letzten Stunde zu viele E-Mails. Senden Sie die E-Mail später erneut.",
   delivery_failed: "Der Versand ist fehlgeschlagen.",
+  delivery_recorded:
+    "Die Lieferung ist schon als geliefert oder nicht zugestellt erfasst.",
+  scheduled: "Wird am Liefertag gesendet.",
+  window_over: "Das Lieferfenster ist vorbei.",
 };
 
 /** What the row says under the kind: when it was sent, why it was not. */
