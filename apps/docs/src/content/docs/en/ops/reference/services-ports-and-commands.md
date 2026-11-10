@@ -4,9 +4,9 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 22
-reviewedRevision: 22
-verifiedAgainst: 44a1e8cd5085ea1ac8be745dfaf7059945f955c2
+contentRevision: 23
+reviewedRevision: 23
+verifiedAgainst: d2c26f1238c117dce276f490cb508561ace7ff13
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -85,7 +85,13 @@ the count only (`worker.delivery_day_mail.queued`); the metric
 `leonaid_worker_delivery_day_mails_queued_total` counts the jobs written, and
 the worker's `/health/ready` reports the loop as `delivery_day_mail`.
 `docker compose run --rm worker python -m leonaid.entrypoints.worker.outbox
-delivery-day-mail-sweep` runs one sweep by hand.
+delivery-day-mail-sweep` runs one sweep by hand. Its output names `queued`
+and `busy`; while another worker holds the sweep, `busy` is true and the
+command ends with code 75. The loop does not count such a run as a success
+and asks again after 30 seconds. Delivery-day e-mails leave no dead letter
+for a full mailbox (more than ten order e-mails per hour to one address) and
+none for a window that is over: the job completes, and the order shows the
+e-mail as failed.
 
 ## Geocoding of delivery addresses
 
@@ -205,7 +211,6 @@ and `oldestDuePendingAgeSeconds`). Jobs of switched-off modules are left out
 of both values, because they wait on purpose. A growing wait with a running
 worker points to a stuck or overloaded queue.
 
-
 ## Hosts and routes
 
 One route table (`tools/proxy/caddyfiles.py`) generates every Caddyfile:
@@ -214,14 +219,14 @@ One route table (`tools/proxy/caddyfiles.py`) generates every Caddyfile:
 `LEONAID_PROXY_CADDYFILE` selects the file; `./leonaid check` fails when a
 file differs from the table and proves every route against a running Caddy.
 
-| Path                                                    | Admin host (`app.<domain>`)  | Public host (`<domain>`)            |
-| ------------------------------------------------------- | ---------------------------- | ----------------------------------- |
-| `/admin/*`, `/app/*`, `/login`, `/invite`, `/email-change`, `/fresh-login` | served | 308 to the admin host |
-| `/api/*`                                                | full API                     | only `/api/v1/public/*` and `/api/health/*` |
-| `/_emdash/*` (CMS editor)                               | served                       | 404                                 |
-| `/campaigns/*`, `/surveys/*`, aliases, `/archive/*`     | 308 to the public host       | served                              |
-| `/impressum`, `/datenschutz`                            | served                       | served                              |
-| `/`                                                     | 302 to `/admin/`             | public home page                    |
+| Path                                                                       | Admin host (`app.<domain>`) | Public host (`<domain>`)                    |
+| -------------------------------------------------------------------------- | --------------------------- | ------------------------------------------- |
+| `/admin/*`, `/app/*`, `/login`, `/invite`, `/email-change`, `/fresh-login` | served                      | 308 to the admin host                       |
+| `/api/*`                                                                   | full API                    | only `/api/v1/public/*` and `/api/health/*` |
+| `/_emdash/*` (CMS editor)                                                  | served                      | 404                                         |
+| `/campaigns/*`, `/surveys/*`, aliases, `/archive/*`                        | 308 to the public host      | served                                      |
+| `/impressum`, `/datenschutz`                                               | served                      | served                                      |
+| `/`                                                                        | 302 to `/admin/`            | public home page                            |
 
 Every further name in `LEONAID_PUBLIC_DOMAIN_ALIASES` answers 308 to the
 public host with path and query. The session cookie stays on the admin host.

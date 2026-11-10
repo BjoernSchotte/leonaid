@@ -4,9 +4,9 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 22
-reviewedRevision: 22
-verifiedAgainst: 44a1e8cd5085ea1ac8be745dfaf7059945f955c2
+contentRevision: 23
+reviewedRevision: 23
+verifiedAgainst: d2c26f1238c117dce276f490cb508561ace7ff13
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -90,7 +90,14 @@ ab. Logs enthalten nur die Anzahl (`worker.delivery_day_mail.queued`); die
 Metrik `leonaid_worker_delivery_day_mails_queued_total` zählt die angelegten
 Jobs, `/health/ready` des Workers meldet die Schleife als `delivery_day_mail`.
 `docker compose run --rm worker python -m leonaid.entrypoints.worker.outbox
-delivery-day-mail-sweep` startet einen Durchlauf von Hand.
+delivery-day-mail-sweep` startet einen Durchlauf von Hand. Die Ausgabe nennt
+`queued` und `busy`; hält gerade ein anderer Worker den Durchlauf, ist `busy`
+wahr und der Befehl endet mit Code 75. Die Schleife zählt einen solchen
+Durchlauf nicht als Erfolg und fragt nach 30 Sekunden erneut. Liefertags-
+E-Mails erzeugen keine Dead Letters für ein volles Postfach (mehr als zehn
+Bestell-E-Mails pro Stunde an dieselbe Adresse) und keine für ein abgelaufenes
+Fenster: Der Job wird abgeschlossen, und die Bestellung zeigt die E-Mail als
+fehlgeschlagen.
 
 ## Geocoding der Lieferadressen
 
@@ -215,7 +222,6 @@ abgeschalteter Module zählen bei beiden Werten nicht, weil sie absichtlich
 warten. Eine wachsende Wartezeit bei laufendem Worker deutet auf eine
 hängende oder überlastete Queue.
 
-
 ## Hosts und Routen
 
 Eine Routentabelle (`tools/proxy/caddyfiles.py`) erzeugt jede Caddyfile:
@@ -225,14 +231,14 @@ Eine Routentabelle (`tools/proxy/caddyfiles.py`) erzeugt jede Caddyfile:
 eine Datei von der Tabelle abweicht, und prüft jede Route gegen ein laufendes
 Caddy.
 
-| Pfad                                                    | Verwaltungshost (`app.<domain>`) | Öffentlicher Host (`<domain>`)       |
-| ------------------------------------------------------- | -------------------------------- | ------------------------------------ |
-| `/admin/*`, `/app/*`, `/login`, `/invite`, `/email-change`, `/fresh-login` | ausgeliefert | 308 auf den Verwaltungshost |
-| `/api/*`                                                | volle API                        | nur `/api/v1/public/*` und `/api/health/*` |
-| `/_emdash/*` (CMS-Redaktion)                            | ausgeliefert                     | 404                                  |
-| `/campaigns/*`, `/surveys/*`, Aliasse, `/archive/*`     | 308 auf den öffentlichen Host    | ausgeliefert                         |
-| `/impressum`, `/datenschutz`                            | ausgeliefert                     | ausgeliefert                         |
-| `/`                                                     | 302 auf `/admin/`                | öffentliche Startseite               |
+| Pfad                                                                       | Verwaltungshost (`app.<domain>`) | Öffentlicher Host (`<domain>`)             |
+| -------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------ |
+| `/admin/*`, `/app/*`, `/login`, `/invite`, `/email-change`, `/fresh-login` | ausgeliefert                     | 308 auf den Verwaltungshost                |
+| `/api/*`                                                                   | volle API                        | nur `/api/v1/public/*` und `/api/health/*` |
+| `/_emdash/*` (CMS-Redaktion)                                               | ausgeliefert                     | 404                                        |
+| `/campaigns/*`, `/surveys/*`, Aliasse, `/archive/*`                        | 308 auf den öffentlichen Host    | ausgeliefert                               |
+| `/impressum`, `/datenschutz`                                               | ausgeliefert                     | ausgeliefert                               |
+| `/`                                                                        | 302 auf `/admin/`                | öffentliche Startseite                     |
 
 Jeder weitere Name in `LEONAID_PUBLIC_DOMAIN_ALIASES` antwortet mit 308 auf
 den öffentlichen Host, Pfad und Query bleiben. Das Sitzungs-Cookie bleibt auf

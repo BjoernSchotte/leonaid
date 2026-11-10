@@ -4,9 +4,9 @@ description: Enable campaign delivery planning, add time windows, and retire exi
 docId: DOC-P012
 audience: [user]
 diataxis: how-to
-contentRevision: 9
-reviewedRevision: 9
-verifiedAgainst: 44a1e8cd5085ea1ac8be745dfaf7059945f955c2
+contentRevision: 10
+reviewedRevision: 10
+verifiedAgainst: d2c26f1238c117dce276f490cb508561ace7ff13
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -121,8 +121,9 @@ the driver, prices and an arrival time per address are not in it.
 2. In the section **E-Mails an Käufer**, switch on **E-Mail am Liefertag**.
    The switch applies at once, also while the campaign runs. For campaigns
    without the function **Auslieferung** it stays off.
-3. Under **E-Mail am Liefertag senden ab**, select the time between 05:00 and
-   12:00 (default 07:00). It applies in the time zone of the delivery windows.
+3. Under **E-Mail am Liefertag senden ab**, select a full or half hour
+   between 05:00 and 12:00 (default 07:00). It applies in the time zone of
+   the delivery windows.
 
 From that time on the delivery day, the e-mail goes to every order whose
 window starts on that day, if the order is ready for review, confirmed or
@@ -133,19 +134,36 @@ to five minutes after the selected time. An order that is added on the
 delivery day itself gets the e-mail at the next check, as long as its window
 is not over.
 
+If you switch the e-mail on only on the delivery day, after the selected
+time, the next check sends it at once to every order whose window has not
+ended yet today. That includes orders that are already delivered but not
+ticked off on the board yet: they read "wird heute geliefert" (will be
+delivered today) although the delivery was already there. The same happens
+when LeonAid was not running in the morning and starts again later: it
+catches up on every window of the day that is still open, also shortly
+before its end. So tick deliveries off before you switch the e-mail on
+during the delivery day.
+
 Cancelled orders, drafts, deliveries already ticked off, orders without an
 e-mail address and windows that end before the selected time get no e-mail.
 For such a window the order says **Keine E-Mail: Das Lieferfenster endet vor
 der Versandzeit** (no e-mail: the delivery window ends before the send time).
 Once the campaign is completed or archived, no delivery-day e-mail goes out
-any more. Each order gets the e-mail for its window once. At most ten order
-e-mails go to one mailbox per hour.
+any more. Each order gets the e-mail for its window once.
+
+At most ten order e-mails go to one mailbox per hour. If a buyer has more
+orders under the same address on the delivery day (for example a member who
+ordered for colleagues), the first ten e-mails go out. The other orders show
+the row as **Fehlgeschlagen** (failed) with the note about the mailbox; send
+them later in the order with **Senden**. This raises no alert.
 
 If LeonAid could not send an e-mail before its window ended (e-mail delivery
-disturbed), it is not sent any more. The order then shows the row as
-**Fehlgeschlagen** (failed) with the reason. It is not listed among the
-failed jobs in the operations overview, because a retry would send nothing
-any more.
+disturbed, LeonAid not running), it is not sent any more. The order then
+shows the row as **Fehlgeschlagen** (failed) with the reason, also when the
+e-mail was never created. It is not listed among the failed jobs in the
+operations overview, because a retry would send nothing any more. For
+windows that had already ended when you switched the e-mail on, the order
+shows no failure.
 
 For questions the e-mail names only what the legal configuration holds: the
 club's e-mail address and, if entered, the phone number of the imprint.
