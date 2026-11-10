@@ -12,7 +12,9 @@ reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 
 **Rolle:** Charity-Admin der Aktion (und System-Admin). Die Ansicht
 **Touren** gibt es nur, wenn das Feature-Flag `delivery.tours` an ist. Es ist
-standardmäßig aus. Ohne Flag arbeitet die Auslieferungstafel wie bisher (siehe
+standardmäßig aus, ebenso `pwa.offline_queue`, das Fahrer für die Arbeit
+offline brauchen (siehe [Meine Tour fahren](/de/user/how-to/drive-my-tour/)).
+Ein System-Admin schaltet die Flags ein. Ohne Flag arbeitet die Auslieferungstafel wie bisher (siehe
 [Auslieferung abhaken](/de/user/how-to/work-delivery-board/)).
 
 Eine Tour ist ein Fahrer an einem Liefertag. Jeder Fahrer hat pro Tag eine
@@ -27,12 +29,15 @@ Tour.
 
 ## Zuweisen und sortieren
 
-1. Weise Stopps einem Fahrer zu (Stopp auf die Fahrerspalte ziehen oder die
-   Fahrerauswahl am Stopp nutzen).
+1. Weise Stopps einem Fahrer zu (Stopp auf die Fahrerspalte ziehen oder Stopps
+   wählen und **Fahrer zuordnen** nutzen).
 2. Ziehe Stopps innerhalb einer Fenstergruppe, um die Grundreihenfolge
    festzulegen. LeonAid speichert beim Ablegen. Die Meldung bietet
    **Rückgängig**.
-3. Die Karte zeigt die Stopps als nummerierte Pins, nach Fahrer eingefärbt.
+3. **Vorschlag sortieren** an einer Fahrerspalte schlägt eine Reihenfolge nach
+   Luftlinie vor. Fehlen Pins, steht dort **Für den Vorschlag fehlen
+   Koordinaten.** **Strecke …** zeigt die Luftlinien-Länge der Tour.
+4. Die Karte zeigt die Stopps als nummerierte Pins, nach Fahrer eingefärbt.
    Die Nummern folgen der wirksamen Reihenfolge.
 
 Ein Fahrer kann seine eigene Tour umsortieren. Seine Reihenfolge gilt dann vor
@@ -40,8 +45,12 @@ deiner Grundreihenfolge, bis du sie zurücksetzt.
 
 ## Startpunkt
 
-Setze je Aktion einen Startpunkt: den Ort, an dem der Fahrer morgens alle
-Krapfen abholt (zum Beispiel die Bäckerei). Entfernung und
+Setze den Startpunkt in den Lieferungs-Einstellungen der Aktion, im Abschnitt
+**Startpunkt der Touren**: der Ort, an dem der Fahrer morgens alle Krapfen
+abholt (zum Beispiel die Bäckerei). Gib die Adresse ein und wähle
+**Startpunkt speichern**; **Startpunkt entfernen** löscht ihn. Wird die Adresse
+nicht gefunden, bittet die Meldung **Startpunkt nicht gefunden – Pin auf der
+Karte setzen** darum, den Pin auf der Karte zu setzen. Strecke und
 Sortiervorschlag beginnen dort. Der Startpunkt ist optional.
 
 ## Pins und Adressen

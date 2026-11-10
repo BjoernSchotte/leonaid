@@ -10,7 +10,7 @@ verifiedAgainst: 278f0c5658d87a7aaa1829609e883c816d35340b
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
-**Rolle:** Ausfahrer. Der Tab **Tour** in der App zeigt **Meine Tour** nur,
+**Rolle:** Ausfahrer. Der Tab **Tour** in der App (Menüeintrag **Meine Tour**) erscheint nur,
 wenn das Feature-Flag `delivery.tours` an ist. Ohne Flag nutze
 **Auslieferung** (siehe
 [Auslieferung abhaken](/de/user/how-to/work-delivery-board/)).

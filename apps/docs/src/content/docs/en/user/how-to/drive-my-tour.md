@@ -10,8 +10,8 @@ verifiedAgainst: 278f0c5658d87a7aaa1829609e883c816d35340b
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
-**Role:** driver (**Ausfahrer**). The tab **Tour** in the app shows **Meine
-Tour** (my tour) only when the feature flag `delivery.tours` is on. Without
+**Role:** driver (**Ausfahrer**). The tab **Tour** in the app (menu entry **Meine
+Tour**, my tour) only when the feature flag `delivery.tours` is on. Without
 the flag, use **Auslieferung** (see
 [Work the delivery board](/en/user/how-to/work-delivery-board/)).
 

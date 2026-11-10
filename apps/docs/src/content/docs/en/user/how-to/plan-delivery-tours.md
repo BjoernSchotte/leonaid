@@ -12,7 +12,8 @@ reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 
 **Role:** Charity Admin of the campaign (and System Admin). The **Touren**
 (tours) view exists only when the feature flag `delivery.tours` is on. It is
-off by default. Without the flag, the delivery board works as before (see
+off by default, like `pwa.offline_queue`, which drivers need to work offline (see
+[Drive my tour](/en/user/how-to/drive-my-tour/)). A system admin switches the flags on. Without the flag, the delivery board works as before (see
 [Work the delivery board](/en/user/how-to/work-delivery-board/)).
 
 A tour is one driver on one delivery day. Each driver has one tour per day.
@@ -26,11 +27,15 @@ A tour is one driver on one delivery day. Each driver has one tour per day.
 
 ## Assign and order
 
-1. Assign stops to a driver (drag the stop to the driver column or use the
-   driver selection on the stop).
+1. Assign stops to a driver (drag the stop to the driver column or select stops and use
+   **Fahrer zuordnen**, assign driver).
 2. Drag stops inside a window group to set the base order. LeonAid saves on
    drop. The message offers **Rückgängig** (undo).
-3. The map shows the stops as numbered pins, coloured by driver. The numbers
+3. **Vorschlag sortieren** (sort suggestion) on a driver column proposes an
+   order by straight-line distance. If pins are missing, it says **Für den
+   Vorschlag fehlen Koordinaten.** (coordinates are missing). **Strecke …**
+   shows the straight-line length of the tour.
+4. The map shows the stops as numbered pins, coloured by driver. The numbers
    follow the effective order.
 
 A driver can reorder their own tour. The driver's order then wins over your
@@ -38,9 +43,13 @@ base order until you reset it.
 
 ## Start point
 
-Set a start point per campaign action: the place where the driver collects
-all Krapfen in the morning (for example the bakery). The distance and the sort
-helper start there. The start point is optional.
+Set the start point in the action's delivery settings, in the section
+**Startpunkt der Touren** (start point of the tours): the place where the
+driver collects all Krapfen in the morning (for example the bakery). Enter the
+address and select **Startpunkt speichern** (save); **Startpunkt entfernen**
+removes it. If the address is not found, the message **Startpunkt nicht
+gefunden – Pin auf der Karte setzen** asks you to set the pin on the map. The
+distance and the sort suggestion start there. The start point is optional.
 
 ## Pins and addresses
 
