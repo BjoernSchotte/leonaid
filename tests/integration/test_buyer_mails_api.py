@@ -1585,8 +1585,8 @@ async def main() -> None:
         await connection.close()
     print(
         "buyer-mails-api: OK: short order numbers, settings row, confirmation "
-        "once per internal order and never too late (a late job fails with "
-        "its reason), completion preview, cancellation notice, mail status, "
+        "once per internal order and never too late (a late job completes, "
+        "the order shows it as failed), completion preview, cancellation notice, mail status, "
         "first send and resend, superseded jobs, mailbox limit, number "
         "collision of a public order and the privacy erasure proven against "
         "PostgreSQL"
