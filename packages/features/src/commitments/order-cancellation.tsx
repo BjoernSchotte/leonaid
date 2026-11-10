@@ -135,6 +135,12 @@ export function OrderCancellationDialog({
   const storageKey = commandStorageKey(commitment.id);
   const block = cancellationBlock(record);
   const invoice = invoiceToCancel(record);
+  // The cancellation invoice goes where the invoice went: offered when the
+  // invoice reached its recipient by e-mail (status `sent`).
+  const recipientEmail = commitment.invoiceRecipient?.email;
+  const offerSend = invoice?.status === "sent" && Boolean(recipientEmail);
+  const [send, setSend] = useState(true);
+  const sendInvoiceCancellation = offerSend && send;
 
   const cancellation = useMutation({
     mutationFn: () =>
@@ -145,6 +151,7 @@ export function OrderCancellationDialog({
           expectedVersion: commitment.deliveryCompletionVersion,
           reason: reason.trim(),
           note: note.trim() || null,
+          ...(offerSend ? { sendInvoiceCancellation } : {}),
         },
         {
           headers: {
@@ -250,6 +257,29 @@ export function OrderCancellationDialog({
                 Stornorechnung aus. Dafür bestätigen Sie Ihre Anmeldung
                 gegebenenfalls erneut.
               </StatusMessage>
+            ) : null}
+            {offerSend ? (
+              <div>
+                <label className="cluster">
+                  <input
+                    checked={send}
+                    data-testid="send-invoice-cancellation-with-order"
+                    disabled={cancellation.isPending}
+                    onChange={(event) => {
+                      // Another body is another command: a new key.
+                      forgetCommandKey(storageKey);
+                      setSend(event.target.checked);
+                    }}
+                    type="checkbox"
+                  />
+                  Stornorechnung gleich senden
+                </label>
+                <p className="small muted">
+                  Die Stornorechnung geht als PDF per E-Mail an {recipientEmail}
+                  , sobald sie erzeugt ist. Ohne Häkchen senden Sie sie später
+                  unter „Rechnungen“.
+                </p>
+              </div>
             ) : null}
             <Field
               error={reasonError}

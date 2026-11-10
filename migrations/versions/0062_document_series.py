@@ -16,7 +16,8 @@ second action took a number the first action had already issued.
   document. Triggers on the document tables register the number, so two
   documents of different tables can never share one.
 - `invoice_cancellation` gets the columns of the cancellation invoice
-  ("Stornorechnung") and of the refund marker. Cancellations recorded before
+  ("Stornorechnung") and of the refund marker; `invoice_refund_withdrawal`
+  keeps every marker that was taken back. Cancellations recorded before
   this migration keep NULL: no document is invented for them.
 - Every action with the `invoicing` capability and without a profile gets one
   from the active legal configuration, if there is one.
@@ -56,6 +57,10 @@ SERIAL_OF = """
 
 def upgrade() -> None:
     op.execute("SET LOCAL lock_timeout = '5s'")
+    # No invoice may be written between the backfill of the registry and the
+    # trigger that keeps it: a release runs this under the maintenance write
+    # lock anyway (infra/upgrade/README.md), this holds also without it.
+    op.execute("LOCK TABLE invoice, invoice_cancellation IN SHARE ROW EXCLUSIVE MODE")
     op.execute(
         """
         CREATE TABLE document_series (
@@ -182,7 +187,9 @@ def upgrade() -> None:
         FOR EACH ROW
         EXECUTE FUNCTION register_document_number('invoice_cancellation');
 
-        -- The issued cancellation invoice and a recorded refund are final.
+        -- The issued cancellation invoice is final. The refund marker is
+        -- not: a manager may withdraw it, and the withdrawal keeps who set
+        -- it and who took it back.
         CREATE FUNCTION protect_invoice_cancellation_document()
         RETURNS trigger
         LANGUAGE plpgsql
@@ -198,16 +205,6 @@ def upgrade() -> None:
                 RAISE EXCEPTION 'issued cancellation invoices are immutable'
                     USING ERRCODE = 'integrity_constraint_violation';
             END IF;
-            IF OLD.refund_settled_on IS NOT NULL AND (
-                NEW.refund_settled_on IS DISTINCT FROM OLD.refund_settled_on
-                OR NEW.refund_note IS DISTINCT FROM OLD.refund_note
-                OR NEW.refund_settled_by_user_id
-                    IS DISTINCT FROM OLD.refund_settled_by_user_id
-                OR NEW.refund_settled_at IS DISTINCT FROM OLD.refund_settled_at
-            ) THEN
-                RAISE EXCEPTION 'recorded refunds are immutable'
-                    USING ERRCODE = 'integrity_constraint_violation';
-            END IF;
             RETURN NEW;
         END;
         $$;
@@ -216,6 +213,29 @@ def upgrade() -> None:
         BEFORE UPDATE ON invoice_cancellation
         FOR EACH ROW
         EXECUTE FUNCTION protect_invoice_cancellation_document();
+
+        -- A refund marker that was taken back: what it said, who set it,
+        -- who withdrew it and why.
+        CREATE TABLE invoice_refund_withdrawal (
+            id uuid PRIMARY KEY,
+            action_id uuid NOT NULL
+                REFERENCES charity_action (id) ON DELETE RESTRICT,
+            invoice_cancellation_id uuid NOT NULL
+                REFERENCES invoice_cancellation (id) ON DELETE CASCADE,
+            settled_on date NOT NULL,
+            note text,
+            settled_by_user_id uuid NOT NULL
+                REFERENCES user_account (id) ON DELETE RESTRICT,
+            settled_at timestamptz NOT NULL,
+            reason_snapshot text NOT NULL,
+            withdrawn_by_user_id uuid NOT NULL
+                REFERENCES user_account (id) ON DELETE RESTRICT,
+            withdrawn_at timestamptz NOT NULL,
+            CONSTRAINT ck_invoice_refund_withdrawal_reason
+                CHECK (length(btrim(reason_snapshot)) BETWEEN 8 AND 500)
+        );
+        CREATE INDEX ix_invoice_refund_withdrawal_cancellation
+            ON invoice_refund_withdrawal (invoice_cancellation_id, withdrawn_at);
         """
     )
     # A profile for every action with invoicing (spec §5.3). It copies the
@@ -276,7 +296,7 @@ def downgrade() -> None:
             IF EXISTS (
                 SELECT 1 FROM invoice_cancellation
                 WHERE number IS NOT NULL OR refund_settled_on IS NOT NULL
-            ) THEN
+            ) OR EXISTS (SELECT 1 FROM invoice_refund_withdrawal) THEN
                 RAISE EXCEPTION
                     '0062 downgrade refused: issued cancellation invoices or '
                     'recorded refunds exist and the old schema cannot hold them';
@@ -293,6 +313,7 @@ def downgrade() -> None:
           AND series.prefix = profile.number_prefix
           AND series.next_number > profile.next_number;
 
+        DROP TABLE invoice_refund_withdrawal;
         DROP TRIGGER invoice_cancellation_document_immutable
             ON invoice_cancellation;
         DROP FUNCTION protect_invoice_cancellation_document();

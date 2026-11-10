@@ -941,6 +941,58 @@ describe("order cancellation", () => {
     expect(cancel).toHaveBeenCalledTimes(1);
   });
 
+  it("offers to send the cancellation invoice when the invoice was mailed", async () => {
+    const mailed = {
+      ...rows[2]!,
+      commitment: {
+        ...rows[2]!.commitment,
+        invoiceRecipient: {
+          ...rows[2]!.commitment.invoiceRecipient!,
+          email: "einkauf@example.org",
+        },
+      },
+      invoice: { ...issuedInvoice("KT26-0001"), status: "sent" as const },
+    };
+    const { client, cancel } = clientWith([mailed]);
+    await renderPage("?view=all&open=c3", client);
+    fireEvent.click(await screen.findByTestId("open-order-cancellation"));
+    const dialog = await screen.findByRole("alertdialog");
+    const box = within(dialog).getByTestId(
+      "send-invoice-cancellation-with-order",
+    ) as HTMLInputElement;
+    // On by default: the buyer who got the invoice gets its cancellation.
+    expect(box.checked).toBe(true);
+    expect(dialog.textContent).toContain("einkauf@example.org");
+    fireEvent.change(reasonField(dialog), {
+      target: { value: "Sponsor hat die Bestellung zurückgezogen" },
+    });
+    fireEvent.click(within(dialog).getByTestId("cancel-order"));
+    await screen.findByText("Bestellung storniert.");
+    expect(cancel.mock.calls[0]![2]).toMatchObject({
+      sendInvoiceCancellation: true,
+    });
+  });
+
+  it("does not offer to send for an invoice that was never mailed", async () => {
+    const { client, cancel } = clientWith([
+      { ...rows[2]!, invoice: issuedInvoice("KT26-0001") },
+    ]);
+    await renderPage("?view=all&open=c3", client);
+    fireEvent.click(await screen.findByTestId("open-order-cancellation"));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(
+      within(dialog).queryByTestId("send-invoice-cancellation-with-order"),
+    ).toBeNull();
+    fireEvent.change(reasonField(dialog), {
+      target: { value: "Sponsor hat die Bestellung zurückgezogen" },
+    });
+    fireEvent.click(within(dialog).getByTestId("cancel-order"));
+    await screen.findByText("Bestellung storniert.");
+    expect(cancel.mock.calls[0]![2]).not.toHaveProperty(
+      "sendInvoiceCancellation",
+    );
+  });
+
   it("explains why a delivered order cannot be cancelled", async () => {
     const { client, cancel } = clientWith([{ ...rows[0]!, delivered: true }]);
     await renderPage("?view=all&open=c1", client);

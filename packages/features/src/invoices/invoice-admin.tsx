@@ -39,6 +39,7 @@ import {
   CancellationDialog,
   PaymentDialog,
   RefundDialog,
+  RefundWithdrawalDialog,
 } from "./invoice-dialogs";
 import { InvoiceDetail, type InvoiceCommand } from "./invoice-detail";
 import { PaymentReversalDialog } from "./invoice-payment-reversal";
@@ -670,6 +671,12 @@ function InvoiceList({
         onChanged={onChanged}
         onClose={closeDialog}
         record={dialog?.command === "refund" ? dialogRecord : null}
+      />
+      <RefundWithdrawalDialog
+        client={client}
+        onChanged={onChanged}
+        onClose={closeDialog}
+        record={dialog?.command === "refund-withdrawal" ? dialogRecord : null}
       />
       <PaymentReversalDialog
         client={client}

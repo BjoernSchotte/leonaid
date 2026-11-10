@@ -18,6 +18,7 @@ takes its locks in this order and skips the levels it does not need:
 7. its ``commitment_delivery`` row;
 8. its ``invoice`` row;
 9. the ``document_series`` row a new document number comes from (ADR-0015);
+   it is held to the end of the command, for every action on that prefix;
 10. task lists and tasks (the "Nachliefern" follow-up).
 
 Commands following it cannot deadlock with each other. A command that still

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import UUID
 
 import asyncpg
 
@@ -10,6 +11,7 @@ from leonaid.domain.commitments import Money
 from leonaid.domain.invoice_settlements import (
     InvoiceCancellation,
     InvoiceRefundSettlement,
+    InvoiceRefundWithdrawal,
 )
 from leonaid.domain.invoices import InvoiceStatus
 
@@ -32,6 +34,54 @@ CANCELLATION_LIST_COLUMNS = """
 """
 
 
+async def refund_withdrawals(
+    connection: asyncpg.Connection[Any],
+    *,
+    action_id: UUID,
+    cancellation_id: UUID | None = None,
+) -> dict[UUID, tuple[InvoiceRefundWithdrawal, ...]]:
+    """Withdrawn refund markers by cancellation, oldest first.
+
+    Of one cancellation, or of every cancellation of the action.
+    """
+
+    rows = await connection.fetch(
+        """
+        SELECT
+            withdrawal.*,
+            setter.display_name AS settled_by_display_name,
+            withdrawer.display_name AS withdrawn_by_display_name
+        FROM invoice_refund_withdrawal AS withdrawal
+        JOIN user_account AS setter
+          ON setter.id = withdrawal.settled_by_user_id
+        JOIN user_account AS withdrawer
+          ON withdrawer.id = withdrawal.withdrawn_by_user_id
+        WHERE withdrawal.action_id = $1
+          AND ($2::uuid IS NULL OR withdrawal.invoice_cancellation_id = $2)
+        ORDER BY withdrawal.withdrawn_at, withdrawal.id
+        """,
+        action_id,
+        cancellation_id,
+    )
+    result: dict[UUID, list[InvoiceRefundWithdrawal]] = {}
+    for row in rows:
+        result.setdefault(row["invoice_cancellation_id"], []).append(
+            InvoiceRefundWithdrawal(
+                id=row["id"],
+                settled_on=row["settled_on"],
+                note=str(row["note"]) if row["note"] is not None else None,
+                settled_by_user_id=row["settled_by_user_id"],
+                settled_at=row["settled_at"],
+                reason=str(row["reason_snapshot"]),
+                withdrawn_by_user_id=row["withdrawn_by_user_id"],
+                withdrawn_at=row["withdrawn_at"],
+                settled_by_display_name=str(row["settled_by_display_name"]),
+                withdrawn_by_display_name=str(row["withdrawn_by_display_name"]),
+            )
+        )
+    return {key: tuple(value) for key, value in result.items()}
+
+
 def cancellation_from_row(
     row: asyncpg.Record,
     *,
@@ -39,6 +89,7 @@ def cancellation_from_row(
     received: Money,
     replayed: bool = False,
     prefix: str = "",
+    withdrawals: tuple[InvoiceRefundWithdrawal, ...] = (),
 ) -> InvoiceCancellation:
     """A cancellation from its columns; ``prefix`` names aliased columns.
 
@@ -81,4 +132,5 @@ def cancellation_from_row(
         issued_on=column("issued_on"),
         received=received,
         refund=refund,
+        refund_withdrawals=withdrawals,
     )

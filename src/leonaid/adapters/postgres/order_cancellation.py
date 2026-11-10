@@ -274,6 +274,7 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
                 request_hash=hashlib.sha256(inner_key.encode("utf-8")).hexdigest(),
                 request_id=request_id,
                 occurred_at=occurred_at,
+                send_document=request.send_invoice_cancellation,
             )
             invoice_cancellation_id = invoice_cancellation.id
 

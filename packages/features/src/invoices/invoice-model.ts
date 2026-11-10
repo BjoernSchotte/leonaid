@@ -210,7 +210,14 @@ export function invoiceRows(
     document: invoicePdfs.get(record.invoice.id),
     cancellationDocument: cancellationPdfs.get(record.invoice.id),
     status: invoiceListStatus(record, today),
-    dispatch: invoiceDispatch(record.deliveries[0]),
+    // What still has to reach the buyer: the invoice while it is live, its
+    // cancellation invoice once it is cancelled. A failed mail of either
+    // shows in the list and in the dashboard count.
+    dispatch: invoiceDispatch(
+      record.cancellation
+        ? record.cancellationDeliveries[0]
+        : record.deliveries[0],
+    ),
     refund: invoiceRefund(record),
   }));
 }
@@ -290,6 +297,9 @@ export const cancellationDocumentCommandStorageKey = (invoiceId: string) =>
 
 export const refundCommandStorageKey = (invoiceId: string) =>
   `leonaid.invoice-refund-command.${invoiceId}`;
+
+export const refundWithdrawalCommandStorageKey = (invoiceId: string) =>
+  `leonaid.invoice-refund-withdrawal-command.${invoiceId}`;
 
 export const settlementCommandStorageKey = (
   invoiceId: string,

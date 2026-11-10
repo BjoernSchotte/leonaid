@@ -55,7 +55,12 @@ import {
 } from "./invoice-model";
 import { ADMIN_BASE } from "@leonaid/ui/base-paths";
 
-export type InvoiceCommand = "payment" | "cancellation" | "reversal" | "refund";
+export type InvoiceCommand =
+  | "payment"
+  | "cancellation"
+  | "reversal"
+  | "refund"
+  | "refund-withdrawal";
 
 export interface InvoiceDetailProps {
   readonly row: InvoiceRow;
@@ -557,6 +562,7 @@ export function InvoiceDetail({
           canManageSettlement={canManageSettlement}
           client={client}
           onChanged={onChanged}
+          onWithdrawRefund={() => onCommand("refund-withdrawal", row)}
           row={row}
         />
       ) : null}
@@ -636,11 +642,13 @@ function CancellationInvoice({
   canManageSettlement,
   client,
   onChanged,
+  onWithdrawRefund,
   row,
 }: {
   readonly canManageSettlement: boolean;
   readonly client: LeonAidApiClient;
   readonly onChanged: () => void;
+  readonly onWithdrawRefund: () => void;
   readonly row: InvoiceRow;
 }) {
   const { invoice, cancellation } = row.record;
@@ -707,8 +715,30 @@ function CancellationInvoice({
           ...(cancellation.refundNote
             ? [{ label: "Notiz", value: cancellation.refundNote }]
             : []),
+          // Markers that were taken back: who set them, who withdrew them.
+          ...cancellation.refundWithdrawals.map((withdrawal) => ({
+            label: "Zurückgenommen",
+            value: (
+              <span data-testid="cancellation-refund-withdrawal">
+                {`Vermerk vom ${formatDate(withdrawal.settledOn)} (${withdrawal.settledByDisplayName ?? "Berechtigte Finanzrolle"}) zurückgenommen am ${formatDateTime(withdrawal.withdrawnAt)} von ${withdrawal.withdrawnByDisplayName ?? "Berechtigte Finanzrolle"}: ${withdrawal.reason}`}
+              </span>
+            ),
+          })),
         ]
       : [];
+  const withdrawRefund =
+    canManageSettlement && cancellation.refundSettledOn ? (
+      <div className="cluster inv-section-actions">
+        <Button
+          data-testid="open-refund-withdrawal-form"
+          onClick={onWithdrawRefund}
+          size="sm"
+          variant="ghost"
+        >
+          Erstattung zurücknehmen
+        </Button>
+      </div>
+    ) : null;
 
   return (
     <DetailSection title="Stornorechnung">
@@ -736,6 +766,7 @@ function CancellationInvoice({
                 ...refundItems,
               ]}
             />
+            {withdrawRefund}
             <div className="inv-note">
               <StoredDocument
                 actionId={invoice.actionId}
@@ -752,6 +783,7 @@ function CancellationInvoice({
               ausgestellt hat. Deshalb gibt es zu ihr noch keine Stornorechnung.
             </p>
             {refundItems.length ? <DetailProps items={refundItems} /> : null}
+            {withdrawRefund}
             {canManageSettlement ? (
               <>
                 <div className="cluster inv-section-actions">

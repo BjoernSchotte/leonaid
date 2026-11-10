@@ -384,6 +384,8 @@ from leonaid.entrypoints.fastapi.schemas import (
     LegalRetentionResponse,
     CancelInvoiceRequest,
     SettleInvoiceRefundRequest,
+    WithdrawInvoiceRefundRequest,
+    InvoiceRefundWithdrawalResponse,
     ChangeMemberRoleRequest,
     ChangeMemberStatusRequest,
     IssueInvoiceRequest,
@@ -1887,6 +1889,19 @@ def invoice_cancellation_response(
             refund.settled_by_display_name if refund is not None else None
         ),
         refund_settled_at=refund.settled_at if refund is not None else None,
+        refund_withdrawals=[
+            InvoiceRefundWithdrawalResponse(
+                id=item.id,
+                settled_on=item.settled_on,
+                note=item.note,
+                settled_by_display_name=item.settled_by_display_name,
+                settled_at=item.settled_at,
+                reason=item.reason,
+                withdrawn_by_display_name=item.withdrawn_by_display_name,
+                withdrawn_at=item.withdrawn_at,
+            )
+            for item in cancellation.refund_withdrawals
+        ],
     )
 
 
@@ -4136,6 +4151,7 @@ async def cancel_commitment(
             expected_version=body.expected_version,
             reason=body.reason,
             note=body.note,
+            send_invoice_cancellation=body.send_invoice_cancellation,
         ),
         fresh_login=fresh,
         idempotency_key=request.headers.get("Idempotency-Key", ""),
@@ -4387,6 +4403,40 @@ async def settle_invoice_cancellation_refund(
         invoice_id,
         settled_on=body.settled_on,
         note=body.note,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return invoice_cancellation_response(cancellation)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/invoices/{invoice_id}/cancellation/refund/withdrawal",
+    operation_id="withdrawInvoiceCancellationRefund",
+    response_model=InvoiceCancellationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["invoices"],
+)
+async def withdraw_invoice_cancellation_refund(
+    action_id: UUID,
+    invoice_id: UUID,
+    request: Request,
+    body: WithdrawInvoiceRefundRequest,
+    response: Response,
+) -> InvoiceCancellationResponse:
+    """Take "Erstattung erledigt" back; the refund is open again.
+
+    Same gate as recording it: fresh login and ``Idempotency-Key``. The
+    answer lists the withdrawn marker with who set it and who withdrew it.
+    409 ``invoice_refund_not_settled`` without a marker.
+    """
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    cancellation = await invoice_settlement_service(request).withdraw_refund(
+        actor,
+        action_id,
+        invoice_id,
+        reason=body.reason,
         idempotency_key=request.headers.get("Idempotency-Key", ""),
         request_id=request_id(request),
     )

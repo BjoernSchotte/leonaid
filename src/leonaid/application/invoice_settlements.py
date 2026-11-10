@@ -97,6 +97,19 @@ class InvoiceSettlementRepository(Protocol):
         occurred_at: datetime,
     ) -> InvoiceCancellation: ...
 
+    async def withdraw_refund(
+        self,
+        *,
+        action_id: UUID,
+        invoice_id: UUID,
+        reason: str,
+        actor_user_id: UUID,
+        idempotency_key: str,
+        request_hash: str,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> InvoiceCancellation: ...
+
 
 def may_manage_invoice_settlements(
     actor: IdentityPrincipal,
@@ -343,6 +356,39 @@ class InvoiceSettlementService:
                     "command": "settleRefund",
                     "settledOn": settled_on.isoformat(),
                     "note": normalized_note,
+                }
+            ),
+            request_id=request_id,
+            occurred_at=occurred_at or datetime.now(timezone.utc),
+        )
+
+    async def withdraw_refund(
+        self,
+        actor: IdentityPrincipal,
+        action_id: UUID,
+        invoice_id: UUID,
+        *,
+        reason: str,
+        idempotency_key: str,
+        request_id: str,
+        occurred_at: datetime | None = None,
+    ) -> InvoiceCancellation:
+        """Takes "Erstattung erledigt" back, with a reason; it is open again."""
+
+        self._require_manage(actor, action_id)
+        self._validate_idempotency_key(idempotency_key)
+        return await self._repository.withdraw_refund(
+            action_id=action_id,
+            invoice_id=invoice_id,
+            reason=reason,
+            actor_user_id=actor.account.id,
+            idempotency_key=idempotency_key,
+            request_hash=_request_hash(
+                {
+                    "actionId": str(action_id),
+                    "invoiceId": str(invoice_id),
+                    "command": "withdrawRefund",
+                    "reason": " ".join(reason.split()),
                 }
             ),
             request_id=request_id,

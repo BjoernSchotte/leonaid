@@ -338,12 +338,17 @@ class AsyncpgDashboardRepository(DashboardRepository):
     ) -> InvoiceCounts:
         row = await connection.fetchrow(
             """
+            -- The latest delivery per invoice and document: the invoice PDF
+            -- and, for a cancelled invoice, its cancellation invoice.
             WITH latest_delivery AS (
-                SELECT DISTINCT ON (delivery.invoice_id)
+                SELECT DISTINCT ON (delivery.invoice_id, document.document_type)
                     delivery.invoice_id,
+                    document.document_type,
                     event.status AS outbox_status,
                     mail.sent_at
                 FROM invoice_delivery AS delivery
+                JOIN generated_document AS document
+                  ON document.id = delivery.generated_document_id
                 JOIN outbox_event AS event
                   ON event.id = delivery.outbox_event_id
                 LEFT JOIN mail_delivery AS mail
@@ -351,6 +356,7 @@ class AsyncpgDashboardRepository(DashboardRepository):
                 WHERE delivery.action_id = $1
                 ORDER BY
                     delivery.invoice_id,
+                    document.document_type,
                     delivery.requested_at DESC,
                     delivery.created_at DESC,
                     delivery.id DESC
@@ -390,8 +396,7 @@ class AsyncpgDashboardRepository(DashboardRepository):
                     WHERE due_on < $2
                 ), 0) AS overdue_amount_minor,
                 count(*) FILTER (
-                    WHERE status <> 'cancelled'
-                      AND latest_delivery.outbox_status = 'dead_letter'
+                    WHERE latest_delivery.outbox_status = 'dead_letter'
                       AND latest_delivery.sent_at IS NULL
                 ) AS delivery_failed,
                 count(*) FILTER (WHERE status = 'issued') AS issued,
@@ -404,8 +409,15 @@ class AsyncpgDashboardRepository(DashboardRepository):
                 coalesce(sum(remainder_minor), 0) AS open_amount_minor,
                 array_remove(array_agg(DISTINCT currency), NULL) AS currencies
             FROM balance AS invoice
+            -- What still has to reach the buyer: the invoice while it is
+            -- live, the cancellation invoice once it is cancelled.
             LEFT JOIN latest_delivery
               ON latest_delivery.invoice_id = invoice.id
+             AND latest_delivery.document_type = CASE
+                 WHEN invoice.status = 'cancelled'
+                 THEN 'invoice_cancellation_pdf'
+                 ELSE 'invoice_pdf'
+             END
             """,
             action_id,
             today,

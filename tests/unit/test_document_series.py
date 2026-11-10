@@ -6,6 +6,7 @@ from leonaid.domain.document_series import (
     DocumentSeries,
     DocumentSeriesKind,
     format_document_number,
+    series_of_number,
 )
 from leonaid.domain.errors import DomainInvariantError
 
@@ -63,3 +64,20 @@ def test_invalid_series_is_rejected(changes: dict[str, object], code: str) -> No
         series(**changes)
 
     assert error.value.code == code
+
+
+@pytest.mark.parametrize(
+    ("number", "expected"),
+    [
+        ("KT26-0017", ("KT26-", 4)),
+        # The width stays inside the allowed range.
+        ("RE-7", ("RE-", 3)),
+        ("RE-123456789", ("RE-", 8)),
+        # No serial at the end: a series of its own, so a cancellation
+        # invoice can always be numbered.
+        ("OC1234ABCD-PUBLIC-INVOICED", ("OC1234ABCD-PUBLIC-INVOI-", 3)),
+        ("2026", ("2026-", 3)),
+    ],
+)
+def test_series_of_a_document_number(number: str, expected: tuple[str, int]) -> None:
+    assert series_of_number(number) == expected

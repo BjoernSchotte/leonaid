@@ -495,6 +495,7 @@ def test_refund_is_open_while_received_money_is_not_marked_as_returned() -> None
         note="  Überweisung   vom Vereinskonto ",
         settled_by_user_id=ADMIN_ID,
         settled_at=settled_at,
+        invoice_issued_on=date(2026, 10, 12),
     )
     assert refund.note == "Überweisung vom Vereinskonto"
     assert not replace(open_refund, refund=refund).refund_open
@@ -504,7 +505,9 @@ def test_refund_is_open_while_received_money_is_not_marked_as_returned() -> None
     ("received_minor", "settled_on", "code"),
     [
         (0, date(2026, 10, 22), "invoice_refund_not_due"),
-        (7_200, date(2026, 10, 20), "invoice_refund_before_cancellation"),
+        # Before the cancellation is fine (the club may have paid back
+        # first); before the invoice existed is not.
+        (7_200, date(2026, 10, 11), "invoice_refund_before_invoice"),
         (7_200, date(2026, 10, 24), "invoice_refund_future_date"),
     ],
 )
@@ -515,6 +518,7 @@ def test_refund_rules(received_minor: int, settled_on: date, code: str) -> None:
             note=None,
             settled_by_user_id=ADMIN_ID,
             settled_at=CANCELLED_AT + timedelta(days=2),
+            invoice_issued_on=date(2026, 10, 12),
         )
 
     assert error.value.code == code
@@ -528,6 +532,7 @@ def test_refund_is_recorded_once() -> None:
         note=None,
         settled_by_user_id=ADMIN_ID,
         settled_at=settled_at,
+        invoice_issued_on=date(2026, 10, 12),
     )
 
     with pytest.raises(DomainInvariantError) as error:
@@ -536,8 +541,72 @@ def test_refund_is_recorded_once() -> None:
             note=None,
             settled_by_user_id=ADMIN_ID,
             settled_at=settled_at,
+            invoice_issued_on=date(2026, 10, 12),
         )
     assert error.value.code == "invoice_refund_already_settled"
+
+
+def test_refund_may_predate_the_cancellation_but_not_the_invoice() -> None:
+    refund = cancellation(7_200).settle_refund(
+        settled_on=date(2026, 10, 15),
+        note=None,
+        settled_by_user_id=ADMIN_ID,
+        settled_at=CANCELLED_AT + timedelta(days=2),
+        invoice_issued_on=date(2026, 10, 12),
+    )
+
+    assert refund.settled_on == date(2026, 10, 15)
+
+
+def test_withdrawn_marker_reopens_the_refund_and_keeps_both_people() -> None:
+    other = UUID("10000000-0000-4000-8000-000000000009")
+    settled_at = CANCELLED_AT + timedelta(days=2)
+    first = cancellation(7_200)
+    settled = replace(
+        first,
+        refund=first.settle_refund(
+            settled_on=date(2026, 10, 22),
+            note="Überweisung",
+            settled_by_user_id=ADMIN_ID,
+            settled_at=settled_at,
+            invoice_issued_on=date(2026, 10, 12),
+        ),
+    )
+
+    withdrawal = settled.withdraw_refund(
+        id=uuid4(),
+        reason="  Falsche Rechnung   angeklickt ",
+        withdrawn_by_user_id=other,
+        withdrawn_at=settled_at + timedelta(hours=1),
+    )
+
+    assert withdrawal.reason == "Falsche Rechnung angeklickt"
+    assert (withdrawal.settled_by_user_id, withdrawal.withdrawn_by_user_id) == (
+        ADMIN_ID,
+        other,
+    )
+    assert (withdrawal.settled_on, withdrawal.note) == (
+        date(2026, 10, 22),
+        "Überweisung",
+    )
+    reopened = replace(settled, refund=None, refund_withdrawals=(withdrawal,))
+    assert reopened.refund_open
+    with pytest.raises(DomainInvariantError) as error:
+        reopened.withdraw_refund(
+            id=uuid4(),
+            reason="Noch einmal zurücknehmen",
+            withdrawn_by_user_id=other,
+            withdrawn_at=settled_at + timedelta(hours=2),
+        )
+    assert error.value.code == "invoice_refund_not_settled"
+    with pytest.raises(DomainInvariantError) as error:
+        settled.withdraw_refund(
+            id=uuid4(),
+            reason="kurz",
+            withdrawn_by_user_id=other,
+            withdrawn_at=settled_at + timedelta(hours=1),
+        )
+    assert error.value.code == "invoice_refund_withdrawal_reason_too_short"
 
 
 def test_number_and_date_of_the_document_belong_together() -> None:

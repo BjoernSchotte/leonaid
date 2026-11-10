@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid5
 
@@ -13,6 +13,8 @@ from leonaid.application.errors import Conflict, ResourceNotFound
 from leonaid.adapters.postgres.invoice_payment_state import ACTIVE_PAID_MINOR_SQL
 from leonaid.application.invoice_deliveries import (
     INVOICE_MAIL_SEND_REQUESTED,
+    InvoiceDeliveryDocumentFailed,
+    InvoiceDeliveryDocumentPending,
     InvoiceCancellationDeliveryContext,
     InvoiceDelivery,
     InvoiceDeliveryContext,
@@ -31,9 +33,6 @@ DOCUMENT_TYPES = {
     ),
 }
 KINDS = {document_type.value: kind for kind, document_type in DOCUMENT_TYPES.items()}
-# A cancellation invoice sent with the cancel command is rendered first; the
-# mail job starts after this head start and retries until the PDF is there.
-PENDING_DOCUMENT_HEAD_START = timedelta(seconds=15)
 MAIL_DELIVERY_NAMESPACE = UUID("8a30d44c-d313-4cc6-af6a-237af95a4d4c")
 
 
@@ -319,8 +318,7 @@ class AsyncpgInvoiceDeliveryRepository:
                 {"deliveryId": str(draft.id)},
                 separators=(",", ":"),
             ),
-            draft.requested_at
-            + (PENDING_DOCUMENT_HEAD_START if pending else timedelta(0)),
+            draft.requested_at,
             draft.requested_at,
         )
         await connection.execute(
@@ -481,7 +479,13 @@ class AsyncpgInvoiceDeliveryRepository:
                     document.media_type,
                     document.size_bytes,
                     document.sha256,
-                    document.status AS document_status
+                    document.status AS document_status,
+                    EXISTS (
+                        SELECT 1 FROM outbox_event AS render
+                        WHERE render.aggregate_type = 'generated_document'
+                          AND render.aggregate_id = document.id
+                          AND render.status IN ('pending', 'processing')
+                    ) AS render_on_its_way
                 FROM invoice_delivery AS delivery
                 JOIN generated_document AS document
                   ON document.id = delivery.generated_document_id
@@ -491,8 +495,16 @@ class AsyncpgInvoiceDeliveryRepository:
             )
         if row is None:
             return None
+        if str(row["document_status"]) == "pending":
+            # A cancellation invoice sent with the cancel command is rendered
+            # first. The mail waits as long as the render job is on its way
+            # and fails with it.
+            if bool(row["render_on_its_way"]):
+                raise InvoiceDeliveryDocumentPending
+            raise InvoiceDeliveryDocumentFailed(
+                "Das PDF des Versands wurde nicht erzeugt."
+            )
         if str(row["document_status"]) != "available":
-            # Also a PDF that is still being rendered: the job is retried.
             raise RuntimeError("Das PDF des Versands ist nicht versandbereit.")
         required = (
             "filename",

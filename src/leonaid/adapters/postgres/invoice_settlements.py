@@ -10,7 +10,10 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
-from leonaid.adapters.postgres.invoice_cancellation_rows import cancellation_from_row
+from leonaid.adapters.postgres.invoice_cancellation_rows import (
+    cancellation_from_row,
+    refund_withdrawals,
+)
 from leonaid.adapters.postgres.invoice_cancellation_documents import (
     document_columns,
     prepare_cancellation_document,
@@ -49,6 +52,7 @@ REVERSAL_COMMAND = "reverse_invoice_payment_v1"
 CANCELLATION_COMMAND = "cancel_invoice_v1"
 CANCELLATION_DOCUMENT_COMMAND = "issue_invoice_cancellation_document_v1"
 REFUND_COMMAND = "settle_invoice_refund_v1"
+REFUND_WITHDRAWAL_COMMAND = "withdraw_invoice_refund_v1"
 
 
 class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
@@ -283,6 +287,9 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
                     note=note,
                     settled_by_user_id=actor_user_id,
                     settled_at=occurred_at,
+                    invoice_issued_on=await connection.fetchval(
+                        "SELECT issued_on FROM invoice WHERE id = $1", invoice_id
+                    ),
                 )
                 await connection.execute(
                     """
@@ -324,6 +331,132 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
                 await self._complete_command(
                     connection,
                     command_type=REFUND_COMMAND,
+                    idempotency_key=idempotency_key,
+                    request_hash=request_hash,
+                    result={"cancellationId": str(cancellation.id)},
+                    occurred_at=occurred_at,
+                )
+                return await self._get_cancellation(
+                    connection,
+                    action_id=action_id,
+                    cancellation_id=cancellation.id,
+                    replayed=False,
+                )
+
+    async def withdraw_refund(
+        self,
+        *,
+        action_id: UUID,
+        invoice_id: UUID,
+        reason: str,
+        actor_user_id: UUID,
+        idempotency_key: str,
+        request_hash: str,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> InvoiceCancellation:
+        """Takes the refund marker back; the refund is open again."""
+
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                await self._lock_invoice(connection, invoice_id)
+                replayed_id = await self._existing_command(
+                    connection,
+                    command_type=REFUND_WITHDRAWAL_COMMAND,
+                    idempotency_key=idempotency_key,
+                    request_hash=request_hash,
+                    result_key="cancellationId",
+                )
+                if replayed_id is not None:
+                    return await self._get_cancellation(
+                        connection,
+                        action_id=action_id,
+                        cancellation_id=replayed_id,
+                        replayed=True,
+                    )
+                row = await connection.fetchrow(
+                    """
+                    SELECT id FROM invoice_cancellation
+                    WHERE invoice_id = $1 AND action_id = $2
+                    FOR UPDATE
+                    """,
+                    invoice_id,
+                    action_id,
+                )
+                if row is None:
+                    raise ResourceNotFound(
+                        "invoice_cancellation_not_found",
+                        "Für diese Rechnung ist kein Storno erfasst.",
+                    )
+                cancellation = await self._get_cancellation(
+                    connection,
+                    action_id=action_id,
+                    cancellation_id=row["id"],
+                    replayed=False,
+                )
+                if cancellation.refund is None:
+                    raise Conflict(
+                        "invoice_refund_not_settled",
+                        "Für diese Rechnung ist keine Erstattung als erledigt "
+                        "vermerkt.",
+                    )
+                withdrawal = cancellation.withdraw_refund(
+                    id=uuid4(),
+                    reason=reason,
+                    withdrawn_by_user_id=actor_user_id,
+                    withdrawn_at=occurred_at,
+                )
+                await connection.execute(
+                    """
+                    INSERT INTO invoice_refund_withdrawal (
+                        id, action_id, invoice_cancellation_id, settled_on,
+                        note, settled_by_user_id, settled_at, reason_snapshot,
+                        withdrawn_by_user_id, withdrawn_at
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    """,
+                    withdrawal.id,
+                    action_id,
+                    cancellation.id,
+                    withdrawal.settled_on,
+                    withdrawal.note,
+                    withdrawal.settled_by_user_id,
+                    withdrawal.settled_at,
+                    withdrawal.reason,
+                    withdrawal.withdrawn_by_user_id,
+                    withdrawal.withdrawn_at,
+                )
+                await connection.execute(
+                    """
+                    UPDATE invoice_cancellation
+                    SET refund_settled_on = NULL,
+                        refund_note = NULL,
+                        refund_settled_by_user_id = NULL,
+                        refund_settled_at = NULL
+                    WHERE id = $1
+                    """,
+                    cancellation.id,
+                )
+                await self._audit(
+                    connection,
+                    action_id=action_id,
+                    actor_user_id=actor_user_id,
+                    event_type="invoice_refund_withdrawn",
+                    entity_type="invoice_cancellation",
+                    entity_id=cancellation.id,
+                    request_id=request_id,
+                    payload={
+                        "invoiceId": str(invoice_id),
+                        "cancellationNumber": cancellation.number,
+                        "settledOn": withdrawal.settled_on.isoformat(),
+                        "settledByUserId": str(withdrawal.settled_by_user_id),
+                        "reason": withdrawal.reason,
+                    },
+                    occurred_at=occurred_at,
+                )
+                await self._complete_command(
+                    connection,
+                    command_type=REFUND_WITHDRAWAL_COMMAND,
                     idempotency_key=idempotency_key,
                     request_hash=request_hash,
                     result={"cancellationId": str(cancellation.id)},
@@ -1195,9 +1328,13 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
                 "invoice_cancellation_not_found",
                 "Das Storno wurde nicht gefunden.",
             )
+        withdrawals = await refund_withdrawals(
+            connection, action_id=action_id, cancellation_id=cancellation_id
+        )
         return cancellation_from_row(
             row,
             requested_by_display_name=str(row["requested_by_display_name"]),
             received=Money(int(row["received_minor"]), str(row["invoice_currency"])),
             replayed=replayed,
+            withdrawals=withdrawals.get(cancellation_id, ()),
         )

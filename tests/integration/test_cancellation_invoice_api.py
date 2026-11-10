@@ -27,6 +27,15 @@ from uuid import UUID, uuid4
 import asyncpg
 import httpx
 
+from leonaid.adapters.postgres.dashboard import AsyncpgDashboardRepository
+from leonaid.adapters.postgres.invoice_deliveries import (
+    AsyncpgInvoiceDeliveryRepository,
+)
+from leonaid.application.invoice_deliveries import (
+    DOCUMENT_WAIT,
+    InvoiceDeliveryDocumentFailed,
+    InvoiceDeliveryDocumentPending,
+)
 from leonaid.configuration import Settings
 from leonaid.domain.calendar import local_day
 from leonaid.domain.sessions import (
@@ -90,8 +99,21 @@ class Fixture:
         "no_mail",
         "race_1",
         "race_2",
+        "order_send",
+        "heal",
+        "no_mail_2",
+        "race_5",
     )
-    BETA = ("second", "race_3", "race_4")
+    BETA = (
+        "second",
+        "race_3",
+        "race_4",
+        "no_profile",
+        "no_profile_order",
+        "no_legal",
+    )
+    # A third action on a prefix nobody has used yet.
+    ZETA = ("zeta_1", "zeta_2")
     # Invoices cancelled before the cancellation invoice existed.
     LEGACY = ("legacy", "legacy_paid")
 
@@ -100,18 +122,22 @@ class Fixture:
         self.prefix = f"{self.tag}-"
         self.alpha = uuid4()
         self.beta = uuid4()
+        self.zeta = uuid4()
+        self.zeta_prefix = f"{self.tag}Z-"
         self.legal_version = uuid4()
-        self.offerings = {self.alpha: uuid4(), self.beta: uuid4()}
+        self.offerings = {self.alpha: uuid4(), self.beta: uuid4(), self.zeta: uuid4()}
         self.users = {name: uuid4() for name in self.USERS}
         self.tokens = {name: uuid4().hex + uuid4().hex for name in self.USERS}
         # The charity admin also holds a session whose login is not fresh.
         self.stale_token = uuid4().hex + uuid4().hex
-        names = (*self.ALPHA, *self.BETA, *self.LEGACY)
+        names = (*self.ALPHA, *self.BETA, *self.ZETA, *self.LEGACY)
         self.orders = {name: uuid4() for name in names}
         self.legacy_invoices = {name: uuid4() for name in self.LEGACY}
         self.previous_state: asyncpg.Record | None = None
 
     def action_of(self, name: str) -> UUID:
+        if name in self.ZETA:
+            return self.zeta
         return self.beta if name in self.BETA else self.alpha
 
     def number(self, serial: int) -> str:
@@ -156,7 +182,11 @@ class Fixture:
             self.users["finance_manager"],
         )
         await self._legal_configuration(connection)
-        for action_id, name in ((self.alpha, "Alpha"), (self.beta, "Beta")):
+        for action_id, name in (
+            (self.alpha, "Alpha"),
+            (self.beta, "Beta"),
+            (self.zeta, "Zeta"),
+        ):
             await connection.execute(
                 """
                 INSERT INTO charity_action (
@@ -201,7 +231,7 @@ class Fixture:
                 ISSUER["taxIdentifier"],
                 ISSUER["email"],
                 TAX_NOTE,
-                self.prefix,
+                self.zeta_prefix if action_id == self.zeta else self.prefix,
                 now,
                 self.legal_version,
                 BANK["accountHolder"],
@@ -565,6 +595,14 @@ class Proof:
         await self.order_cancellation_issues_it_too()
         await self.older_cancellations_get_their_document()
         await self.delivery()
+        await self.refund_marker_can_be_withdrawn()
+        await self.order_cancellation_can_send_it()
+        await self.other_actions_cannot_reach_it()
+        await self.a_mail_waits_for_its_pdf_and_fails_with_it()
+        await self.concurrent_cancels_and_issues_share_the_series()
+        await self.first_use_of_a_prefix_at_the_same_moment()
+        await self.counter_behind_an_issued_number_heals_itself()
+        await self.cancel_without_profile_or_legal_configuration()
         await self.numbers_are_unique_and_final()
         await self.every_action_with_invoicing_gets_a_profile()
 
@@ -818,7 +856,7 @@ class Proof:
         assert future.json()["error"]["code"] == "invoice_refund_future_date"
         yesterday = (self.today - timedelta(days=1)).isoformat()
         early = await self.charity.post(refund, {"settledOn": yesterday}, self.key())
-        assert early.json()["error"]["code"] == "invoice_refund_before_cancellation"
+        assert early.json()["error"]["code"] == "invoice_refund_before_invoice"
         key = self.key()
         note: dict[str, object] = {
             "settledOn": today,
@@ -1235,18 +1273,376 @@ class Proof:
             path, headers={**self.charity.headers, "Origin": BASE_URL}, json=body
         )
 
+    async def insert_invoice_directly(self, name: str, number: str) -> None:
+        """An invoice written the way the previous release wrote it: straight
+        into `invoice`, without the series."""
+
+        await self.db.execute(
+            """
+            INSERT INTO invoice (
+                id, action_id, commitment_id, number, status, issued_at,
+                service_on, due_on, currency, net_minor, tax_minor,
+                gross_minor, issuer_snapshot, payment_details_snapshot,
+                recipient_snapshot, line_snapshot, tax_treatment,
+                tax_rate_basis_points, tax_note, payment_reference,
+                approved_by_user_id, document_version, idempotency_key,
+                issued_on
+            )
+            VALUES (
+                $1, $2, $3, $4, 'issued', CURRENT_TIMESTAMP, $5, $6, 'EUR',
+                7200, 0, 7200, $7::jsonb, $8::jsonb, $9::jsonb,
+                '[{"description":"Krapfenbox","quantity":2,"unit":"box","unitPriceGrossMinor":3600,"taxRateBasisPoints":0,"netMinor":7200,"taxMinor":0,"grossMinor":7200,"currency":"EUR"}]'::jsonb,
+                'small_business', 0, $10, $4, $11, 2, $12, $5
+            )
+            """,
+            uuid4(),
+            self.data.action_of(name),
+            self.data.orders[name],
+            number,
+            self.today,
+            self.today + timedelta(days=14),
+            json.dumps(ISSUER),
+            json.dumps(BANK),
+            json.dumps(self.data.recipient(name)),
+            TAX_NOTE,
+            self.data.users["charity"],
+            f"series-proof-direct:{uuid4()}",
+        )
+
+    async def refund_marker_can_be_withdrawn(self) -> None:
+        """A wrong click must not stay: the marker is taken back with a
+        reason, and the record keeps who set it and who withdrew it."""
+
+        path = self.invoice_path("paid", "/cancellation/refund/withdrawal")
+        reason = {"reason": "Falsche Rechnung angeklickt"}
+        self.error(
+            await self.sessions["finance"].post(path, reason, self.key()),
+            403,
+            "invoice_settlement_required",
+        )
+        self.error(
+            await self.stale.post(path, reason, self.key()), 401, "fresh_login_required"
+        )
+        keyless = await self.charity.post(path, reason)
+        assert keyless.json()["error"]["code"] == (
+            "invoice_settlement_idempotency_key_invalid"
+        )
+        short = await self.charity.post(path, {"reason": "kurz"}, self.key())
+        assert short.status_code == 422, short.text
+        key = self.key()
+        withdrawn = await self.sessions["finance_manager"].post(path, reason, key)
+        assert withdrawn.status_code == 201, withdrawn.text
+        body = withdrawn.json()
+        assert body["refundOpen"] is True and body["refundSettledOn"] is None
+        assert len(body["refundWithdrawals"]) == 1
+        entry = body["refundWithdrawals"][0]
+        assert entry["reason"] == "Falsche Rechnung angeklickt"
+        assert entry["settledOn"] == self.today.isoformat()
+        assert entry["note"] == "Überweisung vom Vereinskonto"
+        assert entry["settledByDisplayName"].startswith("Charity")
+        assert entry["withdrawnByDisplayName"].startswith("Finance_Manager")
+        replay = await self.sessions["finance_manager"].post(path, reason, key)
+        assert replay.status_code == 201 and replay.json()["replayed"] is True
+        self.error(
+            await self.charity.post(path, reason, self.key()),
+            409,
+            "invoice_refund_not_settled",
+        )
+        record = await self.record("paid")
+        assert record["cancellation"]["refundOpen"] is True
+        assert len(record["cancellation"]["refundWithdrawals"]) == 1
+        cancellation_id = UUID(record["cancellation"]["id"])
+        assert (
+            await self.db.fetchval(
+                "SELECT count(*) FROM audit_event WHERE event_type = "
+                "'invoice_refund_withdrawn' AND entity_id = $1",
+                cancellation_id,
+            )
+            == 1
+        )
+        # It can be recorded again; the withdrawn marker stays on record.
+        again = await self.charity.post(
+            self.invoice_path("paid", "/cancellation/refund"),
+            {"settledOn": self.today.isoformat()},
+            self.key(),
+        )
+        assert again.status_code == 201, again.text
+        assert again.json()["refundOpen"] is False
+        assert len(again.json()["refundWithdrawals"]) == 1
+
+    async def order_cancellation_can_send_it(self) -> None:
+        """Cancelling an order whose invoice was mailed can mail the
+        cancellation invoice in the same step."""
+
+        issued = await self.issue("order_send")
+        assert issued.status_code == 201, issued.text
+        orders = await self.charity.get(
+            f"/api/v1/actions/{self.data.alpha}/commitments"
+        )
+        order_id = str(self.data.orders["order_send"])
+        order = next(
+            item
+            for item in orders.json()["items"]
+            if item["commitment"]["id"] == order_id
+        )
+        response = await self.charity.post(
+            f"/api/v1/actions/{self.data.alpha}/commitments/{order_id}/cancellation",
+            {
+                "expectedVersion": order["commitment"]["deliveryCompletionVersion"],
+                "reason": REASON,
+                "sendInvoiceCancellation": True,
+            },
+            self.key(),
+        )
+        assert response.status_code == 201, response.text
+        record = await self.record("order_send")
+        assert len(record["cancellationDeliveries"]) == 1
+        delivery = record["cancellationDeliveries"][0]
+        assert delivery["status"] == "queued"
+        assert delivery["recipientEmail"] == self.data.recipient("order_send")["email"]
+        assert (
+            response.json()["cancellation"]["invoiceCancellationNumber"]
+            in (delivery["subject"])
+        )
+
+    async def other_actions_cannot_reach_it(self) -> None:
+        """Every new command is scoped to the action in its path."""
+
+        invoice_id = self.invoices["unpaid"]["id"]
+        foreign = f"/api/v1/actions/{self.data.beta}/invoices/{invoice_id}/cancellation"
+        today = self.today.isoformat()
+        for path, body, code in (
+            (f"{foreign}/document", None, "invoice_settlement_not_found"),
+            (
+                f"{foreign}/refund",
+                {"settledOn": today},
+                "invoice_cancellation_not_found",
+            ),
+            (
+                f"{foreign}/refund/withdrawal",
+                {"reason": "Falsche Rechnung angeklickt"},
+                "invoice_cancellation_not_found",
+            ),
+            (f"{foreign}/deliveries", None, "invoice_delivery_invoice_not_found"),
+        ):
+            self.error(await self.charity.post(path, body, self.key()), 404, code)
+        row = await self.cancellation_row("unpaid")
+        assert row["refund_settled_on"] is None
+
+    async def a_mail_waits_for_its_pdf_and_fails_with_it(self) -> None:
+        """ "Gleich senden" queues a mail for a PDF that is not rendered yet.
+        The mail job waits while the render job is on its way and fails,
+        visibly, when the render job failed for good."""
+
+        record = await self.record("send_now")
+        delivery_id = UUID(record["cancellationDeliveries"][0]["id"])
+        document = (await self.documents("send_now"))[0]
+        assert document["status"] == "pending"
+        pool = await asyncpg.create_pool(
+            os.environ["CORE_DATABASE_URL"], min_size=1, max_size=1
+        )
+        try:
+            deliveries = AsyncpgInvoiceDeliveryRepository(pool)
+            try:
+                await deliveries.job(delivery_id)
+            except InvoiceDeliveryDocumentPending as waiting:
+                assert waiting.delay == DOCUMENT_WAIT
+            else:
+                raise AssertionError("the mail did not wait for its PDF")
+            # The render job dead-letters: the mail fails with it.
+            await self.db.execute(
+                """
+                UPDATE outbox_event
+                SET status = 'dead_letter', dead_lettered_at = CURRENT_TIMESTAMP
+                WHERE aggregate_type = 'generated_document' AND aggregate_id = $1
+                """,
+                document["id"],
+            )
+            try:
+                await deliveries.job(delivery_id)
+            except InvoiceDeliveryDocumentFailed as failed:
+                assert failed.retryable is False
+            else:
+                raise AssertionError("the mail kept waiting for a PDF that failed")
+        finally:
+            await pool.close()
+        # What the worker then records for the mail job. The failed mail of a
+        # cancellation invoice counts on the dashboard like a failed invoice
+        # mail, and the list read marks it.
+        before = await AsyncpgDashboardRepository._invoices(
+            self.db, self.data.alpha, today=self.today
+        )
+        await self.db.execute(
+            """
+            UPDATE outbox_event
+            SET status = 'dead_letter', dead_lettered_at = CURRENT_TIMESTAMP,
+                attempts = 1, last_error_code = 'invoice_delivery_document_failed'
+            WHERE id = (
+                SELECT outbox_event_id FROM invoice_delivery WHERE id = $1
+            )
+            """,
+            delivery_id,
+        )
+        after = await AsyncpgDashboardRepository._invoices(
+            self.db, self.data.alpha, today=self.today
+        )
+        assert after.delivery_failed == before.delivery_failed + 1
+        record = await self.record("send_now")
+        failed_delivery = record["cancellationDeliveries"][0]
+        assert failed_delivery["status"] == "failed"
+        assert failed_delivery["canRetry"] is True
+
+    async def concurrent_cancels_and_issues_share_the_series(self) -> None:
+        """A cancel in each of two actions and an issue, all at once, on one
+        prefix: three different numbers, none left out."""
+
+        serial = await self.next_number()
+        cancel_alpha, cancel_beta, issue = await asyncio.gather(
+            self.cancel("race_1"),
+            self.cancel("race_3"),
+            self.issue("race_5"),
+        )
+        for response in (cancel_alpha, cancel_beta, issue):
+            assert response.status_code == 201, response.text
+        numbers = sorted(
+            (
+                cancel_alpha.json()["number"],
+                cancel_beta.json()["number"],
+                issue.json()["number"],
+            )
+        )
+        assert numbers == [self.data.number(serial + offset) for offset in range(3)]
+        assert await self.next_number() == serial + 3
+        # The order cancellation runs at another isolation level than the
+        # invoice cancellation: both at once, in two actions.
+        orders = await self.charity.get(
+            f"/api/v1/actions/{self.data.alpha}/commitments"
+        )
+        order_id = str(self.data.orders["race_2"])
+        order = next(
+            item
+            for item in orders.json()["items"]
+            if item["commitment"]["id"] == order_id
+        )
+        by_order, by_invoice = await asyncio.gather(
+            self.charity.post(
+                f"/api/v1/actions/{self.data.alpha}/commitments/{order_id}/cancellation",
+                {
+                    "expectedVersion": order["commitment"]["deliveryCompletionVersion"],
+                    "reason": REASON,
+                },
+                self.key(),
+            ),
+            self.cancel("race_4"),
+        )
+        assert by_order.status_code == 201, by_order.text
+        assert by_invoice.status_code == 201, by_invoice.text
+        assert sorted(
+            (
+                by_order.json()["cancellation"]["invoiceCancellationNumber"],
+                by_invoice.json()["number"],
+            )
+        ) == [self.data.number(serial + 3), self.data.number(serial + 4)]
+
+    async def first_use_of_a_prefix_at_the_same_moment(self) -> None:
+        """No series row exists for the prefix yet; two issues create and use
+        it at once."""
+
+        assert (
+            await self.db.fetchval(
+                "SELECT count(*) FROM document_series WHERE prefix = $1",
+                self.data.zeta_prefix,
+            )
+            == 0
+        )
+        responses = await asyncio.gather(self.issue("zeta_1"), self.issue("zeta_2"))
+        assert [item.status_code for item in responses] == [201, 201], [
+            item.text for item in responses
+        ]
+        assert sorted(item.json()["number"] for item in responses) == [
+            f"{self.data.zeta_prefix}0001",
+            f"{self.data.zeta_prefix}0002",
+        ]
+
+    async def counter_behind_an_issued_number_heals_itself(self) -> None:
+        """An invoice written the old way after the migration holds the
+        number the series would give next. Before, every later issue and
+        cancel on the prefix failed for good."""
+
+        serial = await self.next_number()
+        await self.insert_invoice_directly("heal", self.data.number(serial))
+        await self.insert_invoice_directly("no_mail_2", self.data.number(serial + 1))
+        assert await self.next_number() == serial
+        # A cancel and an issue both get past the two numbers taken.
+        cancelled = await self.cancel("race_5")
+        assert cancelled.status_code == 201, cancelled.text
+        assert cancelled.json()["number"] == self.data.number(serial + 2)
+        issued = await self.issue("no_profile")
+        assert issued.status_code == 201, issued.text
+        assert issued.json()["number"] == self.data.number(serial + 3)
+        assert await self.next_number() == serial + 4
+
+    async def cancel_without_profile_or_legal_configuration(self) -> None:
+        """An invoice must never become impossible to cancel. Invoices that
+        were seeded or written before every action had a profile exist."""
+
+        for name in ("no_profile_order", "no_legal"):
+            issued = await self.issue(name)
+            assert issued.status_code == 201, issued.text
+        await self.db.execute(
+            "DELETE FROM invoice_profile WHERE action_id = $1", self.data.beta
+        )
+        # Without a profile: the prefix of the active legal configuration.
+        serial = await self.next_number()
+        first = await self.cancel("no_profile")
+        assert first.status_code == 201, first.text
+        assert first.json()["number"] == self.data.number(serial)
+        # The same through the order's cancellation.
+        orders = await self.charity.get(f"/api/v1/actions/{self.data.beta}/commitments")
+        order_id = str(self.data.orders["no_profile_order"])
+        order = next(
+            item
+            for item in orders.json()["items"]
+            if item["commitment"]["id"] == order_id
+        )
+        by_order = await self.charity.post(
+            f"/api/v1/actions/{self.data.beta}/commitments/{order_id}/cancellation",
+            {
+                "expectedVersion": order["commitment"]["deliveryCompletionVersion"],
+                "reason": REASON,
+            },
+            self.key(),
+        )
+        assert by_order.status_code == 201, by_order.text
+        assert by_order.json()["cancellation"]["invoiceCancellationNumber"] == (
+            self.data.number(serial + 1)
+        )
+        # Without a legal configuration too: the series the invoice's own
+        # number belongs to. And an older cancellation gets its document.
+        await self.db.execute(
+            "UPDATE legal_configuration_state SET active_version_id = NULL"
+        )
+        try:
+            last = await self.cancel("no_legal")
+            assert last.status_code == 201, last.text
+            assert last.json()["number"] == self.data.number(serial + 2)
+        finally:
+            await self.db.execute(
+                "UPDATE legal_configuration_state SET active_version_id = $1",
+                self.data.legal_version,
+            )
+        assert await self.next_number() == serial + 3
+
     async def numbers_are_unique_and_final(self) -> None:
         row = await self.cancellation_row("unpaid")
-        # No invoice can take the number of a cancellation invoice.
+        # The registry itself refuses a second holder of a number, in any
+        # table: a new invoice written with the number of a cancellation
+        # invoice fails on `document_number`, not on a rule of `invoice`.
         try:
             async with self.db.transaction():
-                await self.db.execute(
-                    "UPDATE invoice SET number = $1 WHERE id = $2",
-                    row["number"],
-                    UUID(self.invoices["first"]["id"]),
-                )
-        except asyncpg.PostgresError:
-            pass
+                await self.insert_invoice_directly("race_5", row["number"])
+        except asyncpg.UniqueViolationError as error:
+            assert error.constraint_name == "document_number_pkey", error
         else:
             raise AssertionError("an invoice took a cancellation invoice's number")
         assert (

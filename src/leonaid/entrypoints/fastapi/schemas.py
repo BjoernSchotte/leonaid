@@ -1458,6 +1458,14 @@ class CancelCommitmentRequest(TransportModel):
     expected_version: str = Field(pattern=r"^[a-f0-9]{64}$")
     reason: str = Field(min_length=8, max_length=500)
     note: str | None = Field(default=None, max_length=1000)
+    send_invoice_cancellation: bool = Field(
+        default=False,
+        description=(
+            "When the order's invoice is cancelled with it: also send its "
+            "cancellation invoice to the invoice's recipient by mail. Ignored "
+            "when no invoice is cancelled."
+        ),
+    )
 
 
 class CommitmentCancellationResultResponse(TransportModel):
@@ -1515,6 +1523,21 @@ class CancelInvoiceRequest(TransportModel):
 class SettleInvoiceRefundRequest(TransportModel):
     settled_on: date
     note: str | None = Field(default=None, max_length=500)
+
+
+class WithdrawInvoiceRefundRequest(TransportModel):
+    reason: str = Field(min_length=8, max_length=500)
+
+
+class InvoiceRefundWithdrawalResponse(TransportModel):
+    id: UUID
+    settled_on: date
+    note: str | None
+    settled_by_display_name: str | None
+    settled_at: datetime
+    reason: str
+    withdrawn_by_display_name: str | None
+    withdrawn_at: datetime
 
 
 class InvoiceIssuerResponse(TransportModel):
@@ -1670,6 +1693,12 @@ class InvoiceCancellationResponse(TransportModel):
     refund_note: str | None
     refund_settled_by_display_name: str | None
     refund_settled_at: datetime | None
+    refund_withdrawals: list[InvoiceRefundWithdrawalResponse] = Field(
+        description=(
+            "Refund markers that were set and taken back again, oldest first, "
+            "each with who set it, who withdrew it and why."
+        ),
+    )
 
 
 class InvoiceRecordResponse(TransportModel):

@@ -368,6 +368,40 @@ class InvoiceRefundSettlement:
 
 
 @dataclass(frozen=True, slots=True)
+class InvoiceRefundWithdrawal:
+    """A refund marker that was taken back, with what it had said."""
+
+    id: UUID
+    settled_on: date
+    settled_by_user_id: UUID
+    settled_at: datetime
+    reason: str
+    withdrawn_by_user_id: UUID
+    withdrawn_at: datetime
+    note: str | None = None
+    settled_by_display_name: str | None = None
+    withdrawn_by_display_name: str | None = None
+
+    def __post_init__(self) -> None:
+        require_aware(self.withdrawn_at, "withdrawn_at")
+        object.__setattr__(
+            self,
+            "reason",
+            _required(
+                self.reason,
+                code="invoice_refund_withdrawal_reason_required",
+                label="Grund der Rücknahme",
+                maximum_length=500,
+            ),
+        )
+        if len(self.reason) < REVERSAL_REASON_MINIMUM:
+            raise DomainInvariantError(
+                "invoice_refund_withdrawal_reason_too_short",
+                "Der Grund der Rücknahme muss mindestens acht Zeichen enthalten.",
+            )
+
+
+@dataclass(frozen=True, slots=True)
 class InvoiceCancellation:
     id: UUID
     action_id: UUID
@@ -385,6 +419,8 @@ class InvoiceCancellation:
     # Active payments of the cancelled invoice; they can no longer change.
     received: Money | None = None
     refund: InvoiceRefundSettlement | None = None
+    # Markers that were set and taken back again, oldest first.
+    refund_withdrawals: tuple[InvoiceRefundWithdrawal, ...] = ()
 
     def __post_init__(self) -> None:
         require_aware(self.requested_at, "requested_at")
@@ -457,7 +493,12 @@ class InvoiceCancellation:
         note: str | None,
         settled_by_user_id: UUID,
         settled_at: datetime,
+        invoice_issued_on: date,
     ) -> InvoiceRefundSettlement:
+        """``invoice_issued_on`` bounds the day: money cannot go back before
+        the invoice existed. It may go back before the cancellation was
+        recorded in LeonAid."""
+
         require_aware(settled_at, "settled_at")
         if self.refund is not None:
             raise DomainInvariantError(
@@ -470,10 +511,10 @@ class InvoiceCancellation:
                 "Für diese Rechnung ist kein Zahlungseingang erfasst; es gibt "
                 "nichts zu erstatten.",
             )
-        if settled_on < local_day(self.requested_at):
+        if settled_on < invoice_issued_on:
             raise DomainInvariantError(
-                "invoice_refund_before_cancellation",
-                "Die Erstattung kann nicht vor dem Storno liegen.",
+                "invoice_refund_before_invoice",
+                "Die Erstattung kann nicht vor dem Rechnungsdatum liegen.",
             )
         if settled_on > local_day(settled_at):
             raise DomainInvariantError(
@@ -485,4 +526,30 @@ class InvoiceCancellation:
             note=note,
             settled_by_user_id=settled_by_user_id,
             settled_at=settled_at,
+        )
+
+    def withdraw_refund(
+        self,
+        *,
+        id: UUID,
+        reason: str,
+        withdrawn_by_user_id: UUID,
+        withdrawn_at: datetime,
+    ) -> InvoiceRefundWithdrawal:
+        """Takes the marker back: the refund is open again."""
+
+        if self.refund is None:
+            raise DomainInvariantError(
+                "invoice_refund_not_settled",
+                "Für diese Rechnung ist keine Erstattung als erledigt vermerkt.",
+            )
+        return InvoiceRefundWithdrawal(
+            id=id,
+            settled_on=self.refund.settled_on,
+            note=self.refund.note,
+            settled_by_user_id=self.refund.settled_by_user_id,
+            settled_at=self.refund.settled_at,
+            reason=reason,
+            withdrawn_by_user_id=withdrawn_by_user_id,
+            withdrawn_at=withdrawn_at,
         )

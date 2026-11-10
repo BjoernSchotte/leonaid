@@ -27,6 +27,7 @@ import {
   commandKey,
   forgetCommandKey,
   refundCommandStorageKey,
+  refundWithdrawalCommandStorageKey,
   invoiceSettlement,
   paymentCommandStorageKey,
   settlementCommandStorageKey,
@@ -474,8 +475,8 @@ const refundErrors: Readonly<Record<string, string>> = {
     "Für diese Rechnung ist kein Zahlungseingang erfasst. Es gibt nichts zu erstatten.",
   invoice_refund_future_date:
     "Das Datum der Erstattung darf nicht in der Zukunft liegen.",
-  invoice_refund_before_cancellation:
-    "Das Datum der Erstattung darf nicht vor dem Storno liegen.",
+  invoice_refund_before_invoice:
+    "Das Datum der Erstattung darf nicht vor dem Rechnungsdatum liegen.",
 };
 
 /**
@@ -508,7 +509,9 @@ function RefundForm({
   const { invoice } = record;
   const toast = useOptionalToast();
   const today = localIsoDate();
-  const minDate = isoDay(cancellation.requestedAt);
+  // Money can have gone back before the cancellation was recorded here,
+  // but not before the invoice existed.
+  const minDate = isoDay(invoice.issuedAt);
   const [settledOn, setSettledOn] = useState(today);
   const [note, setNote] = useState("");
   const [dateError, setDateError] = useState<string>();
@@ -536,7 +539,7 @@ function RefundForm({
       const known = message.code ? refundErrors[message.code] : undefined;
       if (
         message.code === "invoice_refund_future_date" ||
-        message.code === "invoice_refund_before_cancellation"
+        message.code === "invoice_refund_before_invoice"
       ) {
         setDateError(known);
         return;
@@ -567,7 +570,7 @@ function RefundForm({
     if (refund.isPending) return;
     setServerError(undefined);
     if (!settledOn || settledOn < minDate || settledOn > today) {
-      setDateError("Das Datum liegt zwischen dem Storno und heute.");
+      setDateError("Das Datum liegt zwischen dem Rechnungsdatum und heute.");
       return;
     }
     refund.mutate();
@@ -643,6 +646,145 @@ function RefundForm({
           <StatusMessage tone="error">{serverError}</StatusMessage>
         ) : null}
         <button hidden type="submit" />
+      </form>
+    </Modal>
+  );
+}
+
+/**
+ * Explicit command: takes "Erstattung erledigt" back, with a reason. The
+ * refund is open again; the record keeps who set the marker and who withdrew
+ * it.
+ */
+export function RefundWithdrawalDialog(props: SettlementDialogProps) {
+  const cancellation = props.record?.cancellation;
+  return props.record && cancellation?.refundSettledOn ? (
+    <RefundWithdrawalForm
+      key={props.record.invoice.id}
+      {...props}
+      record={props.record}
+    />
+  ) : null;
+}
+
+function RefundWithdrawalForm({
+  client,
+  onChanged,
+  onClose,
+  record,
+}: SettlementDialogProps & { readonly record: InvoiceRecordResponse }) {
+  const { invoice } = record;
+  const toast = useOptionalToast();
+  const [reason, setReason] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [serverError, setServerError] = useState<string>();
+  const storageKey = refundWithdrawalCommandStorageKey(invoice.id);
+  const tooShort = reason.trim().length < MIN_REASON;
+
+  const withdrawal = useMutation({
+    mutationFn: () =>
+      client.withdrawInvoiceCancellationRefund(
+        invoice.actionId,
+        invoice.id,
+        { reason: reason.trim() },
+        {
+          headers: {
+            "Idempotency-Key": commandKey(
+              storageKey,
+              "poc095:refund-withdrawal",
+            ),
+          },
+        },
+      ),
+    onError(cause) {
+      const message = actionErrorMessage(cause);
+      setServerError(message.message);
+      if (message.conflict) onChanged();
+    },
+    onSuccess() {
+      forgetCommandKey(storageKey);
+      toast?.show({
+        title: `Erstattung für ${invoice.number} ist wieder offen.`,
+        tone: "success",
+      });
+      onChanged();
+      onClose();
+    },
+  });
+
+  function submit() {
+    if (withdrawal.isPending) return;
+    setSubmitted(true);
+    setServerError(undefined);
+    if (tooShort) return;
+    withdrawal.mutate();
+  }
+
+  return (
+    <Modal
+      className="inv-dialog"
+      description="Der Vermerk „Erstattung erledigt“ wird zurückgenommen und die Rechnung zeigt wieder „Erstattung offen“. Wer den Vermerk gesetzt und wer ihn zurückgenommen hat, bleibt bei der Rechnung sichtbar."
+      footer={
+        <>
+          <Button
+            disabled={withdrawal.isPending}
+            onClick={onClose}
+            variant="ghost"
+          >
+            Abbrechen
+          </Button>
+          <Button
+            data-testid="withdraw-refund"
+            loading={withdrawal.isPending}
+            onClick={submit}
+            variant="danger"
+          >
+            Erstattung zurücknehmen
+          </Button>
+        </>
+      }
+      onClose={() => {
+        if (!withdrawal.isPending) onClose();
+      }}
+      open
+      role="alertdialog"
+      title={`Erstattung für ${invoice.number} zurücknehmen?`}
+    >
+      <form
+        className="stack"
+        data-testid="refund-withdrawal-form"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
+        <Field
+          error={
+            submitted && tooShort
+              ? "Bitte nennen Sie den Grund mit mindestens acht Zeichen."
+              : undefined
+          }
+          id={`refund-withdrawal-reason-${invoice.id}`}
+          label="Grund der Rücknahme"
+          required
+        >
+          <Textarea
+            autoFocus
+            data-testid="refund-withdrawal-reason"
+            maxLength={500}
+            onChange={(event) => {
+              // Another body is another command: it gets its own key.
+              forgetCommandKey(storageKey);
+              setReason(event.target.value);
+            }}
+            rows={3}
+            value={reason}
+          />
+        </Field>
+        {serverError ? (
+          <StatusMessage tone="error">{serverError}</StatusMessage>
+        ) : null}
       </form>
     </Modal>
   );

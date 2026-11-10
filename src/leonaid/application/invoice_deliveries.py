@@ -6,11 +6,12 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from enum import StrEnum
 from typing import Protocol
 from uuid import UUID, uuid4, uuid5
 
+from leonaid.application.outbox import OutboxDeferred
 from leonaid.application.policies import require_action_manager
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import IdentityPrincipal
@@ -18,6 +19,8 @@ from leonaid.domain.identity import IdentityPrincipal
 INVOICE_MAIL_SEND_REQUESTED = "invoice.mail.send.requested.v1"
 INVOICE_DELIVERY_NAMESPACE = UUID("86073cf3-9228-41d4-831c-fef7d3baefb8")
 IDEMPOTENCY_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$")
+# How long a mail job waits before it looks for its PDF again.
+DOCUMENT_WAIT = timedelta(seconds=5)
 
 
 class InvoiceDeliveryKind(StrEnum):
@@ -122,6 +125,24 @@ class InvoiceDeliveryJob:
     media_type: str
     size_bytes: int
     sha256: str
+
+
+class InvoiceDeliveryDocumentPending(OutboxDeferred):
+    """The mail's PDF is still being rendered: the mail job waits for it."""
+
+    def __init__(self) -> None:
+        super().__init__("invoice_delivery_document_pending", DOCUMENT_WAIT)
+
+
+class InvoiceDeliveryDocumentFailed(RuntimeError):
+    """The PDF of the mail will not come: its render job failed for good.
+
+    Not retryable: the delivery shows as failed at once. After the render
+    job is repaired, the delivery is started again by hand.
+    """
+
+    code = "invoice_delivery_document_failed"
+    retryable = False
 
 
 class InvoiceDeliveryRepository(Protocol):

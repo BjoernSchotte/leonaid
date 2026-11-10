@@ -28,6 +28,7 @@ from leonaid.application.errors import Conflict, ResourceNotFound
 from leonaid.adapters.postgres.invoice_cancellation_rows import (
     CANCELLATION_LIST_COLUMNS,
     cancellation_from_row,
+    refund_withdrawals,
 )
 from leonaid.application.invoice_deliveries import (
     InvoiceDelivery,
@@ -62,6 +63,7 @@ from leonaid.domain.invoices import (
 )
 from leonaid.domain.invoice_settlements import (
     InvoiceBalance,
+    InvoiceRefundWithdrawal,
     PaymentRecord,
 )
 
@@ -183,6 +185,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 action_id,
             )
             payments_by_invoice = await payments_for_action(connection, action_id)
+            withdrawals = await refund_withdrawals(connection, action_id=action_id)
         deliveries_by_invoice: dict[UUID, list[Any]] = {}
         for delivery_row in delivery_rows:
             deliveries_by_invoice.setdefault(
@@ -196,6 +199,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                     tuple(deliveries_by_invoice.get(row["id"], []))
                 ),
                 payments=payments_by_invoice.get(row["id"], ()),
+                withdrawals=withdrawals.get(row["cancellation_id"], ()),
             )
             for row in rows
         )
@@ -874,6 +878,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
         *,
         deliveries: tuple[InvoiceDelivery, ...] = (),
         payments: tuple[PaymentRecord, ...] = (),
+        withdrawals: tuple[InvoiceRefundWithdrawal, ...] = (),
     ) -> InvoiceRecord:
         buyer = BuyerSnapshot.from_payload(
             _json_object(
@@ -891,6 +896,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 # Payments of a cancelled invoice can no longer change.
                 received=InvoiceBalance.of(invoice.gross, payments).paid,
                 prefix="cancellation_",
+                withdrawals=withdrawals,
             )
             if row["cancellation_id"] is not None
             else None

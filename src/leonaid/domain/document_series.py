@@ -37,6 +37,28 @@ def format_document_number(prefix: str, serial: int, width: int) -> str:
     return f"{prefix}{serial:0{width}d}"
 
 
+def series_of_number(number: str) -> tuple[str, int]:
+    """Prefix and width of the series a document number belongs to.
+
+    The last resort when neither a profile nor a legal configuration names
+    the prefix: the digits at the end are the serial, the rest the prefix. A
+    number without digits at its end becomes the prefix of a series of its
+    own, so a document can always be numbered.
+    """
+
+    head = number.rstrip("0123456789")
+    digits = len(number) - len(head)
+    if digits and head and SERIES_PREFIX.fullmatch(head):
+        return head, min(max(digits, MINIMUM_WIDTH), MAXIMUM_WIDTH)
+    prefix = f"{number[:23]}-"
+    if not SERIES_PREFIX.fullmatch(prefix):
+        raise DomainInvariantError(
+            "document_series_prefix_invalid",
+            "Aus dieser Belegnummer lässt sich kein Nummernkreis ableiten.",
+        )
+    return prefix, MINIMUM_WIDTH
+
+
 @dataclass(frozen=True, slots=True)
 class DocumentSeries:
     kind: DocumentSeriesKind

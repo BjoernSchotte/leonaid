@@ -2,8 +2,9 @@
 
 A number is taken inside the transaction that stores its document: the series
 row is locked, read and advanced with a compare-and-swap, so a failed
-transaction uses no number. The series row is the last lock a command takes
-(lock order in ``leonaid.adapters.postgres.retry``).
+transaction uses no number. The series row is taken after the invoice and
+order locks (lock order in ``leonaid.adapters.postgres.retry``) and held to
+the end of the command.
 """
 
 from __future__ import annotations
@@ -13,7 +14,11 @@ from typing import Any
 
 import asyncpg
 
-from leonaid.domain.document_series import DocumentSeries, DocumentSeriesKind
+from leonaid.domain.document_series import (
+    DocumentSeries,
+    DocumentSeriesKind,
+    format_document_number,
+)
 
 # The numeric tail of a number of the prefix $2, or NULL when it has none.
 _SERIAL_SQL = """
@@ -125,10 +130,33 @@ async def allocate_document_number(
         series = await read_series(connection, kind=kind, prefix=prefix, lock=True)
     if series is None:
         raise RuntimeError("Der Nummernkreis ist verschwunden.")
+    serial = series.next_number
+    number = series.next_document_number
+    # The counter can be behind an issued number: an invoice written by the
+    # previous release after the migration, or one restored or inserted by
+    # hand. Such a number would be refused by the registry on every try. The
+    # counter then moves past the highest registered number of the prefix;
+    # no gap follows, those numbers exist.
+    if await connection.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM document_number WHERE number = $1)", number
+    ):
+        serial = int(
+            await connection.fetchval(
+                f"""
+                SELECT COALESCE(max({_SERIAL_SQL}), 0) + 1
+                FROM document_number
+                -- $1 only keeps the parameter numbering of _SERIAL_SQL.
+                WHERE $1::text IS NOT NULL
+                """,
+                kind.value,
+                prefix,
+            )
+        )
+        number = format_document_number(prefix, serial, series.width)
     updated = await connection.execute(
         """
         UPDATE document_series
-        SET next_number = next_number + 1,
+        SET next_number = $5,
             updated_at = $4
         WHERE kind = $1
           AND prefix = $2
@@ -138,7 +166,8 @@ async def allocate_document_number(
         prefix,
         series.next_number,
         occurred_at,
+        serial + 1,
     )
     if updated != "UPDATE 1":
         raise RuntimeError("Der Nummernkreis wurde parallel verändert.")
-    return series.next_document_number
+    return number

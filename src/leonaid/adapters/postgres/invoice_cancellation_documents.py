@@ -18,9 +18,9 @@ import asyncpg
 from leonaid.adapters.postgres.document_series import allocate_document_number
 from leonaid.adapters.postgres.invoice_payment_state import ACTIVE_PAID_MINOR_SQL
 from leonaid.adapters.postgres.invoices import AsyncpgInvoiceRepository
-from leonaid.application.errors import Conflict, ResourceNotFound
+from leonaid.application.errors import ResourceNotFound
 from leonaid.domain.commitments import Money
-from leonaid.domain.document_series import DocumentSeriesKind
+from leonaid.domain.document_series import DocumentSeriesKind, series_of_number
 from leonaid.domain.documents import DOCUMENT_RENDER_REQUESTED, GeneratedDocumentType
 from leonaid.domain.invoice_cancellation_documents import InvoiceCancellationDocument
 
@@ -55,23 +55,14 @@ async def prepare_cancellation_document(
             "Die Rechnung wurde in dieser Charity-Aktion nicht gefunden.",
         )
     invoice = AsyncpgInvoiceRepository._invoice_from_row(row)
-    # The series of the prefix in force now: the cancellation invoice is a
-    # document of today (D-C1), whatever prefix the invoice once had.
-    profile = await connection.fetchrow(
-        "SELECT number_prefix, number_width FROM invoice_profile WHERE action_id = $1",
-        action_id,
+    prefix, width = await cancellation_series(
+        connection, action_id=action_id, invoice_number=invoice.number
     )
-    if profile is None:
-        raise Conflict(
-            "invoice_profile_missing",
-            "Für diese Charity-Aktion fehlt das Rechnungsprofil. Ohne dessen "
-            "Nummernkreis kann keine Stornorechnung ausgestellt werden.",
-        )
     number = await allocate_document_number(
         connection,
         kind=DocumentSeriesKind.INVOICE,
-        prefix=str(profile["number_prefix"]),
-        width=int(profile["number_width"]),
+        prefix=prefix,
+        width=width,
         occurred_at=occurred_at,
     )
     return InvoiceCancellationDocument.issue(
@@ -81,6 +72,43 @@ async def prepare_cancellation_document(
         received=Money(int(row["received_minor"]), invoice.gross.currency),
         issued_at=occurred_at,
     )
+
+
+async def cancellation_series(
+    connection: asyncpg.Connection[Any],
+    *,
+    action_id: UUID,
+    invoice_number: str,
+) -> tuple[str, int]:
+    """Prefix and width of the series a cancellation invoice is numbered in.
+
+    An invoice must never be impossible to cancel, so there is always one:
+
+    1. the action's invoice profile: the prefix in force today (D-C1);
+    2. without a profile (invoices seeded or written before profiles were
+       created for every action): the active legal configuration;
+    3. without that too: the series the invoice's own number belongs to.
+    """
+
+    row = await connection.fetchrow(
+        """
+        SELECT number_prefix, number_width FROM invoice_profile
+        WHERE action_id = $1
+        """,
+        action_id,
+    )
+    if row is None:
+        row = await connection.fetchrow(
+            """
+            SELECT version.number_prefix, version.number_width
+            FROM legal_configuration_state AS state
+            JOIN legal_configuration_version AS version
+              ON version.id = state.active_version_id
+            """
+        )
+    if row is None:
+        return series_of_number(invoice_number)
+    return str(row["number_prefix"]), int(row["number_width"])
 
 
 def document_columns(

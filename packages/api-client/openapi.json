@@ -2378,6 +2378,12 @@
             "minLength": 8,
             "title": "Reason",
             "type": "string"
+          },
+          "sendInvoiceCancellation": {
+            "default": false,
+            "description": "When the order's invoice is cancelled with it: also send its cancellation invoice to the invoice's recipient by mail. Ignored when no invoice is cancelled.",
+            "title": "Sendinvoicecancellation",
+            "type": "boolean"
           }
         },
         "required": [
@@ -8455,6 +8461,14 @@
             ],
             "title": "Refundsettledon"
           },
+          "refundWithdrawals": {
+            "description": "Refund markers that were set and taken back again, oldest first, each with who set it, who withdrew it and why.",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceRefundWithdrawalResponse"
+            },
+            "title": "Refundwithdrawals",
+            "type": "array"
+          },
           "replayed": {
             "title": "Replayed",
             "type": "boolean"
@@ -8498,7 +8512,8 @@
           "refundSettledOn",
           "refundNote",
           "refundSettledByDisplayName",
-          "refundSettledAt"
+          "refundSettledAt",
+          "refundWithdrawals"
         ],
         "title": "InvoiceCancellationResponse",
         "type": "object"
@@ -9239,6 +9254,80 @@
           "cancellationDeliveries"
         ],
         "title": "InvoiceRecordResponse",
+        "type": "object"
+      },
+      "InvoiceRefundWithdrawalResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "settledAt": {
+            "format": "date-time",
+            "title": "Settledat",
+            "type": "string"
+          },
+          "settledByDisplayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settledbydisplayname"
+          },
+          "settledOn": {
+            "format": "date",
+            "title": "Settledon",
+            "type": "string"
+          },
+          "withdrawnAt": {
+            "format": "date-time",
+            "title": "Withdrawnat",
+            "type": "string"
+          },
+          "withdrawnByDisplayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdrawnbydisplayname"
+          }
+        },
+        "required": [
+          "id",
+          "settledOn",
+          "note",
+          "settledByDisplayName",
+          "settledAt",
+          "reason",
+          "withdrawnByDisplayName",
+          "withdrawnAt"
+        ],
+        "title": "InvoiceRefundWithdrawalResponse",
         "type": "object"
       },
       "InvoiceResponse": {
@@ -19446,6 +19535,22 @@
         ],
         "title": "UpdateTask",
         "type": "object"
+      },
+      "WithdrawInvoiceRefundRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 8,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "WithdrawInvoiceRefundRequest",
+        "type": "object"
       }
     }
   },
@@ -25860,6 +25965,130 @@
           }
         },
         "summary": "Settle Invoice Cancellation Refund",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/invoices/{invoice_id}/cancellation/refund/withdrawal": {
+      "post": {
+        "description": "Take \"Erstattung erledigt\" back; the refund is open again.\n\nSame gate as recording it: fresh login and ``Idempotency-Key``. The\nanswer lists the withdrawn marker with who set it and who withdrew it.\n409 ``invoice_refund_not_settled`` without a marker.",
+        "operationId": "withdrawInvoiceCancellationRefund",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawInvoiceRefundRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceCancellationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Withdraw Invoice Cancellation Refund",
         "tags": [
           "invoices"
         ]

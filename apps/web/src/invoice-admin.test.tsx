@@ -28,6 +28,7 @@ import {
 } from "../../../packages/features/src/invoices/invoice-format";
 import {
   invoiceListStatus,
+  invoiceRows,
   migrateLegacyStatusParam,
 } from "../../../packages/features/src/invoices/invoice-model";
 import { installDialogPolyfill } from "../../../packages/ui/src/test-utils/dialog-polyfill";
@@ -199,6 +200,7 @@ function cancelledInvoice(
         refundSettledAt: null,
         refundSettledByDisplayName: null,
         refundSettledOn: null,
+        refundWithdrawals: [],
         replayed: false,
         requestedAt: "2026-10-06T12:00:00Z",
         requestedByDisplayName: "Klara Kern",
@@ -297,6 +299,7 @@ const records: InvoiceRecordResponse[] = [
       refundSettledAt: null,
       refundSettledByDisplayName: null,
       refundSettledOn: null,
+      refundWithdrawals: [],
       replayed: false,
       requestedAt: "2026-10-06T12:00:00Z",
       requestedByDisplayName: "Klara Kern",
@@ -374,6 +377,7 @@ function fakeClient(
       async (): Promise<Partial<Cancellation>> => ({ number: "KT26-0011" }),
     ),
     settleInvoiceCancellationRefund: vi.fn(async () => ({})),
+    withdrawInvoiceCancellationRefund: vi.fn(async () => ({})),
     downloadGeneratedDocument: vi.fn(async () => new Blob()),
   };
   return client;
@@ -942,12 +946,14 @@ describe("InvoiceAdminPage", () => {
     const date = within(dialog).getByTestId("refund-date") as HTMLInputElement;
     expect(date.value).toBe(localIsoDate());
     expect(date.max).toBe(localIsoDate());
-    // Not in the future and not before the cancellation.
+    // Not in the future and not before the invoice existed; a day before
+    // the cancellation is fine (the club may have paid back first).
+    expect(date.min).toBe("2026-10-01");
     fireEvent.change(date, { target: { value: "2999-01-01" } });
     fireEvent.click(within(dialog).getByTestId("settle-refund"));
     expect(
       within(dialog).getByText(
-        "Das Datum liegt zwischen dem Storno und heute.",
+        "Das Datum liegt zwischen dem Rechnungsdatum und heute.",
       ),
     ).toBeTruthy();
     expect(client.settleInvoiceCancellationRefund).not.toHaveBeenCalled();
@@ -1000,6 +1006,88 @@ describe("InvoiceAdminPage", () => {
       "Erstattung erledigt am 08.10.2026 · Finn Finanzen",
     );
     expect(pane.getByText("Rücküberweisung vom Vereinskonto")).toBeTruthy();
+  });
+
+  it("takes a refund marker back with a reason", async () => {
+    const settledRefund = cancelledInvoice("i-r", "KT26-0004", {
+      originalStatus: "paid",
+      receivedMinor: 7_200,
+      refundSettledAt: "2026-10-08T09:00:00Z",
+      refundSettledByDisplayName: "Finn Finanzen",
+      refundSettledOn: "2026-10-08",
+    });
+    const client = await renderPage({
+      items: [settledRefund],
+      documents: [cancellationDocumentFor("i-r")],
+      url: `/admin/invoices?action=${actionId}&view=cancelled`,
+    });
+    const pane = await openRow("KT26-0004");
+    fireEvent.click(pane.getByTestId("open-refund-withdrawal-form"));
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Erstattung für KT26-0004 zurücknehmen?",
+    });
+    // No reason, no command.
+    fireEvent.click(within(dialog).getByTestId("withdraw-refund"));
+    expect(client.withdrawInvoiceCancellationRefund).not.toHaveBeenCalled();
+    fireEvent.change(within(dialog).getByTestId("refund-withdrawal-reason"), {
+      target: { value: "Falsche Rechnung angeklickt" },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByTestId("withdraw-refund"));
+    });
+    expect(client.withdrawInvoiceCancellationRefund).toHaveBeenCalledWith(
+      actionId,
+      "i-r",
+      { reason: "Falsche Rechnung angeklickt" },
+      {
+        headers: {
+          "Idempotency-Key": expect.stringMatching(/^poc095:refund-withdrawal/),
+        },
+      },
+    );
+    expect(
+      await screen.findByText("Erstattung für KT26-0004 ist wieder offen."),
+    ).toBeTruthy();
+  });
+
+  it("shows who set and who withdrew an earlier refund marker", async () => {
+    const reopened = cancelledInvoice("i-r", "KT26-0004", {
+      originalStatus: "paid",
+      receivedMinor: 7_200,
+      refundOpen: true,
+      refundWithdrawals: [
+        {
+          id: "w1",
+          note: null,
+          reason: "Falsche Rechnung angeklickt",
+          settledAt: "2026-10-08T09:00:00Z",
+          settledByDisplayName: "Finn Finanzen",
+          settledOn: "2026-10-08",
+          withdrawnAt: "2026-10-09T10:00:00Z",
+          withdrawnByDisplayName: "Klara Kern",
+        },
+      ],
+    });
+    await renderPage({
+      items: [reopened],
+      documents: [cancellationDocumentFor("i-r")],
+      url: `/admin/invoices?action=${actionId}&view=cancelled`,
+    });
+    const pane = await openRow("KT26-0004");
+    const text = pane.getByTestId("cancellation-refund-withdrawal").textContent;
+    expect(text).toContain("Vermerk vom 08.10.2026 (Finn Finanzen)");
+    expect(text).toContain("von Klara Kern: Falsche Rechnung angeklickt");
+    expect(pane.queryByTestId("open-refund-withdrawal-form")).toBeNull();
+  });
+
+  it("lists a failed mail of the cancellation invoice as failed dispatch", () => {
+    const failed = { ...failedDelivery("i-x"), kind: "invoice_cancellation" };
+    const cancelled = cancelledInvoice("i-x", "KT26-0004", {}, [
+      failed as InvoiceDeliveryResponse,
+    ]);
+    // The invoice's own mail had arrived; what counts now is its cancellation.
+    const [row] = invoiceRows([cancelled], [], "2026-10-10");
+    expect(row!.dispatch).toBe("failed");
   });
 
   it("resends a failed delivery through the explicit retry command", async () => {
