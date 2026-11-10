@@ -1122,7 +1122,7 @@ async def main() -> None:
     was_enabled = await connection.fetchval(
         "SELECT enabled FROM feature_flag WHERE key = 'pwa.push'"
     )
-    assert was_enabled is False, "0062 ships pwa.push switched off"
+    assert was_enabled is False, "0065 ships pwa.push switched off"
     try:
         await data.create(connection)
         app = create_app(settings())

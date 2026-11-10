@@ -373,35 +373,35 @@ compose run --rm --no-deps --entrypoint alembic api downgrade "$flag_parent"
 }
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 
-echo "poc021-test: 0062 registers the push flag switched off and ends devices with their session"
+echo "poc021-test: 0065 registers the push flag switched off and ends devices with their session"
 push_parent=$(sed -n 's/^down_revision: str | None = "\(.*\)"$/\1/p' \
-  "$root/migrations/versions/0062_pwa_push.py")
+  "$root/migrations/versions/0065_pwa_push.py")
 [ -n "$push_parent" ] || {
-  echo "poc021-test: ERROR: 0062 names no down_revision" >&2
+  echo "poc021-test: ERROR: 0065 names no down_revision" >&2
   exit 1
 }
 [ "$(printf '%s\n' "SELECT enabled FROM feature_flag WHERE key = 'pwa.push';" | preference_sql)" = "f" ] || {
-  echo "poc021-test: ERROR: 0062 did not register pwa.push switched off" >&2
+  echo "poc021-test: ERROR: 0065 did not register pwa.push switched off" >&2
   exit 1
 }
-# A device row ends the moment its session is revoked (the trigger of 0062).
+# A device row ends the moment its session is revoked (the trigger of 0065).
 printf '%s\n' \
-  "INSERT INTO user_account (id, email, display_name, status) VALUES ('95620000-0000-4000-8000-000000000001', 'push-0062@leonaid.invalid', 'Push 0062', 'active');" \
-  "INSERT INTO user_session (id, user_id, token_digest, expires_at, last_seen_at, fresh_login_at, device_hint, created_at, updated_at) VALUES ('95620000-0000-4000-8000-000000000002', '95620000-0000-4000-8000-000000000001', repeat('a', 64), now() + interval '1 day', now(), now(), 'Push 0062', now(), now());" \
-  "INSERT INTO push_subscription (id, user_id, session_id, endpoint, p256dh, auth) VALUES ('95620000-0000-4000-8000-000000000003', '95620000-0000-4000-8000-000000000001', '95620000-0000-4000-8000-000000000002', 'https://fcm.googleapis.com/fcm/send/0062', decode(repeat('04', 65), 'hex'), decode(repeat('00', 16), 'hex'));" \
+  "INSERT INTO user_account (id, email, display_name, status) VALUES ('95620000-0000-4000-8000-000000000001', 'push-0065@leonaid.invalid', 'Push 0065', 'active');" \
+  "INSERT INTO user_session (id, user_id, token_digest, expires_at, last_seen_at, fresh_login_at, device_hint, created_at, updated_at) VALUES ('95620000-0000-4000-8000-000000000002', '95620000-0000-4000-8000-000000000001', repeat('a', 64), now() + interval '1 day', now(), now(), 'Push 0065', now(), now());" \
+  "INSERT INTO push_subscription (id, user_id, session_id, endpoint, p256dh, auth) VALUES ('95620000-0000-4000-8000-000000000003', '95620000-0000-4000-8000-000000000001', '95620000-0000-4000-8000-000000000002', 'https://fcm.googleapis.com/fcm/send/0065', decode(repeat('04', 65), 'hex'), decode(repeat('00', 16), 'hex'));" \
   "UPDATE user_session SET last_seen_at = now() WHERE id = '95620000-0000-4000-8000-000000000002';" |
   preference_sql
 [ "$(printf '%s\n' "SELECT count(*) FROM push_subscription WHERE id = '95620000-0000-4000-8000-000000000003';" | preference_sql)" = "1" ] || {
-  echo "poc021-test: ERROR: 0062 deleted the device of a session that is still valid" >&2
+  echo "poc021-test: ERROR: 0065 deleted the device of a session that is still valid" >&2
   exit 1
 }
 printf '%s\n' "UPDATE user_session SET revoked_at = now() WHERE id = '95620000-0000-4000-8000-000000000002';" | preference_sql
 [ "$(printf '%s\n' "SELECT count(*) FROM push_subscription WHERE id = '95620000-0000-4000-8000-000000000003';" | preference_sql)" = "0" ] || {
-  echo "poc021-test: ERROR: 0062 kept the device of a revoked session" >&2
+  echo "poc021-test: ERROR: 0065 kept the device of a revoked session" >&2
   exit 1
 }
 if printf '%s\n' "INSERT INTO push_preference (user_id, kind, enabled) VALUES ('95620000-0000-4000-8000-000000000001', 'orders', true);" | preference_sql 2>/dev/null; then
-  echo "poc021-test: ERROR: 0062 accepted an unknown push kind" >&2
+  echo "poc021-test: ERROR: 0065 accepted an unknown push kind" >&2
   exit 1
 fi
 printf '%s\n' \
@@ -410,15 +410,15 @@ printf '%s\n' \
   preference_sql
 compose run --rm --no-deps --entrypoint alembic api downgrade "$push_parent"
 [ -z "$(printf '%s\n' "SELECT 1 FROM feature_flag WHERE key = 'pwa.push';" | preference_sql)" ] || {
-  echo "poc021-test: ERROR: 0062 downgrade kept the flag row" >&2
+  echo "poc021-test: ERROR: 0065 downgrade kept the flag row" >&2
   exit 1
 }
 [ -z "$(printf '%s\n' "SELECT 1 FROM information_schema.tables WHERE table_name IN ('push_subscription', 'push_preference', 'push_dispatch');" | preference_sql)" ] || {
-  echo "poc021-test: ERROR: 0062 downgrade kept its tables" >&2
+  echo "poc021-test: ERROR: 0065 downgrade kept its tables" >&2
   exit 1
 }
 [ -z "$(printf '%s\n' "SELECT 1 FROM pg_trigger WHERE tgname = 'trg_user_session_revoked_push';" | preference_sql)" ] || {
-  echo "poc021-test: ERROR: 0062 downgrade kept its trigger" >&2
+  echo "poc021-test: ERROR: 0065 downgrade kept its trigger" >&2
   exit 1
 }
 compose run --rm --no-deps --entrypoint alembic api upgrade head

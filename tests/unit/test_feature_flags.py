@@ -173,9 +173,9 @@ def test_delivery_tours_flag_ships_off_and_matches_transport_and_schema() -> Non
 
 
 def test_push_flag_ships_off_and_matches_transport_and_schema() -> None:
-    """specs/mails-documents-donations-push §10: push starts off (0062).
+    """specs/mails-documents-donations-push §10: push starts off (0065).
 
-    0062 is the newest flag migration, so its key check must know every
+    0065 is the newest flag migration, so its key check must know every
     key of the catalog; a later flag moves that assertion to its migration.
     """
     from pathlib import Path
@@ -191,8 +191,8 @@ def test_push_flag_ships_off_and_matches_transport_and_schema() -> None:
     import importlib.util
     import inspect
 
-    path = Path(__file__).resolve().parents[2] / "migrations/versions/0062_pwa_push.py"
-    spec = importlib.util.spec_from_file_location("migration_0062", path)
+    path = Path(__file__).resolve().parents[2] / "migrations/versions/0065_pwa_push.py"
+    spec = importlib.util.spec_from_file_location("migration_0065", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

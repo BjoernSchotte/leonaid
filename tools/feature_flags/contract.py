@@ -233,7 +233,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
             "revision": 1,
             "updatedBy": "None",
         },
-        # Untouched by this contract: still the row of migration 0062.
+        # Untouched by this contract: still the row of migration 0065.
         PWA_PUSH_KEY: {
             "enabled": False,
             "revision": 1,

@@ -1,6 +1,6 @@
 """Push notifications of the PWA: flag `pwa.push`, subscriptions, preferences.
 
-Revision ID: 0062_pwa_push
+Revision ID: 0065_pwa_push
 Revises: 0061_delivery_geo_regeocode
 
 specs/mails-documents-donations-push §10, ADR-0017. `push_subscription` holds
@@ -21,7 +21,7 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0062_pwa_push"
+revision: str = "0065_pwa_push"
 down_revision: str | None = "0061_delivery_geo_regeocode"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
