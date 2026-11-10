@@ -4,9 +4,9 @@ description: Pflichtangaben nach § 5 DDG und die Texte der Seite /datenschutz a
 docId: DOC-P048
 audience: [user]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: 30c252a22ffbcc5a41735023446c40168b5cc260
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -72,6 +72,18 @@ deinem Namen beziehungsweise im Menü **Mehr**.
    Hinweis mit diesem Abschnitt aktiv ist. Den Text hat Claude Code
    vorgeschlagen; er braucht wie jede Fassung die Freigabe im
    Vier-Augen-Ablauf (Prüfung durch Björn Schotte offen).
+   Der Hinweis enthält außerdem den Abschnitt „Benachrichtigungen auf deinem
+   Gerät“: dass LeonAid je Gerät die Adresse beim Benachrichtigungsdienst
+   des Browsers oder Betriebssystems (Google, Apple, Mozilla oder Microsoft),
+   zwei Schlüssel und die Kennung des Browsers speichert, dass die Hinweise
+   verschlüsselt sind und keine Namen, Adressen oder Beträge enthalten, dass
+   die Einwilligung die Rechtsgrundlage ist und dass Ausschalten, Abmelden
+   oder eine ungültige Adresse sie löscht. Behalte ihn nur, wenn
+   Benachrichtigungen aktiv sind; auch er trägt einen `[[ … ]]`-Hinweis. Die
+   System-Administration schaltet das Feature-Flag **Benachrichtigungen in
+   der Akquise-App** erst ein, wenn ein Hinweis mit diesem Abschnitt aktiv
+   ist. Auch diesen Text hat Claude Code vorgeschlagen (rechtliche Prüfung
+   offen).
 4. Format: Trenne Absätze durch eine Leerzeile. `## ` am Zeilenanfang beginnt
    eine Überschrift, `- ` einen Listenpunkt.
 5. Wähle **Als Entwurf speichern**.

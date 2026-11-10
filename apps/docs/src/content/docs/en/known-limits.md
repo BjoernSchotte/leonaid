@@ -4,9 +4,9 @@ description: Verified limits of the current LeonAid development and pilot state.
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 7
-reviewedRevision: 7
-verifiedAgainst: e0a3533c57747a914cde695a334e31fb90ffbc60
+contentRevision: 8
+reviewedRevision: 8
+verifiedAgainst: 30c252a22ffbcc5a41735023446c40168b5cc260
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -25,6 +25,18 @@ general production approval.
   tour per driver and delivery day. The public Nominatim service and the OSM
   tiles are subject to their usage policies; for heavy use, configure your own
   provider.
+- Notifications of the acquisition app (feature flag `pwa.push`, see
+  [Switch on notifications](/en/user/how-to/switch-on-notifications/)) have
+  limits: delivery through the push services of Google, Mozilla, Apple and
+  Microsoft is not tested automatically, only sending to a decrypting
+  receiver and the display in the browser; the check on a real Android phone
+  and iPhone is manual. iPhone and iPad need LeonAid on the home screen.
+  There are four kinds (follow-ups once a day from 8:00, new orders, tasks,
+  deliveries), at most one notification per kind in 15 minutes, no quiet
+  hours and no setting per device. A notification names a kind and a count
+  only. It is a hint without a delivery guarantee. After a new sign-in it
+  comes again only once the app was opened on the device. A new
+  `LEONAID_VAPID_PRIVATE_KEY` ends all device registrations.
 - `finance_reader` can only read documents. The maintained demo user Finn
   Finanzen proves this read-only access. Payments and cancellation require
   `finance_manager` or the charity administrator for the affected campaign.

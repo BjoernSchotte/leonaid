@@ -4,9 +4,9 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 20
-reviewedRevision: 20
-verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
+contentRevision: 21
+reviewedRevision: 21
+verifiedAgainst: 30c252a22ffbcc5a41735023446c40168b5cc260
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -54,7 +54,7 @@ Referenz abweicht.
 
 ## Worker-Aufbewahrung
 
-Der Worker betreibt neben `outbox`, `survey_sweep` und der PostgreSQL-Probe
+Der Worker betreibt neben `outbox`, `survey_sweep`, `push_follow_ups` und der PostgreSQL-Probe
 eine Schleife `retention`. Einmal pro `OUTBOX_RETENTION_INTERVAL_SECONDS`
 (Standard `3600`) löscht sie Outbox-Jobs, die vor mehr als
 `OUTBOX_RETENTION_DAYS` (Standard `30`) Tagen erfolgreich abgeschlossen
@@ -72,6 +72,30 @@ die Outbox-Zähler unter **System › Hintergrundaufgaben** (`/admin/system/jobs
 für das Aufbewahrungsfenster. `docker compose run --rm worker python -m
 leonaid.entrypoints.worker.outbox retention-sweep` startet einen Durchlauf von
 Hand.
+
+## Benachrichtigungen der Akquise-App
+
+Der Worker sendet Web Push (ADR-0017), solange das Feature-Flag `pwa.push` an
+ist und `LEONAID_VAPID_PRIVATE_KEY` gesetzt ist. Der Job
+`push.notification.v1` sendet einem Mitglied eine Benachrichtigung einer Art
+an alle seine angemeldeten Geräte, höchstens eine je Art in 15 Minuten; was
+in dieser Zeit dazukommt, sendet ein späterer Job mit der Summe. Ein Job
+trägt nur Mitglied, Art und Anzahl. Antwortet ein Push-Dienst mit 404 oder
+410, löscht der Worker das Gerät. Erreicht er kein Gerät des Mitglieds
+(Zeitüberschreitung, 429, 5xx), schlägt der Job mit
+`push_service_unavailable` fehl und läuft wie jeder Job erneut, bis zu
+`OUTBOX_MAX_ATTEMPTS` Versuche; danach steht er unter **System ›
+Hintergrundaufgaben** als Dead Letter.
+
+Die Schleife `push_follow_ups` läuft alle fünf Minuten. Zwischen 08:00 und
+20:00 Uhr Clubzeit (Europe/Berlin) legt sie je Mitglied mit fälligen oder
+überfälligen Wiedervorlagen einmal am Tag einen Job an; war der Worker um
+08:00 Uhr aus, holt sie das bis 20:00 Uhr nach. Dieselbe Schleife löscht
+Geräte, deren Sitzung abgelaufen ist. Logs enthalten nur die Zahl der
+Mitglieder (`worker.push.follow_ups`). Die Readiness des Workers nennt die
+Schleife als `push_follow_ups`. Schlüssel, Kontakt und die erreichten Hosts
+stehen unter
+[Voraussetzungen und Konfiguration](../requirements-and-configuration/).
 
 ## Geocoding der Lieferadressen
 

@@ -4,9 +4,9 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 20
-reviewedRevision: 20
-verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
+contentRevision: 21
+reviewedRevision: 21
+verifiedAgainst: 30c252a22ffbcc5a41735023446c40168b5cc260
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -52,8 +52,8 @@ this reference differs.
 
 ## Worker retention
 
-The worker runs a `retention` loop next to `outbox`, `survey_sweep`, and the
-PostgreSQL probe. Once per `OUTBOX_RETENTION_INTERVAL_SECONDS` (default
+The worker runs a `retention` loop next to `outbox`, `survey_sweep`,
+`push_follow_ups`, and the PostgreSQL probe. Once per `OUTBOX_RETENTION_INTERVAL_SECONDS` (default
 `3600`) it deletes outbox jobs that completed successfully more than
 `OUTBOX_RETENTION_DAYS` (default `30`) ago, and rate-limit attempts older than
 two days. It never deletes pending, processing, or dead-letter jobs, nor
@@ -68,6 +68,28 @@ start with `worker.configuration.invalid`. The metric
 outbox counters under **System › Hintergrundaufgaben** (`/admin/system/jobs`) therefore show completed jobs of the
 retention window only. `docker compose run --rm worker python -m
 leonaid.entrypoints.worker.outbox retention-sweep` runs one sweep by hand.
+
+## Notifications of the acquisition app
+
+The worker sends Web Push (ADR-0017) while the feature flag `pwa.push` is on
+and `LEONAID_VAPID_PRIVATE_KEY` is set. The job `push.notification.v1` sends
+one notification of one kind to all registered devices of a member, at most
+one per kind in 15 minutes; what arrives in that time is sent by a later job
+with the sum. A job carries a member, a kind and a count only. When a push
+service answers 404 or 410, the worker deletes the device. When it reaches no
+device of the member (timeout, 429, 5xx), the job fails with
+`push_service_unavailable` and runs again like every job, up to
+`OUTBOX_MAX_ATTEMPTS` attempts; after that it is a dead letter under
+**System › Hintergrundaufgaben**.
+
+The `push_follow_ups` loop runs every five minutes. Between 08:00 and 20:00
+club time (Europe/Berlin) it creates one job a day per member with follow-ups
+due or overdue; a worker that was down at 08:00 catches up until 20:00. The
+same loop deletes devices whose session has expired. Logs carry only the
+number of members (`worker.push.follow_ups`). The worker's readiness names
+the loop as `push_follow_ups`. Key, contact and the hosts it reaches are
+described under
+[Requirements and configuration](../requirements-and-configuration/).
 
 ## Geocoding of delivery addresses
 
