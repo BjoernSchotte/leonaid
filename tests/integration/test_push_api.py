@@ -443,10 +443,11 @@ class Fixture:
                     customer_snapshot, invoice_recipient_snapshot,
                     delivery_recipient_snapshot, delivery_window_id,
                     delivery_window_snapshot, currency, total_minor,
-                    idempotency_key
+                    idempotency_key, public_reference
                 )
                 VALUES ($1, $2, $3, 'admin', 'review_ready', $4::jsonb,
-                        $5::jsonb, $5::jsonb, $6, $7::jsonb, 'EUR', 7200, $8)
+                        $5::jsonb, $5::jsonb, $6, $7::jsonb, 'EUR', 7200, $8,
+                        $9)
                 """,
                 order_id,
                 self.action,
@@ -469,6 +470,8 @@ class Fixture:
                     }
                 ),
                 f"push-proof:{order_id}",
+                # Every order has a number (0064).
+                f"LA-{order_id.hex.upper()}",
             )
             await connection.execute(
                 """
