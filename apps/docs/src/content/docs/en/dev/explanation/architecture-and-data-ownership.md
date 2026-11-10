@@ -4,10 +4,10 @@ description: The Core, CRM, storage, and frontend boundaries behind LeonAid's mo
 docId: DOC-P037
 audience: [dev]
 diataxis: explanation
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
-reviewer: Björn Schotte
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: 653c04ddcf49295c4d7c8959507bc9f9b7b24c53
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 FastAPI Core owns authentication, authorisation, and every domain operation.
@@ -21,7 +21,11 @@ contact copy. Request paths query Twenty only by name, match key, or
 explicit record IDs, never by listing a whole collection: Core stores a
 normalized match key in a provisioned field on every company and person it
 writes, finds duplicates with an exact key lookup, and an idempotent repair
-command backfills records created outside LeonAid. RustFS holds private
+command backfills records created outside LeonAid. The one exception to "no
+contact copy" is the search index `sponsor_search_entry`: it holds the name
+and the city of the companies and people that have an acquisition assignment,
+so the search finds sponsors without a CRM call per keystroke; a worker keeps
+it in step with Twenty. RustFS holds private
 document bytes; metadata and domain links
 remain in Core. Rendering and delivery process transactionally created outbox
 events idempotently.

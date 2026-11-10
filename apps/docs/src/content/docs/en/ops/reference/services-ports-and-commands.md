@@ -4,9 +4,9 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 20
-reviewedRevision: 20
-verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
+contentRevision: 21
+reviewedRevision: 21
+verifiedAgainst: 653c04ddcf49295c4d7c8959507bc9f9b7b24c53
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -52,8 +52,8 @@ this reference differs.
 
 ## Worker retention
 
-The worker runs a `retention` loop next to `outbox`, `survey_sweep`, and the
-PostgreSQL probe. Once per `OUTBOX_RETENTION_INTERVAL_SECONDS` (default
+The worker runs a `retention` loop next to `outbox`, `survey_sweep`,
+`sponsor_search_sync`, and the PostgreSQL probe. Once per `OUTBOX_RETENTION_INTERVAL_SECONDS` (default
 `3600`) it deletes outbox jobs that completed successfully more than
 `OUTBOX_RETENTION_DAYS` (default `30`) ago, and rate-limit attempts older than
 two days. It never deletes pending, processing, or dead-letter jobs, nor
@@ -99,6 +99,32 @@ the test stacks load plain tiles from `/e2e-tiles/` on their own host. Pages
 of the member apps may ask for the device location (`geolocation=(self)`): the
 driver's map shows it only after the driver allows it, and it stays in the
 browser.
+
+## Sponsor search index
+
+The back-office search finds sponsors through the Core table
+`sponsor_search_entry`. For every Twenty company or person that has an
+acquisition assignment it holds the name and the city, and nothing else. The
+worker loop `sponsor_search_sync` keeps it current:
+
+- Every 15 minutes it reads the companies and people that changed in Twenty
+  in the last 30 minutes and updates the entries that exist.
+- Once a night, after 03:00 local time, it reads every assigned company and
+  person again (50 per request), adds missing entries and deletes entries
+  without an assignment or without a record in Twenty. After the upgrade to
+  this version this pass runs at once on the first start and fills the index
+  for the existing assignments.
+- One run sends at most 30 requests to Twenty and ends on the first `429`
+  answer. An unfinished nightly pass continues at the same place after one
+  minute.
+
+Without `TWENTY_INTEGRATION_API_KEY` the loop idles. If Twenty is not
+reachable, the run ends, the loop stays healthy, and the next run tries
+again. Every run with requests writes the event
+`worker.sponsor_search.synced` with its kind (`full` or `changed`), the
+number of requests, the written and deleted entries, `rateLimited` and
+`crmError`; names never appear in the log. Several workers coordinate through
+a database lock, so only one runs at a time.
 
 ## Club name
 
