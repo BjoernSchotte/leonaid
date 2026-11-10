@@ -383,9 +383,15 @@ class AsyncpgDonationRepository:
         self, donation_id: UUID
     ) -> DonationPledgeDocument | None:
         async with self._pool.acquire() as connection:
-            snapshot = await connection.fetchval(
-                "SELECT pledge_snapshot FROM donation WHERE id = $1", donation_id
-            )
+            return await self.donation_pledge_document_in(connection, donation_id)
+
+    @staticmethod
+    async def donation_pledge_document_in(
+        connection: asyncpg.Connection[Any], donation_id: UUID
+    ) -> DonationPledgeDocument | None:
+        snapshot = await connection.fetchval(
+            "SELECT pledge_snapshot FROM donation WHERE id = $1", donation_id
+        )
         if snapshot is None:
             return None
         return DonationPledgeDocument.from_payload(_json_object(snapshot))

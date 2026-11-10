@@ -169,6 +169,13 @@ Bescheids, die begünstigten Zwecke, Ort, Datum, unterzeichnende Person und
 der Haftungshinweis. Der Betrag in Buchstaben reicht von 0 bis 999.999.999
 Euro; Cent stehen als „xx/100“.
 
+Die Bestätigung nennt die Körperschaft und den Bescheid, die am Tag des
+Ausstellens gelten. Es muss aber dieselbe Körperschaft sein, an die die
+Spende ging: Name und Steuernummer der aktiven Körperschaft müssen denen der
+Spendenzusage entsprechen. Nennt die Rechtskonfiguration inzwischen einen
+anderen Rechtsträger, wird nichts ausgestellt
+(`donation_receipt_body_changed`).
+
 Ist der Bescheid zu alt, wird nichts ausgestellt (D-D9): mehr als fünf Jahre
 seit dem Datum eines Freistellungsbescheids oder der Anlage zum
 Körperschaftsteuerbescheid, mehr als drei Jahre seit einem Bescheid nach

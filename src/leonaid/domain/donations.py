@@ -230,6 +230,18 @@ class ReceivingBody:
             ),
         )
 
+    def same_entity(self, other: ReceivingBody) -> bool:
+        """Whether both describe one legal entity: the same name and the same
+        tax number. Address, notice, account, signatory and wording may
+        change over time; the entity that received the money may not."""
+
+        def digits(value: str) -> str:
+            return "".join(character for character in value if character.isdigit())
+
+        return self.legal_name.casefold() == other.legal_name.casefold() and digits(
+            self.tax_number
+        ) == digits(other.tax_number)
+
     def series_prefixes(self) -> tuple[str, str]:
         return self.pledge_prefix, self.receipt_prefix
 

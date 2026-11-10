@@ -185,6 +185,22 @@ def test_an_invalid_receiving_body_is_rejected(
     assert code_of(error) == code
 
 
+def test_one_legal_entity_is_its_name_and_tax_number() -> None:
+    # A new notice, address, account, signatory or wording: the same entity.
+    renewed = body(
+        street_line_1="Neue Straße 9",
+        notice_date=date(2026, 2, 1),
+        assessment_period_from=2022,
+        assessment_period_to=2024,
+        iban="DE89370400440532013000",
+        signatory_name="Max Beispiel",
+        tax_number="123 456 78901",
+    )
+    assert body().same_entity(renewed)
+    assert not body().same_entity(body(legal_name="Lions Hilfswerk Musterstadt e. V."))
+    assert not body().same_entity(body(tax_number="123/456/78902"))
+
+
 def test_a_feststellung_and_a_signature_by_hand_are_valid() -> None:
     value = body(
         notice_kind=ExemptionNoticeKind.FESTSTELLUNG_60A,

@@ -478,6 +478,7 @@ class Proof:
         await self.the_capability_stays_while_donations_exist()
         await self.a_paid_donation_gets_its_receipt()
         await self.a_receipt_is_declared_void_never_edited()
+        await self.another_legal_entity_cannot_confirm_the_donation()
         await self.signing_by_hand_and_an_old_notice()
         await self.stored_donations_are_final()
 
@@ -1655,6 +1656,33 @@ class Proof:
             "donation_receipt_requires_payment",
         )
         assert await self.next_receipt_number() == 3
+
+    async def another_legal_entity_cannot_confirm_the_donation(self) -> None:
+        """The legal configuration now names another body than the one the
+        donation went to: that body issues no receipt for it."""
+
+        other = uuid4()
+        await self.data._legal_version(
+            self.db,
+            other,
+            replace(
+                self.data.body(),
+                legal_name=f"Hilfswerk {self.data.tag} e. V.",
+                tax_number="987/654/32109",
+            ),
+        )
+        before = await self.next_receipt_number()
+        await self.data.activate(self.db, other)
+        try:
+            refused = await self.issue_receipt("by_manager")
+            self.error(refused, 409, "donation_receipt_body_changed")
+            message = refused.json()["error"]["message"]
+            assert f"Förderverein {self.data.tag} e. V." in message, message
+            assert f"Hilfswerk {self.data.tag} e. V." in message, message
+        finally:
+            await self.data.activate(self.db, self.data.with_body)
+        assert await self.next_receipt_number() == before
+        assert (await self.record("by_manager"))["receipts"] == []
 
     async def signing_by_hand_and_an_old_notice(self) -> None:
         by_hand = uuid4()

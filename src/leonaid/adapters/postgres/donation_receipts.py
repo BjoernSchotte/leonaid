@@ -288,6 +288,22 @@ class AsyncpgDonationReceiptRepository:
                         "ihn zuerst aktivieren.",
                     )
                 version_id, body = configured
+                # The receipt states the notice in force today, of the body
+                # that received the money. Another legal entity cannot
+                # confirm a donation that went to the first one's account.
+                pledge = await self._donations.donation_pledge_document_in(
+                    connection, donation_id
+                )
+                if pledge is None or not body.same_entity(pledge.body):
+                    pledged_to = pledge.body.legal_name if pledge else "unbekannt"
+                    raise Conflict(
+                        "donation_receipt_body_changed",
+                        f"Diese Spende ging an „{pledged_to}“. Die aktive "
+                        "Rechtskonfiguration nennt als empfangende Körperschaft "
+                        f"„{body.legal_name}“. Eine andere Körperschaft kann die "
+                        "Spende nicht bestätigen: Die Zuwendungsbestätigung "
+                        "stellt die Körperschaft aus, die das Geld erhalten hat.",
+                    )
                 # Before a number is taken: a notice that is too old carries
                 # no receipt (§ 63 Abs. 5 AO, D-D9).
                 if local_day(occurred_at) > notice_valid_until(body):
