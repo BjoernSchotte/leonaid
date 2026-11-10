@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from leonaid.adapters.postgres.invoice_profiles import ensure_invoice_profiles
 from leonaid.application.errors import Conflict, ResourceNotFound
 from leonaid.domain.invoices import InvoiceIssuerSnapshot, TaxTreatment
 from leonaid.domain.legal_configuration import (
@@ -258,6 +259,20 @@ class AsyncpgLegalConfigurationRepository:
                     connection,
                     version=state.draft,
                     confirmed_at=occurred_at,
+                )
+                # Actions with invoicing and no profile yet get one, and the
+                # prefix gets its series (ADR-0015); an existing series keeps
+                # its counter and takes the configured width.
+                await ensure_invoice_profiles(connection)
+                await connection.execute(
+                    """
+                    UPDATE document_series
+                    SET width = $2, updated_at = $3
+                    WHERE kind = 'invoice' AND prefix = $1 AND width <> $2
+                    """,
+                    state.draft.configuration.number_prefix,
+                    state.draft.configuration.number_width,
+                    occurred_at,
                 )
                 await self._audit(
                     connection,

@@ -10,6 +10,7 @@ from typing import Protocol
 from uuid import UUID
 
 from leonaid.application.errors import PermissionDenied
+from leonaid.application.policies import require_action_manager
 from leonaid.domain.commitments import Money
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import GlobalRole, IdentityPrincipal
@@ -65,6 +66,31 @@ class InvoiceSettlementRepository(Protocol):
         actor_user_id: UUID,
         idempotency_key: str,
         request_hash: str,
+        request_id: str,
+        occurred_at: datetime,
+        send_document: bool = False,
+    ) -> InvoiceCancellation: ...
+
+    async def issue_cancellation_document(
+        self,
+        *,
+        action_id: UUID,
+        invoice_id: UUID,
+        actor_user_id: UUID,
+        idempotency_key: str,
+        request_hash: str,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> InvoiceCancellation: ...
+
+    async def settle_refund(
+        self,
+        *,
+        action_id: UUID,
+        invoice_id: UUID,
+        settled_on: date,
+        note: str | None,
+        actor_user_id: UUID,
         request_id: str,
         occurred_at: datetime,
     ) -> InvoiceCancellation: ...
@@ -211,29 +237,99 @@ class InvoiceSettlementService:
         reason: str,
         idempotency_key: str,
         request_id: str,
+        send_document: bool = False,
         occurred_at: datetime | None = None,
     ) -> InvoiceCancellation:
+        """Cancels the invoice and issues its cancellation invoice.
+
+        ``send_document`` also mails the cancellation invoice to the
+        invoice's recipient; only the action's manager may send.
+        """
+
         self._require_manage(actor, action_id)
         self._validate_idempotency_key(idempotency_key)
+        if send_document:
+            require_action_manager(
+                actor,
+                action_id,
+                code="invoice_delivery_required",
+                message=(
+                    "Nur ein verantwortlicher Charity-Admin darf eine "
+                    "Stornorechnung dieser Aktion versenden."
+                ),
+            )
         normalized_reason = " ".join(reason.split())
-        request_hash = hashlib.sha256(
-            json.dumps(
-                {
-                    "actionId": str(action_id),
-                    "invoiceId": str(invoice_id),
-                    "reason": normalized_reason,
-                },
-                separators=(",", ":"),
-                sort_keys=True,
-            ).encode("utf-8")
-        ).hexdigest()
+        payload: dict[str, object] = {
+            "actionId": str(action_id),
+            "invoiceId": str(invoice_id),
+            "reason": normalized_reason,
+        }
+        # Only present when set, so commands keep the hash they had before
+        # the cancellation invoice could be sent with the cancel command.
+        if send_document:
+            payload["sendDocument"] = True
         return await self._repository.cancel(
             action_id=action_id,
             invoice_id=invoice_id,
             reason=reason,
             actor_user_id=actor.account.id,
             idempotency_key=idempotency_key,
-            request_hash=request_hash,
+            request_hash=_request_hash(payload),
+            request_id=request_id,
+            occurred_at=occurred_at or datetime.now(timezone.utc),
+            send_document=send_document,
+        )
+
+    async def issue_cancellation_document(
+        self,
+        actor: IdentityPrincipal,
+        action_id: UUID,
+        invoice_id: UUID,
+        *,
+        idempotency_key: str,
+        request_id: str,
+        occurred_at: datetime | None = None,
+    ) -> InvoiceCancellation:
+        """The cancellation invoice of an invoice cancelled before it existed."""
+
+        self._require_manage(actor, action_id)
+        self._validate_idempotency_key(idempotency_key)
+        return await self._repository.issue_cancellation_document(
+            action_id=action_id,
+            invoice_id=invoice_id,
+            actor_user_id=actor.account.id,
+            idempotency_key=idempotency_key,
+            request_hash=_request_hash(
+                {
+                    "actionId": str(action_id),
+                    "invoiceId": str(invoice_id),
+                    "command": "issueCancellationDocument",
+                }
+            ),
+            request_id=request_id,
+            occurred_at=occurred_at or datetime.now(timezone.utc),
+        )
+
+    async def settle_refund(
+        self,
+        actor: IdentityPrincipal,
+        action_id: UUID,
+        invoice_id: UUID,
+        *,
+        settled_on: date,
+        note: str | None,
+        request_id: str,
+        occurred_at: datetime | None = None,
+    ) -> InvoiceCancellation:
+        """Records that the money of a cancelled invoice went back."""
+
+        self._require_manage(actor, action_id)
+        return await self._repository.settle_refund(
+            action_id=action_id,
+            invoice_id=invoice_id,
+            settled_on=settled_on,
+            note=_normalized(note),
+            actor_user_id=actor.account.id,
             request_id=request_id,
             occurred_at=occurred_at or datetime.now(timezone.utc),
         )

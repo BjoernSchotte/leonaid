@@ -340,6 +340,34 @@ class InvoiceBalance:
 
 
 @dataclass(frozen=True, slots=True)
+class InvoiceRefundSettlement:
+    """The manager's note that the money of a cancelled invoice went back.
+
+    LeonAid books no refund: the transfer happens outside. This only closes
+    the reminder "Erstattung offen".
+    """
+
+    settled_on: date
+    note: str | None
+    settled_by_user_id: UUID
+    settled_at: datetime
+    settled_by_display_name: str | None = None
+
+    def __post_init__(self) -> None:
+        require_aware(self.settled_at, "settled_at")
+        object.__setattr__(
+            self,
+            "note",
+            _optional_text(
+                self.note,
+                code="invoice_refund_note",
+                label="Notiz zur Erstattung",
+                maximum_length=500,
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class InvoiceCancellation:
     id: UUID
     action_id: UUID
@@ -350,9 +378,21 @@ class InvoiceCancellation:
     requested_at: datetime
     requested_by_display_name: str | None = None
     replayed: bool = False
+    # The cancellation invoice. None for a cancellation recorded before the
+    # document existed, until a manager issues it.
+    number: str | None = None
+    issued_on: date | None = None
+    # Active payments of the cancelled invoice; they can no longer change.
+    received: Money | None = None
+    refund: InvoiceRefundSettlement | None = None
 
     def __post_init__(self) -> None:
         require_aware(self.requested_at, "requested_at")
+        if (self.number is None) != (self.issued_on is None):
+            raise DomainInvariantError(
+                "invoice_cancellation_document_incomplete",
+                "Nummer und Datum der Stornorechnung gehören zusammen.",
+            )
         if self.original_status is InvoiceStatus.CANCELLED:
             raise DomainInvariantError(
                 "invoice_cancellation_original_status_invalid",
@@ -394,4 +434,55 @@ class InvoiceCancellation:
             reason=reason,
             requested_by_user_id=requested_by_user_id,
             requested_at=requested_at,
+        )
+
+    @property
+    def has_document(self) -> bool:
+        return self.number is not None
+
+    @property
+    def refund_open(self) -> bool:
+        """Money was received and no manager recorded that it went back."""
+
+        return (
+            self.received is not None
+            and self.received.amount_minor > 0
+            and self.refund is None
+        )
+
+    def settle_refund(
+        self,
+        *,
+        settled_on: date,
+        note: str | None,
+        settled_by_user_id: UUID,
+        settled_at: datetime,
+    ) -> InvoiceRefundSettlement:
+        require_aware(settled_at, "settled_at")
+        if self.refund is not None:
+            raise DomainInvariantError(
+                "invoice_refund_already_settled",
+                "Die Erstattung ist bereits als erledigt vermerkt.",
+            )
+        if self.received is None or self.received.amount_minor <= 0:
+            raise DomainInvariantError(
+                "invoice_refund_not_due",
+                "Für diese Rechnung ist kein Zahlungseingang erfasst; es gibt "
+                "nichts zu erstatten.",
+            )
+        if settled_on < local_day(self.requested_at):
+            raise DomainInvariantError(
+                "invoice_refund_before_cancellation",
+                "Die Erstattung kann nicht vor dem Storno liegen.",
+            )
+        if settled_on > local_day(settled_at):
+            raise DomainInvariantError(
+                "invoice_refund_future_date",
+                "Eine zukünftige Erstattung kann nicht vermerkt werden.",
+            )
+        return InvoiceRefundSettlement(
+            settled_on=settled_on,
+            note=note,
+            settled_by_user_id=settled_by_user_id,
+            settled_at=settled_at,
         )

@@ -3,23 +3,37 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid5
 
 import asyncpg
 
 from leonaid.application.errors import Conflict, ResourceNotFound
+from leonaid.adapters.postgres.invoice_payment_state import ACTIVE_PAID_MINOR_SQL
 from leonaid.application.invoice_deliveries import (
     INVOICE_MAIL_SEND_REQUESTED,
+    InvoiceCancellationDeliveryContext,
     InvoiceDelivery,
     InvoiceDeliveryContext,
     InvoiceDeliveryDraft,
     InvoiceDeliveryJob,
+    InvoiceDeliveryKind,
     InvoiceDeliveryStatus,
 )
+from leonaid.domain.documents import GeneratedDocumentType
 
 COMMAND_TYPE = "send_invoice_v1"
+DOCUMENT_TYPES = {
+    InvoiceDeliveryKind.INVOICE: GeneratedDocumentType.INVOICE_PDF,
+    InvoiceDeliveryKind.INVOICE_CANCELLATION: (
+        GeneratedDocumentType.INVOICE_CANCELLATION_PDF
+    ),
+}
+KINDS = {document_type.value: kind for kind, document_type in DOCUMENT_TYPES.items()}
+# A cancellation invoice sent with the cancel command is rendered first; the
+# mail job starts after this head start and retries until the PDF is there.
+PENDING_DOCUMENT_HEAD_START = timedelta(seconds=15)
 MAIL_DELIVERY_NAMESPACE = UUID("8a30d44c-d313-4cc6-af6a-237af95a4d4c")
 
 
@@ -106,6 +120,103 @@ class AsyncpgInvoiceDeliveryRepository:
             payment_reference=str(row["payment_reference"]),
         )
 
+    async def cancellation_context(
+        self,
+        *,
+        action_id: UUID,
+        invoice_id: UUID,
+    ) -> InvoiceCancellationDeliveryContext:
+        async with self._pool.acquire() as connection:
+            return await self.read_cancellation_context(
+                connection, action_id=action_id, invoice_id=invoice_id
+            )
+
+    @staticmethod
+    async def read_cancellation_context(
+        connection: asyncpg.Connection[Any],
+        *,
+        action_id: UUID,
+        invoice_id: UUID,
+        document_may_be_pending: bool = False,
+    ) -> InvoiceCancellationDeliveryContext:
+        row = await connection.fetchrow(
+            f"""
+            SELECT
+                invoice.id,
+                invoice.action_id,
+                invoice.number,
+                invoice.currency,
+                invoice.recipient_snapshot ->> 'recipientName'
+                    AS recipient_name,
+                invoice.recipient_snapshot ->> 'email' AS recipient_email,
+                invoice.issuer_snapshot ->> 'legalName' AS issuer_name,
+                {ACTIVE_PAID_MINOR_SQL} AS received_minor,
+                action.name AS action_name,
+                cancellation.id AS cancellation_id,
+                cancellation.number AS cancellation_number,
+                document.id AS document_id
+            FROM invoice
+            JOIN charity_action AS action ON action.id = invoice.action_id
+            LEFT JOIN invoice_cancellation AS cancellation
+              ON cancellation.invoice_id = invoice.id
+            LEFT JOIN LATERAL (
+                SELECT id
+                FROM generated_document
+                WHERE generated_document.invoice_id = invoice.id
+                  AND generated_document.action_id = invoice.action_id
+                  AND generated_document.document_type
+                      = 'invoice_cancellation_pdf'
+                  AND generated_document.status = ANY($3::text[])
+                ORDER BY generated_document.version DESC
+                LIMIT 1
+            ) AS document ON true
+            WHERE invoice.id = $1
+              AND invoice.action_id = $2
+            """,
+            invoice_id,
+            action_id,
+            ["available", "pending"] if document_may_be_pending else ["available"],
+        )
+        if row is None:
+            raise ResourceNotFound(
+                "invoice_delivery_invoice_not_found",
+                "Die Rechnung wurde in dieser Charity-Aktion nicht gefunden.",
+            )
+        if row["cancellation_id"] is None:
+            raise Conflict(
+                "invoice_cancellation_not_found",
+                "Diese Rechnung ist nicht storniert.",
+            )
+        if row["cancellation_number"] is None:
+            raise Conflict(
+                "invoice_cancellation_document_missing",
+                "Für dieses Storno wurde noch keine Stornorechnung ausgestellt.",
+            )
+        if row["document_id"] is None:
+            raise Conflict(
+                "invoice_delivery_document_not_ready",
+                "Das PDF der Stornorechnung ist noch nicht versandbereit.",
+            )
+        recipient_email = str(row["recipient_email"] or "").strip().casefold()
+        if not recipient_email:
+            raise Conflict(
+                "invoice_delivery_recipient_missing",
+                "Für diese Rechnung ist keine Empfänger-E-Mail gespeichert.",
+            )
+        return InvoiceCancellationDeliveryContext(
+            action_id=row["action_id"],
+            action_name=str(row["action_name"]),
+            invoice_id=row["id"],
+            invoice_number=str(row["number"]),
+            cancellation_number=str(row["cancellation_number"]),
+            document_id=row["document_id"],
+            recipient_name=str(row["recipient_name"]),
+            recipient_email=recipient_email,
+            issuer_name=str(row["issuer_name"]),
+            received_minor=int(row["received_minor"]),
+            currency=str(row["currency"]),
+        )
+
     async def create(
         self,
         draft: InvoiceDeliveryDraft,
@@ -114,127 +225,151 @@ class AsyncpgInvoiceDeliveryRepository:
     ) -> InvoiceDelivery:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                await connection.execute(
-                    "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
-                    draft.idempotency_key,
-                )
-                replayed = await self._existing_command(
-                    connection,
-                    idempotency_key=draft.idempotency_key,
-                    request_hash=draft.request_hash,
-                )
-                if replayed is not None:
-                    return await self._get(connection, replayed)
+                return await self.create_in(connection, draft, request_id=request_id)
 
-                current = await connection.fetchrow(
-                    """
-                    SELECT
-                        invoice.status,
-                        invoice.recipient_snapshot ->> 'email'
-                            AS recipient_email,
-                        document.status AS document_status
-                    FROM invoice
-                    JOIN generated_document AS document
-                      ON document.id = $3
-                     AND document.invoice_id = invoice.id
-                     AND document.action_id = invoice.action_id
-                    WHERE invoice.id = $1
-                      AND invoice.action_id = $2
-                    FOR UPDATE OF invoice, document
-                    """,
-                    draft.invoice_id,
-                    draft.action_id,
-                    draft.document_id,
-                )
-                if current is None:
-                    raise ResourceNotFound(
-                        "invoice_delivery_context_changed",
-                        "Rechnung und Dokument gehören nicht mehr zusammen.",
-                    )
-                if str(current["status"]) == "cancelled":
-                    raise Conflict(
-                        "invoice_delivery_cancelled",
-                        "Eine stornierte Rechnung kann nicht versendet werden.",
-                    )
-                if str(current["document_status"]) != "available":
-                    raise Conflict(
-                        "invoice_delivery_document_not_ready",
-                        "Das Rechnungs-PDF ist noch nicht versandbereit.",
-                    )
-                current_email = str(current["recipient_email"] or "").casefold()
-                if current_email != draft.recipient_email:
-                    raise Conflict(
-                        "invoice_delivery_recipient_changed",
-                        "Der Rechnungsempfänger stimmt nicht mehr mit dem "
-                        "Versandauftrag überein.",
-                    )
+    async def create_in(
+        self,
+        connection: asyncpg.Connection[Any],
+        draft: InvoiceDeliveryDraft,
+        *,
+        request_id: str,
+    ) -> InvoiceDelivery:
+        """Stores the delivery inside the caller's transaction."""
 
-                await connection.execute(
-                    """
-                    INSERT INTO outbox_event (
-                        id, aggregate_type, aggregate_id, event_type,
-                        idempotency_key, payload, available_at, created_at
-                    )
-                    VALUES (
-                        $1, 'invoice_delivery', $2, $3, $4, $5::jsonb, $6, $6
-                    )
-                    """,
-                    draft.outbox_event_id,
-                    draft.id,
-                    INVOICE_MAIL_SEND_REQUESTED,
-                    f"invoice-delivery:{draft.id}:v1",
-                    json.dumps(
-                        {"deliveryId": str(draft.id)},
-                        separators=(",", ":"),
-                    ),
-                    draft.requested_at,
-                )
-                await connection.execute(
-                    """
-                    INSERT INTO invoice_delivery (
-                        id, action_id, invoice_id, generated_document_id,
-                        outbox_event_id, idempotency_key,
-                        recipient_email_snapshot, subject_snapshot,
-                        text_snapshot, requested_by_user_id,
-                        requested_at, created_at
-                    )
-                    VALUES (
-                        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11
-                    )
-                    """,
-                    draft.id,
-                    draft.action_id,
-                    draft.invoice_id,
-                    draft.document_id,
-                    draft.outbox_event_id,
-                    draft.idempotency_key,
-                    draft.recipient_email,
-                    draft.subject,
-                    draft.text,
-                    draft.requested_by_user_id,
-                    draft.requested_at,
-                )
-                await self._audit(
-                    connection,
-                    action_id=draft.action_id,
-                    actor_user_id=draft.requested_by_user_id,
-                    event_type="invoice.delivery.requested",
-                    entity_id=draft.id,
-                    request_id=request_id,
-                    payload={
-                        "invoiceId": str(draft.invoice_id),
-                        "documentId": str(draft.document_id),
-                    },
-                    occurred_at=draft.requested_at,
-                )
-                await self._complete_command(
-                    connection,
-                    delivery_id=draft.id,
-                    idempotency_key=draft.idempotency_key,
-                    request_hash=draft.request_hash,
-                    completed_at=draft.requested_at,
-                )
-                return await self._get(connection, draft.id)
+        await connection.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+            draft.idempotency_key,
+        )
+        replayed = await self._existing_command(
+            connection,
+            idempotency_key=draft.idempotency_key,
+            request_hash=draft.request_hash,
+        )
+        if replayed is not None:
+            return await self._get(connection, replayed)
+
+        current = await connection.fetchrow(
+            """
+            SELECT
+                invoice.status,
+                invoice.recipient_snapshot ->> 'email'
+                    AS recipient_email,
+                document.status AS document_status
+            FROM invoice
+            JOIN generated_document AS document
+              ON document.id = $3
+             AND document.invoice_id = invoice.id
+             AND document.action_id = invoice.action_id
+             AND document.document_type = $4
+            WHERE invoice.id = $1
+              AND invoice.action_id = $2
+            FOR UPDATE OF invoice, document
+            """,
+            draft.invoice_id,
+            draft.action_id,
+            draft.document_id,
+            DOCUMENT_TYPES[draft.kind].value,
+        )
+        if current is None:
+            raise ResourceNotFound(
+                "invoice_delivery_context_changed",
+                "Rechnung und Dokument gehören nicht mehr zusammen.",
+            )
+        cancelled = str(current["status"]) == "cancelled"
+        if draft.kind is InvoiceDeliveryKind.INVOICE and cancelled:
+            raise Conflict(
+                "invoice_delivery_cancelled",
+                "Eine stornierte Rechnung kann nicht versendet werden.",
+            )
+        if draft.kind is InvoiceDeliveryKind.INVOICE_CANCELLATION and not cancelled:
+            raise Conflict(
+                "invoice_cancellation_not_found",
+                "Diese Rechnung ist nicht storniert.",
+            )
+        document_status = str(current["document_status"])
+        pending = draft.document_may_be_pending and document_status == "pending"
+        if document_status != "available" and not pending:
+            raise Conflict(
+                "invoice_delivery_document_not_ready",
+                "Das PDF ist noch nicht versandbereit.",
+            )
+        current_email = str(current["recipient_email"] or "").casefold()
+        if current_email != draft.recipient_email:
+            raise Conflict(
+                "invoice_delivery_recipient_changed",
+                "Der Rechnungsempfänger stimmt nicht mehr mit dem "
+                "Versandauftrag überein.",
+            )
+
+        await connection.execute(
+            """
+            INSERT INTO outbox_event (
+                id, aggregate_type, aggregate_id, event_type,
+                idempotency_key, payload, available_at, created_at
+            )
+            VALUES (
+                $1, 'invoice_delivery', $2, $3, $4, $5::jsonb, $6, $7
+            )
+            """,
+            draft.outbox_event_id,
+            draft.id,
+            INVOICE_MAIL_SEND_REQUESTED,
+            f"invoice-delivery:{draft.id}:v1",
+            json.dumps(
+                {"deliveryId": str(draft.id)},
+                separators=(",", ":"),
+            ),
+            draft.requested_at
+            + (PENDING_DOCUMENT_HEAD_START if pending else timedelta(0)),
+            draft.requested_at,
+        )
+        await connection.execute(
+            """
+            INSERT INTO invoice_delivery (
+                id, action_id, invoice_id, generated_document_id,
+                outbox_event_id, idempotency_key,
+                recipient_email_snapshot, subject_snapshot,
+                text_snapshot, requested_by_user_id,
+                requested_at, created_at
+            )
+            VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11
+            )
+            """,
+            draft.id,
+            draft.action_id,
+            draft.invoice_id,
+            draft.document_id,
+            draft.outbox_event_id,
+            draft.idempotency_key,
+            draft.recipient_email,
+            draft.subject,
+            draft.text,
+            draft.requested_by_user_id,
+            draft.requested_at,
+        )
+        await self._audit(
+            connection,
+            action_id=draft.action_id,
+            actor_user_id=draft.requested_by_user_id,
+            event_type="invoice.delivery.requested",
+            entity_id=draft.id,
+            request_id=request_id,
+            payload={
+                "invoiceId": str(draft.invoice_id),
+                "documentId": str(draft.document_id),
+                "kind": draft.kind.value,
+            },
+            occurred_at=draft.requested_at,
+        )
+        await self._complete_command(
+            connection,
+            delivery_id=draft.id,
+            idempotency_key=draft.idempotency_key,
+            request_hash=draft.request_hash,
+            completed_at=draft.requested_at,
+        )
+        return await self._get(connection, draft.id)
 
     async def retry(
         self,
@@ -245,6 +380,7 @@ class AsyncpgInvoiceDeliveryRepository:
         actor_user_id: UUID,
         request_id: str,
         occurred_at: datetime,
+        kind: InvoiceDeliveryKind = InvoiceDeliveryKind.INVOICE,
     ) -> InvoiceDelivery:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
@@ -257,16 +393,20 @@ class AsyncpgInvoiceDeliveryRepository:
                     FROM invoice_delivery AS delivery
                     JOIN outbox_event AS event
                       ON event.id = delivery.outbox_event_id
+                    JOIN generated_document AS document
+                      ON document.id = delivery.generated_document_id
                     LEFT JOIN mail_delivery AS mail
                       ON mail.outbox_event_id = event.id
                     WHERE delivery.id = $1
                       AND delivery.action_id = $2
                       AND delivery.invoice_id = $3
+                      AND document.document_type = $4
                     FOR UPDATE OF delivery, event
                     """,
                     delivery_id,
                     action_id,
                     invoice_id,
+                    DOCUMENT_TYPES[kind].value,
                 )
                 if row is None:
                     raise ResourceNotFound(
@@ -317,7 +457,7 @@ class AsyncpgInvoiceDeliveryRepository:
                     event_type="invoice.delivery.retried",
                     entity_id=delivery_id,
                     request_id=request_id,
-                    payload={"invoiceId": str(invoice_id)},
+                    payload={"invoiceId": str(invoice_id), "kind": kind.value},
                     occurred_at=occurred_at,
                 )
                 return await self._get(connection, delivery_id)
@@ -352,7 +492,8 @@ class AsyncpgInvoiceDeliveryRepository:
         if row is None:
             return None
         if str(row["document_status"]) != "available":
-            raise RuntimeError("Das Rechnungs-PDF ist nicht mehr versandbereit.")
+            # Also a PDF that is still being rendered: the job is retried.
+            raise RuntimeError("Das PDF des Versands ist nicht versandbereit.")
         required = (
             "filename",
             "storage_bucket",
@@ -413,11 +554,17 @@ class AsyncpgInvoiceDeliveryRepository:
             async with connection.transaction():
                 delivery = await connection.fetchrow(
                     """
-                    SELECT action_id, invoice_id, generated_document_id
-                    FROM invoice_delivery
-                    WHERE id = $1
-                      AND outbox_event_id = $2
-                    FOR UPDATE
+                    SELECT
+                        delivery.action_id,
+                        delivery.invoice_id,
+                        delivery.generated_document_id,
+                        document.document_type
+                    FROM invoice_delivery AS delivery
+                    JOIN generated_document AS document
+                      ON document.id = delivery.generated_document_id
+                    WHERE delivery.id = $1
+                      AND delivery.outbox_event_id = $2
+                    FOR UPDATE OF delivery
                     """,
                     delivery_id,
                     outbox_event_id,
@@ -466,17 +613,19 @@ class AsyncpgInvoiceDeliveryRepository:
                 # cancelled): a concurrent serializable payment or reversal
                 # that has not seen this delivery then fails its own invoice
                 # update, retries and stores `sent` instead of `issued`.
-                await connection.execute(
-                    """
-                    UPDATE invoice
-                    SET status = CASE
-                        WHEN status = 'issued' THEN 'sent'
-                        ELSE status
-                    END
-                    WHERE id = $1
-                    """,
-                    delivery["invoice_id"],
-                )
+                kind = KINDS[str(delivery["document_type"])]
+                if kind is InvoiceDeliveryKind.INVOICE:
+                    await connection.execute(
+                        """
+                        UPDATE invoice
+                        SET status = CASE
+                            WHEN status = 'issued' THEN 'sent'
+                            ELSE status
+                        END
+                        WHERE id = $1
+                        """,
+                        delivery["invoice_id"],
+                    )
                 await connection.execute(
                     """
                     UPDATE generated_document
@@ -498,6 +647,7 @@ class AsyncpgInvoiceDeliveryRepository:
                     payload={
                         "invoiceId": str(delivery["invoice_id"]),
                         "messageId": message_id,
+                        "kind": kind.value,
                     },
                     occurred_at=sent_at,
                 )
@@ -588,6 +738,7 @@ class AsyncpgInvoiceDeliveryRepository:
             """
             SELECT
                 delivery.*,
+                document.document_type,
                 event.status AS outbox_status,
                 event.attempts,
                 event.last_error_code,
@@ -595,6 +746,8 @@ class AsyncpgInvoiceDeliveryRepository:
                 mail.message_id,
                 mail.sent_at
             FROM invoice_delivery AS delivery
+            JOIN generated_document AS document
+              ON document.id = delivery.generated_document_id
             JOIN outbox_event AS event
               ON event.id = delivery.outbox_event_id
             LEFT JOIN mail_delivery AS mail
@@ -654,6 +807,7 @@ class AsyncpgInvoiceDeliveryRepository:
             requested_at=row["requested_at"],
             sent_at=sent_at,
             can_retry=outbox_status == "dead_letter" and sent_at is None,
+            kind=KINDS[str(row["document_type"])],
         )
 
     @staticmethod

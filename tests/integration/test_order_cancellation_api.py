@@ -253,6 +253,26 @@ class Fixture:
                 """,
                 action_id,
             )
+        # The invoice profile every action with issued invoices has: a
+        # cancelled invoice gets its cancellation invoice from that series.
+        await connection.execute(
+            """
+            INSERT INTO invoice_profile (
+                id, action_id, legal_name, street_line_1, postal_code, city,
+                country_code, tax_identifier, email, tax_treatment,
+                tax_rate_basis_points, tax_note, number_prefix, next_number,
+                number_width, payment_terms_days
+            )
+            VALUES ($1, $2, 'Cancel proof e.V.', 'Clubweg 1', '86150',
+                    'Augsburg', 'DE', '103/999/99999',
+                    'finanzen@leonaid.invalid', 'small_business', 0,
+                    'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
+                    $3, 1, 4, 14)
+            """,
+            uuid4(),
+            self.action,
+            f"{self.tag.upper()}-S",
+        )
         starts_at = self.window_starts_at
         await connection.execute(
             "INSERT INTO action_delivery_window (id, action_id, starts_at, ends_at) "

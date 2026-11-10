@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
@@ -14,11 +14,8 @@ from leonaid.application.errors import (
     PermissionDenied,
     ResourceNotFound,
 )
-from leonaid.application.invoice_documents import (
-    InvoiceDocumentSnapshot,
-    InvoicePdfRenderer,
-)
 from leonaid.application.invoices import may_read_invoices
+from leonaid.application.rendered_documents import DocumentSource
 from leonaid.application.object_storage import (
     ObjectLocation,
     ObjectStorage,
@@ -31,16 +28,10 @@ from leonaid.domain.documents import (
     GeneratedDocument,
     GeneratedDocumentStatus,
     GeneratedDocumentType,
-    INVOICE_DOCUMENT_RENDER_REQUESTED,
+    DOCUMENT_RENDER_EVENTS,
 )
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.outbox import ClaimedOutboxEvent
-
-
-@dataclass(frozen=True, slots=True)
-class GeneratedDocumentRenderJob:
-    document: GeneratedDocument
-    invoice_snapshot: InvoiceDocumentSnapshot
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +59,9 @@ class GeneratedDocumentRecord:
     document: GeneratedDocument
     invoice_number: str | None
     buyer_display_name: str
+    # The document's own number when it is not the invoice's, for example
+    # the number of a cancellation invoice.
+    document_number: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,10 +72,7 @@ class GeneratedDocumentList:
 
 
 class GeneratedDocumentRepository(Protocol):
-    async def render_job(
-        self,
-        document_id: UUID,
-    ) -> GeneratedDocumentRenderJob | None: ...
+    async def document(self, document_id: UUID) -> GeneratedDocument | None: ...
 
     async def mark_available(
         self,
@@ -108,46 +99,53 @@ class GeneratedDocumentRepository(Protocol):
     ) -> tuple[GeneratedDocumentRecord, ...]: ...
 
 
-class InvoiceDocumentStorageHandler:
+class DocumentStorageHandler:
+    """Renders a pending generated document and stores it, for every kind.
+
+    The document type picks the source that knows its snapshot and template;
+    storing, the byte-identical read back and the state change are the same
+    for all.
+    """
+
     def __init__(
         self,
         *,
         repository: GeneratedDocumentRepository,
-        renderer: InvoicePdfRenderer,
+        sources: Mapping[GeneratedDocumentType, DocumentSource],
         storage: ObjectStorage,
     ) -> None:
         self._repository = repository
-        self._renderer = renderer
+        self._sources = dict(sources)
         self._storage = storage
 
     async def handle(self, event: ClaimedOutboxEvent) -> None:
-        if event.event_type != INVOICE_DOCUMENT_RENDER_REQUESTED:
+        if event.event_type not in DOCUMENT_RENDER_EVENTS:
             raise ValueError("Der Dokument-Handler erhielt einen fremden Ereignistyp.")
         raw_document_id = event.payload.get("documentId")
         try:
             document_id = UUID(str(raw_document_id))
         except (TypeError, ValueError) as error:
             raise ValueError("Der Renderauftrag besitzt keine Dokument-ID.") from error
-        job = await self._repository.render_job(document_id)
-        if job is None:
+        document = await self._repository.document(document_id)
+        if document is None:
             raise RuntimeError("Der Renderauftrag verweist auf kein Dokument.")
-        if job.document.document_type is not GeneratedDocumentType.INVOICE_PDF:
+        source = self._sources.get(document.document_type)
+        if source is None:
             raise RuntimeError(
                 "Der Renderauftrag besitzt einen unbekannten Dokumenttyp."
             )
         await self._storage.ensure_private_versioned_bucket()
-        if job.document.status is GeneratedDocumentStatus.AVAILABLE:
-            await self._verify_available(job.document)
+        if document.status is GeneratedDocumentStatus.AVAILABLE:
+            await self._verify_available(document)
             return
-        if job.document.status is not GeneratedDocumentStatus.PENDING:
+        if document.status is not GeneratedDocumentStatus.PENDING:
             raise RuntimeError("Ein gelöschtes Dokument darf nicht neu erzeugt werden.")
 
-        # Typst runs as a blocking subprocess; keep the worker event loop free.
-        rendered = await asyncio.to_thread(self._renderer.render, job.invoice_snapshot)
+        rendering = await source.render(document)
+        rendered = rendering.rendered
         key = (
-            f"actions/{job.document.action_id}/invoices/"
-            f"{job.invoice_snapshot.invoice_id}/v{job.document.version}/"
-            f"{rendered.sha256}.pdf"
+            f"actions/{document.action_id}/{rendering.storage_path}/"
+            f"v{document.version}/{rendered.sha256}.pdf"
         )
         stored = await self._storage.put_immutable(
             ObjectWrite(
@@ -159,21 +157,21 @@ class InvoiceDocumentStorageHandler:
                 media_type=rendered.media_type,
                 sha256=rendered.sha256,
                 metadata={
-                    "document-id": str(job.document.id),
-                    "invoice-id": str(job.invoice_snapshot.invoice_id),
-                    "invoice-number": job.invoice_snapshot.number,
+                    **rendering.metadata,
+                    "document-id": str(document.id),
+                    "document-type": document.document_type.value,
                     "render-version": rendered.render_version,
-                    "document-version": str(job.document.version),
+                    "document-version": str(document.version),
                 },
             )
         )
         retrieved = await self._storage.get(stored.location)
         if retrieved.content != rendered.content or retrieved.stored != stored:
             raise RuntimeError(
-                "Der gespeicherte Rechnungsbeleg ist nicht byteidentisch lesbar."
+                "Das gespeicherte Dokument ist nicht byteidentisch lesbar."
             )
         await self._repository.mark_available(
-            document_id=job.document.id,
+            document_id=document.id,
             filename=rendered.filename,
             render_version=rendered.render_version,
             stored=stored,

@@ -48,9 +48,12 @@ class InvoiceRecord:
     # The newest active payment entry; kept for older clients.
     payment: PaymentRecord | None = None
     cancellation: InvoiceCancellation | None = None
+    # Deliveries of the invoice PDF.
     deliveries: tuple[InvoiceDelivery, ...] = ()
     # Every payment entry, reversed ones included, oldest first.
     payments: tuple[PaymentRecord, ...] = ()
+    # Deliveries of the cancellation invoice.
+    cancellation_deliveries: tuple[InvoiceDelivery, ...] = ()
 
     @property
     def balance(self) -> InvoiceBalance:

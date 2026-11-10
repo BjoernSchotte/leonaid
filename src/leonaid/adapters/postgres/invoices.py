@@ -16,12 +16,23 @@ from leonaid.adapters.postgres.retry import (
     serialization_pause,
 )
 from leonaid.adapters.postgres.delivery import lock_configuration
+from leonaid.adapters.postgres.document_series import (
+    allocate_document_number,
+    peek_next_serial,
+)
 from leonaid.adapters.postgres.invoice_deliveries import (
     AsyncpgInvoiceDeliveryRepository,
 )
 from leonaid.adapters.postgres.invoice_payments import payments_for_action
 from leonaid.application.errors import Conflict, ResourceNotFound
-from leonaid.application.invoice_deliveries import InvoiceDelivery
+from leonaid.adapters.postgres.invoice_cancellation_rows import (
+    CANCELLATION_LIST_COLUMNS,
+    cancellation_from_row,
+)
+from leonaid.application.invoice_deliveries import (
+    InvoiceDelivery,
+    InvoiceDeliveryKind,
+)
 from leonaid.application.invoices import (
     InvoiceContext,
     InvoiceRecord,
@@ -38,6 +49,7 @@ from leonaid.domain.commitments import (
     InvoiceRecipientSnapshot,
     Money,
 )
+from leonaid.domain.document_series import DocumentSeriesKind
 from leonaid.domain.documents import INVOICE_DOCUMENT_RENDER_REQUESTED
 from leonaid.domain.invoices import (
     Invoice,
@@ -49,7 +61,7 @@ from leonaid.domain.invoices import (
     TaxTreatment,
 )
 from leonaid.domain.invoice_settlements import (
-    InvoiceCancellation,
+    InvoiceBalance,
     PaymentRecord,
 )
 
@@ -95,14 +107,24 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 """,
                 action_id,
             )
+            profile = None
+            if profile_row is not None:
+                # The next number comes from the installation's series, which
+                # every action with this prefix shares (ADR-0015).
+                profile = self._profile_from_row(
+                    profile_row,
+                    next_number=await peek_next_serial(
+                        connection,
+                        kind=DocumentSeriesKind.INVOICE,
+                        prefix=str(profile_row["number_prefix"]),
+                    ),
+                )
         return InvoiceContext(
             action_id=action_id,
             action_name=str(action["name"]),
             starts_on=action["starts_on"],
             ends_on=action["ends_on"],
-            profile=(
-                self._profile_from_row(profile_row) if profile_row is not None else None
-            ),
+            profile=profile,
             may_issue=False,
             may_manage_settlements=False,
         )
@@ -115,23 +137,23 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
         async with self._pool.acquire() as connection:
             await self._action_row(connection, action_id)
             rows = await connection.fetch(
-                """
+                f"""
                 SELECT
                     invoice.*,
                     commitment.customer_snapshot,
-                    cancellation.id AS cancellation_id,
-                    cancellation.original_status AS cancellation_original_status,
-                    cancellation.reason_snapshot AS cancellation_reason,
-                    cancellation.requested_by_user_id,
-                    cancellation.requested_at AS cancellation_requested_at,
+                    {CANCELLATION_LIST_COLUMNS},
                     cancellation_actor.display_name
-                      AS cancellation_requested_by_display_name
+                      AS cancellation_requested_by_display_name,
+                    refund_actor.display_name
+                      AS cancellation_refund_settled_by_display_name
                 FROM invoice
                 JOIN commitment ON commitment.id = invoice.commitment_id
                 LEFT JOIN invoice_cancellation AS cancellation
                   ON cancellation.invoice_id = invoice.id
                 LEFT JOIN user_account AS cancellation_actor
                   ON cancellation_actor.id = cancellation.requested_by_user_id
+                LEFT JOIN user_account AS refund_actor
+                  ON refund_actor.id = cancellation.refund_settled_by_user_id
                 WHERE invoice.action_id = $1
                 ORDER BY invoice.issued_at DESC, invoice.number DESC
                 """,
@@ -141,6 +163,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 """
                 SELECT
                     delivery.*,
+                    document.document_type,
                     event.status AS outbox_status,
                     event.attempts,
                     event.last_error_code,
@@ -148,6 +171,8 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                     mail.message_id,
                     mail.sent_at
                 FROM invoice_delivery AS delivery
+                JOIN generated_document AS document
+                  ON document.id = delivery.generated_document_id
                 JOIN outbox_event AS event
                   ON event.id = delivery.outbox_event_id
                 LEFT JOIN mail_delivery AS mail
@@ -380,9 +405,18 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
             commitment_row,
             tuple(line_rows),
         )
+        # The series row is the last lock of the command (lock order in
+        # ``retry.py``); a failed issue rolls the number back.
+        number = await allocate_document_number(
+            connection,
+            kind=DocumentSeriesKind.INVOICE,
+            prefix=profile.number_prefix,
+            width=profile.number_width,
+            occurred_at=occurred_at,
+        )
         invoice = Invoice.issue(
             id=uuid4(),
-            number=profile.next_invoice_number,
+            number=number,
             commitment=commitment,
             profile=profile,
             approved_by_user_id=actor_user_id,
@@ -398,20 +432,6 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
             request_hash=request_hash,
             request_id=request_id,
         )
-        sequence_update = await connection.execute(
-            """
-            UPDATE invoice_profile
-            SET next_number = next_number + 1,
-                updated_at = $2
-            WHERE id = $1
-              AND next_number = $3
-            """,
-            profile.id,
-            occurred_at,
-            profile.next_number,
-        )
-        if sequence_update != "UPDATE 1":
-            raise RuntimeError("Der Rechnungsnummernkreis wurde parallel verändert.")
         commitment_update = await connection.execute(
             """
             UPDATE commitment
@@ -679,7 +699,14 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
         return row
 
     @staticmethod
-    def _profile_from_row(row: asyncpg.Record) -> InvoiceProfile:
+    def _profile_from_row(
+        row: asyncpg.Record,
+        *,
+        next_number: int | None = None,
+    ) -> InvoiceProfile:
+        """``invoice_profile.next_number`` is no longer the counter: callers
+        that show the next number pass the one of the series."""
+
         return InvoiceProfile(
             id=row["id"],
             action_id=row["action_id"],
@@ -696,7 +723,9 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
             tax_rate_basis_points=int(row["tax_rate_basis_points"]),
             tax_note=str(row["tax_note"]),
             number_prefix=str(row["number_prefix"]),
-            next_number=int(row["next_number"]),
+            next_number=(
+                next_number if next_number is not None else int(row["next_number"])
+            ),
             number_width=int(row["number_width"]),
             payment_terms_days=int(row["payment_terms_days"]),
             confirmed_at=row["confirmed_at"],
@@ -854,17 +883,14 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
         )
         invoice = cls._invoice_from_row(row)
         cancellation = (
-            InvoiceCancellation(
-                id=row["cancellation_id"],
-                action_id=invoice.action_id,
-                invoice_id=invoice.id,
-                original_status=InvoiceStatus(str(row["cancellation_original_status"])),
-                reason=str(row["cancellation_reason"]),
-                requested_by_user_id=row["requested_by_user_id"],
-                requested_at=row["cancellation_requested_at"],
+            cancellation_from_row(
+                row,
                 requested_by_display_name=str(
                     row["cancellation_requested_by_display_name"]
                 ),
+                # Payments of a cancelled invoice can no longer change.
+                received=InvoiceBalance.of(invoice.gross, payments).paid,
+                prefix="cancellation_",
             )
             if row["cancellation_id"] is not None
             else None
@@ -878,7 +904,14 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 None,
             ),
             cancellation=cancellation,
-            deliveries=deliveries,
+            deliveries=tuple(
+                item for item in deliveries if item.kind is InvoiceDeliveryKind.INVOICE
+            ),
+            cancellation_deliveries=tuple(
+                item
+                for item in deliveries
+                if item.kind is InvoiceDeliveryKind.INVOICE_CANCELLATION
+            ),
             payments=payments,
         )
         # The open amount is the remainder of the active payment entries.

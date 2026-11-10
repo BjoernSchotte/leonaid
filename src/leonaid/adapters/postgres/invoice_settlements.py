@@ -10,6 +10,16 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from leonaid.adapters.postgres.invoice_cancellation_rows import cancellation_from_row
+from leonaid.adapters.postgres.invoice_cancellation_documents import (
+    document_columns,
+    prepare_cancellation_document,
+    request_cancellation_render,
+)
+from leonaid.adapters.postgres.invoice_deliveries import (
+    AsyncpgInvoiceDeliveryRepository,
+)
+from leonaid.adapters.postgres.invoice_payment_state import ACTIVE_PAID_MINOR_SQL
 from leonaid.adapters.postgres.invoice_payments import (
     payment_by_id,
     payment_by_reversal_id,
@@ -21,6 +31,7 @@ from leonaid.adapters.postgres.retry import (
     serialization_pause,
 )
 from leonaid.application.errors import Conflict, ResourceNotFound
+from leonaid.application.invoice_deliveries import cancellation_delivery_draft
 from leonaid.application.invoice_settlements import InvoiceSettlementRepository
 from leonaid.domain.commitments import Money
 from leonaid.domain.invoice_settlements import (
@@ -36,6 +47,7 @@ from leonaid.domain.invoices import InvoiceStatus
 PAYMENT_COMMAND = "record_invoice_payment_v1"
 REVERSAL_COMMAND = "reverse_invoice_payment_v1"
 CANCELLATION_COMMAND = "cancel_invoice_v1"
+CANCELLATION_DOCUMENT_COMMAND = "issue_invoice_cancellation_document_v1"
 
 
 class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
@@ -139,6 +151,7 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        send_document: bool = False,
     ) -> InvoiceCancellation:
         async with self._pool.acquire() as connection:
             for attempt in range(SERIALIZABLE_ATTEMPTS):
@@ -154,6 +167,7 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
                             request_hash=request_hash,
                             request_id=request_id,
                             occurred_at=occurred_at,
+                            send_document=send_document,
                         )
                 except RETRYABLE_ERRORS:
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
@@ -164,6 +178,278 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
                         ) from None
                     await serialization_pause(attempt)
         raise RuntimeError("Die Stornotransaktion wurde nicht ausgeführt.")
+
+    async def issue_cancellation_document(
+        self,
+        *,
+        action_id: UUID,
+        invoice_id: UUID,
+        actor_user_id: UUID,
+        idempotency_key: str,
+        request_hash: str,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> InvoiceCancellation:
+        async with self._pool.acquire() as connection:
+            for attempt in range(SERIALIZABLE_ATTEMPTS):
+                try:
+                    async with connection.transaction(isolation="serializable"):
+                        return await self._issue_document_once(
+                            connection,
+                            action_id=action_id,
+                            invoice_id=invoice_id,
+                            actor_user_id=actor_user_id,
+                            idempotency_key=idempotency_key,
+                            request_hash=request_hash,
+                            request_id=request_id,
+                            occurred_at=occurred_at,
+                        )
+                except RETRYABLE_ERRORS:
+                    if attempt == SERIALIZABLE_ATTEMPTS - 1:
+                        raise Conflict(
+                            "invoice_cancellation_concurrent_retry",
+                            "Das Storno wurde gleichzeitig bearbeitet. "
+                            "Bitte denselben Vorgang erneut ausführen.",
+                        ) from None
+                    await serialization_pause(attempt)
+        raise RuntimeError("Die Stornorechnung wurde nicht ausgestellt.")
+
+    async def settle_refund(
+        self,
+        *,
+        action_id: UUID,
+        invoice_id: UUID,
+        settled_on: date,
+        note: str | None,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> InvoiceCancellation:
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                await self._lock_invoice(connection, invoice_id)
+                row = await connection.fetchrow(
+                    """
+                    SELECT cancellation.id
+                    FROM invoice_cancellation AS cancellation
+                    WHERE cancellation.invoice_id = $1
+                      AND cancellation.action_id = $2
+                    FOR UPDATE
+                    """,
+                    invoice_id,
+                    action_id,
+                )
+                if row is None:
+                    raise ResourceNotFound(
+                        "invoice_cancellation_not_found",
+                        "Für diese Rechnung ist kein Storno erfasst.",
+                    )
+                cancellation = await self._get_cancellation(
+                    connection,
+                    action_id=action_id,
+                    cancellation_id=row["id"],
+                    replayed=False,
+                )
+                if cancellation.refund is not None:
+                    raise Conflict(
+                        "invoice_refund_already_settled",
+                        "Die Erstattung ist bereits als erledigt vermerkt.",
+                    )
+                if not cancellation.refund_open:
+                    raise Conflict(
+                        "invoice_refund_not_due",
+                        "Für diese Rechnung ist kein Zahlungseingang erfasst; "
+                        "es gibt nichts zu erstatten.",
+                    )
+                refund = cancellation.settle_refund(
+                    settled_on=settled_on,
+                    note=note,
+                    settled_by_user_id=actor_user_id,
+                    settled_at=occurred_at,
+                )
+                await connection.execute(
+                    """
+                    UPDATE invoice_cancellation
+                    SET refund_settled_on = $2,
+                        refund_note = $3,
+                        refund_settled_by_user_id = $4,
+                        refund_settled_at = $5
+                    WHERE id = $1
+                    """,
+                    cancellation.id,
+                    refund.settled_on,
+                    refund.note,
+                    refund.settled_by_user_id,
+                    refund.settled_at,
+                )
+                # The note stays out of the audit trail, as payment notes do.
+                await self._audit(
+                    connection,
+                    action_id=action_id,
+                    actor_user_id=actor_user_id,
+                    event_type="invoice_refund_settled",
+                    entity_type="invoice_cancellation",
+                    entity_id=cancellation.id,
+                    request_id=request_id,
+                    payload={
+                        "invoiceId": str(invoice_id),
+                        "cancellationNumber": cancellation.number,
+                        "settledOn": refund.settled_on.isoformat(),
+                        "receivedMinor": (
+                            cancellation.received.amount_minor
+                            if cancellation.received is not None
+                            else 0
+                        ),
+                        "hasNote": refund.note is not None,
+                    },
+                    occurred_at=occurred_at,
+                )
+                return await self._get_cancellation(
+                    connection,
+                    action_id=action_id,
+                    cancellation_id=cancellation.id,
+                    replayed=False,
+                )
+
+    @staticmethod
+    async def _lock_invoice(
+        connection: asyncpg.Connection[Any],
+        invoice_id: UUID,
+    ) -> None:
+        """Payment lock, then cancellation lock (lock order in ``retry.py``).
+
+        A cancellation reads what was received; no payment may move then.
+        """
+
+        for key in (
+            f"invoice-payment:{invoice_id}",
+            f"invoice-cancellation:{invoice_id}",
+        ):
+            await connection.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", key
+            )
+
+    async def _issue_document_once(
+        self,
+        connection: asyncpg.Connection[Any],
+        *,
+        action_id: UUID,
+        invoice_id: UUID,
+        actor_user_id: UUID,
+        idempotency_key: str,
+        request_hash: str,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> InvoiceCancellation:
+        """The cancellation invoice of a cancellation that has none yet."""
+
+        await self._lock_invoice(connection, invoice_id)
+        replayed_id = await self._existing_command(
+            connection,
+            command_type=CANCELLATION_DOCUMENT_COMMAND,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+            result_key="cancellationId",
+        )
+        if replayed_id is not None:
+            return await self._get_cancellation(
+                connection,
+                action_id=action_id,
+                cancellation_id=replayed_id,
+                replayed=True,
+            )
+        await self._invoice_state(
+            connection,
+            action_id=action_id,
+            invoice_id=invoice_id,
+        )
+        row = await connection.fetchrow(
+            """
+            SELECT id, number
+            FROM invoice_cancellation
+            WHERE invoice_id = $1 AND action_id = $2
+            FOR UPDATE
+            """,
+            invoice_id,
+            action_id,
+        )
+        if row is None:
+            raise ResourceNotFound(
+                "invoice_cancellation_not_found",
+                "Für diese Rechnung ist kein Storno erfasst.",
+            )
+        if row["number"] is not None:
+            raise Conflict(
+                "invoice_cancellation_document_exists",
+                "Für dieses Storno gibt es bereits eine Stornorechnung.",
+            )
+        document = await prepare_cancellation_document(
+            connection,
+            cancellation_id=row["id"],
+            action_id=action_id,
+            invoice_id=invoice_id,
+            occurred_at=occurred_at,
+        )
+        number, issued_on, issued_at, snapshot, version = document_columns(document)
+        updated = await connection.execute(
+            """
+            UPDATE invoice_cancellation
+            SET number = $2,
+                issued_on = $3,
+                issued_at = $4,
+                issued_by_user_id = $5,
+                snapshot = $6::jsonb,
+                document_version = $7
+            WHERE id = $1
+              AND number IS NULL
+            """,
+            row["id"],
+            number,
+            issued_on,
+            issued_at,
+            actor_user_id,
+            snapshot,
+            version,
+        )
+        if updated != "UPDATE 1":
+            raise RuntimeError("Das gesperrte Storno hat sich verändert.")
+        await request_cancellation_render(
+            connection,
+            document=document,
+            action_id=action_id,
+            occurred_at=occurred_at,
+        )
+        await self._audit(
+            connection,
+            action_id=action_id,
+            actor_user_id=actor_user_id,
+            event_type="invoice_cancellation_document_issued",
+            entity_type="invoice_cancellation",
+            entity_id=row["id"],
+            request_id=request_id,
+            payload={
+                "invoiceId": str(invoice_id),
+                "invoiceNumber": document.original_number,
+                "cancellationNumber": document.number,
+                "issuedOn": document.issued_on.isoformat(),
+                "receivedMinor": document.received.amount_minor,
+            },
+            occurred_at=occurred_at,
+        )
+        await self._complete_command(
+            connection,
+            command_type=CANCELLATION_DOCUMENT_COMMAND,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+            result={"cancellationId": str(row["id"])},
+            occurred_at=occurred_at,
+        )
+        return await self._get_cancellation(
+            connection,
+            action_id=action_id,
+            cancellation_id=row["id"],
+            replayed=False,
+        )
 
     async def _record_payment_once(
         self,
@@ -507,11 +793,16 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        send_document: bool = False,
     ) -> InvoiceCancellation:
-        await connection.execute(
-            "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
-            f"invoice-cancellation:{invoice_id}",
-        )
+        """Cancels the invoice and issues its cancellation invoice.
+
+        One transaction: the status, the cancellation record, the number of
+        the invoice series, the document snapshot, its render job and, when
+        asked for, the delivery. ``cancelCommitment`` runs it inside its own.
+        """
+
+        await self._lock_invoice(connection, invoice_id)
         replayed_id = await self._existing_command(
             connection,
             command_type=CANCELLATION_COMMAND,
@@ -549,14 +840,24 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
             requested_by_user_id=actor_user_id,
             requested_at=occurred_at,
         )
+        document = await prepare_cancellation_document(
+            connection,
+            cancellation_id=cancellation.id,
+            action_id=action_id,
+            invoice_id=invoice_id,
+            occurred_at=occurred_at,
+        )
+        number, issued_on, issued_at, snapshot, version = document_columns(document)
         await connection.execute(
             """
             INSERT INTO invoice_cancellation (
                 id, action_id, invoice_id, original_status,
                 reason_snapshot, requested_by_user_id, idempotency_key,
-                requested_at, created_at
+                requested_at, created_at, number, issued_on, issued_at,
+                issued_by_user_id, snapshot, document_version
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9, $10, $11, $6,
+                    $12::jsonb, $13)
             """,
             cancellation.id,
             cancellation.action_id,
@@ -566,6 +867,11 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
             cancellation.requested_by_user_id,
             idempotency_key,
             cancellation.requested_at,
+            number,
+            issued_on,
+            issued_at,
+            snapshot,
+            version,
         )
         updated = await connection.execute(
             """
@@ -583,6 +889,31 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
                 "invoice_cancellation_state_changed",
                 "Der Rechnungsstatus hat sich gleichzeitig geändert. Bitte den Beleg neu laden.",
             )
+        await request_cancellation_render(
+            connection,
+            document=document,
+            action_id=action_id,
+            occurred_at=occurred_at,
+        )
+        if send_document:
+            # The PDF is not rendered yet; the mail job waits for it.
+            deliveries = AsyncpgInvoiceDeliveryRepository(self._pool)
+            await deliveries.create_in(
+                connection,
+                cancellation_delivery_draft(
+                    await deliveries.read_cancellation_context(
+                        connection,
+                        action_id=action_id,
+                        invoice_id=invoice_id,
+                        document_may_be_pending=True,
+                    ),
+                    idempotency_key=f"invoice-cancellation-delivery:{cancellation.id}",
+                    requested_by_user_id=actor_user_id,
+                    requested_at=occurred_at,
+                    document_may_be_pending=True,
+                ),
+                request_id=request_id,
+            )
         await self._audit(
             connection,
             action_id=action_id,
@@ -597,6 +928,10 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
                 "previousStatus": invoice.status.value,
                 "status": InvoiceStatus.CANCELLED.value,
                 "reason": cancellation.reason,
+                "cancellationNumber": document.number,
+                "issuedOn": document.issued_on.isoformat(),
+                "receivedMinor": document.received.amount_minor,
+                "documentSent": send_document,
             },
             occurred_at=occurred_at,
         )
@@ -811,13 +1146,19 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
         replayed: bool,
     ) -> InvoiceCancellation:
         row = await connection.fetchrow(
-            """
+            f"""
             SELECT
                 cancellation.*,
-                account.display_name AS requested_by_display_name
+                account.display_name AS requested_by_display_name,
+                refund_account.display_name AS refund_settled_by_display_name,
+                invoice.currency AS invoice_currency,
+                {ACTIVE_PAID_MINOR_SQL} AS received_minor
             FROM invoice_cancellation AS cancellation
+            JOIN invoice ON invoice.id = cancellation.invoice_id
             JOIN user_account AS account
               ON account.id = cancellation.requested_by_user_id
+            LEFT JOIN user_account AS refund_account
+              ON refund_account.id = cancellation.refund_settled_by_user_id
             WHERE cancellation.id = $1
               AND cancellation.action_id = $2
             """,
@@ -829,14 +1170,9 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
                 "invoice_cancellation_not_found",
                 "Das Storno wurde nicht gefunden.",
             )
-        return InvoiceCancellation(
-            id=row["id"],
-            action_id=row["action_id"],
-            invoice_id=row["invoice_id"],
-            original_status=InvoiceStatus(str(row["original_status"])),
-            reason=str(row["reason_snapshot"]),
-            requested_by_user_id=row["requested_by_user_id"],
-            requested_at=row["requested_at"],
+        return cancellation_from_row(
+            row,
             requested_by_display_name=str(row["requested_by_display_name"]),
+            received=Money(int(row["received_minor"]), str(row["invoice_currency"])),
             replayed=replayed,
         )

@@ -123,6 +123,7 @@ from leonaid.application.dashboard import (
 )
 from leonaid.application.invoice_deliveries import (
     InvoiceDelivery,
+    InvoiceDeliveryKind,
     InvoiceDeliveryService,
 )
 from leonaid.application.invoice_settlements import InvoiceSettlementService
@@ -382,6 +383,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     LegalIssuerResponse,
     LegalRetentionResponse,
     CancelInvoiceRequest,
+    SettleInvoiceRefundRequest,
     ChangeMemberRoleRequest,
     ChangeMemberStatusRequest,
     IssueInvoiceRequest,
@@ -1786,6 +1788,10 @@ def invoice_record_response(record: InvoiceRecord) -> InvoiceRecordResponse:
         deliveries=[
             invoice_delivery_response(delivery) for delivery in record.deliveries
         ],
+        cancellation_deliveries=[
+            invoice_delivery_response(delivery)
+            for delivery in record.cancellation_deliveries
+        ],
     )
 
 
@@ -1807,6 +1813,7 @@ def invoice_delivery_response(
         requested_at=delivery.requested_at,
         sent_at=delivery.sent_at,
         can_retry=delivery.can_retry,
+        kind=delivery.kind.value,
     )
 
 
@@ -1851,6 +1858,7 @@ def invoice_payment_reversal_response(
 def invoice_cancellation_response(
     cancellation: InvoiceCancellation,
 ) -> InvoiceCancellationResponse:
+    refund = cancellation.refund
     return InvoiceCancellationResponse(
         id=cancellation.id,
         action_id=cancellation.action_id,
@@ -1864,6 +1872,20 @@ def invoice_cancellation_response(
         requested_by_display_name=cancellation.requested_by_display_name,
         requested_at=cancellation.requested_at,
         replayed=cancellation.replayed,
+        number=cancellation.number,
+        issued_on=cancellation.issued_on,
+        received_minor=(
+            cancellation.received.amount_minor
+            if cancellation.received is not None
+            else 0
+        ),
+        refund_open=cancellation.refund_open,
+        refund_settled_on=refund.settled_on if refund is not None else None,
+        refund_note=refund.note if refund is not None else None,
+        refund_settled_by_display_name=(
+            refund.settled_by_display_name if refund is not None else None
+        ),
+        refund_settled_at=refund.settled_at if refund is not None else None,
     )
 
 
@@ -1906,6 +1928,7 @@ def generated_document_record_response(
             sent_at=document.sent_at,
         ),
         invoice_number=record.invoice_number,
+        document_number=record.document_number,
         buyer_display_name=record.buyer_display_name,
     )
 
@@ -4285,6 +4308,7 @@ async def cancel_invoice(
         action_id,
         invoice_id,
         reason=body.reason,
+        send_document=body.send_cancellation,
         idempotency_key=request.headers.get("Idempotency-Key", ""),
         request_id=request_id(request),
     )
@@ -4293,6 +4317,138 @@ async def cancel_invoice(
         f"/api/v1/actions/{action_id}/invoices/{invoice_id}/cancellation"
     )
     return invoice_cancellation_response(cancellation)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/invoices/{invoice_id}/cancellation/document",
+    operation_id="issueInvoiceCancellationDocument",
+    response_model=InvoiceCancellationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["invoices"],
+)
+async def issue_invoice_cancellation_document(
+    action_id: UUID,
+    invoice_id: UUID,
+    request: Request,
+    response: Response,
+) -> InvoiceCancellationResponse:
+    """Issue the cancellation invoice of an invoice cancelled before it existed.
+
+    Cancelling an invoice issues its cancellation invoice in the same step.
+    This is for older cancellations only; it answers 409
+    ``invoice_cancellation_document_exists`` when the document exists.
+    """
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    cancellation = await invoice_settlement_service(
+        request
+    ).issue_cancellation_document(
+        actor,
+        action_id,
+        invoice_id,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Location"] = (
+        f"/api/v1/actions/{action_id}/invoices/{invoice_id}/cancellation"
+    )
+    return invoice_cancellation_response(cancellation)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/invoices/{invoice_id}/cancellation/refund",
+    operation_id="settleInvoiceCancellationRefund",
+    response_model=InvoiceCancellationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["invoices"],
+)
+async def settle_invoice_cancellation_refund(
+    action_id: UUID,
+    invoice_id: UUID,
+    request: Request,
+    body: SettleInvoiceRefundRequest,
+    response: Response,
+) -> InvoiceCancellationResponse:
+    """Record that the money received for a cancelled invoice went back.
+
+    LeonAid books no refund; this closes the reminder "Erstattung offen".
+    It can be recorded once (409 ``invoice_refund_already_settled``).
+    """
+    actor = await identity_service(request).authenticate(session_token(request))
+    cancellation = await invoice_settlement_service(request).settle_refund(
+        actor,
+        action_id,
+        invoice_id,
+        settled_on=body.settled_on,
+        note=body.note,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return invoice_cancellation_response(cancellation)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/invoices/{invoice_id}/cancellation/deliveries",
+    operation_id="sendInvoiceCancellation",
+    response_model=InvoiceDeliveryResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["invoices"],
+)
+async def send_invoice_cancellation(
+    action_id: UUID,
+    invoice_id: UUID,
+    request: Request,
+    response: Response,
+) -> InvoiceDeliveryResponse:
+    """Send the cancellation invoice to the invoice's recipient by mail."""
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    delivery = await invoice_delivery_service(request).send_cancellation(
+        actor,
+        action_id,
+        invoice_id,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Location"] = (
+        f"/api/v1/actions/{action_id}/invoices/{invoice_id}/cancellation/"
+        f"deliveries/{delivery.id}"
+    )
+    return invoice_delivery_response(delivery)
+
+
+@router.post(
+    (
+        "/api/v1/actions/{action_id}/invoices/{invoice_id}/cancellation/"
+        "deliveries/{delivery_id}/retry"
+    ),
+    operation_id="retryInvoiceCancellationDelivery",
+    response_model=InvoiceDeliveryResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["invoices"],
+)
+async def retry_invoice_cancellation_delivery(
+    action_id: UUID,
+    invoice_id: UUID,
+    delivery_id: UUID,
+    request: Request,
+    response: Response,
+) -> InvoiceDeliveryResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    delivery = await invoice_delivery_service(request).retry(
+        actor,
+        action_id,
+        invoice_id,
+        delivery_id,
+        request_id=request_id(request),
+        kind=InvoiceDeliveryKind.INVOICE_CANCELLATION,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return invoice_delivery_response(delivery)
 
 
 @router.post(
