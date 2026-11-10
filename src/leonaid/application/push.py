@@ -494,8 +494,9 @@ class PushNotificationHandler:
             elif result.outcome is PushOutcome.REJECTED or (
                 result.outcome is PushOutcome.UNAVAILABLE and last_try
             ):
-                # Counted on the device only when the push service answered:
-                # an outage on our side must not remove anybody's device.
+                # Counted on the device only when the push service refused
+                # the message: an outage on our side or at the service (no
+                # answer, 429, 5xx) must not remove anybody's device.
                 removed = result.blames_device and (
                     await self._repository.record_failure(
                         subscription_id=device.id, now=now

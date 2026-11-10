@@ -39,9 +39,10 @@ PUSH_RETRY_DELAYS: Final = (timedelta(minutes=1), timedelta(minutes=10))
 # A device is removed when the push service did not take this many messages
 # in a row for it, on at least this many different club days, the first of
 # them at least this long ago. Two short outages some days apart remove
-# nothing; a dead subscription goes. Only an answer of the push service
-# counts: when LeonAid itself reached nobody (no route, DNS, timeout), the
-# device is not to blame.
+# nothing; a dead subscription goes. Only a refusal of the push service
+# counts (4xx other than 429): when LeonAid reached nobody (no route, DNS,
+# timeout) or the service is busy or broken (429, 5xx), the device is not
+# to blame.
 DEVICE_FAILURE_LIMIT: Final = 5
 DEVICE_FAILURE_DAYS: Final = 3
 DEVICE_FAILURE_PERIOD: Final = timedelta(days=3)
@@ -264,13 +265,14 @@ class PushResult:
 
     @property
     def blames_device(self) -> bool:
-        """Whether this counts toward removing the device: the push service
-        answered and did not take the message. No answer is our side."""
+        """Whether this counts toward removing the device.
 
-        return self.status is not None and self.outcome in (
-            PushOutcome.REJECTED,
-            PushOutcome.UNAVAILABLE,
-        )
+        Only when the push service refused the message for this device (a
+        4xx other than 429; 404 and 410 remove it at once). No answer is
+        our side, and 429 or 5xx say how the service is, not the device.
+        """
+
+        return self.status is not None and self.outcome is PushOutcome.REJECTED
 
 
 def device_is_dead(

@@ -187,9 +187,14 @@ def test_a_device_is_removed_after_failures_on_several_days_only() -> None:
     assert device_is_dead(0, None, 0, now=NOW) is False
 
 
-def test_only_an_answer_of_the_push_service_blames_the_device() -> None:
+def test_only_a_refusal_of_the_push_service_blames_the_device() -> None:
     assert PushResult(PushOutcome.REJECTED, "fcm.googleapis.com", 403).blames_device
-    assert PushResult(PushOutcome.UNAVAILABLE, "fcm.googleapis.com", 503).blames_device
+    assert PushResult(PushOutcome.REJECTED, "fcm.googleapis.com", 400).blames_device
+    # 429 and 5xx say how the service is, not the device.
+    for status in (429, 500, 503):
+        assert not PushResult(
+            PushOutcome.UNAVAILABLE, "fcm.googleapis.com", status
+        ).blames_device
     # No answer at all (no route, DNS, timeout) is our side.
     assert not PushResult(PushOutcome.UNAVAILABLE, "fcm.googleapis.com").blames_device
     assert not PushResult(PushOutcome.UNAVAILABLE, "").blames_device

@@ -984,8 +984,9 @@ class Proof:
         assert await self.jobs("acquirer") == []
         assert all(row["failure_count"] == 0 for row in await self.devices("acquirer"))
 
-        # The push service stays down: three tries, then the job ends for
-        # good. Nothing fails, nothing waits; the failure is on the devices.
+        # The push service stays down or busy: three tries, then the job
+        # ends for good. Nothing fails, nothing waits. 429 and 5xx say
+        # nothing about a device, so nothing is counted against it.
         self.undelivered.clear()
         self.receiver.answers = {
             phone.path: [503, 503, 503],
@@ -1007,9 +1008,10 @@ class Proof:
             )
             == 0
         )
-        rows = await self.devices("acquirer")
-        assert [row["failure_count"] for row in rows] == [1, 1]
-        assert all(row["failing_since"] == self.clock.now for row in rows)
+        assert [
+            (row["failure_count"], row["failing_since"], row["failure_days"])
+            for row in await self.devices("acquirer")
+        ] == [(0, None, 0)] * 2
         assert [item["attempt"] for item in self.undelivered] == [0, 0, 1, 1, 2, 2]
         assert {item["status"] for item in self.undelivered} == {500, 503, 429}
         assert not any(item["device_removed"] for item in self.undelivered)

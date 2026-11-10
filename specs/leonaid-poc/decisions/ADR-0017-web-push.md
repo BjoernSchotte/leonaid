@@ -124,9 +124,10 @@ has at most 10 devices. The row is deleted:
 - when the push service did not take 5 messages in a row for it, on at
   least 3 different club days, the first at least 3 days ago
   (`failure_count`, `failure_days`, `failing_since`; a delivery resets
-  them). Only an answer of the push service counts. When LeonAid got no
-  answer at all (no route, DNS, timeout), the failure is logged and not
-  counted, so an outage of the installation's network removes no device;
+  them). Only a refusal of the push service counts (a 4xx other than 429).
+  No answer at all (no route, DNS, timeout) and an answer of 429 or 5xx are
+  logged and not counted: they say how the network or the service is, not
+  the device, so no outage removes a device;
 - when it was made with another VAPID key than the current one.
 
 After a sign-out the browser's subscription is gone too: the member
@@ -156,7 +157,7 @@ seconds.
 The job does not fail because a device or a push service was not reached
 (timeout, 429, 5xx). It ends, and one later job tries the devices not
 reached yet, after 1 minute and again after 10 minutes. After the third try
-the message is given up and counted as a failure on the device. So an
+the message is given up; it is logged, not counted on the device. So an
 outage of a push service or of the network produces no dead letter and no
 alert, and a member's own subscription plus "Test senden" cannot produce
 one either. A device that got the message is marked with the job's id: the
