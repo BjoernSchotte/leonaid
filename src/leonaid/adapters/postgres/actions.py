@@ -781,6 +781,21 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                     occurred_at=occurred_at,
                 )
                 had_delivery = await has_delivery_capability(connection, action.id)
+                if (
+                    ActionCapability.DONATIONS not in action.capabilities
+                    and await connection.fetchval(
+                        "SELECT EXISTS (SELECT 1 FROM donation WHERE action_id = $1)",
+                        action.id,
+                    )
+                ):
+                    # Without the capability the donations, their pledges and
+                    # receipts could no longer be reached. Cancelled ones
+                    # count too: they keep their number and documents.
+                    raise Conflict(
+                        "donations_capability_in_use",
+                        "Für diese Aktion sind Spenden erfasst. Die Funktion "
+                        "„Spenden“ kann deshalb nicht mehr abgeschaltet werden.",
+                    )
                 await connection.execute(
                     "DELETE FROM charity_action_capability WHERE action_id = $1",
                     action.id,

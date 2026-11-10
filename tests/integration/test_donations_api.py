@@ -109,6 +109,8 @@ class Fixture:
         self.beta = uuid4()
         # Orders only: no `donations` capability.
         self.gamma = uuid4()
+        # Still in planning: its capabilities can change.
+        self.planned = uuid4()
         self.without_body = uuid4()
         self.with_body = uuid4()
         self.users = {name: uuid4() for name in self.USERS}
@@ -181,10 +183,11 @@ class Fixture:
         await self._legal_version(connection, self.without_body, None)
         await self._legal_version(connection, self.with_body, self.body())
         await self.activate(connection, self.without_body)
-        for action_id, name, capabilities in (
-            (self.alpha, "Alpha", ("ordering", "invoicing", "donations")),
-            (self.beta, "Beta", ("donations",)),
-            (self.gamma, "Gamma", ("ordering",)),
+        for action_id, name, capabilities, status in (
+            (self.alpha, "Alpha", ("ordering", "invoicing", "donations"), "active"),
+            (self.beta, "Beta", ("donations",), "active"),
+            (self.gamma, "Gamma", ("ordering",), "active"),
+            (self.planned, "Planung", ("donations",), "scheduled"),
         ):
             await connection.execute(
                 """
@@ -192,12 +195,19 @@ class Fixture:
                     id, carrier_name, name, purpose, status, starts_on, ends_on,
                     archive_slug
                 )
-                VALUES ($1, 'Donation proof', $2, 'Jugendhilfe im Ort', 'active',
+                VALUES ($1, 'Donation proof', $2, 'Jugendhilfe im Ort', $4,
                         '2026-01-01', '2099-12-31', $3)
                 """,
                 action_id,
                 f"Aktion {self.tag} {name}",
                 f"donation-proof-{action_id}",
+                status,
+            )
+            await connection.execute(
+                "INSERT INTO beneficiary (id, action_id, organization_name, "
+                "public_description, sort_order) VALUES ($1, $2, 'Proof', 'Proof', 0)",
+                uuid4(),
+                action_id,
             )
             for capability in capabilities:
                 await connection.execute(
@@ -465,6 +475,7 @@ class Proof:
         await self.sums_dashboard_and_navigation()
         await self.the_pledge_keeps_the_body_of_its_day()
         await self.a_privacy_erasure_names_and_keeps_donations()
+        await self.the_capability_stays_while_donations_exist()
         await self.a_paid_donation_gets_its_receipt()
         await self.a_receipt_is_declared_void_never_edited()
         await self.signing_by_hand_and_an_old_notice()
@@ -1015,7 +1026,9 @@ class Proof:
                     "outsider": set(),
                 }[name]
             ), (name, listed)
-            if name in ("charity", "finance"):
+            if name == "charity":
+                assert set(listed) == own | {str(self.data.planned)}, (name, listed)
+            if name == "finance":
                 assert set(listed) == own, (name, listed)
             if own:
                 assert listed[str(self.data.alpha)] == (f"Aktion {self.data.tag} Alpha")
@@ -1111,6 +1124,51 @@ class Proof:
         )
         assert unknown.status_code == 200, unknown.text
         assert unknown.json()["found"] is False
+
+    async def the_capability_stays_while_donations_exist(self) -> None:
+        """Without the capability the donations of an action, their pledges
+        and receipts could not be reached any more."""
+
+        base = f"/api/v1/actions/{self.data.planned}"
+        action = await self.charity.get(base)
+        assert action.status_code == 200, action.text
+        body = {"revision": action.json()["revision"], "capabilities": []}
+        # No donation yet: the capability may go, and come back.
+        removed = await self.put(f"{base}/capabilities", body)
+        assert removed.status_code == 200, removed.text
+        back = await self.put(
+            f"{base}/capabilities",
+            {"revision": removed.json()["revision"], "capabilities": ["donations"]},
+        )
+        assert back.status_code == 200, back.text
+        donation = await self.create("planned", action=self.data.planned)
+        body = {"revision": back.json()["revision"], "capabilities": []}
+        self.error(
+            await self.put(f"{base}/capabilities", body),
+            409,
+            "donations_capability_in_use",
+        )
+        # A cancelled donation keeps its number and its pledge: it counts.
+        cancelled = await self.charity.post(
+            f"{base}/donations/{donation['id']}/cancellation",
+            {"reason": REASON},
+            self.key(),
+        )
+        assert cancelled.status_code == 201, cancelled.text
+        self.error(
+            await self.put(f"{base}/capabilities", body),
+            409,
+            "donations_capability_in_use",
+        )
+        listing = await self.listing(self.data.planned)
+        assert [item["status"] for item in listing["items"]] == ["cancelled"]
+
+    async def put(self, path: str, body: dict[str, object]) -> httpx.Response:
+        return await self.charity.client.put(
+            path,
+            headers={**self.charity.headers, "Origin": BASE_URL},
+            json=body,
+        )
 
     def receipt_number(self, serial: int) -> str:
         return f"{self.data.receipt_prefix}{serial:04d}"
