@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -263,7 +264,10 @@ function fakeClient(state: ActionManagementResponse = management()) {
 async function renderPage(
   hash = "",
   client: ReturnType<typeof fakeClient> = fakeClient(),
-  { tours = false }: { readonly tours?: boolean } = {},
+  {
+    tours = false,
+    editorHref,
+  }: { readonly tours?: boolean; readonly editorHref?: string } = {},
 ) {
   window.history.replaceState(null, "", `/admin/actions/${actionId}${hash}`);
   const queryClient = new QueryClient({
@@ -273,6 +277,7 @@ async function renderPage(
     <ManageActionPage
       actionId={actionId}
       client={client as unknown as LeonAidApiClient}
+      editorHref={editorHref}
     />
   );
   render(
@@ -313,6 +318,23 @@ async function renderPage(
 }
 
 let lastQueryClient: QueryClient | undefined;
+
+describe("action detail: CMS editor link", () => {
+  it("links to the editor only when the installation runs the CMS", async () => {
+    await renderPage();
+    // Without the CMS /_emdash has no upstream: no link instead of a 502.
+    expect(screen.queryByRole("link", { name: "Microsite bearbeiten" })).toBeNull();
+    cleanup();
+
+    const href = `/_emdash/admin/campaigns/${actionId}`;
+    await renderPage("", fakeClient(), { editorHref: href });
+    expect(
+      screen
+        .getByRole("link", { name: "Microsite bearbeiten" })
+        .getAttribute("href"),
+    ).toBe(href);
+  });
+});
 
 describe("action detail: drafts and revisions", () => {
   it("keeps Esc in a form field: no navigation", async () => {

@@ -125,6 +125,9 @@ class Settings(BaseSettings):
     # False: the installation has no general public host, only the admin host
     # and campaign hosts (§6.6). Path-based campaign URLs then do not exist.
     public_host_enabled: bool = Field(default=True, alias="LEONAID_PUBLIC_HOST_ENABLED")
+    # True: the campaign site (compose profile emdash) runs and serves the
+    # CMS editor at /_emdash. False: no navigation entry or link leads there.
+    cms_enabled: bool = Field(default=False, alias="LEONAID_CMS_ENABLED")
     # Host check of campaign hosts (specs/multi-domain §7.4). The HTTP check
     # goes to port 80 of every public address of the name; the TLS check
     # shakes hands with the edge proxy. Private addresses and a test CA are

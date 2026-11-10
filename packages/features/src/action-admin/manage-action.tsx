@@ -204,6 +204,8 @@ function Overview({ state }: { readonly state: ActionManagementResponse }) {
 export interface ManageActionPageProps {
   readonly actionId: string;
   readonly client: LeonAidApiClient;
+  /** CMS editor of this action (campaignEditorHref); absent without the CMS. */
+  readonly editorHref?: string | undefined;
 }
 
 /**
@@ -212,7 +214,11 @@ export interface ManageActionPageProps {
  * "Bearbeiten" shows the edit forms on the overview; every change goes to
  * the server with the action's revision.
  */
-export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
+export function ManageActionPage({
+  actionId,
+  client,
+  editorHref,
+}: ManageActionPageProps) {
   const [location, setLocation] = useState<Location>(() =>
     actionLocation(window.location.hash),
   );
@@ -459,13 +465,15 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
           </p>
         </div>
         <div className="page-actions">
-          <a
-            className={buttonClassName({ variant: "ghost" })}
-            href={`/_emdash/admin/campaigns/${action.id}`}
-          >
-            <Icon icon={ExternalLink} size={16} />
-            <span className="btn-label">Microsite bearbeiten</span>
-          </a>
+          {editorHref ? (
+            <a
+              className={buttonClassName({ variant: "ghost" })}
+              href={editorHref}
+            >
+              <Icon icon={ExternalLink} size={16} />
+              <span className="btn-label">Microsite bearbeiten</span>
+            </a>
+          ) : null}
           {!archived ? (
             editing ? (
               <Button

@@ -410,8 +410,12 @@ def navigation_for(
     module_items: tuple[NavigationItem, ...] = (),
     *,
     delivery: bool = False,
+    cms: bool = False,
 ) -> tuple[NavigationItem, ...]:
     """Core navigation plus registered module items, filtered by the server.
+
+    ``cms`` is LEONAID_CMS_ENABLED: only an installation that runs the
+    campaign site has the editor behind the microsite entry.
 
     Module items are already filtered by their module. They follow the PWA
     overview so the existing order of the identity response stays stable.
@@ -514,7 +518,9 @@ def navigation_for(
             NavigationItem("delivery", "Auslieferung", PWA_BASE + "delivery", "pwa")
         )
 
-    if principal.is_system_admin or ActionRole.CHARITY_ADMIN in action_roles:
+    if cms and (
+        principal.is_system_admin or ActionRole.CHARITY_ADMIN in action_roles
+    ):
         items.append(
             NavigationItem(
                 "microsite",
@@ -544,11 +550,13 @@ class IdentityQueryService:
         | None = None,
         delivery_navigation: Callable[[IdentityPrincipal], Awaitable[bool]]
         | None = None,
+        cms_enabled: bool = False,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         if fresh_login_window <= timedelta(0):
             raise ValueError("Das Fresh-Login-Fenster muss positiv sein.")
         self._repository = repository
+        self._cms_enabled = cms_enabled
         self._module_navigation = module_navigation
         self._delivery_navigation = delivery_navigation
         self._fresh_login_window = fresh_login_window
@@ -641,6 +649,7 @@ class IdentityQueryService:
                 if self._delivery_navigation is not None
                 else False
             ),
+            cms=self._cms_enabled,
         )
         return CurrentIdentity(
             user_id=principal.account.id,

@@ -12,7 +12,9 @@ reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 
 Du brauchst die Rolle Charity-Admin für die Aktion. Der Microsite-Editor
 gehört zur optionalen Kampagnenseite. Seine Oberfläche ist englisch
-beschriftet; diese Anleitung nennt die Beschriftungen unverändert.
+beschriftet; diese Anleitung nennt die Beschriftungen unverändert. Läuft die
+Installation ohne Kampagnenseite (`LEONAID_CMS_ENABLED=false`), zeigt LeonAid
+weder **Microsite bearbeiten** noch den Navigationseintrag „Kampagnenseiten“.
 
 1. Öffne in LeonAid die Aktion und wähle **Microsite bearbeiten**. Der Editor
    öffnet den aktuellen Entwurf der Seite.

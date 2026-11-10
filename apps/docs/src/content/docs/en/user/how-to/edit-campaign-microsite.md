@@ -12,7 +12,9 @@ reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 
 You need the Charity-Admin role for the campaign. The microsite editor is part
 of the optional campaign site. Its interface uses English labels; this guide
-quotes them unchanged.
+quotes them unchanged. If the installation runs without the campaign site
+(`LEONAID_CMS_ENABLED=false`), LeonAid shows neither **Microsite bearbeiten**
+nor the navigation entry "Kampagnenseiten".
 
 1. In LeonAid, open the campaign and select **Microsite bearbeiten**. The
    editor opens with the current draft of the page.
