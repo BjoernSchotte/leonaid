@@ -173,6 +173,15 @@
         "property-type-changed:GeneratedDocumentResponse.documentType"
       ],
       "rationale": "Bundle stage 3 (specs/mails-documents-donations-push §5, ADR-0015): the cancellation invoice becomes its own numbered document. Fourteen response fields are new and always present (null or empty when they do not apply), so the generator marks them required; GeneratedDocumentResponse.documentType gains the value for the cancellation invoice, which the checker reports as a type change. No field is removed or narrowed and no request field becomes required on an existing operation. The only clients are the generated client and the apps of this repository, regenerated in the same change. Ratified by the lead under Björn's standing delegation on 2026-11-10 (E-045). Approval is bound to these exact contract hashes and changes."
+    },
+    {
+      "oldSha256": "9c95d4cf881746b8e7671f4669396657516ed2e1fc51ee835c88f5781f7a421a",
+      "newSha256": "06180428f779839c6a506d6f1c87b0dec4b0e3f35d908d4ffa320bc6559a2a0e",
+      "changes": [
+        "property-newly-required:CommitmentRecordResponse.buyerMailDue",
+        "property-newly-required:CommitmentResponse.publicReference"
+      ],
+      "rationale": "Bundle stage 1 (specs/mails-documents-donations-push §3): every order gets an order number and the order record says whether a buyer mail is due. CommitmentResponse.publicReference and CommitmentRecordResponse.buyerMailDue are new and always present, so the generator marks them required. The bundle also adds the buyer-mail operations and enum values on new schemas (not breaking). No field is removed or narrowed and no request field becomes required on an existing operation. The only clients are the generated client and the apps of this repository, regenerated in the same change. Ratified by the lead under Björn's standing delegation on 2026-11-10 (E-046). Approval is bound to these exact contract hashes and changes."
     }
   ]
 }
