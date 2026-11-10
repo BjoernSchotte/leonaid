@@ -6,7 +6,7 @@ audience: [ops]
 diataxis: reference
 contentRevision: 21
 reviewedRevision: 21
-verifiedAgainst: 5e94339473f2439e5532a5408069a974ca7f5ca0
+verifiedAgainst: b1c08d3c04dbf7a46d1bb477753e36ad369a6fec
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -86,12 +86,16 @@ gives the message up. No dead letter and no alert result. When a push
 service answers 404 or 410, the worker deletes the device. When it refuses
 the message (400, 401, 403, 413), the worker does not try again. Every
 message that did not reach a device writes one log line
-`worker.push.undelivered` with `kind`, `host` (the push service's host,
-never the path), `status` (HTTP status or empty), `outcome` (`unavailable`
+`worker.push.undelivered` with `kind`, `host` (the push service's name, for
+example `fcm.googleapis.com` or `notify.windows.com`; never the path),
+`status` (HTTP status, empty when nobody answered), `outcome` (`unavailable`
 or `rejected`), `attempt` and `deviceRemoved`. 401 or 403 for all devices of
-one service point at the VAPID key or `LEONAID_VAPID_SUBJECT`. A device that
-five messages in a row did not reach over at least three days is deleted;
-so are devices registered with an earlier VAPID key.
+one service point at the VAPID key or `LEONAID_VAPID_SUBJECT`. A device for
+which the push service did not take five messages in a row, on at least
+three different days, is deleted. Only an answer of the push service counts:
+when the worker reaches nobody (no egress, DNS, timeout), the log says so,
+but it does not count against the device. Devices registered with an
+earlier VAPID key are deleted too.
 
 The `push_follow_ups` loop runs every five minutes. Between 08:00 and 20:00
 club time (Europe/Berlin) it creates one job a day per member with follow-ups

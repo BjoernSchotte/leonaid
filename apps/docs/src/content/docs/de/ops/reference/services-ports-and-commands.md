@@ -6,7 +6,7 @@ audience: [ops]
 diataxis: reference
 contentRevision: 21
 reviewedRevision: 21
-verifiedAgainst: 5e94339473f2439e5532a5408069a974ca7f5ca0
+verifiedAgainst: b1c08d3c04dbf7a46d1bb477753e36ad369a6fec
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -91,12 +91,16 @@ Es entsteht kein Dead Letter und kein Alarm. Antwortet ein Push-Dienst mit
 404 oder 410, löscht der Worker das Gerät. Lehnt er die Nachricht ab (400,
 401, 403, 413), versucht der Worker es nicht erneut. Jede Nachricht, die ein
 Gerät nicht erreicht hat, schreibt eine Log-Zeile `worker.push.undelivered`
-mit `kind`, `host` (Host des Push-Dienstes, nie der Pfad), `status`
-(HTTP-Status oder leer), `outcome` (`unavailable` oder `rejected`), `attempt`
+mit `kind`, `host` (Name des Push-Dienstes, zum Beispiel
+`fcm.googleapis.com` oder `notify.windows.com`; nie der Pfad), `status`
+(HTTP-Status, leer, wenn niemand geantwortet hat), `outcome` (`unavailable` oder `rejected`), `attempt`
 und `deviceRemoved`. 401 oder 403 bei allen Geräten eines Dienstes deuten auf
-den VAPID-Schlüssel oder `LEONAID_VAPID_SUBJECT`. Ein Gerät, das fünf
-Nachrichten in Folge über mindestens drei Tage nicht erreicht haben, wird
-gelöscht; ebenso Geräte, die mit einem früheren VAPID-Schlüssel angemeldet
+den VAPID-Schlüssel oder `LEONAID_VAPID_SUBJECT`. Ein Gerät, für das
+der Push-Dienst fünf Nachrichten in Folge an mindestens drei verschiedenen
+Tagen nicht angenommen hat, wird gelöscht. Dabei zählt nur eine Antwort des
+Push-Dienstes: Erreicht der Worker niemanden (kein Ausgang, DNS,
+Zeitüberschreitung), steht das im Log, zählt aber nicht gegen das Gerät.
+Gelöscht werden ebenso Geräte, die mit einem früheren VAPID-Schlüssel angemeldet
 wurden.
 
 Die Schleife `push_follow_ups` läuft alle fünf Minuten. Zwischen 08:00 und
