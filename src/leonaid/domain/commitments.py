@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -17,16 +18,33 @@ from leonaid.domain.identity import require_aware
 
 CURRENCY = re.compile(r"^[A-Z]{3}$")
 COUNTRY_CODE = re.compile(r"^[A-Z]{2}$")
-PUBLIC_REFERENCE = re.compile(r"^LA-[A-F0-9]{32}$")
+# Characters a buyer can read out on the phone: no 0/O, no 1/I/L.
+ORDER_NUMBER_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+ORDER_NUMBER_LENGTH = 8
+# The short number of every new order, or the long one (``LA-`` plus the
+# order id in hex) that public orders got before migration 0063. Buyers hold
+# the long ones in their mails, so they stay valid.
+PUBLIC_REFERENCE = re.compile(
+    rf"^LA-(?:[{ORDER_NUMBER_ALPHABET}]{{{ORDER_NUMBER_LENGTH}}}|[A-F0-9]{{32}})$"
+)
 
 
-def order_number(commitment_id: UUID) -> str:
-    """The order number of an order, derived from its id.
+def order_number(commitment_id: UUID, attempt: int = 0) -> str:
+    """The order number of an order: ``LA-`` plus eight readable characters.
 
-    Migration 0062 backfills older internal orders with the same rule in SQL.
+    Derived from the order id, so that the application, migration 0063 (the
+    same rule in SQL, for older internal orders) and fixtures agree. The
+    number is unique in the database; a writer that meets a taken number
+    asks again with the next ``attempt``.
     """
 
-    return f"LA-{commitment_id.hex.upper()}"
+    if attempt < 0:
+        raise ValueError("attempt must not be negative")
+    digest = hashlib.sha256(f"{commitment_id}:{attempt}".encode()).digest()
+    return "LA-" + "".join(
+        ORDER_NUMBER_ALPHABET[byte % len(ORDER_NUMBER_ALPHABET)]
+        for byte in digest[:ORDER_NUMBER_LENGTH]
+    )
 
 
 class CommitmentSource(StrEnum):

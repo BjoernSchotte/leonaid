@@ -5,7 +5,8 @@ Runs as a contract script in the schema gate (``tools/schema/test.sh``) and,
 with ``CORE_DATABASE_URL`` set, under pytest. Proves
 specs/mails-documents-donations-push §5.1, §6.1, §6.2 and §6.4:
 
-- every order has an order number;
+- every order has a short order number, unique also when two orders derive
+  the same one;
 - the settings row: defaults without a row, manager only, optimistic lock,
   the delivery capability rule, the audit event;
 - the confirmation of an order that a member or acquirer entered: only with
@@ -14,14 +15,20 @@ specs/mails-documents-donations-push §5.1, §6.1, §6.2 and §6.4:
   completion), never for a draft and never a second time;
 - the cancellation notice with the same rule, and ``buyerMailDue`` on the
   order record;
-- the mail status per order and "send again": numbered resend jobs, replay,
-  refusals without a stored receipt, the mailbox limit, the erased buyer;
+- the mail status per order and "send" / "send again": a mail that is due
+  and never went out can be sent (never queued, or its job was skipped),
+  numbered resend jobs, the replay says that it sent nothing new, refusals
+  leave no receipt, the mailbox limit, an operator's retry of an old failed
+  job sends no second mail, the real privacy erasure command;
+- no confirmation that comes too late: after the delivery was recorded,
+  after the delivery window, in a completed action (manager completion of a
+  forgotten draft), and the text of an action without invoicing;
 - the mail on the delivery day (§6.3): the sweep queues one job per order and
   window, only on the day, from the send time until the window ends, only
-  for open orders with an address, never twice and not by two workers at
-  once; the worker skips an order that was cancelled, delivered, moved,
-  switched off or is late; a moved order gets the mail for its new window;
-  status and resend follow the same rule.
+  for open orders with an address in an open action that still delivers,
+  never twice and not by two workers at once; the worker skips an order that
+  was cancelled, delivered, moved, switched off or is late; a moved order
+  gets the mail for its new window; status and resend follow the same rule.
 
 The worker side runs the real ``OrderMailHandler`` with the real reader. The
 sender writes the ledger row as ``SmtpMailHandler`` does, and the proof marks
@@ -35,6 +42,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
@@ -49,13 +57,19 @@ from leonaid.adapters.postgres.delivery_day_mails import (
     DELIVERY_DAY_SWEEP_LOCK,
     AsyncpgDeliveryDayMailRepository,
 )
+from leonaid.adapters.postgres.legal_configuration import (
+    AsyncpgLegalConfigurationRepository,
+)
 from leonaid.adapters.postgres.order_mails import AsyncpgOrderMailReader
+from leonaid.adapters.postgres.order_numbers import free_order_number
+from leonaid.adapters.postgres.privacy import AsyncpgPrivacyRepository
 from leonaid.application.buyer_mails import BuyerMailService
 from leonaid.application.delivery_day_mails import (
     DeliveryDayMailSweep,
     delivery_day_links,
 )
 from leonaid.application.links import LinkBuilder
+from leonaid.application.privacy import PrivacyService
 from leonaid.application.order_mails import (
     EVENT_TYPES,
     OrderMailError,
@@ -66,6 +80,13 @@ from leonaid.application.order_mails import (
     recipient_sha256,
 )
 from leonaid.configuration import Settings
+from leonaid.domain.commitments import order_number
+from leonaid.domain.identity import (
+    AccountStatus,
+    GlobalRole,
+    IdentityPrincipal,
+    UserAccount,
+)
 from leonaid.domain.invoices import InvoiceIssuerSnapshot, TaxTreatment
 from leonaid.domain.legal_configuration import (
     EInvoiceDecision,
@@ -163,6 +184,7 @@ class Fixture:
         self.action = uuid4()
         self.plain_action = uuid4()
         self.offering = uuid4()
+        self.plain_offering = uuid4()
         self.company = uuid4()
         self.window = uuid4()
         self.users = {name: uuid4() for name in self.USERS}
@@ -172,9 +194,11 @@ class Fixture:
             start_day.year, start_day.month, start_day.day, 7, tzinfo=timezone.utc
         )
         # The delivery day of the delivery-day mail proof, in the action's
-        # zone, with three windows, and one window on the day after.
+        # zone, with four windows (one ends before the send time 07:00), and
+        # one window on the day after.
         self.day = date.today() + timedelta(days=40)
         self.day_windows = {
+            "dawn": (uuid4(), self.at(5, 30), self.at(6, 30)),
             "early": (uuid4(), self.at(7, 30), self.at(8, 30)),
             "morning": (uuid4(), self.at(10, 0), self.at(12, 0)),
             "afternoon": (uuid4(), self.at(14, 0), self.at(16, 0)),
@@ -291,20 +315,24 @@ class Fixture:
             self.action,
             self.users["acquirer"],
         )
-        await connection.execute(
-            """
-            INSERT INTO offering (
-                id, action_id, code, name, status, unit,
-                allowed_quantity_units, pieces_per_unit,
-                unit_price_minor, currency
+        for offering, action in (
+            (self.offering, self.action),
+            (self.plain_offering, self.plain_action),
+        ):
+            await connection.execute(
+                """
+                INSERT INTO offering (
+                    id, action_id, code, name, status, unit,
+                    allowed_quantity_units, pieces_per_unit,
+                    unit_price_minor, currency
+                )
+                VALUES ($1, $2, $3, 'Krapfenbox', 'active', 'box',
+                        ARRAY['box']::text[], 24, 3600, 'EUR')
+                """,
+                offering,
+                action,
+                f"box-{offering.hex[:12]}",
             )
-            VALUES ($1, $2, $3, 'Krapfenbox', 'active', 'box',
-                    ARRAY['box']::text[], 24, 3600, 'EUR')
-            """,
-            self.offering,
-            self.action,
-            f"box-{self.offering.hex[:12]}",
-        )
         await connection.execute(
             """
             INSERT INTO acquisition_assignment (
@@ -525,8 +553,9 @@ class Proof:
     ) -> str:
         """Run the newest waiting job of the kind as the outbox worker does.
 
-        ``now`` is the worker's time of day (delivery-day mail); the ledger
-        and the mailbox limit keep the real time.
+        ``now`` is the worker's time of day (a job that runs late, the
+        delivery-day mail); the ledger and the mailbox limit keep the real
+        time.
         """
 
         proof = self
@@ -609,6 +638,8 @@ class Proof:
         await self.mailbox_limit(ready)
         await self.cancellation(ready)
         await self.erased_buyer()
+        await self.too_late()
+        await self.closed_action()
         await self.delivery_day()
         # Later proofs share this database: leave no waiting or failed job.
         await self.db.execute(
@@ -707,8 +738,22 @@ class Proof:
         """Without the switch an internal order sends nothing."""
 
         order = await self.order("before")
-        # Every order has an order number, whatever its source (§5.1).
-        assert order["publicReference"] == f"LA-{UUID(order['id']).hex.upper()}"
+        # Every order has an order number, whatever its source (§5.1): the
+        # short one a buyer can read out on the phone.
+        assert order["publicReference"] == order_number(UUID(order["id"]))
+        assert re.fullmatch(r"LA-[2-9A-HJKMNP-Z]{8}", order["publicReference"])
+        assert (
+            await self.db.fetchval(
+                "SELECT public_reference FROM commitment WHERE id = $1",
+                UUID(order["id"]),
+            )
+            == order["publicReference"]
+        )
+        # A number that an order already has is never given twice: the next
+        # order with the same candidate gets its second one.
+        assert await free_order_number(self.db, UUID(order["id"])) == order_number(
+            UUID(order["id"]), 1
+        )
         assert order["source"] == "acquisition"
         assert await self.keys(order["id"], OrderMailKind.CONFIRMATION) == []
         assert (await self.record(order["id"]))["buyerMailDue"] is False
@@ -847,7 +892,7 @@ class Proof:
         assert (await self.mails(managed["id"]))["confirmation"]["state"] == "sent"
 
     async def not_requested(self, before: dict[str, Any]) -> None:
-        """An order from before the switch has no mail to send again."""
+        """An order from before the switch: no mail yet, but no dead end."""
 
         status = (await self.mails(before["id"]))["confirmation"]
         assert status == {
@@ -855,15 +900,24 @@ class Proof:
             "state": "not_due",
             "sentAt": None,
             "reason": "not_requested",
-            "canResend": False,
+            "canResend": True,
         }
-        key = self.key("resend-before")
-        refused = await self.resend(before["id"], "confirmation", key)
-        assert refused.status_code == 409, refused.text
-        assert self.error(refused) == "buyer_mail_resend_not_allowed"
-        assert await self.receipts(key) == 0
         # Cancelling it now tells the buyer: the switch is on.
         assert (await self.record(before["id"]))["buyerMailDue"] is True
+        # The manager sends the confirmation: the mail's first job, once.
+        key = self.key("send-before")
+        for replayed in (False, True):
+            sent = await self.resend(before["id"], "confirmation", key)
+            assert sent.status_code == 202, sent.text
+            assert sent.json()["state"] == "queued"
+            assert sent.json()["replayed"] is replayed
+        assert await self.keys(before["id"], OrderMailKind.CONFIRMATION) == [
+            f"order-confirmation-mail:{before['id']}"
+        ]
+        assert await self.work(before["id"], OrderMailKind.CONFIRMATION) == "completed"
+        assert self.sent[-1].payload["to"] == self.data.email("before")
+        status = (await self.mails(before["id"]))["confirmation"]
+        assert status["state"] == "sent" and status["canResend"] is True
 
     async def send_again(self, order: dict[str, Any]) -> None:
         order_id = str(order["id"])
@@ -900,13 +954,15 @@ class Proof:
         assert await self.keys(order_id, OrderMailKind.CONFIRMATION) == [base]
 
         key = self.key("resend-1")
-        for _ in range(2):
-            # The second call is the replay of a lost answer.
+        for replayed in (False, True):
+            # The second call is the replay of a lost answer: it says so,
+            # and writes no second job.
             accepted = await self.resend(order_id, "confirmation", key)
             assert accepted.status_code == 202, accepted.text
             assert accepted.json()["state"] == "queued"
             assert accepted.json()["canResend"] is False
             assert accepted.json()["sentAt"] is not None
+            assert accepted.json()["replayed"] is replayed
         assert await self.keys(order_id, OrderMailKind.CONFIRMATION) == [
             base,
             f"{base}:resend:1",
@@ -972,6 +1028,26 @@ class Proof:
         assert retry.status_code == 202, retry.text
         assert await self.work(order_id, OrderMailKind.CONFIRMATION) == "completed"
         assert self.sent[-1].idempotency_key.endswith(":resend:4")
+        # The send settled the failed job: the operations view offers no
+        # retry for it any more.
+        failed = f"order-confirmation-mail:{order_id}:resend:3"
+        assert (
+            await self.db.fetchval(
+                "SELECT status FROM outbox_event WHERE idempotency_key = $1", failed
+            )
+            == "completed"
+        )
+        # And if an operator had retried it in between (the job waits again),
+        # the worker sends nothing: a later job of this mail went out.
+        await self.db.execute(
+            "UPDATE outbox_event SET status = 'pending', completed_at = NULL "
+            "WHERE idempotency_key = $1",
+            failed,
+        )
+        sent = len(self.sent)
+        assert await self.work(order_id, OrderMailKind.CONFIRMATION) == "completed"
+        assert len(self.sent) == sent
+        assert (await self.mails(order_id))["confirmation"]["state"] == "sent"
 
     async def cancellation(self, ready: dict[str, Any]) -> None:
         order_id = str(ready["id"])
@@ -1010,7 +1086,7 @@ class Proof:
         assert {
             kind: status["reason"]
             for kind, status in (await self.mails(draft["id"])).items()
-        } == {"confirmation": "order_draft", "cancellation": "order_draft"}
+        } == {"confirmation": "order_cancelled", "cancellation": "order_draft"}
 
         # Switched off again: neither a notice nor a waiting confirmation.
         late = await self.order("late")
@@ -1027,22 +1103,116 @@ class Proof:
             "reason": "switched_off",
             "canResend": False,
         }
+        # Switched on again: the skipped job is no dead end. The manager
+        # sends the confirmation that never went out.
+        await self.switch(True)
+        status = (await self.mails(late["id"]))["confirmation"]
+        assert status == {
+            "kind": "confirmation",
+            "state": "skipped",
+            "sentAt": None,
+            "reason": "not_sent",
+            "canResend": True,
+        }
+        sent_late = await self.resend(late["id"], "confirmation", self.key("late-send"))
+        assert sent_late.status_code == 202, sent_late.text
+        assert sent_late.json()["replayed"] is False
+        assert await self.keys(late["id"], OrderMailKind.CONFIRMATION) == [
+            f"order-confirmation-mail:{late['id']}",
+            f"order-confirmation-mail:{late['id']}:resend:1",
+        ]
+        assert await self.work(late["id"], OrderMailKind.CONFIRMATION) == "completed"
+        assert self.sent[-1].payload["to"] == self.data.email("late")
+        # Switched off: a cancellation tells the buyer nothing.
+        await self.switch(False)
         await self.cancel(late["id"])
         assert await self.keys(late["id"], OrderMailKind.CANCELLATION) == []
         await self.switch(True)
 
+    async def erase(self, email: str) -> None:
+        """The real privacy erasure command for one buyer address.
+
+        It needs an active legal configuration (retention periods). When the
+        database has none, the proof activates a synthetic one and gives the
+        state row its earlier pointers back afterwards.
+        """
+
+        admin = self.data.users["charity"]
+        state_before = await self.db.fetchrow(
+            "SELECT revision, draft_version_id, active_version_id, "
+            "updated_by_user_id, updated_at FROM legal_configuration_state"
+        )
+        assert state_before is not None
+        created = state_before["active_version_id"] is None
+        if created:
+            legal = AsyncpgLegalConfigurationRepository(self.pool)
+            now = datetime.now(timezone.utc)
+            state = await legal.save_draft(
+                configuration=legal_version().configuration,
+                actor_user_id=admin,
+                expected_revision=int(state_before["revision"]),
+                request_id="buyer-mail-proof",
+                occurred_at=now,
+            )
+            assert state.draft is not None
+            version_id = state.draft.id
+            state = await legal.approve(
+                version_id=version_id,
+                actor_user_id=self.data.users["outsider"],
+                evidence_id="SYNTHETIC-BUYER-MAIL-PROOF",
+                expected_revision=state.revision,
+                request_id="buyer-mail-proof",
+                occurred_at=now,
+            )
+            await legal.activate(
+                version_id=version_id,
+                actor_user_id=admin,
+                expected_revision=state.revision,
+                request_id="buyer-mail-proof",
+                occurred_at=now,
+            )
+        try:
+            service = PrivacyService(
+                AsyncpgPrivacyRepository(
+                    self.pool, subject_hmac_secret="synthetic-proof-" * 4
+                )
+            )
+            actor = IdentityPrincipal(
+                UserAccount(
+                    admin, "admin@leonaid.invalid", "Proof", AccountStatus.ACTIVE
+                ),
+                frozenset({GlobalRole.SYSTEM_ADMIN}),
+                (),
+            )
+            result = await service.erase(
+                actor, email=email, confirmation=email, request_id="buyer-mail-proof"
+            )
+            assert result is not None
+        finally:
+            if created:
+                await self.db.execute(
+                    "UPDATE legal_configuration_state SET revision = $1, "
+                    "draft_version_id = $2, active_version_id = $3, "
+                    "updated_by_user_id = $4, updated_at = $5",
+                    *state_before.values(),
+                )
+
     async def erased_buyer(self) -> None:
-        """After a privacy erasure nothing is sent, not even again."""
+        """After the privacy erasure nothing is sent, not even again."""
 
         order = await self.order("erased")
         assert await self.work(order["id"], OrderMailKind.CONFIRMATION) == "completed"
         accepted = await self.resend(order["id"], "confirmation", self.key("erased-1"))
         assert accepted.status_code == 202, accepted.text
-        # The erasure clears the address while the resend waits.
-        await self.db.execute(
-            "UPDATE commitment SET customer_snapshot = customer_snapshot"
-            " || '{\"email\": null}'::jsonb WHERE id = $1",
-            UUID(order["id"]),
+        # The erasure runs while the resend waits. It is the real command:
+        # what it clears is what the mails must respect.
+        await self.erase(self.data.email("erased"))
+        assert (
+            await self.db.fetchval(
+                "SELECT customer_snapshot ->> 'email' FROM commitment WHERE id = $1",
+                UUID(order["id"]),
+            )
+            is None
         )
         before = len(self.sent)
         assert await self.work(order["id"], OrderMailKind.CONFIRMATION) == "completed"
@@ -1052,7 +1222,202 @@ class Proof:
         assert status["canResend"] is False
         refused = await self.resend(order["id"], "confirmation", self.key("erased-2"))
         assert refused.status_code == 409, refused.text
+        assert self.error(refused) == "buyer_mail_not_due"
         assert (await self.record(order["id"]))["buyerMailDue"] is False
+        # Cancelled after the erasure: no notice is queued.
+        await self.cancel(order["id"])
+        assert await self.keys(order["id"], OrderMailKind.CANCELLATION) == []
+        mails = await self.mails(order["id"])
+        assert mails["cancellation"]["reason"] == "no_email"
+        assert not any(item["canResend"] for item in mails.values())
+
+    async def record_drop(self, order_id: str, state: str) -> None:
+        """What the delivery board writes when a driver ticks an order off."""
+
+        await self.db.execute(
+            "INSERT INTO commitment_delivery (commitment_id, action_id, state, "
+            "state_changed_at, state_changed_by_user_id) "
+            "VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4)",
+            UUID(order_id),
+            self.data.action,
+            state,
+            self.data.users["charity"],
+        )
+
+    async def too_late(self) -> None:
+        """No confirmation after the delivery or after the window."""
+
+        window_end = self.data.window_starts_at + timedelta(hours=2)
+        # A job that runs after the window (worker down, late retry): nothing.
+        slow = await self.order("slow")
+        sent = len(self.sent)
+        assert (
+            await self.work(slow["id"], OrderMailKind.CONFIRMATION, now=window_end)
+            == "completed"
+        )
+        assert len(self.sent) == sent
+        # Queued, then ticked off on the delivery board: nothing.
+        ticked = await self.order("ticked")
+        await self.record_drop(ticked["id"], "delivered")
+        assert await self.work(ticked["id"], OrderMailKind.CONFIRMATION) == "completed"
+        assert len(self.sent) == sent
+        assert (await self.mails(ticked["id"]))["confirmation"] == {
+            "kind": "confirmation",
+            "state": "skipped",
+            "sentAt": None,
+            "reason": "delivery_recorded",
+            "canResend": False,
+        }
+        refused = await self.resend(ticked["id"], "confirmation", self.key("ticked"))
+        assert refused.status_code == 409, refused.text
+        assert self.error(refused) == "buyer_mail_not_due"
+        # A sent confirmation of an order that is delivered meanwhile is not
+        # sent again either.
+        done = await self.order("done")
+        assert await self.work(done["id"], OrderMailKind.CONFIRMATION) == "completed"
+        await self.record_drop(done["id"], "missed")
+        status = (await self.mails(done["id"]))["confirmation"]
+        assert status["state"] == "sent" and status["canResend"] is False
+        # After the window the status says so, also for the skipped job.
+        self.now = window_end
+        try:
+            assert (await self.mails(slow["id"]))["confirmation"] == {
+                "kind": "confirmation",
+                "state": "skipped",
+                "sentAt": None,
+                "reason": "window_over",
+                "canResend": False,
+            }
+            over = await self.resend(slow["id"], "confirmation", self.key("slow"))
+            assert over.status_code == 409, over.text
+            assert self.error(over) == "buyer_mail_not_due"
+        finally:
+            self.now = None
+        # Before the window the skipped job is no dead end.
+        assert (await self.mails(slow["id"]))["confirmation"]["canResend"] is True
+
+        # Two completions of one draft with different keys at the same time
+        # (two devices): the order becomes review-ready once, one job.
+        twice = await self.order("twice", ready=False)
+        completion: dict[str, object] = {
+            "deliveryRecipient": self.address("twice"),
+            "deliveryWindowId": str(self.data.window),
+        }
+        path = f"{self.orders}/{twice['id']}/complete"
+        answers = await asyncio.gather(
+            *(
+                self.post(path, completion, self.key(f"twice-{index}"), "acquirer")
+                for index in range(2)
+            )
+        )
+        assert sorted(answer.status_code for answer in answers) == [200, 409]
+        assert len(await self.keys(twice["id"], OrderMailKind.CONFIRMATION)) == 1
+
+    async def closed_action(self) -> None:
+        """An action without invoicing, and no confirmation once it closed."""
+
+        action = self.data.plain_action
+        orders = f"/api/v1/actions/{action}/commitments"
+        settings_path = f"/api/v1/actions/{action}/buyer-mail-configuration"
+        switched = await self.put(
+            settings_path,
+            {
+                "expectedRevision": 1,
+                "internalOrderMails": True,
+                "deliveryDayMail": False,
+                "deliveryDaySendTime": "07:00",
+            },
+        )
+        assert switched.status_code == 200, switched.text
+
+        def body(name: str, *, ready: bool) -> dict[str, object]:
+            value = self.body(name, ready=False, source="admin")
+            value["readyForReview"] = ready
+            value["lines"] = [
+                {
+                    "offeringId": str(self.data.plain_offering),
+                    "quantity": 2,
+                    "unit": "box",
+                }
+            ]
+            return value
+
+        # The action issues no invoices: the confirmation promises none.
+        plain = await self.post(
+            orders, body("plain", ready=True), self.key("order-plain")
+        )
+        assert plain.status_code == 201, plain.text
+        jobs = await self.db.fetch(
+            "SELECT id, idempotency_key, payload FROM outbox_event "
+            "WHERE aggregate_id = $1",
+            UUID(plain.json()["id"]),
+        )
+        assert len(jobs) == 1
+        self.data.action, main_action = action, self.data.action
+        try:
+            assert (
+                await self.work(plain.json()["id"], OrderMailKind.CONFIRMATION)
+                == "completed"
+            )
+        finally:
+            self.data.action = main_action
+        text = str(self.sent[-1].payload["text"])
+        assert "Wie es weitergeht\nEin Clubmitglied prüft Ihre Bestellung.\n" in text
+        assert "Rechnung erhalten" not in text
+
+        # The order period is over. A manager completes a forgotten draft to
+        # record it: review-ready, but no "thank you for your order" now.
+        forgotten = await self.post(
+            orders, body("forgotten", ready=False), self.key("order-forgotten")
+        )
+        assert forgotten.status_code == 201, forgotten.text
+        await self.db.execute(
+            "UPDATE charity_action SET status = 'completed' WHERE id = $1", action
+        )
+        completed = await self.post(
+            f"{orders}/{forgotten.json()['id']}/delivery-completion",
+            {
+                "expectedVersion": forgotten.json()["deliveryCompletionVersion"],
+                "invoiceRecipient": {**self.address("forgotten"), "email": None},
+            },
+            self.key("forgotten-complete"),
+        )
+        assert completed.status_code == 200, completed.text
+        assert completed.json()["status"] == "review_ready"
+        order_id = forgotten.json()["id"]
+        assert (
+            await self.db.fetchval(
+                "SELECT count(*) FROM outbox_event WHERE aggregate_id = $1",
+                UUID(order_id),
+            )
+            == 0
+        )
+        mails = f"{orders}/{order_id}/buyer-mails"
+        listed = await self.get(mails)
+        assert listed.status_code == 200, listed.text
+        assert listed.json()["mails"] == [
+            {
+                "kind": "confirmation",
+                "state": "not_due",
+                "sentAt": None,
+                "reason": "action_closed",
+                "canResend": False,
+            }
+        ]
+        refused = await self.post(
+            f"{mails}/confirmation/resend", None, self.key("forgotten-send")
+        )
+        assert refused.status_code == 409, refused.text
+        assert self.error(refused) == "buyer_mail_not_due"
+        # The order that was confirmed before the action closed: not again.
+        earlier = await self.get(f"{orders}/{plain.json()['id']}/buyer-mails")
+        assert earlier.json()["mails"][0]["state"] == "sent"
+        assert earlier.json()["mails"][0]["canResend"] is False
+        await self.db.execute(
+            "DELETE FROM outbox_event WHERE aggregate_type = 'commitment' "
+            "AND aggregate_id IN (SELECT id FROM commitment WHERE action_id = $1)",
+            action,
+        )
 
     # -- the mail on the delivery day ---------------------------------------
 
@@ -1120,6 +1485,7 @@ class Proof:
             "day-afternoon", window="afternoon", user="charity", source="admin"
         )
         early = await self.order("day-early", window="early")
+        dawn = await self.order("day-dawn", window="dawn")
         silent = await self.order("day-silent", window="morning", email=False)
         cancelled = await self.order("day-cancelled", window="morning")
         await self.cancel(cancelled["id"])
@@ -1160,7 +1526,17 @@ class Proof:
             morning["id"], "delivery_day", self.key("day-too-early")
         )
         assert early_refusal.status_code == 409, early_refusal.text
-        assert self.error(early_refusal) == "buyer_mail_resend_not_allowed"
+        assert self.error(early_refusal) == "buyer_mail_not_due"
+        # A window that ends before the send time never gets the mail, and
+        # the order says so from the start.
+        never = {
+            "kind": "delivery_day",
+            "state": "not_due",
+            "sentAt": None,
+            "reason": "window_before_send_time",
+            "canResend": False,
+        }
+        assert (await self.mails(dawn["id"]))["delivery_day"] == never
 
         # The sweep: nothing the evening before and nothing before 07:00.
         assert await self.sweep(at(7, 0) - timedelta(hours=8)) == 0
@@ -1214,6 +1590,7 @@ class Proof:
             "imprintUrl": f"{BASE_URL}/impressum",
         }
         assert early["id"] not in "".join(await self.day_keys())
+        assert dawn["id"] not in "".join(await self.day_keys())
 
         # The worker sends it; it counts for the mailbox limit of an hour.
         reader = AsyncpgOrderMailReader(self.pool)
@@ -1333,7 +1710,38 @@ class Proof:
                 late_drop["id"], "delivery_day", self.key("day-skipped")
             )
             assert skipped.status_code == 409, skipped.text
-            assert self.error(skipped) == "buyer_mail_resend_not_allowed"
+            assert self.error(skipped) == "buyer_mail_not_due"
+            assert (await self.mails(dawn["id"]))["delivery_day"] == never
+            dawn_refusal = await self.resend(
+                dawn["id"], "delivery_day", self.key("day-dawn")
+            )
+            assert dawn_refusal.status_code == 409, dawn_refusal.text
+            assert self.error(dawn_refusal) == "buyer_mail_not_due"
+            # Due and not queued yet: a manager sends it without waiting for
+            # the sweep, under the first key, and the sweep adds no second.
+            manual = await self.order("day-manual", window="afternoon")
+            waiting = (await self.mails(manual["id"]))["delivery_day"]
+            assert waiting == {
+                "kind": "delivery_day",
+                "state": "not_due",
+                "sentAt": None,
+                "reason": "not_requested",
+                "canResend": True,
+            }
+            first = await self.resend(
+                manual["id"], "delivery_day", self.key("day-manual")
+            )
+            assert first.status_code == 202, first.text
+            assert first.json()["state"] == "queued"
+            assert await self.keys(manual["id"], DELIVERY_DAY) == [
+                self.day_key(manual, "afternoon")
+            ]
+            assert await self.sweep(at(9, 40)) == 0
+            assert (
+                await self.work(manual["id"], DELIVERY_DAY, now=at(9, 40))
+                == "completed"
+            )
+            assert self.sent[-1].idempotency_key == self.day_key(manual, "afternoon")
             # Only managers; then one resend job, keyed by order and window.
             forbidden_resend = await self.resend(
                 morning["id"], "delivery_day", self.key("day-acquirer"), "acquirer"
@@ -1382,11 +1790,66 @@ class Proof:
             assert (await self.mails(tomorrow["id"]))["delivery_day"]["reason"] == (
                 "scheduled"
             )
+            # An action that lost the delivery capability sends none either.
+            await self.db.execute(
+                "DELETE FROM charity_action_capability "
+                "WHERE action_id = $1 AND capability = 'delivery'",
+                self.data.action,
+            )
+            assert await self.sweep(at(9, 0) + timedelta(days=1)) == 0
+            await self.db.execute(
+                "INSERT INTO charity_action_capability (action_id, capability) "
+                "VALUES ($1, 'delivery')",
+                self.data.action,
+            )
+            second = await self.order("day-closed-action", window="next")
         finally:
             self.now = None
-        assert await self.sweep(at(9, 0) + timedelta(days=1)) == 1
-        assert self.day_key(tomorrow, "next") in await self.day_keys()
-        await self.day_mail(False)
+        # The day after: one of the two orders of that day is queued.
+        next_day = at(9, 0) + timedelta(days=1)
+        assert await self.sweep(next_day, limit=1) == 1
+        keys = await self.day_keys()
+        candidates = {
+            self.day_key(order, "next"): order for order in (tomorrow, second)
+        }
+        (queued_key,) = keys & set(candidates)
+        queued = candidates.pop(queued_key)
+        (waiting,) = candidates.values()
+        # S4: in a completed or archived action nobody gets the mail, neither
+        # from the sweep nor from a manager, and a job that was queued before
+        # the action closed sends nothing. (The action stays closed: this is
+        # the last scenario.)
+        self.now = next_day
+        try:
+            for closed in ("completed", "archived"):
+                await self.db.execute(
+                    "UPDATE charity_action SET status = $2 WHERE id = $1",
+                    self.data.action,
+                    closed,
+                )
+                assert await self.sweep(next_day) == 0, closed
+                status = (await self.mails(waiting["id"]))["delivery_day"]
+                assert status["state"] == "not_due", closed
+                assert status["reason"] == "action_closed", closed
+                assert status["canResend"] is False, closed
+                refusal = await self.resend(
+                    waiting["id"], "delivery_day", self.key(f"day-{closed}")
+                )
+                assert refusal.status_code == 409, refusal.text
+                assert self.error(refusal) == "buyer_mail_not_due"
+                if closed == "completed":
+                    sent = len(self.sent)
+                    assert (
+                        await self.work(queued["id"], DELIVERY_DAY, now=next_day)
+                        == "completed"
+                    )
+                    assert len(self.sent) == sent
+                    skipped = (await self.mails(queued["id"]))["delivery_day"]
+                    assert skipped["state"] == "skipped"
+                    assert skipped["reason"] == "action_closed"
+            assert await self.day_keys() == keys
+        finally:
+            self.now = None
 
 
 async def main() -> None:
@@ -1408,10 +1871,11 @@ async def main() -> None:
         await pool.close()
         await connection.close()
     print(
-        "buyer-mails-api: OK: order numbers, settings row, confirmation once "
-        "per internal order, cancellation notice, mail status, resend, "
-        "mailbox limit, erased buyer and the delivery-day mail (sweep, worker "
-        "rules, moved order, status, resend) proven against PostgreSQL"
+        "buyer-mails-api: OK: short order numbers, settings row, confirmation "
+        "once per internal order and never too late, cancellation notice, "
+        "mail status, first send and resend, superseded jobs, mailbox limit, "
+        "the privacy erasure and the delivery-day mail (sweep, worker rules, "
+        "moved order, status, resend) proven against PostgreSQL"
     )
 
 

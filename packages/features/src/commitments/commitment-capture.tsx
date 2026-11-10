@@ -49,6 +49,7 @@ import {
 } from "../offline/runtime";
 import { formatDateTime } from "../shared/dates";
 import { useLocationHref } from "../shared/location";
+import { BuyerMailNotice } from "./buyer-mail-notice";
 import { CompleteDraft } from "./complete-draft";
 import {
   DeliveryFields,
@@ -1107,6 +1108,11 @@ export function CommitmentCapturePage({
                 value={recipient.email}
               />
             </Field>
+            <BuyerMailNotice
+              deliveryDayMail={context.data?.deliveryDayMail}
+              email={buyer?.email}
+              internalOrderMails={context.data?.internalOrderMails}
+            />
           </fieldset>
           {stepError ? (
             <StatusMessage tone="error">

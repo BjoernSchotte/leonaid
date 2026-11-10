@@ -919,5 +919,68 @@
         "Offline-Erfassung in der Akquise-App"
       ]
     }
+  ],
+  "DOC-P053": [
+    {
+      "file": "packages/ui/src/components/rail-shell.tsx",
+      "contains": [
+        "Suchen und Befehle"
+      ]
+    },
+    {
+      "file": "packages/features/src/command-palette/sources.ts",
+      "contains": [
+        "Charity-Aktionen",
+        "Bestellungen",
+        "Rechnungen",
+        "Sponsoren",
+        "Mitglieder",
+        "MIN_SEARCH_LENGTH = 2"
+      ]
+    },
+    {
+      "file": "packages/features/src/command-palette/command-palette.tsx",
+      "contains": [
+        "Die Suche ist gerade nicht erreichbar."
+      ]
+    },
+    {
+      "file": "packages/features/src/acquisition/acquisition-admin.tsx",
+      "contains": [
+        "Sponsor-Pipeline",
+        "Schließen",
+        "searchParams.set(\"open\", assignmentId)"
+      ]
+    },
+    {
+      "file": "packages/features/src/acquisition/assignment-detail.tsx",
+      "contains": [
+        "Ansprechperson",
+        "Nächster Schritt",
+        "Verlauf",
+        "Zuordnung abschließen"
+      ]
+    },
+    {
+      "file": "src/leonaid/application/activities.py",
+      "contains": [
+        "Im CRM nicht mehr vorhanden"
+      ]
+    },
+    {
+      "file": "src/leonaid/application/sponsor_search.py",
+      "contains": [
+        "SYNC_INTERVAL_SECONDS = 15 * 60.0",
+        "FULL_PASS_LOCAL_TIME = time(3, 0)"
+      ]
+    },
+    {
+      "file": "src/leonaid/adapters/postgres/search.py",
+      "contains": [
+        "entry.display_name ILIKE $1",
+        "entry.city ILIKE $1",
+        "assignment.status <> 'handed_over'"
+      ]
+    }
   ]
 }

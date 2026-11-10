@@ -4,9 +4,9 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 9
-reviewedRevision: 9
-verifiedAgainst: 52718b176309716b363998e37aa2c91349cdbe8f
+contentRevision: 10
+reviewedRevision: 10
+verifiedAgainst: 1f49427206df2ee9224ad2fb21c80e3f2241649b
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -38,18 +38,33 @@ allgemeine Produktionsfreigabe.
   dem öffentlichen Formular. Für Bestellungen, die Mitglieder oder
   Akquisiteure erfassen, schaltet die Aktionsverwaltung sie je Aktion ein
   (**E-Mails an Käufer**); dann wird eine Bestellung einmal bestätigt, sobald
-  sie prüfbereit ist. Bestellungen ohne E-Mail-Adresse des Käufers, Entwürfe
-  und Bestellungen von vor dem Einschalten erhalten keine E-Mail. Eine
-  gesendete oder fehlgeschlagene E-Mail lässt sich in der Bestellung erneut
-  senden; eine E-Mail, die nie angelegt wurde, nicht. Die E-Mail am Liefertag
-  (je Aktion einschaltbar, für Bestellungen jeder Herkunft) nennt nur das
-  Lieferfenster: keine Ankunftszeit je Adresse, kein Fahrer, keine Nachricht
-  bei Verspätung oder wenn ein Fenster verlegt wird. Sie geht bis zu fünf
-  Minuten nach der gewählten Uhrzeit hinaus und enthält keinen Link zur
-  Aktionsseite. Der Link zur Aktion zeigt auf die dauerhafte Adresse
+  sie prüfbereit ist. Bestellungen ohne E-Mail-Adresse des Käufers und Entwürfe
+  erhalten keine E-Mail, ebenso Bestellungen, die erst nach der Lieferung,
+  nach dem Lieferfenster oder nach Abschluss der Aktion prüfbereit werden.
+  Bestellungen von vor dem Einschalten bestätigt die Aktionsverwaltung
+  einzeln in der Bestellung (**Senden**). Die Adresse ist die des Sponsors
+  aus dem CRM. LeonAid prüft nicht, ob die Datenschutzerklärung des Clubs
+  diese E-Mails nennt. Die E-Mail am Liefertag (je Aktion einschaltbar, für
+  Bestellungen jeder Herkunft) nennt nur das Lieferfenster: keine
+  Ankunftszeit je Adresse, kein Fahrer, keine Nachricht bei Verspätung oder
+  wenn ein Fenster verlegt wird. Sie geht bis zu fünf Minuten nach der
+  gewählten Uhrzeit hinaus und enthält keinen Link zur Aktionsseite. Ein
+  Lieferfenster, das vor dieser Uhrzeit endet, erhält keine E-Mail; die
+  Bestellung zeigt das an. Nach der Lieferung, für stornierte Bestellungen
+  und in einer abgeschlossenen Aktion geht sie nicht mehr hinaus.
+  Bestellnummern haben zwei Formen: neue sind kurz (`LA-` und acht Zeichen),
+  öffentliche Bestellungen von früher behalten ihre lange Nummer. Der Link zur Aktion zeigt auf die dauerhafte Adresse
   der Aktion auf ihrer Kampagnen-Domain, sonst auf die Aktionsseite des
   öffentlichen Hosts. Absender ist die konfigurierte Systemadresse, nicht der
   Club.
+- Die Suche (**Suchen und Befehle**) findet Sponsoren nur über Name und Ort
+  und nur, wenn sie in einer Aktion einem Akquisiteur zugeordnet sind (siehe
+  [Mit der Suche finden](/de/user/how-to/find-with-search/)). E-Mail, Telefon
+  und Straße sind nicht durchsuchbar. Eine Änderung im CRM erreicht die Suche
+  nach bis zu etwa 15 Minuten; ein im CRM gelöschter Sponsor verschwindet erst
+  in der folgenden Nacht. Bis dahin öffnet sein Treffer die Zuordnung, die
+  dann „Im CRM nicht mehr vorhanden“ heißt und keine Kontaktdaten zeigt.
+  Die Akquise-App hat keine eigene Suche.
 - Ein gespeicherter Rechnungsbeleg und sein PDF werden nicht nachträglich
   überschrieben. Korrekturen erfolgen durch Storno und einen neuen Vorgang.
 - Teil- und Überzahlungen werden als einzelne Zahlungseinträge erfasst und

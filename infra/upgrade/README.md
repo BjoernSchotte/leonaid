@@ -82,6 +82,20 @@ pass unchanged.
 - **LeonAid Core:** After `alembic upgrade head`, no older core is claimed to
   work against the new schema. Core PostgreSQL is restored from the recovery
   point.
+- **Core migration `0063_buyer_mails` (order number for every order):** an
+  application from before this migration fails for certain against the
+  migrated database, not only possibly. It refuses every order that a member
+  entered, because such an order now has an order number
+  (`commitment_public_reference_forbidden`), and every public order with the
+  new short number (`commitment_public_reference_invalid`): the order list,
+  the invoice journal and the worker's order mails answer with an error.
+  Never start the older image against the migrated database. Roll back in
+  this order: stop API and worker, restore Core PostgreSQL from the recovery
+  point (or, when no order was written since the upgrade, run
+  `alembic downgrade 0062_sponsor_search_entry` with the new image, which
+  removes the numbers of internal orders and the buyer-mail settings), then
+  start the older image. Order numbers that buyers already received in a
+  mail are lost by the downgrade for orders that members entered.
 
 On failure, the write lock stays active. The failed project is stopped,
 receives no further writes and is restored into a new, explicitly confirmed

@@ -4,8 +4,8 @@ description: Lieferplanung einer Aktion aktivieren, Zeitfenster ergänzen und be
 docId: DOC-P012
 audience: [user]
 diataxis: how-to
-contentRevision: 8
-reviewedRevision: 8
+contentRevision: 9
+reviewedRevision: 9
 verifiedAgainst: 52718b176309716b363998e37aa2c91349cdbe8f
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -140,10 +140,18 @@ nächsten Durchlauf, solange ihr Fenster nicht vorbei ist.
 
 Keine E-Mail bekommen stornierte Bestellungen, Entwürfe, bereits abgehakte
 Lieferungen, Bestellungen ohne E-Mail-Adresse und Fenster, die vor der
-gewählten Uhrzeit enden. Jede Bestellung bekommt die E-Mail für ihr Fenster
-einmal. An dasselbe Postfach gehen höchstens zehn Bestell-E-Mails pro Stunde.
+gewählten Uhrzeit enden. Bei einem solchen Fenster steht in der Bestellung
+**Keine E-Mail: Das Lieferfenster endet vor der Versandzeit**. Ist die Aktion
+abgeschlossen oder archiviert, geht keine Liefertags-E-Mail mehr hinaus. Jede
+Bestellung bekommt die E-Mail für ihr Fenster einmal. An dasselbe Postfach
+gehen höchstens zehn Bestell-E-Mails pro Stunde.
+
+Die E-Mail nennt für Rückfragen nur, was in der Rechtskonfiguration steht:
+die E-Mail-Adresse des Clubs und, wenn eingetragen, die Telefonnummer des
+Impressums.
 
 Ob die E-Mail hinausging, zeigt der Abschnitt **E-Mails an den Käufer** in
 der Bestellung (Zeile **Liefertags-E-Mail**). Dort kannst du sie am Liefertag
-auch erneut senden, bis das Fenster endet oder die Lieferung abgehakt ist;
+ab der gewählten Uhrzeit auch selbst senden oder erneut senden, bis das
+Fenster endet oder die Lieferung abgehakt ist;
 siehe [Bestellung stornieren](/de/user/how-to/cancel-order/#e-mails-einer-bestellung-ansehen-und-erneut-senden).

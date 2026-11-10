@@ -13,6 +13,8 @@ const disabledModules = (process.env.LEONAID_PALETTE_DISABLED_MODULES ?? "")
   .split(",")
   .filter(Boolean);
 const actionId = "20000000-0000-4000-8000-000000000001";
+// Screenshots for the review of the sponsor target; optional.
+const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
 
 if (!baseUrl || !klaraSession || !simoneSession) {
   throw new Error("Command palette browser environment is incomplete");
@@ -245,6 +247,105 @@ test.describe("enabled modules", () => {
       await expect(close).toBeFocused();
       await page.keyboard.press("Escape");
       await expect(help).toBeHidden();
+    } finally {
+      await context.close();
+    }
+  });
+
+  // The web target of a sponsor hit. Simone is system admin without a
+  // membership: the pipeline must offer the hit's action and open its board.
+  test("a sponsor hit opens its assignment in the pipeline: row in view, marked, detail open", async ({
+    browser,
+  }) => {
+    const context = await signedIn(browser, simoneSession);
+    const page = await context.newPage();
+    try {
+      await page.goto(`${baseUrl}/admin/actions`);
+      await shellReady(page);
+      await openPalette(page);
+      const sponsorSearch = searchResponse(page, "Musterwerk");
+      await paletteInput(page).fill("Musterwerk");
+      const body = await (await sponsorSearch).json();
+      const hit = body.results.find((result) => result.type === "sponsor");
+      expect(hit).toBeTruthy();
+      expect(hit.title).toBe("Musterwerk GmbH");
+      expect(hit.context).toBe("Krapfentaxi 2026 · Beispielstadt");
+      await palette(page)
+        .getByRole("group", { name: "Sponsoren" })
+        .getByRole("option", { name: /Musterwerk GmbH/ })
+        .first()
+        .click();
+      await expect(page).toHaveURL(
+        new RegExp(`/admin/acquisition\\?action=${actionId}&open=${hit.id}$`),
+      );
+
+      // The detail of exactly this assignment is open ...
+      const detail = page.getByRole("dialog", { name: "Musterwerk GmbH" });
+      await expect(detail).toBeVisible({ timeout: 75_000 });
+      await expect(
+        detail.getByTestId("acquisition-assignment-detail"),
+      ).toHaveAttribute("data-assignment-id", hit.id);
+      await expect(detail).toContainText("Beispielstadt");
+      await expect(detail).toContainText("Zuordnung angelegt");
+      // ... behind it the row is marked and scrolled into view.
+      const row = page.locator(`tr[data-assignment-id="${hit.id}"]`);
+      await expect(row).toHaveAttribute("aria-current", "true");
+      await expect(row).toBeInViewport();
+      await expect(
+        page.locator('[data-testid="acquisition-admin-list"] tr[aria-current]'),
+      ).toHaveCount(1);
+      // The action of the hit is selected although Simone has no membership.
+      await expect(page.getByTestId("acquisition-admin-action")).toHaveValue(
+        actionId,
+      );
+      const axe = await analyzeAccessibility(page, {
+        include: "dialog.modal[open]",
+        tags: WCAG_TAGS,
+      });
+      expect(
+        axe.violations.filter(({ impact }) =>
+          ["serious", "critical"].includes(impact),
+        ),
+      ).toEqual([]);
+      if (artifactDirectory) {
+        // After the dialog's opening animation.
+        await page.screenshot({
+          animations: "disabled",
+          path: `${artifactDirectory}/ux-sponsor-search-detail.png`,
+        });
+      }
+
+      // Closing drops ?open=; the row stays marked and opens the detail
+      // again.
+      await detail.getByRole("button", { name: "Schließen" }).click();
+      await expect(detail).toBeHidden();
+      await expect(page).toHaveURL(
+        new RegExp(`/admin/acquisition\\?action=${actionId}$`),
+      );
+      await expect(row).toHaveAttribute("aria-current", "true");
+      await expect(row).toBeInViewport();
+      if (artifactDirectory) {
+        await page.screenshot({
+          path: `${artifactDirectory}/ux-sponsor-search-row.png`,
+        });
+      }
+      await row.getByRole("button", { name: "Musterwerk GmbH" }).click();
+      await expect(detail).toBeVisible();
+      await expect(page).toHaveURL(new RegExp(`[?&]open=${hit.id}$`));
+      await page.keyboard.press("Escape");
+      await expect(detail).toBeHidden();
+      await expect(
+        row.getByRole("button", { name: "Musterwerk GmbH" }),
+      ).toBeFocused();
+
+      // A link to an assignment that is gone says so and opens nothing.
+      await page.goto(
+        `${baseUrl}/admin/acquisition?action=${actionId}&open=00000000-0000-4000-8000-00000000dead`,
+      );
+      await expect(page.getByTestId("acquisition-open-missing")).toBeVisible({
+        timeout: 75_000,
+      });
+      await expect(page.locator("dialog.modal[open]")).toHaveCount(0);
     } finally {
       await context.close();
     }

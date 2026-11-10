@@ -172,7 +172,7 @@ async function submitPublicOrder(page, identity) {
   const publicReference = (
     await success.locator("[data-order-reference]").textContent()
   )?.trim();
-  expect(publicReference).toMatch(/^LA-[A-F0-9]{32}$/);
+  expect(publicReference).toMatch(/^LA-[2-9A-HJKMNP-Z]{8}$/);
   return { publicReference };
 }
 

@@ -4,9 +4,9 @@ description: Verified limits of the current LeonAid development and pilot state.
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 9
-reviewedRevision: 9
-verifiedAgainst: 52718b176309716b363998e37aa2c91349cdbe8f
+contentRevision: 10
+reviewedRevision: 10
+verifiedAgainst: 1f49427206df2ee9224ad2fb21c80e3f2241649b
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -37,17 +37,32 @@ general production approval.
   and go to buyers from the public form. For orders that members or acquirers
   enter, the campaign's managers switch them on per campaign (**E-Mails an
   Käufer**); an order is then confirmed once, as soon as it is ready for
-  review. Orders without an e-mail address of the buyer, drafts, and orders
-  from before the switch was set get no e-mail. An e-mail that was sent or
-  that failed can be sent again in the order; an e-mail that was never
-  created cannot. The e-mail on the delivery day (switched on per campaign,
-  for orders of every origin) names the delivery window only: no arrival time
+  review. Orders without an e-mail address of the buyer and drafts get no
+  e-mail, nor do orders that become ready for review only after the
+  delivery, after the delivery window or after the campaign was completed.
+  The campaign's managers confirm orders from before the switch was set one
+  by one in the order (**Senden**). The address is the sponsor's from the
+  CRM. LeonAid does not check that the club's privacy notice names these
+  e-mails. The e-mail on the delivery day (switched on per campaign, for
+  orders of every origin) names the delivery window only: no arrival time
   per address, no driver, no message when a delivery is late or a window is
   moved. It goes out up to five minutes after the selected time and carries
-  no link to the campaign page. The campaign
+  no link to the campaign page. A delivery window that ends before that time
+  gets no e-mail; the order shows this. After the delivery, for cancelled
+  orders and in a completed campaign it no longer goes out. Order numbers
+  have two shapes: new ones are short (`LA-` and eight characters), public
+  orders from before keep their long number. The campaign
   link points to the permanent address of the campaign on its campaign
   domain, else to the campaign page on the public host. The sender is the
   configured system address, not the club.
+- The search (**Suchen und Befehle**) finds sponsors by name and city only,
+  and only if they are assigned to an acquirer in a campaign (see
+  [Find things with the search](/en/user/how-to/find-with-search/)). E-mail,
+  phone and street cannot be searched. A change in the CRM reaches the search
+  after up to about 15 minutes; a sponsor deleted in the CRM leaves the search
+  only in the following night. Until then its result opens the assignment,
+  which is then named "Im CRM nicht mehr vorhanden" and shows no contact data.
+  The acquisition app has no search of its own.
 - An issued invoice and its PDF are never overwritten. Corrections use a
   cancellation and a new transaction.
 - Partial payments and overpayments are recorded as separate payment entries

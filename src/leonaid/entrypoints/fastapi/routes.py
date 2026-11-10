@@ -312,6 +312,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     BuyerMailConfigurationResponse,
     BuyerMailKindValue,
     BuyerMailListResponse,
+    BuyerMailResendResponse,
     BuyerMailStatusResponse,
     CommitmentBuyerResponse,
     CommitmentCaptureContextResponse,
@@ -1572,6 +1573,8 @@ def commitment_capture_context_response(
     context: CommitmentCaptureContext,
 ) -> CommitmentCaptureContextResponse:
     return CommitmentCaptureContextResponse(
+        internal_order_mails=context.internal_order_mails,
+        delivery_day_mail=context.delivery_day_mail,
         delivery_configuration=delivery_configuration_response(
             context.delivery_configuration, available_only=True
         )
@@ -4188,7 +4191,7 @@ async def list_buyer_mails(
         "{kind}/resend"
     ),
     operation_id="resendBuyerMail",
-    response_model=BuyerMailStatusResponse,
+    response_model=BuyerMailResendResponse,
     responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
     status_code=status.HTTP_202_ACCEPTED,
     tags=["commitments"],
@@ -4199,17 +4202,21 @@ async def resend_buyer_mail(
     kind: BuyerMailKindValue,
     request: Request,
     response: Response,
-) -> BuyerMailStatusResponse:
-    """Send a mail to the buyer again.
+) -> BuyerMailResendResponse:
+    """Send a mail to the buyer, again or for the first time.
 
-    Allowed for a mail that was sent or that failed. Answers 409 while the
-    mail waits in the queue or is not due (no address, cancelled order for a
-    confirmation, delivered order or a window that is over for the
-    delivery-day mail, switched off). The worker applies the limit per mailbox.
-    Idempotent per `Idempotency-Key`.
+    Allowed whenever the mail is due and no job of it waits (`canResend`):
+    after it was sent or failed, and when it never went out (never queued,
+    or its job ended without a mail). Answers 409 while the mail waits in
+    the queue or is not due (no address, switched off, draft; for a
+    confirmation also a cancelled or delivered order, a delivery window that
+    is over, a completed action; for the delivery-day mail also before the
+    delivery day and its send time). The worker applies the limit per
+    mailbox. Idempotent per `Idempotency-Key`; `replayed` tells a repeated
+    call.
     """
     actor = await identity_service(request).authenticate(session_token(request))
-    result = await buyer_mail_service(request).resend(
+    result, replayed = await buyer_mail_service(request).resend(
         actor,
         action_id,
         commitment_id,
@@ -4218,7 +4225,9 @@ async def resend_buyer_mail(
         request_id=request_id(request),
     )
     response.headers["Cache-Control"] = "no-store"
-    return buyer_mail_status_response(result)
+    return BuyerMailResendResponse(
+        **buyer_mail_status_response(result).model_dump(), replayed=replayed
+    )
 
 
 @router.get(

@@ -4,9 +4,9 @@ description: Cancel an order that is not delivered yet, with a reason, including
 docId: DOC-P047
 audience: [user]
 diataxis: how-to
-contentRevision: 5
-reviewedRevision: 5
-verifiedAgainst: 52718b176309716b363998e37aa2c91349cdbe8f
+contentRevision: 6
+reviewedRevision: 6
+verifiedAgainst: 1f49427206df2ee9224ad2fb21c80e3f2241649b
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -93,14 +93,34 @@ manager adds missing details. This also applies to orders that the app saved
 offline and sent later. The e-mail says that a member of the club recorded
 the order. Each order is confirmed once; a later change of address or
 delivery window sends no second confirmation. Without an e-mail address of
-the buyer in the order nothing is sent, and orders captured before you
-switched the e-mails on are not confirmed afterwards.
+the buyer in the order nothing is sent.
+
+The e-mail goes to the address that the sponsor has in the CRM. The capture
+form of the acquisition app and the form **Angaben ergänzen** show this
+address before you save and name the e-mails that go there. Check with the
+buyer that it is right.
+
+LeonAid does not send a confirmation that would come too late: not after the
+delivery was ticked off, not after the delivery window ended, and not once
+the campaign is completed. So an order that is captured or completed
+afterwards triggers no confirmation.
+
+LeonAid does not confirm orders from before you switched the e-mails on by
+itself. You can send the confirmation in the order, one by one (see below).
+
+The club's privacy notice must name these e-mails. A system admin maintains
+it under **Rechtliches**; the template holds the section **Bestellungen, die
+ein Mitglied für Sie erfasst** for it. LeonAid does not check that the active
+version contains the section.
 
 ## See the e-mails of an order and send one again
 
-The detail pane of every order shows its order number (**Bestellnummer**,
-`LA-…`) at the top; every order has one, however it was captured. The search
-of the list also finds the order by this number.
+The detail pane of every order shows its order number (**Bestellnummer**)
+at the top; every order has one, however it was captured. It is `LA-` and
+eight characters, for example `LA-7F3K2QWX`, without the characters 0, O, 1,
+I and L that are easy to mix up, so that a buyer can say it on the phone.
+Public orders from before this change keep their long number (`LA-` and 32
+characters). The search of the list finds the order by either.
 
 The section **E-Mails an den Käufer** shows one row per e-mail:
 **Bestellbestätigung** (order confirmation), for orders with a delivery
@@ -110,14 +130,24 @@ sends it, see
 and, after a cancellation, **Stornierung** (cancellation notice). The state is **Gesendet** (sent) with
 date and time, **Wartet** (waiting), **Fehlgeschlagen** (failed), **Nicht
 gesendet** (not sent) or **Nicht fällig** (not due); the reason stands below
-it, for example that the order has no e-mail address or that the campaign has
-the e-mails switched off.
+it, for example that the order has no e-mail address, that the campaign has
+the e-mails switched off, that the delivery is already recorded, that the
+delivery window is over or that the campaign is completed.
 
 If the buyer did not get an e-mail, select **Erneut senden** (send again).
-The button exists for e-mails that were sent or that failed. It is absent
-while the e-mail waits, when the address is missing, when the campaign has
-the e-mails switched off, and for the confirmation of a cancelled order. The
-delivery-day e-mail can be sent again only on the delivery day, until the
-window ends or the delivery is ticked off; before that the row says **Wird am
-Liefertag gesendet** (will be sent on the delivery day). At most ten order e-mails go to one mailbox per hour; above that the delivery
-fails, and you send again later.
+If an e-mail that is due never went out, the button reads **Senden** (send):
+for example for an order from before you switched the e-mails on. The button
+exists whenever the e-mail is due now and none is waiting. It is absent while
+the e-mail waits, and whenever LeonAid would not send the e-mail by itself
+either: without an address, with the e-mails switched off, for a draft, and
+for the confirmation of an order that is cancelled, delivered or past its
+window. A confirmation that is sent again states the order as it is today,
+not as it was then. The delivery-day e-mail is due on the delivery day only:
+from the time the campaign selected until the window ends or the delivery is
+ticked off. Before that the row says **Wird am Liefertag gesendet** (will be
+sent on the delivery day). If the delivery window ends before that time, the
+row says **Keine E-Mail: Das Lieferfenster endet vor der Versandzeit** (no
+e-mail: the delivery window ends before the send time). At most ten order
+e-mails go to one mailbox per hour; above that the delivery fails, and you
+send again later. If LeonAid answers a click by saying that the earlier
+request arrived, no further e-mail went out.

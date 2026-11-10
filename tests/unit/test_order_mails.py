@@ -28,6 +28,8 @@ from leonaid.application.order_mails import (
     OrderMailLinks,
     MailNotDueReason,
     delivery_day_not_due_reason,
+    confirmation_not_due_reason,
+    mail_key_sequence,
     delivery_window_label,
     limit_digest,
     mail_due,
@@ -158,6 +160,9 @@ def facts(
     *,
     cancellation: OrderCancellationFacts | None = None,
     internal_order_mails: bool = False,
+    action_status: str = "active",
+    invoicing: bool = True,
+    drop_state: str | None = None,
 ) -> OrderMailFacts:
     return OrderMailFacts(
         action_name="Krapfentaxi 2026",
@@ -165,6 +170,9 @@ def facts(
         ordered_at=ORDERED_AT,
         cancellation=cancellation,
         internal_order_mails=internal_order_mails,
+        action_status=action_status,
+        invoicing=invoicing,
+        drop_state=drop_state,
     )
 
 
@@ -368,6 +376,8 @@ class Reader:
         self.counted: list[tuple[str, str, datetime]] = []
         self.locks: list[str] = []
         self.locked = False
+        # Ledger keys of the mail: its first key and its resends.
+        self.sent_keys_value: tuple[str, ...] = ()
 
     async def facts(
         self, commitment_id: UUID, kind: OrderMailKind
@@ -377,6 +387,9 @@ class Reader:
 
     async def was_sent(self, idempotency_key: str) -> bool:
         return self.sent
+
+    async def sent_keys(self, first_key: str) -> tuple[str, ...]:
+        return tuple(key for key in self.sent_keys_value if key.startswith(first_key))
 
     async def recent_order_mails(
         self, *, recipient_sha256: str, mailbox: str, since: datetime
@@ -414,6 +427,7 @@ def handler(
         reader=Reader(value),
         legal_configuration=Legal(legal_value or legal()),
         sender=sender,
+        clock=lambda: ORDERED_AT,
     )
 
 
@@ -491,6 +505,7 @@ async def test_handler_retries_while_no_legal_configuration_is_active() -> None:
         reader=Reader(facts()),
         legal_configuration=Legal(None),
         sender=sender,
+        clock=lambda: ORDERED_AT,
     )
 
     with pytest.raises(OrderMailError) as error:
@@ -694,6 +709,7 @@ async def test_below_the_limit_the_mail_goes_out() -> None:
         reader=Reader(facts(), recent=RECIPIENT_LIMIT - 1),
         legal_configuration=Legal(legal()),
         sender=sender,
+        clock=lambda: ORDERED_AT,
     )
 
     await mail.handle(claimed(OrderMailKind.CONFIRMATION))
@@ -709,6 +725,7 @@ async def test_a_sent_job_that_runs_again_is_neither_sent_nor_limited() -> None:
         reader=Reader(facts(), sent=True, recent=RECIPIENT_LIMIT + 5),
         legal_configuration=Legal(legal()),
         sender=sender,
+        clock=lambda: ORDERED_AT,
     )
 
     await mail.handle(claimed(OrderMailKind.CONFIRMATION))
@@ -746,6 +763,7 @@ async def test_the_worker_dead_letters_a_limited_job_at_the_first_attempt() -> N
                 reader=Reader(facts(), recent=RECIPIENT_LIMIT),
                 legal_configuration=Legal(legal()),
                 sender=RecordingSender(),
+                clock=lambda: ORDERED_AT,
             )
         },
         retry_policy=RetryPolicy(max_attempts=5),
@@ -801,6 +819,7 @@ async def test_the_mail_goes_to_the_address_as_entered_while_the_limit_uses_the_
         reader=reader,
         legal_configuration=Legal(legal()),
         sender=sender,
+        clock=lambda: ORDERED_AT,
     ).handle(claimed(OrderMailKind.CONFIRMATION))
 
     assert sender.events[0].payload["to"] == "v.era+krapfen@gmail.com"
@@ -831,6 +850,7 @@ async def test_the_send_happens_inside_the_recipient_lock() -> None:
         reader=reader,
         legal_configuration=Legal(legal()),
         sender=sender,
+        clock=lambda: ORDERED_AT,
     ).handle(claimed(OrderMailKind.CONFIRMATION))
 
     assert len(sender.events) == 1
@@ -1057,6 +1077,7 @@ async def test_a_resend_is_sent_under_its_own_key_and_counts_for_the_limit() -> 
         reader=reader,
         legal_configuration=Legal(legal()),
         sender=sender,
+        clock=lambda: ORDERED_AT,
     )
 
     with pytest.raises(OrderMailError) as captured:
@@ -1069,6 +1090,224 @@ async def test_a_resend_is_sent_under_its_own_key_and_counts_for_the_limit() -> 
     assert [sent.idempotency_key for sent in sender.events] == [
         f"order-confirmation-mail:{ORDER_ID}:resend:1"
     ]
+
+
+# ---- review of stage 1: text by state, late orders, superseded jobs ----
+
+# The order's window: 14.02.2026, 08:00–10:00 UTC.
+WINDOW_END = datetime(2026, 2, 14, 10, 0, tzinfo=timezone.utc)
+
+
+def confirmation_reason(
+    commitment: Commitment | None = None,
+    *,
+    internal_order_mails: bool = True,
+    drop_state: str | None = None,
+    action_status: str = "active",
+    now: datetime = ORDERED_AT,
+) -> MailNotDueReason | None:
+    return confirmation_not_due_reason(
+        commitment or order(source=CommitmentSource.ACQUISITION),
+        internal_order_mails=internal_order_mails,
+        drop_state=drop_state,
+        action_status=action_status,
+        now=now,
+    )
+
+
+@pytest.mark.parametrize("source", tuple(CommitmentSource))
+def test_a_confirmation_is_not_due_for_an_order_that_is_already_done(
+    source: CommitmentSource,
+) -> None:
+    value = order(source=source)
+
+    assert confirmation_reason(value) is None
+    for state in ("delivered", "missed"):
+        assert confirmation_reason(value, drop_state=state) is (
+            MailNotDueReason.DELIVERY_RECORDED
+        )
+    # Until the last minute of the window, not after it.
+    assert confirmation_reason(value, now=WINDOW_END - timedelta(minutes=1)) is None
+    assert confirmation_reason(value, now=WINDOW_END) is MailNotDueReason.WINDOW_OVER
+    for status in ("completed", "archived"):
+        assert confirmation_reason(value, action_status=status) is (
+            MailNotDueReason.ACTION_CLOSED
+        )
+    for status in ("draft", "scheduled", "active"):
+        assert confirmation_reason(value, action_status=status) is None
+    assert confirmation_reason(replace(value, status=CommitmentStatus.CANCELLED)) is (
+        MailNotDueReason.ORDER_CANCELLED
+    )
+    # An order without a window has no window that could be over.
+    no_window = replace(value, delivery_window_id=None, delivery_window_snapshot=None)
+    assert confirmation_reason(no_window, now=WINDOW_END + timedelta(days=30)) is None
+
+
+def test_the_first_reasons_of_a_confirmation_are_the_common_ones() -> None:
+    internal = order(source=CommitmentSource.ADMIN)
+
+    assert confirmation_reason(internal, internal_order_mails=False) is (
+        MailNotDueReason.SWITCHED_OFF
+    )
+    assert confirmation_reason(
+        replace(internal, status=CommitmentStatus.DRAFT), drop_state="delivered"
+    ) is (MailNotDueReason.ORDER_DRAFT)
+
+
+@pytest.mark.parametrize(
+    ("value", "now"),
+    [
+        (facts(drop_state="delivered"), ORDERED_AT),
+        (facts(drop_state="missed"), ORDERED_AT),
+        (facts(action_status="completed"), ORDERED_AT),
+        (facts(action_status="archived"), ORDERED_AT),
+        (facts(), WINDOW_END),
+    ],
+    ids=["delivered", "missed", "action-completed", "action-archived", "window-over"],
+)
+@pytest.mark.asyncio
+async def test_handler_sends_no_confirmation_that_comes_too_late(
+    value: OrderMailFacts, now: datetime
+) -> None:
+    sender = RecordingSender()
+    late = OrderMailHandler(
+        OrderMailKind.CONFIRMATION,
+        reader=Reader(value),
+        legal_configuration=Legal(legal()),
+        sender=sender,
+        clock=lambda: now,
+    )
+
+    await late.handle(claimed(OrderMailKind.CONFIRMATION))
+
+    assert sender.events == []
+
+
+@pytest.mark.asyncio
+async def test_the_cancellation_notice_does_not_depend_on_delivery_or_window() -> None:
+    sender = RecordingSender()
+    value = facts(
+        order(status=CommitmentStatus.CANCELLED),
+        cancellation=OrderCancellationFacts(cancelled_at=CANCELLED_AT),
+        action_status="completed",
+    )
+    notice = OrderMailHandler(
+        OrderMailKind.CANCELLATION,
+        reader=Reader(value),
+        legal_configuration=Legal(legal()),
+        sender=sender,
+        clock=lambda: WINDOW_END + timedelta(days=3),
+    )
+
+    await notice.handle(claimed(OrderMailKind.CANCELLATION))
+
+    assert len(sender.events) == 1
+
+
+REVIEW = "Ein Clubmitglied prüft Ihre Bestellung."
+INVOICE_LATER = (
+    "Die Rechnung erhalten Sie separat, sobald der Club die Bestellung geprüft hat."
+)
+
+
+@pytest.mark.parametrize(
+    ("status", "invoicing", "expected", "absent"),
+    [
+        (CommitmentStatus.REVIEW_READY, True, f"{REVIEW} {INVOICE_LATER}", ()),
+        (CommitmentStatus.REVIEW_READY, False, REVIEW, ("Rechnung erhalten",)),
+        (
+            CommitmentStatus.CONFIRMED,
+            True,
+            "Ihre Bestellung ist bestätigt. Die Rechnung erhalten Sie separat.",
+            (REVIEW,),
+        ),
+        (
+            CommitmentStatus.CONFIRMED,
+            False,
+            "Ihre Bestellung ist bestätigt.",
+            (REVIEW, "Rechnung erhalten"),
+        ),
+        (
+            CommitmentStatus.INVOICED,
+            True,
+            "Die Rechnung zu dieser Bestellung ist ausgestellt.",
+            (REVIEW, "Rechnung erhalten"),
+        ),
+    ],
+)
+def test_the_confirmation_says_what_is_still_to_come_for_this_order(
+    status: CommitmentStatus, invoicing: bool, expected: str, absent: tuple[str, ...]
+) -> None:
+    text = render_order_confirmation(
+        facts(order(status=status), invoicing=invoicing), legal(), LINKS
+    ).text
+
+    assert f"Wie es weitergeht\n{expected}\n" in text
+    for phrase in absent:
+        assert phrase not in text, phrase
+
+
+def test_an_invoiced_order_without_invoicing_promises_nothing() -> None:
+    # Cannot happen through the application; the text must still not invent
+    # a next step.
+    text = render_order_confirmation(
+        facts(order(status=CommitmentStatus.INVOICED), invoicing=False), legal(), LINKS
+    ).text
+
+    assert "Wie es weitergeht" not in text
+    assert "Rechnung" not in text.split("Rechnungsanschrift")[0]
+
+
+def test_a_mail_key_names_its_first_key_and_its_place_in_the_resends() -> None:
+    first = f"order-confirmation-mail:{ORDER_ID}"
+
+    assert mail_key_sequence(first) == (first, 0)
+    assert mail_key_sequence(f"{first}:resend:12") == (first, 12)
+    with pytest.raises(OrderMailError):
+        mail_key_sequence(f"{first}:resend:x")
+
+
+@pytest.mark.asyncio
+async def test_an_old_job_does_not_send_after_a_later_resend_went_out() -> None:
+    """Dead letter, manager resend, then the operator retries the old job."""
+
+    first = f"order-confirmation-mail:{ORDER_ID}"
+    sender = RecordingSender()
+    reader = Reader(facts())
+    reader.sent_keys_value = (f"{first}:resend:1",)
+    retried = OrderMailHandler(
+        OrderMailKind.CONFIRMATION,
+        reader=reader,
+        legal_configuration=Legal(legal()),
+        sender=sender,
+        clock=lambda: ORDERED_AT,
+    )
+
+    # The first job (sequence 0) is behind the sent resend: nothing goes out,
+    # and the mailbox limit is not even asked.
+    await retried.handle(claimed(OrderMailKind.CONFIRMATION))
+    assert sender.events == []
+    assert reader.counted == []
+
+    # A later resend is not held back by the earlier one.
+    event = order_mail_event(
+        OrderMailKind.CONFIRMATION,
+        action_id=ACTION_ID,
+        commitment_id=ORDER_ID,
+        links=LINKS,
+        resend=2,
+    )
+    newer = replace(
+        claimed(OrderMailKind.CONFIRMATION),
+        id=event.id,
+        idempotency_key=event.idempotency_key,
+    )
+    await retried.handle(newer)
+    assert [sent.idempotency_key for sent in sender.events] == [f"{first}:resend:2"]
+    # Keys of another kind of the same order do not count.
+    reader.sent_keys_value = (f"order-cancellation-mail:{ORDER_ID}:resend:5",)
+    await retried.handle(claimed(OrderMailKind.CONFIRMATION))
+    assert len(sender.events) == 2
 
 
 # ---- the mail on the delivery day -------------------------------------
@@ -1095,11 +1334,13 @@ def day_reason(
     send_time: time | None = time(7, 0),
     delivery_day_mail: bool = True,
     drop_state: str | None = None,
+    action_status: str = "active",
 ) -> MailNotDueReason | None:
     return delivery_day_not_due_reason(
         commitment or order(),
         delivery_day_mail=delivery_day_mail,
         drop_state=drop_state,
+        action_status=action_status,
         zone=BERLIN,
         now=now,
         send_time=send_time,
@@ -1229,8 +1470,12 @@ def test_the_delivery_day_is_counted_in_the_zone_of_the_action() -> None:
         MailNotDueReason.SCHEDULED
     )
     assert day_reason(night, now=after_midnight, send_time=None) is None
-    # With the send time the mail could only go out after the window: never.
-    assert day_reason(night, now=after_midnight) is MailNotDueReason.SCHEDULED
+    # With the send time the mail could only go out after the window: never,
+    # and the status says so on every day.
+    for moment in (late_evening, after_midnight, at(2026, 2, 14, 9, 0)):
+        assert day_reason(night, now=moment) is (
+            MailNotDueReason.WINDOW_BEFORE_SEND_TIME
+        )
     # An action in UTC counts the same window as a delivery of the 13th.
     assert (
         delivery_day_not_due_reason(
@@ -1263,6 +1508,14 @@ def test_the_delivery_day_mail_is_not_due_without_address_switch_or_open_deliver
     )
     for state in ("delivered", "missed"):
         assert day_reason(drop_state=state) is MailNotDueReason.DELIVERY_RECORDED
+    # A completed or archived action sends nothing any more, with or
+    # without a send time (the worker passes none).
+    for closed in ("completed", "archived"):
+        for send_time in (time(7, 0), None):
+            assert day_reason(action_status=closed, send_time=send_time) is (
+                MailNotDueReason.ACTION_CLOSED
+            )
+    assert day_reason(action_status="paused") is None
     with pytest.raises(ValueError):
         day_reason(order(delivery_window_id=None, delivery_window_snapshot=None))
 
@@ -1319,6 +1572,19 @@ def test_delivery_day_mail_greets_by_the_local_hour_and_copes_without_phone() ->
         "rechnung@hilfswerk.test.\n" in mail.text
     )
     assert "rufen Sie uns an" not in mail.text
+    # Only channels the club configured are named; none, no sentence.
+    no_mail = legal()
+    object.__setattr__(no_mail.configuration.issuer, "email", " ")
+    phone_only = render_delivery_day(day_facts(), no_mail, LINKS, now=noon).text
+    assert (
+        "Ist in dieser Zeit niemand da, rufen Sie uns bitte an: +49 821 123456.\n"
+        in phone_only
+    )
+    assert "schreiben Sie uns" not in phone_only
+    object.__setattr__(no_mail.configuration, "imprint_phone", None)
+    silent = render_delivery_day(day_facts(), no_mail, LINKS, now=noon).text
+    assert "Ist in dieser Zeit niemand da" not in silent
+    assert "\n\n\n" not in silent
     # The window is shown in the action's zone, whatever zone the clock has.
     utc_now = DELIVERY_MORNING.astimezone(timezone.utc)
     assert (
@@ -1347,6 +1613,9 @@ async def test_handler_sends_the_delivery_day_mail_under_its_key() -> None:
         day_facts(order(status=CommitmentStatus.CANCELLED)),
         day_facts(drop_state="delivered"),
         day_facts(drop_state="missed"),
+        day_facts(action_status="completed"),
+        day_facts(action_status="archived"),
+        day_facts(delivery_capability=False),
         day_facts(
             order(
                 buyer=BuyerSnapshot(
@@ -1358,7 +1627,17 @@ async def test_handler_sends_the_delivery_day_mail_under_its_key() -> None:
             )
         ),
     ],
-    ids=["order-gone", "switched-off", "cancelled", "delivered", "missed", "erased"],
+    ids=[
+        "order-gone",
+        "switched-off",
+        "cancelled",
+        "delivered",
+        "missed",
+        "action-completed",
+        "action-archived",
+        "no-delivery-capability",
+        "erased",
+    ],
 )
 @pytest.mark.asyncio
 async def test_handler_skips_a_delivery_day_mail_that_is_not_due_any_more(

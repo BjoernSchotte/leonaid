@@ -191,6 +191,8 @@ for screenshot in \
   ux-admin-desktop.png \
   ux-acquirer-mobile.png \
   ux-public-order-mobile.png \
+  ux-sponsor-search-detail.png \
+  ux-sponsor-search-row.png \
   dashboard-acquirer-mobile.png \
   dashboard-admin-desktop.png \
   dashboard-empty-desktop.png; do

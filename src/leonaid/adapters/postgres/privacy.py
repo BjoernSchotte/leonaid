@@ -456,6 +456,12 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
                 invoices = tuple(item.id for item in report.invoices)
                 documents = tuple(item.id for item in report.documents)
 
+                # Contributors find their rows by the e-mail address, so they
+                # run before the orders below lose it.
+                for contributor in self._contributors:
+                    await contributor.anonymize(
+                        connection, normalized_email, occurred_at
+                    )
                 commitment_status = await connection.execute(
                     """
                     UPDATE commitment
@@ -534,10 +540,6 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
                     person_ids,
                     occurred_at,
                 )
-                for contributor in self._contributors:
-                    await contributor.anonymize(
-                        connection, normalized_email, occurred_at
-                    )
                 revoked_status = await connection.execute(
                     """
                     UPDATE consent_record

@@ -4,9 +4,9 @@ description: Eine noch nicht gelieferte Bestellung mit Grund stornieren, samt of
 docId: DOC-P047
 audience: [user]
 diataxis: how-to
-contentRevision: 5
-reviewedRevision: 5
-verifiedAgainst: 52718b176309716b363998e37aa2c91349cdbe8f
+contentRevision: 6
+reviewedRevision: 6
+verifiedAgainst: 1f49427206df2ee9224ad2fb21c80e3f2241649b
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -100,14 +100,35 @@ App offline gespeichert und später gesendet hat. Die E-Mail sagt, dass ein
 Mitglied des Clubs die Bestellung erfasst hat. Jede Bestellung wird einmal
 bestätigt; eine spätere Änderung von Adresse oder Lieferfenster sendet keine
 zweite Bestätigung. Ohne E-Mail-Adresse des Käufers in der Bestellung geht
-nichts hinaus, und Bestellungen, die vor dem Einschalten erfasst wurden,
-werden nicht nachträglich bestätigt.
+nichts hinaus.
+
+Die E-Mail geht an die Adresse, die beim Sponsor im CRM steht. Das
+Erfassungsformular der Akquise-App und das Formular **Angaben ergänzen**
+zeigen diese Adresse vor dem Speichern an und nennen die E-Mails, die
+dorthin gehen. Kläre mit dem Käufer, ob sie stimmt.
+
+Eine Bestätigung, die zu spät käme, sendet LeonAid nicht: nicht nach der
+abgehakten Lieferung, nicht nach dem Ende des Lieferfensters und nicht mehr,
+wenn die Aktion abgeschlossen ist. Wer also eine Bestellung erst nachträglich
+erfasst oder abschließt, löst keine Bestätigung aus.
+
+Bestellungen, die vor dem Einschalten erfasst wurden, bestätigt LeonAid nicht
+von selbst. Du kannst die Bestätigung in der Bestellung einzeln senden (siehe
+unten).
+
+Die Datenschutzerklärung des Clubs muss diese E-Mails nennen. Ein
+System-Admin pflegt sie unter **Rechtliches**; die Vorlage enthält dafür den
+Abschnitt **Bestellungen, die ein Mitglied für Sie erfasst**. LeonAid prüft
+nicht, ob der Abschnitt in der aktiven Fassung steht.
 
 ## E-Mails einer Bestellung ansehen und erneut senden
 
-Der Detailbereich jeder Bestellung zeigt oben ihre **Bestellnummer**
-(`LA-…`); jede Bestellung hat eine, egal wie sie erfasst wurde. Die Suche der
-Liste findet die Bestellung auch über diese Nummer.
+Der Detailbereich jeder Bestellung zeigt oben ihre **Bestellnummer**; jede
+Bestellung hat eine, egal wie sie erfasst wurde. Sie besteht aus `LA-` und
+acht Zeichen, zum Beispiel `LA-7F3K2QWX`, ohne die leicht verwechselbaren
+Zeichen 0, O, 1, I und L, damit ein Käufer sie am Telefon nennen kann.
+Öffentliche Bestellungen von vor dieser Umstellung behalten ihre lange Nummer
+(`LA-` und 32 Zeichen). Die Suche der Liste findet die Bestellung über beide.
 
 Der Abschnitt **E-Mails an den Käufer** zeigt je E-Mail eine Zeile:
 **Bestellbestätigung**, bei Bestellungen mit Lieferfenster die
@@ -116,14 +137,24 @@ Der Abschnitt **E-Mails an den Käufer** zeigt je E-Mail eine Zeile:
 und, nach einem Storno, **Stornierung**. Der Stand ist
 **Gesendet** mit Datum und Uhrzeit, **Wartet**, **Fehlgeschlagen**, **Nicht
 gesendet** oder **Nicht fällig**; darunter steht der Grund, zum Beispiel dass
-die Bestellung keine E-Mail-Adresse hat oder die E-Mails der Aktion
-ausgeschaltet sind.
+die Bestellung keine E-Mail-Adresse hat, die E-Mails der Aktion
+ausgeschaltet sind, die Lieferung schon erfasst ist, das Lieferfenster vorbei
+ist oder die Aktion abgeschlossen ist.
 
-Hat der Käufer eine E-Mail nicht bekommen, wähle **Erneut senden**. Die
-Schaltfläche gibt es für gesendete und fehlgeschlagene E-Mails. Sie fehlt,
-solange die E-Mail wartet, wenn die Adresse fehlt, wenn die E-Mails der Aktion
-ausgeschaltet sind und für die Bestätigung einer stornierten Bestellung. Die
-Liefertags-E-Mail lässt sich nur am Liefertag erneut senden, bis das Fenster
-endet oder die Lieferung abgehakt ist; vorher steht dort **Wird am Liefertag
-gesendet**. An dasselbe Postfach gehen höchstens zehn Bestell-E-Mails pro Stunde; darüber
-schlägt der Versand fehl, und du sendest später erneut.
+Hat der Käufer eine E-Mail nicht bekommen, wähle **Erneut senden**. Ist eine
+fällige E-Mail noch nie hinausgegangen, heißt die Schaltfläche **Senden**:
+zum Beispiel bei einer Bestellung von vor dem Einschalten. Die Schaltfläche
+gibt es immer dann, wenn die E-Mail jetzt fällig ist und keine wartet. Sie
+fehlt, solange die E-Mail wartet, und immer, wenn LeonAid die E-Mail auch von
+selbst nicht senden würde: ohne Adresse, bei ausgeschalteten E-Mails, für
+einen Entwurf und für die Bestätigung einer stornierten, gelieferten oder
+abgelaufenen Bestellung. Die Bestätigung nennt beim erneuten Senden den
+heutigen Stand der Bestellung, nicht den von damals. Die Liefertags-E-Mail
+ist nur am Liefertag fällig: ab der Uhrzeit, die die Aktion gewählt hat, bis
+das Fenster endet oder die Lieferung abgehakt ist. Vorher steht dort **Wird
+am Liefertag gesendet**. Endet das Lieferfenster vor dieser Uhrzeit, steht
+dort **Keine E-Mail: Das Lieferfenster endet vor der Versandzeit**. An
+dasselbe Postfach gehen höchstens zehn Bestell-E-Mails pro Stunde; darüber
+schlägt der Versand fehl, und du sendest später erneut. Meldet LeonAid nach
+einem Klick, der Auftrag von vorhin sei angekommen, ging keine weitere E-Mail
+hinaus.

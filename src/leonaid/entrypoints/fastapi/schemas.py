@@ -1410,6 +1410,18 @@ class CommitmentCaptureContextResponse(TransportModel):
     action_id: UUID
     action_name: str
     offerings: list[ConfiguredOfferingResponse]
+    internal_order_mails: bool = Field(
+        default=False,
+        description=(
+            "The action sends the order confirmation and the cancellation "
+            "notice to the buyer of an order recorded here. The capture form "
+            "shows the address they go to."
+        ),
+    )
+    delivery_day_mail: bool = Field(
+        default=False,
+        description="The action sends the buyer a mail on the delivery day.",
+    )
 
 
 class CommitmentInvoiceSummaryResponse(TransportModel):
@@ -1518,19 +1530,34 @@ class BuyerMailStatusResponse(TransportModel):
             "recipient_limit",
             "delivery_failed",
             "delivery_recorded",
-            "scheduled",
             "window_over",
+            "action_closed",
+            "scheduled",
+            "window_before_send_time",
         ]
         | None
     ) = Field(
         description=(
-            "Set for `not_due`, `skipped` and `failed`. The last three belong "
-            "to the delivery-day mail: the delivery is already recorded, the "
-            "mail goes out on the delivery day, or the window is over."
+            "Set for `not_due`, `skipped` and `failed`. `not_requested` and "
+            "`not_sent` mean that the mail is due but never went out; "
+            "`canResend` is then true. `scheduled` and "
+            "`window_before_send_time` belong to the delivery-day mail."
         )
     )
     can_resend: bool = Field(
-        description="`resendBuyerMail` is allowed for this kind now."
+        description=(
+            "`resendBuyerMail` is allowed for this kind now: the mail is due "
+            "and no job of it waits. With `sentAt` null it is the first send."
+        )
+    )
+
+
+class BuyerMailResendResponse(BuyerMailStatusResponse):
+    replayed: bool = Field(
+        description=(
+            "The `Idempotency-Key` was used before: this call wrote no new "
+            "job and sends no further mail."
+        )
     )
 
 

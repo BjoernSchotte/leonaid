@@ -125,6 +125,15 @@ export function BuyerMailSection({
         immer. Hier legen Sie fest, welche E-Mails Käufer zusätzlich bekommen.
         Ein Schalter gilt sofort, auch während die Aktion läuft.
       </p>
+      <p
+        className="small muted edit-section-intro"
+        data-testid="buyer-mail-privacy"
+      >
+        Bevor Sie einen Schalter einschalten: Die Datenschutzerklärung des Clubs
+        muss diese E-Mails nennen (Abschnitt „Bestellungen, die ein Mitglied für
+        Sie erfasst“). Ein System-Admin pflegt sie unter „Rechtliches“. LeonAid
+        prüft das nicht.
+      </p>
     </>
   );
 

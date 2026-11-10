@@ -34,6 +34,7 @@ from uuid import UUID, uuid4
 import asyncpg
 import httpx
 
+from leonaid.domain.commitments import order_number
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from tools.identity.contract import KLARA_ID, create_session
 from tools.public_orders.order_mails import (
@@ -219,7 +220,7 @@ async def record(connection: asyncpg.Connection[Any], state: Path) -> None:
             expected=201,
         )
         status = (await klara.mails(order["id"]))["confirmation"]
-    if order["publicReference"] != f"LA-{UUID(order['id']).hex.upper()}":
+    if order["publicReference"] != order_number(UUID(order["id"])):
         raise ContractFailure(f"Order number differs: {order['publicReference']}")
     queued = await jobs(connection, order["id"], CONFIRMATION)
     if [job["idempotency_key"] for job in queued] != [

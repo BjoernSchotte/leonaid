@@ -13,6 +13,7 @@ import asyncpg
 
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.order_mail_jobs import (
+    SENT_KEY_RANGE,
     insert_order_mail_event,
     internal_order_mails_enabled,
 )
@@ -44,9 +45,20 @@ class AsyncpgOrderMailReader:
             row = await connection.fetchrow(
                 """
                 SELECT commitment.created_at, action.name AS action_name,
+                    action.status AS action_status,
+                    EXISTS (
+                        SELECT 1 FROM charity_action_capability AS capability
+                        WHERE capability.action_id = action.id
+                          AND capability.capability = 'invoicing'
+                    ) AS invoicing,
                     COALESCE(mails.internal_order_mails, false)
                         AS internal_order_mails,
                     COALESCE(mails.delivery_day_mail, false) AS delivery_day_mail,
+                    EXISTS (
+                        SELECT 1 FROM charity_action_capability AS capability
+                        WHERE capability.action_id = commitment.action_id
+                          AND capability.capability = 'delivery'
+                    ) AS delivery_capability,
                     delivery_settings.timezone AS delivery_zone,
                     delivery.state AS drop_state
                 FROM commitment
@@ -99,14 +111,17 @@ class AsyncpgOrderMailReader:
             ordered_at=row["created_at"],
             cancellation=cancellation,
             internal_order_mails=bool(row["internal_order_mails"]),
+            action_status=str(row["action_status"]),
+            invoicing=bool(row["invoicing"]),
+            drop_state=(
+                str(row["drop_state"]) if row["drop_state"] is not None else None
+            ),
             delivery_day_mail=bool(row["delivery_day_mail"]),
+            delivery_capability=bool(row["delivery_capability"]),
             delivery_zone=(
                 ZoneInfo(str(row["delivery_zone"]))
                 if row["delivery_zone"] is not None
                 else INSTALLATION_TIME_ZONE
-            ),
-            drop_state=(
-                str(row["drop_state"]) if row["drop_state"] is not None else None
             ),
         )
 
@@ -119,6 +134,15 @@ class AsyncpgOrderMailReader:
                     idempotency_key,
                 )
             )
+
+    async def sent_keys(self, first_key: str) -> tuple[str, ...]:
+        async with self._pool.acquire() as connection:
+            rows = await connection.fetch(
+                "SELECT idempotency_key FROM mail_delivery "
+                f"WHERE status = 'sent' AND {SENT_KEY_RANGE}",
+                first_key,
+            )
+        return tuple(str(row["idempotency_key"]) for row in rows)
 
     async def recent_order_mails(
         self, *, recipient_sha256: str, mailbox: str, since: datetime

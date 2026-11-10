@@ -4,8 +4,8 @@ description: Enable campaign delivery planning, add time windows, and retire exi
 docId: DOC-P012
 audience: [user]
 diataxis: how-to
-contentRevision: 8
-reviewedRevision: 8
+contentRevision: 9
+reviewedRevision: 9
 verifiedAgainst: 52718b176309716b363998e37aa2c91349cdbe8f
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -135,10 +135,17 @@ is not over.
 
 Cancelled orders, drafts, deliveries already ticked off, orders without an
 e-mail address and windows that end before the selected time get no e-mail.
-Each order gets the e-mail for its window once. At most ten order e-mails go
-to one mailbox per hour.
+For such a window the order says **Keine E-Mail: Das Lieferfenster endet vor
+der Versandzeit** (no e-mail: the delivery window ends before the send time).
+Once the campaign is completed or archived, no delivery-day e-mail goes out
+any more. Each order gets the e-mail for its window once. At most ten order
+e-mails go to one mailbox per hour.
+
+For questions the e-mail names only what the legal configuration holds: the
+club's e-mail address and, if entered, the phone number of the imprint.
 
 The section **E-Mails an den Käufer** in the order shows whether the e-mail
-went out (row **Liefertags-E-Mail**). There you can also send it again on the
-delivery day, until the window ends or the delivery is ticked off; see
+went out (row **Liefertags-E-Mail**). There you can also send it yourself or
+send it again on the delivery day from the selected time, until the window
+ends or the delivery is ticked off; see
 [Cancel an order](/en/user/how-to/cancel-order/#see-the-e-mails-of-an-order-and-send-one-again).

@@ -15,6 +15,13 @@ from uuid import UUID, uuid5
 import asyncpg
 import httpx
 
+from pydantic import SecretStr
+from zoneinfo import ZoneInfo
+
+from leonaid.adapters.postgres.pool import create_pool
+from leonaid.adapters.postgres.sponsor_search import AsyncpgSponsorSearchIndex
+from leonaid.adapters.twenty.gateway import TwentyCrmGateway, TwentyGatewaySettings
+from leonaid.application.sponsor_search import SponsorSearchSync
 from leonaid.domain.sessions import (
     SESSION_COOKIE_NAME,
     SESSION_LIFETIME,
@@ -23,9 +30,11 @@ from leonaid.domain.sessions import (
 
 SIMONE_ID = UUID("10000000-0000-4000-8000-000000000001")
 KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
+BERND_ID = UUID("10000000-0000-4000-8000-000000000005")
 ANNA_ID = UUID("10000000-0000-4000-8000-000000000004")
 ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
 COMPANY_ID = UUID("40000000-0000-4000-8000-000000000001")
+FOREIGN_COMPANY_ID = UUID("40000000-0000-4000-8000-000000000002")
 CONSENT_ID = UUID("d0000000-0000-4000-8000-000000000001")
 INVOICE_ID = UUID("90000000-0000-4000-8000-000000000002")
 LEGAL_CONFIGURATION_ID = UUID("94000000-0000-4000-8000-000000000044")
@@ -147,12 +156,56 @@ async def seed_inbox_cases(connection: asyncpg.Connection[Any]) -> None:
         )
 
 
+async def sponsor_search_hits(token: str, query: str) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(
+        base_url=require_env("API_BASE_URL").rstrip("/"),
+        timeout=60,
+    ) as api:
+        response = await api.get(
+            "/api/v1/search", headers=headers(token), params={"q": query}
+        )
+        response.raise_for_status()
+        return [
+            item for item in response.json()["results"] if item["type"] == "sponsor"
+        ]
+
+
+async def sponsor_full_pass() -> Any:
+    """One full pass of the sponsor search sync against the real Twenty."""
+
+    pool = await create_pool(require_env("CORE_DATABASE_URL"), maximum_size=2)
+    gateway = TwentyCrmGateway(
+        TwentyGatewaySettings(
+            base_url=require_env("TWENTY_BASE_URL").rstrip("/"),
+            api_key=SecretStr(require_env("TWENTY_INTEGRATION_API_KEY")),
+        )
+    )
+    try:
+        return await SponsorSearchSync(
+            AsyncpgSponsorSearchIndex(pool),
+            gateway,
+            zone=ZoneInfo("Europe/Berlin"),
+        ).run_once(force_full=True)
+    finally:
+        await gateway.close()
+        await pool.close()
+
+
 async def prepare(
     connection: asyncpg.Connection[Any],
     baseline_path: Path,
 ) -> None:
     tokens = await seed_sessions(connection)
     await seed_inbox_cases(connection)
+    # Before the erasure the search finds the subject's company by its name.
+    if not await sponsor_search_hits(tokens["klara"], "Musterwerk"):
+        raise ContractFailure("The search does not find the subject's sponsor")
+    # The hard case for the erasure: the party has an assignment and no
+    # index entry at that moment (first full pass not done, worker without a
+    # CRM key, Twenty down). The erasure must still leave its marker.
+    await connection.execute(
+        "DELETE FROM sponsor_search_entry WHERE twenty_id = $1", COMPANY_ID
+    )
     baseline_path.write_text(
         json.dumps(await immutable_hashes(connection), indent=2) + "\n",
         encoding="utf-8",
@@ -457,6 +510,36 @@ async def assert_result(
         or foreign_case["message"] != INBOX_MESSAGE
     ):
         raise ContractFailure("Erasure changed a foreign inbox case")
+    # The search index: the erased party has a marker without name and
+    # city, although it had no entry when it was erased. A full pass against
+    # the real Twenty, which still has the company, does not write the name
+    # back; a foreign party stays.
+    full_pass = await sponsor_full_pass()
+    if full_pass.mode != "full" or not full_pass.complete:
+        raise ContractFailure(f"Full pass did not complete: {full_pass!r}")
+    index = {
+        row["twenty_id"]: row
+        for row in await connection.fetch(
+            "SELECT * FROM sponsor_search_entry WHERE twenty_id = ANY($1::uuid[])",
+            [COMPANY_ID, FOREIGN_COMPANY_ID],
+        )
+    }
+    erased_entry = index.get(COMPANY_ID)
+    if (
+        erased_entry is None
+        or erased_entry["erased_at"] is None
+        or erased_entry["display_name"] is not None
+        or erased_entry["city"] is not None
+    ):
+        raise ContractFailure("Search index still names the erased sponsor")
+    foreign_entry = index.get(FOREIGN_COMPANY_ID)
+    if foreign_entry is None or foreign_entry["display_name"] is None:
+        raise ContractFailure("Erasure changed a foreign search entry")
+    klara = token_for("klara", KLARA_ID)
+    if await sponsor_search_hits(klara, "Musterwerk"):
+        raise ContractFailure("The search still finds the erased sponsor")
+    if not await sponsor_search_hits(klara, "Sonnenseite"):
+        raise ContractFailure("The search lost a foreign sponsor")
     audit_leak = await connection.fetchval(
         "SELECT count(*) FROM audit_event WHERE payload::text ILIKE '%' || $1 || '%'",
         EMAIL,
@@ -502,6 +585,32 @@ async def assert_result(
         )
         if blocked.status_code != 409 or error_code(blocked) != "contact_suppressed":
             raise ContractFailure("Direct API call bypassed the contact suppression")
+
+        # A new assignment for the party is a new, deliberate relation: it
+        # ends the marker, and the search finds the sponsor again with what
+        # the CRM holds now.
+        assigned = await api.post(
+            f"/api/v1/actions/{ACTION_ID}/acquisition/assignments",
+            headers=headers(klara),
+            json={
+                "partyKind": "company",
+                "partyId": str(COMPANY_ID),
+                "acquirerUserId": str(BERND_ID),
+            },
+        )
+        if assigned.status_code != 201:
+            raise ContractFailure(f"New assignment failed: {assigned.text}")
+    relinked = await connection.fetchrow(
+        "SELECT * FROM sponsor_search_entry WHERE twenty_id = $1", COMPANY_ID
+    )
+    if (
+        relinked is None
+        or relinked["erased_at"] is not None
+        or relinked["display_name"] != "Musterwerk GmbH"
+    ):
+        raise ContractFailure("A new assignment did not end the erasure marker")
+    if len(await sponsor_search_hits(klara, "Musterwerk")) != 2:
+        raise ContractFailure("The search does not find the newly assigned sponsor")
 
 
 async def run(command: str, baseline_path: Path) -> None:

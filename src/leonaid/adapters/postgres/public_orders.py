@@ -19,6 +19,7 @@ from leonaid.adapters.postgres.delivery import (
 )
 
 from leonaid.adapters.postgres.order_mails import insert_order_mail_event
+from leonaid.adapters.postgres.order_numbers import free_order_number
 from leonaid.application.errors import Conflict, RateLimited, ResourceNotFound
 from leonaid.application.order_mails import (
     OrderMailKind,
@@ -49,7 +50,6 @@ from leonaid.domain.commitments import (
     InvoiceRecipientSnapshot,
     Money,
     Offering,
-    order_number,
 )
 
 COMMAND_TYPE = "create_public_order_v1"
@@ -455,7 +455,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
             delivery_window_snapshot=window_snapshot,
             delivery_contact=draft.delivery_contact,
             message=draft.message,
-            public_reference=order_number(commitment_id),
+            public_reference=await free_order_number(connection, commitment_id),
             lines=tuple(priced_lines),
             total=total,
             idempotency_key=idempotency_key,

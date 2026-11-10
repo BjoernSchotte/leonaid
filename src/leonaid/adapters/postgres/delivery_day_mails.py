@@ -24,6 +24,8 @@ DUE_SQL = """
 SELECT commitment.action_id, commitment.id AS commitment_id,
     delivery_window.id AS window_id
 FROM action_buyer_mail_configuration AS mails
+JOIN charity_action AS action
+  ON action.id = mails.action_id
 JOIN action_delivery_configuration AS settings
   ON settings.action_id = mails.action_id
 JOIN action_delivery_window AS delivery_window
@@ -33,6 +35,12 @@ JOIN commitment
 LEFT JOIN commitment_delivery AS delivery
   ON delivery.commitment_id = commitment.id
 WHERE mails.delivery_day_mail
+  AND action.status NOT IN ('completed', 'archived')
+  AND EXISTS (
+    SELECT 1 FROM charity_action_capability AS capability
+    WHERE capability.action_id = mails.action_id
+      AND capability.capability = 'delivery'
+  )
   AND (delivery_window.starts_at AT TIME ZONE settings.timezone)::date
       = ($1::timestamptz AT TIME ZONE settings.timezone)::date
   AND ($1::timestamptz AT TIME ZONE settings.timezone)::time

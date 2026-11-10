@@ -366,7 +366,7 @@ for (const [engineName, engine] of Object.entries({
         const reference = (
           await success.locator("[data-order-reference]").textContent()
         ).trim();
-        assert.match(reference, /^LA-[A-F0-9]{32}$/);
+        assert.match(reference, /^LA-[2-9A-HJKMNP-Z]{8}$/);
         assert.match(
           await success.locator("[data-order-total]").textContent(),
           new RegExp(`${scenario === "mixed" ? 115 : quantity * 36},00`),

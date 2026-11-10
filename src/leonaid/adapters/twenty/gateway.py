@@ -32,6 +32,11 @@ from leonaid.application.crm import (
     PersonUpdate,
     PostalAddress,
 )
+from leonaid.application.sponsor_search import (
+    PartyKey,
+    SponsorParty,
+    SponsorPartyPage,
+)
 from leonaid.application.crm_matching import (
     MATCH_KEY_MAX_LENGTH,
     company_match_key,
@@ -126,6 +131,8 @@ class TwentyCrmGateway:
             },
         )
         self._rate_limiter = _SlidingWindowRateLimiter(settings.requests_per_minute)
+        # HTTP requests sent since construction, retries included.
+        self.requests_sent = 0
 
     async def __aenter__(self) -> Self:
         return self
@@ -534,6 +541,65 @@ class TwentyCrmGateway:
             correlation_id,
         )
 
+    async def sponsor_parties_by_id(
+        self,
+        kind: CrmPartyKind,
+        twenty_ids: tuple[UUID, ...],
+        *,
+        correlation_id: str,
+    ) -> tuple[SponsorParty, ...]:
+        """Name and city of up to 50 parties, in one request (worker only)."""
+
+        if not 1 <= len(twenty_ids) <= TWENTY_ID_FILTER_CHUNK:
+            raise ValueError(
+                f"Ein ID-Batch muss 1 bis {TWENTY_ID_FILTER_CHUNK} IDs enthalten."
+            )
+        collection = _collection(kind)
+        operation = f"sponsor_parties_by_id_{collection}"
+        page, next_cursor = await self._list_page(
+            collection,
+            filter_expression=_in_filter("id", sorted(set(twenty_ids), key=str)),
+            cursor=None,
+            correlation_id=correlation_id,
+            operation=operation,
+        )
+        if next_cursor is not None:
+            # The caller deletes what is missing from the answer; a cut
+            # page (small page size, a lower cap in Twenty) must not pass.
+            raise CrmGatewayError(
+                "crm_pagination_invalid",
+                "Twenty lieferte den ID-Batch nicht auf einer Seite.",
+                operation=operation,
+                correlation_id=correlation_id,
+                retryable=False,
+                outcome_unknown=False,
+            )
+        return _sponsor_parties(kind, page)
+
+    async def sponsor_parties_changed_since(
+        self,
+        kind: CrmPartyKind,
+        updated_since: datetime,
+        *,
+        cursor: str | None,
+        correlation_id: str,
+    ) -> SponsorPartyPage:
+        """One page of the parties changed since then (worker only)."""
+
+        collection = _collection(kind)
+        page, next_cursor = await self._list_page(
+            collection,
+            filter_expression=_greater_or_equal_filter(
+                "updatedAt", _instant(updated_since)
+            ),
+            cursor=cursor,
+            correlation_id=correlation_id,
+            operation=f"sponsor_parties_changed_since_{collection}",
+        )
+        return SponsorPartyPage(
+            parties=_sponsor_parties(kind, page), next_cursor=next_cursor
+        )
+
     async def repair_match_keys(
         self,
         *,
@@ -759,22 +825,13 @@ class TwentyCrmGateway:
                     retryable=False,
                     outcome_unknown=False,
                 )
-            params: dict[str, str | int] = {"limit": self._settings.page_size}
-            if filter_expression is not None:
-                params["filter"] = filter_expression
-            if cursor is not None:
-                params["starting_after"] = cursor
-            response = await self._request(
-                "GET",
-                f"/rest/{collection}",
-                operation=operation,
-                operation_kind="read",
+            page, next_cursor = await self._list_page(
+                collection,
+                filter_expression=filter_expression,
+                cursor=cursor,
                 correlation_id=correlation_id,
-                params=params,
+                operation=operation,
             )
-            payload = _json_object(response, "Listen-Response")
-            data = _mapping(payload.get("data"), "Listen-Response.data")
-            page = _object_list(data.get(collection), f"data.{collection}")
             for record in page:
                 record_id = _uuid(record.get("id"), f"{collection}.id")
                 if record_id in seen_ids:
@@ -789,19 +846,8 @@ class TwentyCrmGateway:
                     )
                 seen_ids.add(record_id)
                 records.append(record)
-            page_info = _mapping(payload.get("pageInfo"), "Listen-Response.pageInfo")
-            if page_info.get("hasNextPage") is not True:
+            if next_cursor is None:
                 return tuple(records)
-            next_cursor = page_info.get("endCursor")
-            if not isinstance(next_cursor, str) or not next_cursor:
-                raise CrmGatewayError(
-                    "crm_pagination_invalid",
-                    "Twenty-Pagination enthält keinen Folgecursor.",
-                    operation=operation,
-                    correlation_id=correlation_id,
-                    retryable=False,
-                    outcome_unknown=False,
-                )
             if next_cursor in seen_cursors:
                 raise CrmGatewayError(
                     "crm_pagination_loop",
@@ -813,6 +859,48 @@ class TwentyCrmGateway:
                 )
             seen_cursors.add(next_cursor)
             cursor = next_cursor
+
+    async def _list_page(
+        self,
+        collection: Literal["companies", "people"],
+        *,
+        filter_expression: str | None,
+        cursor: str | None,
+        correlation_id: str,
+        operation: str,
+    ) -> tuple[list[JsonObject], str | None]:
+        """One list request: the page and the cursor of the next one, if any."""
+
+        params: dict[str, str | int] = {"limit": self._settings.page_size}
+        if filter_expression is not None:
+            params["filter"] = filter_expression
+        if cursor is not None:
+            params["starting_after"] = cursor
+        response = await self._request(
+            "GET",
+            f"/rest/{collection}",
+            operation=operation,
+            operation_kind="read",
+            correlation_id=correlation_id,
+            params=params,
+        )
+        payload = _json_object(response, "Listen-Response")
+        data = _mapping(payload.get("data"), "Listen-Response.data")
+        page = _object_list(data.get(collection), f"data.{collection}")
+        page_info = _mapping(payload.get("pageInfo"), "Listen-Response.pageInfo")
+        if page_info.get("hasNextPage") is not True:
+            return page, None
+        next_cursor = page_info.get("endCursor")
+        if not isinstance(next_cursor, str) or not next_cursor:
+            raise CrmGatewayError(
+                "crm_pagination_invalid",
+                "Twenty-Pagination enthält keinen Folgecursor.",
+                operation=operation,
+                correlation_id=correlation_id,
+                retryable=False,
+                outcome_unknown=False,
+            )
+        return page, next_cursor
 
     async def _graphql_batch(
         self,
@@ -870,6 +958,7 @@ class TwentyCrmGateway:
         request_id = _correlation_id(correlation_id)
         for attempt in range(self._settings.max_rate_limit_retries + 1):
             await self._rate_limiter.acquire()
+            self.requests_sent += 1
             started_at = time.monotonic()
             logger.info(
                 "twenty_crm_request_started",
@@ -1269,6 +1358,48 @@ def _person_update_to_wire(update: PersonUpdate) -> JsonObject:
             "additionalPhones": [],
         }
     return result
+
+
+def _collection(kind: CrmPartyKind) -> Literal["companies", "people"]:
+    return "companies" if kind is CrmPartyKind.COMPANY else "people"
+
+
+def _sponsor_parties(
+    kind: CrmPartyKind, records: Sequence[Mapping[str, Any]]
+) -> tuple[SponsorParty, ...]:
+    """Name and city per record; a record without a name is left out.
+
+    Read from the wire, not through ``CompanyData``/``PersonData``: one
+    record with an empty name must not fail the whole page.
+    """
+
+    parties: list[SponsorParty] = []
+    for record in records:
+        city: str | None = None
+        if kind is CrmPartyKind.COMPANY:
+            name_value = record.get("name")
+            name = name_value if isinstance(name_value, str) else ""
+            address = record.get("address")
+            if isinstance(address, Mapping):
+                city = _wire_optional(address.get("addressCity"))
+        else:
+            parts_value = record.get("name")
+            parts = parts_value if isinstance(parts_value, Mapping) else {}
+            name = " ".join(
+                part
+                for part in (parts.get("firstName"), parts.get("lastName"))
+                if isinstance(part, str)
+            )
+        if not name.strip():
+            continue
+        parties.append(
+            SponsorParty(
+                key=PartyKey(kind, _uuid(record.get("id"), f"{kind.value}.id")),
+                display_name=name,
+                city=city,
+            )
+        )
+    return tuple(parties)
 
 
 def _company_from_wire(value: Mapping[str, Any]) -> CompanyRecord:

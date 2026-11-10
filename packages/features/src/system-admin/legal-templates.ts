@@ -40,7 +40,7 @@ Wenn Sie über eine Aktionsseite bestellen oder eine Anfrage senden, verarbeiten
 
 ## Bestellungen, die ein Mitglied für Sie erfasst
 
-Nimmt ein Mitglied unseres Clubs Ihre Bestellung persönlich oder am Telefon auf, speichern wir Ihren Namen, Ihre Liefer- und Rechnungsanschrift und, wenn Sie sie nennen, Ihre E-Mail-Adresse. An diese Adresse senden wir die Bestellbestätigung, am Liefertag einen Hinweis auf das Lieferfenster und, falls die Bestellung storniert wird, eine Stornobestätigung. Rechtsgrundlage ist die Erfüllung des Vertrags mit Ihnen (Art. 6 Abs. 1 Buchst. b DSGVO). Werbung senden wir an diese Adresse nicht.
+Nimmt ein Mitglied unseres Clubs Ihre Bestellung persönlich oder am Telefon auf, speichern wir Ihren Namen, Ihre Liefer- und Rechnungsanschrift und Ihre E-Mail-Adresse, wenn Sie sie nennen oder sie uns aus einer früheren Bestellung vorliegt. An diese Adresse senden wir die Bestellbestätigung, am Liefertag einen Hinweis auf das Lieferfenster und, falls die Bestellung storniert wird, eine Stornobestätigung. Rechtsgrundlage ist die Erfüllung des Vertrags mit Ihnen (Art. 6 Abs. 1 Buchst. b DSGVO). Werbung senden wir an diese Adresse nicht.
 
 ## Umfragen
 

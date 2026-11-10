@@ -22,6 +22,7 @@ from leonaid.application.delivery_day_mails import (
     SWEEP_INTERVAL_SECONDS,
 )
 from leonaid.bootstrap.worker import (
+    SPONSOR_SEARCH_SYNC_STATUS,
     background_loops,
     build_delivery_day_mail_sweep,
     build_geocoding_job,
@@ -209,6 +210,19 @@ def metrics_document() -> str:
             f"leonaid_worker_delivery_day_mails_queued_total {DELIVERY_DAY_MAILS_QUEUED['total']}",
         ]
     )
+    sponsor_search = SPONSOR_SEARCH_SYNC_STATUS
+    if sponsor_search.configured:
+        age = sponsor_search.last_success_age_seconds(datetime.now(timezone.utc))
+        lines.extend(
+            [
+                "# HELP leonaid_worker_sponsor_search_last_success_age_seconds Seconds since a pass of the sponsor search sync last completed.",
+                "# TYPE leonaid_worker_sponsor_search_last_success_age_seconds gauge",
+                f"leonaid_worker_sponsor_search_last_success_age_seconds {age:.3f}",
+                "# HELP leonaid_worker_sponsor_search_crm_errors_total Runs of the sponsor search sync that a CRM error ended, since worker start.",
+                "# TYPE leonaid_worker_sponsor_search_crm_errors_total counter",
+                f"leonaid_worker_sponsor_search_crm_errors_total {sponsor_search.crm_errors_total}",
+            ]
+        )
     return "\n".join(lines) + "\n"
 
 

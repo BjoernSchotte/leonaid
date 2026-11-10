@@ -28,6 +28,7 @@ from leonaid.domain.actions import (
     CharityAction,
     CharityActionStatus,
 )
+from leonaid.domain.commitments import order_number
 from leonaid.domain.delivery import DeliveryWindow
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import (
@@ -348,7 +349,7 @@ def main() -> None:
     command.upgrade(config, "head")
     command.upgrade(config, "head")
     with psycopg.connect(os.environ["CORE_DATABASE_URL"]) as db:
-        # 0062 gives every order an order number: an order of the public
+        # 0063 gives every order an order number: an order of the public
         # form keeps its own, an internal order gets the one derived from
         # its id. Nothing else of an existing order changes.
         assert db.execute(
@@ -370,7 +371,7 @@ def main() -> None:
             ).fetchall()
         } == {
             order[0]["id"]: order[0]["public_reference"]
-            or f"LA-{order[0]['id'].replace('-', '').upper()}"
+            or order_number(UUID(order[0]["id"]))
             for order in baseline_order
         }
         assert any(order[0]["public_reference"] is None for order in baseline_order)
