@@ -611,6 +611,7 @@ class Proof:
         await self.counter_behind_an_issued_number_heals_itself()
         await self.cancel_without_profile_or_legal_configuration()
         await self.a_number_belongs_to_the_longest_known_prefix()
+        await self.heal_with_nested_prefixes_cannot_stick()
         await self.deferred_job_keeps_its_attempt()
         await self.numbers_are_unique_and_final()
         await self.every_action_with_invoicing_gets_a_profile()
@@ -1722,6 +1723,53 @@ class Proof:
                         "VALUES ($1, 'invoice')",
                         number,
                     )
+        finally:
+            await pool.close()
+
+    async def heal_with_nested_prefixes_cannot_stick(self) -> None:
+        """Series `A` and `A1`, width 3. `A` has issued 1 to 1000, so its
+        number 1000 reads `A1000`; `A1` has issued `A1001`, which is also
+        what `A` would give next. A heal that left out numbers that look
+        like the longer series computed `A1000` again, for good."""
+
+        a = f"{self.data.tag}N"
+        a1 = f"{a}1"
+        async with self.db.transaction():
+            await self.db.execute(
+                "INSERT INTO document_series (kind, prefix, next_number, width) "
+                "VALUES ('invoice', $1, 1001, 3), ('invoice', $2, 2, 3)",
+                a,
+                a1,
+            )
+            await self.db.execute(
+                "INSERT INTO document_number (number, kind) "
+                "VALUES ($1, 'invoice'), ($2, 'invoice'), ($3, 'invoice')",
+                f"{a}999",
+                f"{a}1000",
+                f"{a1}001",
+            )
+        assert f"{a}1001" == f"{a1}001"
+        pool = await asyncpg.create_pool(
+            os.environ["CORE_DATABASE_URL"], min_size=1, max_size=1
+        )
+        try:
+            async with pool.acquire() as connection:
+                for expected in (f"{a}1002", f"{a}1003"):
+                    async with connection.transaction():
+                        number = await allocate_document_number(
+                            connection,
+                            kind=DocumentSeriesKind.INVOICE,
+                            prefix=a,
+                            width=3,
+                            occurred_at=datetime.now(timezone.utc),
+                        )
+                        assert number == expected, number
+                        # The registry accepts it: nobody holds that number.
+                        await connection.execute(
+                            "INSERT INTO document_number (number, kind) "
+                            "VALUES ($1, 'invoice')",
+                            number,
+                        )
         finally:
             await pool.close()
 

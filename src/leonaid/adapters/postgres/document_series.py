@@ -182,15 +182,21 @@ async def allocate_document_number(
     if await connection.fetchval(
         "SELECT EXISTS (SELECT 1 FROM document_number WHERE number = $1)", number
     ):
+        # Here every registered number that starts with the prefix and
+        # ends in digits counts, whichever series issued it: with the series
+        # "A" and "A1", "A1001" may be number 1001 of "A" or number 1 of
+        # "A1". Past the highest of them the next number is free for sure;
+        # this can only skip numbers, never collide.
         serial = int(
             await connection.fetchval(
-                f"""
-                SELECT COALESCE(max({_SERIAL_SQL}), 0) + 1
+                """
+                SELECT COALESCE(max(
+                    substring(number FROM char_length($1) + 1)::bigint
+                ), 0) + 1
                 FROM document_number
-                -- $1 only keeps the parameter numbering of _SERIAL_SQL.
-                WHERE $1::text IS NOT NULL
+                WHERE left(number, char_length($1)) = $1
+                  AND substring(number FROM char_length($1) + 1) ~ '^[0-9]{1,18}$'
                 """,
-                kind.value,
                 prefix,
             )
         )
