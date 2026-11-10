@@ -4,6 +4,10 @@ import { z } from "astro/zod";
 import { ApiError } from "@leonaid/api-client";
 
 import {
+  DONATION_INVALID_MESSAGE,
+  parseDonationAmount,
+} from "../lib/order-donation";
+import {
   isMissingPublicAction,
   resolvePublicAction,
   submitPublicOrder,
@@ -25,6 +29,9 @@ const publicMessages: Readonly<Record<string, string>> = {
   privacy_email_invalid: "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
   delivery_window_full:
     "Dieses Lieferfenster ist inzwischen ausgebucht. Bitte wählen Sie ein anderes.",
+  public_order_donation_amount_invalid: DONATION_INVALID_MESSAGE,
+  public_order_donation_not_offered:
+    "Eine zusätzliche Spende ist bei dieser Aktion nicht möglich. Bitte laden Sie die Seite neu und senden Sie die Bestellung erneut.",
   csrf_rejected:
     "Diese Anfrage wurde aus Sicherheitsgründen abgelehnt. Bitte laden Sie die Seite neu und versuchen Sie es erneut.",
 };
@@ -112,6 +119,9 @@ export const server = {
         .max(20),
       quotedUnitPriceMinor: z.array(z.number().int().min(0)).min(1).max(20),
       message: optionalText(1_000),
+      // Euro amount as typed ("25", "25,50"); parsed in the handler so the
+      // refusal reads as a sentence on the page rendered without script.
+      donationAmount: optionalText(20),
       privacyAcknowledged: z.boolean().refine(Boolean, {
         message: "Bitte bestätigen Sie den Datenschutzhinweis.",
       }),
@@ -146,6 +156,13 @@ export const server = {
           code: "UNPROCESSABLE_CONTENT",
           message:
             "Bitte wählen Sie mindestens ein Angebot und eine Menge aus.",
+        });
+      }
+      const donation = parseDonationAmount(input.donationAmount);
+      if (donation.kind === "invalid") {
+        throw new ActionError({
+          code: "UNPROCESSABLE_CONTENT",
+          message: DONATION_INVALID_MESSAGE,
         });
       }
       const deliveryFields = [
@@ -218,6 +235,9 @@ export const server = {
             invoiceRecipient,
             lines,
             message: input.message || null,
+            ...(donation.kind === "amount"
+              ? { donationAmountMinor: donation.minor }
+              : {}),
             privacyAcknowledged: input.privacyAcknowledged,
             bindingOrderConfirmed: input.bindingOrderConfirmed,
             privacyNoticeVersion: input.privacyNoticeVersion,

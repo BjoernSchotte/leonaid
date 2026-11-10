@@ -1,6 +1,7 @@
 <script>
   import { actions, isInputError } from "astro:actions";
   import { orderQuantitySummary } from "../lib/order-presentation";
+  import { parseDonationAmount } from "../lib/order-donation";
 
   const euro = (minor: number, currency: string) =>
     new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(
@@ -54,6 +55,32 @@
       "[data-order-success]",
     );
     form.noValidate = true;
+    // Optional extra donation: its own line below the total, never part of it.
+    const donationInput = form.querySelector<HTMLInputElement>(
+      "[data-order-donation-amount]",
+    );
+    const donationLine = form.querySelector<HTMLElement>(
+      "[data-order-donation-line]",
+    );
+    const donationNote = success?.querySelector<HTMLElement>(
+      "[data-order-donation-note]",
+    );
+    const syncDonation = () => {
+      if (!donationInput) return;
+      const donation = parseDonationAmount(donationInput.value);
+      // A custom validity blocks the submit with the sentence of the field.
+      donationInput.setCustomValidity(
+        donation.kind === "invalid"
+          ? (donationInput.dataset.invalid ?? "")
+          : "",
+      );
+      if (!donationLine) return;
+      donationLine.hidden = donation.kind !== "amount";
+      donationLine.textContent =
+        donation.kind === "amount"
+          ? `Spende: ${euro(donation.minor, donationInput.dataset.currency || "EUR")}`
+          : "";
+    };
     const refreshButton = form.querySelector<HTMLButtonElement>(
       "[data-delivery-refresh]",
     );
@@ -338,6 +365,7 @@
 
     const validityMessage = (control: HTMLInputElement): string => {
       const validity = control.validity;
+      if (validity.customError) return control.validationMessage;
       if (control.type === "radio")
         return "Bitte wählen Sie ein Lieferfenster.";
       if (validity.valueMissing)
@@ -384,8 +412,11 @@
       if (error) error.textContent = "";
     });
 
+    donationInput?.addEventListener("input", syncDonation);
+
     syncBillingFields();
     syncCustomerKind();
+    syncDonation();
     syncOrderPreview();
     syncSubmitAvailability();
 
@@ -393,6 +424,7 @@
       event.preventDefault();
       if (submitting) return;
       clearErrors();
+      syncDonation();
       if (!form.checkValidity()) {
         const fields: Record<string, readonly string[]> = {};
         for (const control of form.querySelectorAll<HTMLInputElement>(
@@ -451,6 +483,9 @@
           );
         if (quantity)
           quantity.textContent = orderQuantitySummary(result.data.quantities);
+        if (donationNote)
+          donationNote.hidden =
+            parseDonationAmount(donationInput?.value).kind !== "amount";
         form.hidden = true;
         success.hidden = false;
         success.focus();

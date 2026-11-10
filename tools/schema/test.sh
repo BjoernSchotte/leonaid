@@ -103,6 +103,7 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
     /repo/tests/integration/test_order_cancellation_api.py \
     /repo/tests/integration/test_cancellation_invoice_api.py \
     /repo/tests/integration/test_donations_api.py \
+    /repo/tests/integration/test_order_donations_api.py \
     /repo/tests/integration/test_offline_capture_api.py \
     /repo/tests/integration/test_buyer_mails_api.py \
     /repo/tests/integration/test_public_origins_api.py \
@@ -649,5 +650,19 @@ if printf '%s\n' "SELECT 1 FROM donation_receipt LIMIT 1;" | series_sql >/dev/nu
   exit 1
 fi
 compose run --rm --no-deps --entrypoint alembic api upgrade head
+
+echo "poc021-test: 0068 goes back and forth while nothing uses the extra donation"
+compose run --rm --no-deps --entrypoint alembic api downgrade 0067_donation_receipts
+versions=$(printf '%s\n' "SELECT string_agg(version::text, ',' ORDER BY version) FROM action_template_version WHERE template_key = 'krapfentaxi';" | series_sql)
+if [ "$versions" != "1,2" ]; then
+  echo "poc021-test: ERROR: 0068 downgrade kept template version 3: $versions" >&2
+  exit 1
+fi
+compose run --rm --no-deps --entrypoint alembic api upgrade head
+template=$(printf '%s\n' "SELECT form.allow_donation::text || '/' || (SELECT string_agg(capability, ',' ORDER BY capability) FROM action_template_capability WHERE template_key = 'krapfentaxi' AND template_version = 3) FROM action_template_order_form AS form WHERE form.template_key = 'krapfentaxi' AND form.template_version = 3;" | series_sql)
+if [ "$template" != "true/acquisition,delivery,donations,invoicing,offerings,ordering" ]; then
+  echo "poc021-test: ERROR: Krapfentaxi template version 3 is wrong: $template" >&2
+  exit 1
+fi
 
 echo "poc021-test: OK: build from empty, upgrade, constraints and data retention proven"

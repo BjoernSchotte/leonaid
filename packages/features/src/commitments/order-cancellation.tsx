@@ -22,6 +22,8 @@ import {
   takeFreshLoginDraft,
 } from "../action-admin/fresh-login-draft";
 import { commandKey, forgetCommandKey } from "../invoices/invoice-model";
+import { donationToCancel, paidDonation } from "./order-donation";
+import { euro } from "./order-format";
 
 export const MIN_REASON = 8;
 const MAX_REASON = 500;
@@ -81,6 +83,8 @@ const commandStorageKey = (commitmentId: string) =>
 interface CancellationDraft {
   readonly reason: string;
   readonly note: string;
+  /** "Spende ebenfalls stornieren" as it stood; absent in older drafts. */
+  readonly cancelDonation?: boolean;
 }
 
 /**
@@ -99,6 +103,9 @@ export function takeCancellationDraft(
       ? {
           reason: value.reason,
           note: typeof value.note === "string" ? value.note : "",
+          ...(typeof value.cancelDonation === "boolean"
+            ? { cancelDonation: value.cancelDonation }
+            : {}),
         }
       : null;
   } catch {
@@ -147,6 +154,13 @@ export function OrderCancellationDialog({
   const offerSend = invoice?.status === "sent" && Boolean(recipientEmail);
   const [send, setSend] = useState(true);
   const sendInvoiceCancellation = offerSend && send;
+  // The order's own donation (§8.6): an unpaid one is cancelled with the
+  // order unless the person keeps it; a paid one always stays.
+  const donation = donationToCancel(record);
+  const keptDonation = paidDonation(record);
+  const [cancelDonation, setCancelDonation] = useState(
+    initial?.cancelDonation ?? true,
+  );
 
   const cancellation = useMutation({
     mutationFn: () =>
@@ -158,6 +172,7 @@ export function OrderCancellationDialog({
           reason: reason.trim(),
           note: note.trim() || null,
           ...(offerSend ? { sendInvoiceCancellation } : {}),
+          ...(donation ? { cancelDonation } : {}),
         },
         {
           headers: {
@@ -171,7 +186,7 @@ export function OrderCancellationDialog({
         saveFreshLoginDraft(
           draftKey(commitment.id),
           userId,
-          JSON.stringify({ reason, note }),
+          JSON.stringify({ reason, note, cancelDonation }),
         );
       }
       const message = actionErrorMessage(cause);
@@ -183,13 +198,19 @@ export function OrderCancellationDialog({
       forgetCommandKey(storageKey);
       const invoiceNumber = result.cancellation.invoiceNumber;
       const cancellationNumber = result.cancellation.invoiceCancellationNumber;
-      toast?.show({
-        title: "Bestellung storniert.",
-        description: invoiceNumber
+      const description = [
+        invoiceNumber
           ? cancellationNumber
             ? `Rechnung ${invoiceNumber} ist ebenfalls storniert. Stornorechnung ${cancellationNumber} wurde ausgestellt.`
             : `Rechnung ${invoiceNumber} ist ebenfalls storniert.`
-          : undefined,
+          : null,
+        donation && cancelDonation
+          ? `Spendenzusage ${donation.number} ist ebenfalls storniert.`
+          : null,
+      ].filter(Boolean);
+      toast?.show({
+        title: "Bestellung storniert.",
+        description: description.length ? description.join(" ") : undefined,
         tone: "success",
       });
       onChanged();
@@ -197,6 +218,7 @@ export function OrderCancellationDialog({
     },
   });
 
+  const donationAmount = (minor: number) => euro(minor, commitment.currency);
   const trimmed = reason.trim().replace(/\s+/g, " ");
   const reasonError =
     submitted && trimmed.length < MIN_REASON
@@ -286,6 +308,36 @@ export function OrderCancellationDialog({
                   unter „Rechnungen“.
                 </p>
               </div>
+            ) : null}
+            {donation ? (
+              <div className="field">
+                <label className="checkbox">
+                  <input
+                    checked={cancelDonation}
+                    data-testid="cancel-order-donation"
+                    disabled={cancellation.isPending}
+                    onChange={(event) => {
+                      // Another body is another command: a new key.
+                      forgetCommandKey(storageKey);
+                      setCancelDonation(event.target.checked);
+                    }}
+                    type="checkbox"
+                  />
+                  Spende ebenfalls stornieren
+                </label>
+                <p
+                  className="field-hint"
+                  data-testid="cancel-order-donation-hint"
+                >
+                  {cancelDonation
+                    ? `Die Spendenzusage ${donation.number} über ${donationAmount(donation.pledgedMinor)} wird mit der Bestellung storniert. Dafür bestätigen Sie Ihre Anmeldung gegebenenfalls erneut.`
+                    : `Die Spendenzusage ${donation.number} über ${donationAmount(donation.pledgedMinor)} bleibt bestehen.`}
+                </p>
+              </div>
+            ) : keptDonation ? (
+              <p className="small" data-testid="cancel-order-donation-paid">
+                Die bezahlte Spende {keptDonation.number} bleibt bestehen.
+              </p>
             ) : null}
             <Field
               error={reasonError}

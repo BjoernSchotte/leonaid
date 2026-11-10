@@ -1166,3 +1166,177 @@ describe("action detail", () => {
     expect(window.location.hash).toBe("#aliases");
   });
 });
+
+describe("action detail: extra donation in the order form (§8.6)", () => {
+  const orderForm = (
+    allowDonation: boolean,
+  ): NonNullable<CharityActionConfigurationResponse["orderForm"]> => ({
+    allowDonation,
+    allowMessage: true,
+    formKey: "krapfentaxi",
+    id: "f1",
+    introduction: "",
+    requireBillingAddress: true,
+    requireCompanyName: false,
+    requireContactName: true,
+    requireDeliveryAddress: true,
+    requireEmail: true,
+    requirePhone: false,
+    submitLabel: "Bestellen",
+    title: "Krapfen bestellen",
+  });
+
+  function clientWith(
+    capabilities: CharityActionResponse["capabilities"],
+    allowDonation: boolean,
+    status: CharityActionResponse["status"] = "active",
+  ) {
+    const client = fakeClient(management({ capabilities, status }, []));
+    client.getCharityActionConfiguration.mockResolvedValue({
+      ...configuration,
+      orderForm: orderForm(allowDonation),
+    });
+    const setOrderFormDonation = vi.fn(
+      async (_id: string, body: { allowDonation: boolean }) => ({
+        ...configuration,
+        orderForm: orderForm(body.allowDonation),
+      }),
+    );
+    const setCharityActionCapabilities = vi.fn();
+    Object.assign(client, {
+      setCharityActionCapabilities,
+      setOrderFormDonation,
+    });
+    return { client, setCharityActionCapabilities, setOrderFormDonation };
+  }
+
+  const toggle = () =>
+    screen.getByTestId("order-form-donation-switch") as HTMLInputElement;
+
+  it("switches the extra donation at once while the action runs", async () => {
+    const { client, setOrderFormDonation } = clientWith(
+      ["offerings", "ordering", "donations"],
+      false,
+    );
+    await renderPage("#overview/edit", client);
+    const section = await screen.findByTestId("order-form-donation-section");
+    expect(section.textContent).toContain(
+      "Zusatzspende im Bestellformular anbieten",
+    );
+    expect(section.textContent).toContain(
+      "Besteller können zusätzlich zur Bestellung freiwillig spenden. Die Spende erhält eine eigene Spendenzusage, getrennt von der Rechnung. Benötigt die Funktion „Spenden“ und den Teil „Spenden“ in „Rechtliches“.",
+    );
+    expect(
+      within(section).getByRole("switch", {
+        name: "Zusatzspende im Bestellformular anbieten",
+      }),
+    ).toBe(toggle());
+    expect(toggle().checked).toBe(false);
+    expect(toggle().disabled).toBe(false);
+    fireEvent.click(toggle());
+    await waitFor(() =>
+      expect(setOrderFormDonation).toHaveBeenCalledWith(actionId, {
+        allowDonation: true,
+      }),
+    );
+    await within(section).findByText("An");
+    expect(toggle().checked).toBe(true);
+    fireEvent.click(toggle());
+    await waitFor(() =>
+      expect(setOrderFormDonation).toHaveBeenLastCalledWith(actionId, {
+        allowDonation: false,
+      }),
+    );
+    await within(section).findByText("Aus");
+    await screen.findByText(
+      "Das Bestellformular bietet keine Zusatzspende mehr an.",
+    );
+    // The action's own revision is not involved.
+    expect(client.setCharityActionDetails).not.toHaveBeenCalled();
+  });
+
+  it("stays off and locked without the function Spenden", async () => {
+    const { client, setOrderFormDonation } = clientWith(
+      ["offerings", "ordering"],
+      false,
+    );
+    await renderPage("#overview/edit", client);
+    const section = await screen.findByTestId("order-form-donation-section");
+    expect(toggle().disabled).toBe(true);
+    expect(section.textContent).toContain(
+      "Diese Aktion hat die Funktion „Spenden“ nicht",
+    );
+    fireEvent.click(toggle());
+    expect(setOrderFormDonation).not.toHaveBeenCalled();
+  });
+
+  it("is not shown for an action without an order form", async () => {
+    await renderPage("#overview/edit");
+    await screen.findByTestId("action-edit-forms");
+    await waitFor(() =>
+      expect(screen.queryByTestId("order-form-donation-section")).toBeNull(),
+    );
+  });
+
+  it("shows the server's refusal and reloads the form's state", async () => {
+    const { client, setOrderFormDonation } = clientWith(
+      ["offerings", "ordering", "donations"],
+      false,
+    );
+    setOrderFormDonation.mockRejectedValueOnce(
+      new ApiError(409, {
+        code: "order_form_donation_capability_missing",
+        details: null,
+        message: "capability missing",
+        requestId: "r1",
+      }),
+    );
+    await renderPage("#overview/edit", client);
+    const section = await screen.findByTestId("order-form-donation-section");
+    const loads = client.getCharityActionConfiguration.mock.calls.length;
+    fireEvent.click(toggle());
+    await within(section).findByText(
+      "Die Zusatzspende braucht die Funktion „Spenden“. Schalten Sie zuerst die Funktion ein.",
+    );
+    expect(toggle().checked).toBe(false);
+    await waitFor(() =>
+      expect(
+        client.getCharityActionConfiguration.mock.calls.length,
+      ).toBeGreaterThan(loads),
+    );
+  });
+
+  it("tells the capability picker to switch the donation off first", async () => {
+    const { client, setCharityActionCapabilities } = clientWith(
+      ["offerings", "ordering", "donations"],
+      true,
+      "draft",
+    );
+    setCharityActionCapabilities.mockRejectedValueOnce(
+      new ApiError(422, {
+        code: "order_form_donation_capability_missing",
+        details: null,
+        message: "capability missing",
+        requestId: "r1",
+      }),
+    );
+    await renderPage("#overview/edit", client);
+    await screen.findByTestId("order-form-donation-section");
+    const capabilities = document.getElementById("capabilities")!;
+    fireEvent.click(
+      capabilities.querySelector<HTMLInputElement>('input[value="donations"]')!,
+    );
+    fireEvent.click(within(capabilities).getByTestId("save-capabilities"));
+    await within(capabilities).findByText(
+      "Schalten Sie zuerst die Zusatzspende im Bestellformular aus.",
+    );
+    expect(setCharityActionCapabilities).toHaveBeenCalledWith(
+      actionId,
+      expect.objectContaining({
+        capabilities: ["offerings", "ordering"],
+      }),
+    );
+    // Not a revision conflict: nothing to reload.
+    expect(within(capabilities).queryByTestId("section-reload")).toBeNull();
+  });
+});

@@ -14,6 +14,12 @@ import {
   orderQuantitySummary,
 } from "../lib/order-presentation";
 import { readOrderRedisplay } from "../lib/order-redisplay";
+import {
+  DONATION_INPUT_PATTERN,
+  DONATION_INVALID_MESSAGE,
+  DONATION_SUCCESS_NOTE,
+  parseDonationAmount,
+} from "../lib/order-donation";
 import { PRIVACY_PATH } from "../lib/legal-notice";
 
 interface Props {
@@ -37,6 +43,16 @@ const redisplay = serverError
   ? await readOrderRedisplay(Astro.request, publicAlias)
   : null;
 const commandId = redisplay?.commandId ?? crypto.randomUUID();
+// Non-null: the form offers an extra donation and names who receives it.
+const donationReceivingBody = orderForm.donationReceivingBody;
+const redisplayDonation = parseDonationAmount(redisplay?.fields.donationAmount);
+// The order result does not carry the donation; the posted form does.
+const donationSent =
+  Boolean(serverOrder) &&
+  parseDonationAmount(
+    (await readOrderRedisplay(Astro.request, publicAlias))?.fields
+      .donationAmount,
+  ).kind === "amount";
 // Core sets requireDeliveryAddress only for actions with the delivery
 // capability; pickup or donation campaigns skip the delivery step.
 const collectsDelivery = orderForm.requireDeliveryAddress;
@@ -132,6 +148,9 @@ const checkIcon = "M20 6 9 17l-5-5";
         </dl>
         <ol class="public-next">
           {successNextSteps.map((step) => <li>{step}</li>)}
+          <li data-order-donation-note hidden={!donationSent}>
+            {DONATION_SUCCESS_NOTE}
+          </li>
         </ol>
         <p class="small muted">
           {
@@ -323,6 +342,45 @@ const checkIcon = "M20 6 9 17l-5-5";
                 class="field-error"
                 data-error-for="quantity"
               />
+              {donationReceivingBody && (
+                <div class="public-donation" data-order-donation>
+                  <h3 class="public-donation__title">Zusätzlich spenden</h3>
+                  <div class="field">
+                    <label class="field-label" for="donationAmount">
+                      Spendenbetrag in €
+                      <span class="field-optional"> (optional)</span>
+                    </label>
+                    <input
+                      id="donationAmount"
+                      class="input"
+                      name="donationAmount"
+                      inputmode="decimal"
+                      autocomplete="off"
+                      maxlength="20"
+                      pattern={DONATION_INPUT_PATTERN}
+                      title={DONATION_INVALID_MESSAGE}
+                      placeholder="z. B. 25,00"
+                      value={redisplay?.fields.donationAmount ?? ""}
+                      data-order-donation-amount
+                      data-testid="order-donation-amount"
+                      data-currency={currency}
+                      data-invalid={DONATION_INVALID_MESSAGE}
+                      aria-describedby="donationAmount-help donationAmount-error"
+                    />
+                    <p id="donationAmount-help" class="field-hint">
+                      Ihre Spende ist freiwillig und ohne Gegenleistung.
+                      Empfänger ist {donationReceivingBody}. Sie erhalten dafür
+                      eine eigene Zahlungsbitte, getrennt von der Rechnung für
+                      Ihre Bestellung.
+                    </p>
+                    <p
+                      id="donationAmount-error"
+                      class="field-error"
+                      data-error-for="donationAmount"
+                    />
+                  </div>
+                </div>
+              )}
               <p class="public-total order-total num" aria-live="polite">
                 <span>Aktueller Bestellwert</span>
                 <strong data-order-preview-total>
@@ -330,6 +388,18 @@ const checkIcon = "M20 6 9 17l-5-5";
                 </strong>
                 <small data-order-preview-quantity>{quantitySummary}</small>
               </p>
+              {donationReceivingBody && (
+                <p
+                  class="public-total public-total--donation num"
+                  aria-live="polite"
+                  data-order-donation-line
+                  data-testid="order-donation-line"
+                  hidden={redisplayDonation.kind !== "amount"}
+                >
+                  {redisplayDonation.kind === "amount" &&
+                    `Spende: ${money(redisplayDonation.minor, currency)}`}
+                </p>
+              )}
             </fieldset>
 
             <fieldset class="public-fieldset">

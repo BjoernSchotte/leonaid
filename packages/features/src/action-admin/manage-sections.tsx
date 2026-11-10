@@ -22,6 +22,7 @@ import {
 } from "@leonaid/ui";
 
 import { actionErrorMessage, type ActionErrorMessage } from "./errors";
+import { DONATION_SWITCH_BLOCKS_CAPABILITY } from "./order-form-donation";
 import { isRevisionConflict } from "./use-action-error";
 
 export type Capability = CharityActionResponse["capabilities"][number];
@@ -716,6 +717,15 @@ export function CapabilitiesSection(props: SharedSectionProps) {
     },
     "Die Funktionen der Aktion wurden gespeichert.",
   );
+  // "Spenden" cannot go while the order form still offers a donation.
+  const shownError =
+    error?.code === "order_form_donation_capability_missing"
+      ? {
+          ...error,
+          conflict: false,
+          message: DONATION_SWITCH_BLOCKS_CAPABILITY,
+        }
+      : error;
 
   return (
     <EditSection
@@ -769,7 +779,7 @@ export function CapabilitiesSection(props: SharedSectionProps) {
         </fieldset>
       </form>
       <SectionError
-        error={error}
+        error={shownError}
         onReload={() => {
           setError(undefined);
           form.reset();
