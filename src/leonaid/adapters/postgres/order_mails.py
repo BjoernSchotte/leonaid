@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 import asyncpg
 
@@ -23,6 +24,7 @@ from leonaid.application.order_mails import (
     OrderMailKind,
     mailbox_key,
 )
+from leonaid.domain.calendar import INSTALLATION_TIME_ZONE
 from leonaid.domain.commitments import CommitmentStatus
 
 __all__ = [
@@ -30,6 +32,41 @@ __all__ = [
     "insert_order_mail_event",
     "internal_order_mails_enabled",
 ]
+
+
+async def count_recent_order_mails(
+    connection: asyncpg.Connection[Any],
+    *,
+    recipient_sha256: str,
+    mailbox: str,
+    since: datetime,
+) -> int:
+    """Order mails sent since the moment to the address or its mailbox.
+
+    The ledger keeps only a digest of the exact address, so the mailbox
+    comparison (``+tag``, Gmail dots) needs the address of the mail's order.
+    """
+
+    rows = await connection.fetch(
+        """
+        SELECT mail.recipient_sha256,
+            commitment.customer_snapshot->>'email' AS email
+        FROM mail_delivery AS mail
+        LEFT JOIN commitment
+          ON commitment.id::text = split_part(mail.idempotency_key, ':', 2)
+        WHERE mail.sent_at >= $1
+          AND mail.status = 'sent'
+          AND mail.idempotency_key LIKE ANY($2::text[])
+        """,
+        since,
+        [f"{prefix}%" for prefix in ORDER_MAIL_KEY_PREFIXES],
+    )
+    return sum(
+        1
+        for row in rows
+        if row["recipient_sha256"] == recipient_sha256
+        or (row["email"] is not None and mailbox_key(str(row["email"])) == mailbox)
+    )
 
 
 class AsyncpgOrderMailReader:
@@ -51,11 +88,20 @@ class AsyncpgOrderMailReader:
                     ) AS invoicing,
                     COALESCE(mails.internal_order_mails, false)
                         AS internal_order_mails,
+                    COALESCE(mails.delivery_day_mail, false) AS delivery_day_mail,
+                    EXISTS (
+                        SELECT 1 FROM charity_action_capability AS capability
+                        WHERE capability.action_id = commitment.action_id
+                          AND capability.capability = 'delivery'
+                    ) AS delivery_capability,
+                    delivery_settings.timezone AS delivery_zone,
                     delivery.state AS drop_state
                 FROM commitment
                 JOIN charity_action AS action ON action.id = commitment.action_id
                 LEFT JOIN action_buyer_mail_configuration AS mails
                   ON mails.action_id = commitment.action_id
+                LEFT JOIN action_delivery_configuration AS delivery_settings
+                  ON delivery_settings.action_id = commitment.action_id
                 LEFT JOIN commitment_delivery AS delivery
                   ON delivery.commitment_id = commitment.id
                 WHERE commitment.id = $1
@@ -105,6 +151,13 @@ class AsyncpgOrderMailReader:
             drop_state=(
                 str(row["drop_state"]) if row["drop_state"] is not None else None
             ),
+            delivery_day_mail=bool(row["delivery_day_mail"]),
+            delivery_capability=bool(row["delivery_capability"]),
+            delivery_zone=(
+                ZoneInfo(str(row["delivery_zone"]))
+                if row["delivery_zone"] is not None
+                else INSTALLATION_TIME_ZONE
+            ),
         )
 
     async def was_sent(self, idempotency_key: str) -> bool:
@@ -129,30 +182,13 @@ class AsyncpgOrderMailReader:
     async def recent_order_mails(
         self, *, recipient_sha256: str, mailbox: str, since: datetime
     ) -> int:
-        # Order mails of the window with the address of their order; the
-        # ledger keeps only a digest of the exact address, so the mailbox
-        # comparison (``+tag``, Gmail dots) needs the order's address.
         async with self._pool.acquire() as connection:
-            rows = await connection.fetch(
-                """
-                SELECT mail.recipient_sha256,
-                    commitment.customer_snapshot->>'email' AS email
-                FROM mail_delivery AS mail
-                LEFT JOIN commitment
-                  ON commitment.id::text = split_part(mail.idempotency_key, ':', 2)
-                WHERE mail.sent_at >= $1
-                  AND mail.status = 'sent'
-                  AND (mail.idempotency_key LIKE $2 OR mail.idempotency_key LIKE $3)
-                """,
-                since,
-                *(f"{prefix}%" for prefix in ORDER_MAIL_KEY_PREFIXES),
+            return await count_recent_order_mails(
+                connection,
+                recipient_sha256=recipient_sha256,
+                mailbox=mailbox,
+                since=since,
             )
-        return sum(
-            1
-            for row in rows
-            if row["recipient_sha256"] == recipient_sha256
-            or (row["email"] is not None and mailbox_key(str(row["email"])) == mailbox)
-        )
 
     @asynccontextmanager
     async def recipient_lock(self, digest: str) -> AsyncIterator[None]:

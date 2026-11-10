@@ -308,6 +308,7 @@ def test_worker_handler_set_is_unchanged() -> None:
         "mail.send.v1",
         "order.cancellation.mail.v1",
         "order.confirmation.mail.v1",
+        "order.delivery_day.mail.v1",
         "push.notification.v1",
         "survey.delete.v1",
         "survey.export.render.v1",

@@ -262,10 +262,43 @@ pilot-create-system-admin` an (Anmeldemail, kein Passwort).
   went out yet". The buyer's address of an internal order is the sponsor's
   from the CRM, not one named for the order; the capture form shows it to
   the member. LeonAid does not check that the club's privacy notice names
-  these mails. Not covered: an HTML version,
-  a club sender address (the configured `MAIL_FROM` sends), a mail on the
-  delivery day (stage 2 of the spec), and mails for later order changes
-  (delivery window moved, invoice issued). Fulfilment mails ignore
+  these mails. The mail on the delivery day
+  (`order.delivery_day.mail.v1`, switch `delivery_day_mail` and send time
+  05:00 to 12:00 per action, orders of every source) is queued by a worker
+  sweep every five minutes (`delivery_day_mail` loop, singleton by advisory
+  lock, key per order and window) for orders whose window starts today in the
+  action's zone and is not over, that are review-ready, confirmed or
+  invoiced, have a buyer address and no recorded drop state, in an action
+  that is not completed or archived and still has the delivery capability.
+  The worker and a manager's send check the same rule; a job that waited
+  past its window sends nothing and completes; the order's mail status then
+  shows the mail as failed (`window_over`), as for a late confirmation.
+  The same status shows when no job was ever written although the order was
+  eligible for at least one sweep interval before its window ended (worker
+  down); "eligible since" is the later of the last switch-on of the mail
+  (audit event `buyer_mail_configuration_changed`) and the order becoming
+  ready, so a window that ended before the switch was set, an order recorded
+  afterwards, and a switch set outside the application raise no failure. A
+  delivery-day job over the mailbox limit completes too (no dead letter on
+  the delivery morning for a buyer with more than ten orders that day); the
+  order shows failed with `recipient_limit` while the mailbox is over the
+  limit and failed with `not_sent` afterwards, and a manager sends it
+  later. A job that ended without a mail for another reason while the mail
+  is due again (a switch or a tick taken back after it ran) reads failed
+  with `not_sent` too. Switching
+  the mail on during the delivery day, or a worker that starts late, mails
+  every window of today that is still open, also orders delivered but not
+  ticked off yet. The sweep has its own advisory lock; a run that the lock
+  kept out is not counted as a pass and repeats after 30 seconds. A window that ends at or before the send
+  time of its day never gets the mail, and the order's mail status says so
+  (`window_before_send_time`). The mail names window, delivery address and
+  quantities only: no arrival time per stop, no driver, no campaign link
+  (the worker has no host directory), and no mail when a delivery is late.
+  Its contact sentence names only the channels of the legal configuration
+  (e-mail, phone) and is left out when none is set. Not covered: an HTML
+  version, a club sender address (the configured `MAIL_FROM` sends), and
+  mails for later order changes (delivery window moved, invoice issued).
+  Fulfilment mails ignore
   the marketing/acquisition suppression list. The campaign link is the
   permanent edition URL on the campaign host (decision D8), else the public
   host page (`edition_link`).

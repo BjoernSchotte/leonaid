@@ -4,9 +4,9 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 12
-reviewedRevision: 12
-verifiedAgainst: 6d17bcfaca798bedf39427163d35a7ccd859a66e
+contentRevision: 13
+reviewedRevision: 13
+verifiedAgainst: 7425865669f0e487ad78293e8be3c472ccb69914
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -64,7 +64,14 @@ allgemeine Produktionsfreigabe.
   Bestellungen von vor dem Einschalten bestätigt die Aktionsverwaltung
   einzeln in der Bestellung (**Senden**). Die Adresse ist die des Sponsors
   aus dem CRM. LeonAid prüft nicht, ob die Datenschutzerklärung des Clubs
-  diese E-Mails nennt. Eine E-Mail am Liefertag gibt es noch nicht.
+  diese E-Mails nennt. Die E-Mail am Liefertag (je Aktion einschaltbar, für
+  Bestellungen jeder Herkunft) nennt nur das Lieferfenster: keine
+  Ankunftszeit je Adresse, kein Fahrer, keine Nachricht bei Verspätung oder
+  wenn ein Fenster verlegt wird. Sie geht bis zu fünf Minuten nach der
+  gewählten Uhrzeit hinaus und enthält keinen Link zur Aktionsseite. Ein
+  Lieferfenster, das vor dieser Uhrzeit endet, erhält keine E-Mail; die
+  Bestellung zeigt das an. Nach der Lieferung, für stornierte Bestellungen
+  und in einer abgeschlossenen Aktion geht sie nicht mehr hinaus.
   Bestellnummern haben zwei Formen: neue sind kurz (`LA-` und acht Zeichen),
   öffentliche Bestellungen von früher behalten ihre lange Nummer. Der Link zur Aktion zeigt auf die dauerhafte Adresse
   der Aktion auf ihrer Kampagnen-Domain, sonst auf die Aktionsseite des

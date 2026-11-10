@@ -4,9 +4,9 @@ description: Verified limits of the current LeonAid development and pilot state.
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 12
-reviewedRevision: 12
-verifiedAgainst: 6d17bcfaca798bedf39427163d35a7ccd859a66e
+contentRevision: 13
+reviewedRevision: 13
+verifiedAgainst: 7425865669f0e487ad78293e8be3c472ccb69914
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -61,9 +61,15 @@ general production approval.
   The campaign's managers confirm orders from before the switch was set one
   by one in the order (**Senden**). The address is the sponsor's from the
   CRM. LeonAid does not check that the club's privacy notice names these
-  e-mails. There is no e-mail on the delivery day yet. Order numbers have
-  two shapes: new ones are short (`LA-` and eight characters), public orders
-  from before keep their long number. The campaign
+  e-mails. The e-mail on the delivery day (switched on per campaign, for
+  orders of every origin) names the delivery window only: no arrival time
+  per address, no driver, no message when a delivery is late or a window is
+  moved. It goes out up to five minutes after the selected time and carries
+  no link to the campaign page. A delivery window that ends before that time
+  gets no e-mail; the order shows this. After the delivery, for cancelled
+  orders and in a completed campaign it no longer goes out. Order numbers
+  have two shapes: new ones are short (`LA-` and eight characters), public
+  orders from before keep their long number. The campaign
   link points to the permanent address of the campaign on its campaign
   domain, else to the campaign page on the public host. The sender is the
   configured system address, not the club.

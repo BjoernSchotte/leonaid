@@ -15,6 +15,8 @@ from leonaid.domain.errors import DomainInvariantError
 DEFAULT_DELIVERY_DAY_SEND_TIME = time(7, 0)
 EARLIEST_DELIVERY_DAY_SEND_TIME = time(5, 0)
 LATEST_DELIVERY_DAY_SEND_TIME = time(12, 0)
+# The send time is a full or a half hour.
+DELIVERY_DAY_SEND_MINUTES = (0, 30)
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +42,7 @@ class BuyerMailConfiguration:
             moment.tzinfo is not None
             or moment.second
             or moment.microsecond
+            or moment.minute not in DELIVERY_DAY_SEND_MINUTES
             or not (
                 EARLIEST_DELIVERY_DAY_SEND_TIME
                 <= moment
@@ -48,6 +51,6 @@ class BuyerMailConfiguration:
         ):
             raise DomainInvariantError(
                 "buyer_mail_send_time_invalid",
-                "Die Uhrzeit der Liefertags-E-Mail muss zwischen 05:00 und "
-                "12:00 Uhr liegen.",
+                "Die Uhrzeit der Liefertags-E-Mail muss eine volle oder halbe "
+                "Stunde zwischen 05:00 und 12:00 Uhr sein.",
             )
