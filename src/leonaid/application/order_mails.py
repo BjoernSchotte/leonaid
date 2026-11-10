@@ -264,6 +264,15 @@ class OrderCancellationFacts:
 
 
 @dataclass(frozen=True, slots=True)
+class OrderDonationFacts:
+    """The extra donation the buyer added to the order (ADR-0016)."""
+
+    amount: Money
+    number: str
+    receiving_body: str
+
+
+@dataclass(frozen=True, slots=True)
 class OrderMailFacts:
     """What Core knows about the order when the mail is sent."""
 
@@ -271,6 +280,8 @@ class OrderMailFacts:
     commitment: Commitment
     ordered_at: datetime
     cancellation: OrderCancellationFacts | None = None
+    # Set while the order carries a donation that is not cancelled.
+    donation: OrderDonationFacts | None = None
     # The action's switch for orders that members and acquirers enter.
     internal_order_mails: bool = False
     # The action's status and whether it issues invoices; what the delivery
@@ -528,6 +539,8 @@ def render_order_confirmation(
         lines.extend(
             ["", "Rechnungsanschrift:", *_address(commitment.invoice_recipient)]
         )
+    if facts.donation is not None:
+        lines.extend(["", "Ihre Spende", _donation(facts)])
     next_steps = _next_steps(facts)
     if next_steps:
         lines.extend(["", "Wie es weitergeht", next_steps])
@@ -538,6 +551,27 @@ def render_order_confirmation(
         recipient=recipient,
         subject=f"Ihre Bestellung bei {_clean(facts.action_name)} · {reference}",
         text="\n".join(lines) + "\n",
+    )
+
+
+def _donation(facts: OrderMailFacts) -> str:
+    """The donation in its own paragraph: voluntary, not part of the order,
+    with its own payment request from the receiving body."""
+
+    donation = facts.donation
+    assert donation is not None
+    # A public order's pledge goes out by itself, right after this mail.
+    pledge = (
+        "erhalten Sie in einer eigenen E-Mail"
+        if facts.commitment.source is CommitmentSource.PUBLIC_FORM
+        else "erhalten Sie gesondert"
+    )
+    return (
+        f"Sie haben zusätzlich eine Spende von {_money(donation.amount)} an "
+        f"{_clean(donation.receiving_body)} zugesagt. Die Spende ist "
+        "freiwillig, ohne Gegenleistung und nicht Teil Ihrer Bestellung oder "
+        f"der Rechnung. Die Spendenzusage {donation.number} mit der "
+        f"Bankverbindung {pledge}."
     )
 
 

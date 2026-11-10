@@ -46,6 +46,9 @@ class OrderCancellationRequest:
     # Also mail the cancellation invoice of the order's invoice to the
     # invoice recipient ("Stornorechnung gleich senden").
     send_invoice_cancellation: bool = False
+    # Also cancel the unpaid donation that came with the order ("Spende
+    # ebenfalls stornieren", on by default). A paid donation always stays.
+    cancel_donation: bool = True
 
     def __post_init__(self) -> None:
         if not VERSION_PATTERN.fullmatch(self.expected_version):
@@ -70,6 +73,8 @@ class OrderCancellationRequest:
         # Only present when set: commands keep the fingerprint they had.
         if self.send_invoice_cancellation:
             payload["sendInvoiceCancellation"] = True
+        if not self.cancel_donation:
+            payload["keepDonation"] = True
         canonical = json.dumps(
             payload,
             ensure_ascii=False,

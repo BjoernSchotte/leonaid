@@ -539,3 +539,13 @@ def _validate_configuration(
             "template_ordering_capability_missing",
             "Ein Bestellformular benötigt die Capability Bestellungen.",
         )
+    if (
+        order_form is not None
+        and order_form.allow_donation
+        and ActionCapability.DONATIONS not in capabilities
+    ):
+        raise DomainInvariantError(
+            "order_form_donation_capability_missing",
+            "Die Zusatzspende im Bestellformular benötigt die Funktion Spenden. "
+            "Schalten Sie zuerst die Zusatzspende im Formular aus.",
+        )

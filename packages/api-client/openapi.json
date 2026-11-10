@@ -2676,6 +2676,12 @@
       "CancelCommitmentRequest": {
         "additionalProperties": false,
         "properties": {
+          "cancelDonation": {
+            "default": true,
+            "description": "Also cancel the unpaid donation that came with the order. A paid donation is never cancelled with the order. Ignored when the order has no unpaid donation.",
+            "title": "Canceldonation",
+            "type": "boolean"
+          },
           "expectedVersion": {
             "pattern": "^[a-f0-9]{64}$",
             "title": "Expectedversion",
@@ -3658,6 +3664,18 @@
             "title": "Deliverydaymail",
             "type": "boolean"
           },
+          "donationReceivingBody": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Name of the body that receives an extra donation added to an order. Null: orders of this action carry no donation.",
+            "title": "Donationreceivingbody"
+          },
           "internalOrderMails": {
             "default": false,
             "description": "The action sends the order confirmation and the cancellation notice to the buyer of an order recorded here. The capture form shows the address they go to.",
@@ -3698,6 +3716,64 @@
           "totalMinor"
         ],
         "title": "CommitmentCurrencyTotalResponse",
+        "type": "object"
+      },
+      "CommitmentDonationResponse": {
+        "additionalProperties": false,
+        "description": "The extra donation of an order (ADR-0016).",
+        "properties": {
+          "donationId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Donationid"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "pledgedMinor": {
+            "minimum": 100.0,
+            "title": "Pledgedminor",
+            "type": "integer"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pledged",
+                  "paid",
+                  "cancelled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "pledgedMinor",
+          "donationId",
+          "number",
+          "status"
+        ],
+        "title": "CommitmentDonationResponse",
         "type": "object"
       },
       "CommitmentInvoiceRecipientRequest": {
@@ -4083,6 +4159,16 @@
             "description": "Marked delivered on the delivery board; blocks cancellation.",
             "title": "Delivered",
             "type": "boolean"
+          },
+          "donation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommitmentDonationResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "invoice": {
             "anyOf": [
@@ -5147,6 +5233,19 @@
             ],
             "title": "Deliverywindowid"
           },
+          "donationAmountMinor": {
+            "anyOf": [
+              {
+                "maximum": 1000000.0,
+                "minimum": 100.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Donationamountminor"
+          },
           "invoiceRecipient": {
             "anyOf": [
               {
@@ -5420,6 +5519,19 @@
               }
             ],
             "title": "Deliverywindowid"
+          },
+          "donationAmountMinor": {
+            "anyOf": [
+              {
+                "maximum": 1000000.0,
+                "minimum": 100.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Donationamountminor"
           },
           "invoiceRecipient": {
             "$ref": "#/components/schemas/PublicOrderInvoiceRecipientRequest"
@@ -13165,6 +13277,10 @@
       "OrderFormConfigurationResponse": {
         "additionalProperties": false,
         "properties": {
+          "allowDonation": {
+            "title": "Allowdonation",
+            "type": "boolean"
+          },
           "allowMessage": {
             "title": "Allowmessage",
             "type": "boolean"
@@ -13227,7 +13343,8 @@
           "requirePhone",
           "requireDeliveryAddress",
           "requireBillingAddress",
-          "allowMessage"
+          "allowMessage",
+          "allowDonation"
         ],
         "title": "OrderFormConfigurationResponse",
         "type": "object"
@@ -15223,6 +15340,18 @@
               }
             ]
           },
+          "donationReceivingBody": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Name of the body that receives an extra donation. Null: this form offers no donation (flag off, capability off or no receiving body configured).",
+            "title": "Donationreceivingbody"
+          },
           "formKey": {
             "title": "Formkey",
             "type": "string"
@@ -15292,6 +15421,7 @@
           "requireDeliveryAddress",
           "requireBillingAddress",
           "allowMessage",
+          "donationReceivingBody",
           "accessToken",
           "privacyNoticeVersion",
           "privacyNoticeText",
@@ -18230,6 +18360,20 @@
           "present"
         ],
         "title": "SetMaterialReference",
+        "type": "object"
+      },
+      "SetOrderFormDonationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "allowDonation": {
+            "title": "Allowdonation",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "allowDonation"
+        ],
+        "title": "SetOrderFormDonationRequest",
         "type": "object"
       },
       "SetPageMember": {
@@ -30801,6 +30945,120 @@
           }
         },
         "summary": "Record My Tour Reads",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/order-form/donation": {
+      "put": {
+        "description": "Switch the optional extra donation of the action's order form.\n\nThe public form and the internal capture offer it only while the action\nhas the `donations` capability and a receiving body is configured.\nSwitching it on without the capability: 409\n`order_form_donation_capability_missing`.",
+        "operationId": "setOrderFormDonation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetOrderFormDonationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharityActionConfigurationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Set Order Form Donation",
         "tags": [
           "actions"
         ]

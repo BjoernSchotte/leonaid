@@ -26,6 +26,11 @@ from leonaid.domain.commitments import (
     UnitQuantity,
 )
 from leonaid.domain.delivery import DeliveryContactSnapshot, DeliveryConfiguration
+from leonaid.domain.donations import (
+    ORDER_DONATION_MAXIMUM_MINOR,
+    ORDER_DONATION_MINIMUM_MINOR,
+    DonationStatus,
+)
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import ActionRole, IdentityPrincipal
 from leonaid.domain.order_cancellation import OrderCancellation, OrderInvoiceState
@@ -75,10 +80,23 @@ class CommitmentDraft:
     # saved on the device. It switches on the price guard, so each line then
     # needs the price the acquirer saw.
     captured_at: datetime | None = None
+    # A voluntary extra donation of the buyer, not part of the order total
+    # (ADR-0016). A draft keeps only the amount; the donation is created
+    # when the order becomes binding.
+    donation_amount_minor: int | None = None
 
     def __post_init__(self) -> None:
         if self.delivery_contact is not None and self.delivery_contact.empty:
             object.__setattr__(self, "delivery_contact", None)
+        if self.donation_amount_minor is not None and not (
+            ORDER_DONATION_MINIMUM_MINOR
+            <= self.donation_amount_minor
+            <= ORDER_DONATION_MAXIMUM_MINOR
+        ):
+            raise DomainInvariantError(
+                "commitment_donation_amount_invalid",
+                "Eine Zusatzspende beträgt zwischen 1,00 € und 10.000,00 €.",
+            )
         if self.captured_at is not None and any(
             line.quoted_unit_price_minor is None for line in self.lines
         ):
@@ -139,6 +157,8 @@ class CommitmentDraft:
             payload["deliveryWindowId"] = str(self.delivery_window_id)
         if self.delivery_contact is not None:
             payload["deliveryContact"] = self.delivery_contact.payload()
+        if self.donation_amount_minor is not None:
+            payload["donationAmountMinor"] = self.donation_amount_minor
         if self.captured_at is not None:
             # A queued order is bound to the price it was captured with: a
             # confirmed new price is new content and needs a new key.
@@ -168,6 +188,9 @@ class CommitmentCaptureContext:
     # capture form then shows the address they go to.
     internal_order_mails: bool = False
     delivery_day_mail: bool = False
+    # Name of the receiving body when an order may carry an extra donation
+    # (form flag, capability and receiving body); None otherwise.
+    donation_receiving_body: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -218,12 +241,24 @@ class CommitmentCompletion:
 
 
 @dataclass(frozen=True, slots=True)
+class OrderDonationState:
+    """The extra donation of an order: the amount the buyer added and, once
+    the order is binding, the donation created from it."""
+
+    pledged_minor: int
+    donation_id: UUID | None = None
+    number: str | None = None
+    status: DonationStatus | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class CommitmentRecord:
     commitment: Commitment
     created_at: datetime
     captured_by_display_name: str | None
     cancellation: OrderCancellation | None = None
     invoice: OrderInvoiceState | None = None
+    donation: OrderDonationState | None = None
     delivered: bool = False
     # Cancelling this order now would send the buyer a notice
     # (``order_mails.mail_not_due_reason``); false for a cancelled order.

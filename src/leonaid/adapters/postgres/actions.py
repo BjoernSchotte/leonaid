@@ -764,6 +764,37 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 )
         return changed
 
+    async def set_order_form_donation(
+        self,
+        action_id: UUID,
+        *,
+        allow_donation: bool,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> None:
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                await connection.execute(
+                    """
+                    UPDATE order_form_configuration
+                    SET allow_donation = $2, updated_at = $3
+                    WHERE action_id = $1
+                    """,
+                    action_id,
+                    allow_donation,
+                    occurred_at,
+                )
+                await self._audit_by_id(
+                    connection,
+                    action_id=action_id,
+                    actor_user_id=actor_user_id,
+                    event_type="order_form_donation_changed",
+                    request_id=request_id,
+                    payload={"allowDonation": allow_donation},
+                    occurred_at=occurred_at,
+                )
+
     async def replace_capabilities(
         self,
         action: CharityAction,

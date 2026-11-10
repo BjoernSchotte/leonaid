@@ -18,6 +18,10 @@ from leonaid.adapters.postgres.order_numbers import (
     free_order_number,
     order_number_taken,
 )
+from leonaid.adapters.postgres.donations import (
+    donation_offered,
+    pledge_order_donation,
+)
 from leonaid.adapters.postgres.order_mail_jobs import queue_confirmation
 from leonaid.adapters.postgres.delivery import (
     guard_window_booking,
@@ -35,8 +39,11 @@ from leonaid.application.commitments import (
     CommitmentDraft,
     CommitmentRecord,
     CommitmentRepository,
+    OrderDonationState,
 )
 from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFound
+from leonaid.domain.donations import DonationSource, DonationStatus
+from leonaid.domain.errors import DomainInvariantError
 from leonaid.application.order_mails import OrderMailLinks, mail_due
 from leonaid.domain.action_templates import OfferingStatus, OfferingUnit
 from leonaid.domain.captures import bounded_captured_at
@@ -327,6 +334,13 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             occurred_at,
         )
         completed = await self._get(connection, commitment_id, replayed=False)
+        await self._pledge_order_donation(
+            connection,
+            completed,
+            actor_user_id=actor_user_id,
+            request_id=request_id,
+            occurred_at=occurred_at,
+        )
         await self._confirm_to_buyer(
             connection, completed, mail_links=mail_links, occurred_at=occurred_at
         )
@@ -407,6 +421,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 action_name=str(action["name"]),
                 offerings=offerings,
                 delivery_configuration=await read_configuration(connection, action_id),
+                donation_receiving_body=await donation_offered(connection, action_id),
                 **await self._buyer_mail_switches(connection, action_id),
             )
 
@@ -448,6 +463,10 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                     commitment.idempotency_key,
                     commitment.created_at,
                     commitment.captured_at,
+                    commitment.donation_pledge_minor,
+                    donation.id AS donation_id,
+                    donation.number AS donation_number,
+                    donation.status AS donation_status,
                     creator.display_name AS captured_by_display_name,
                     invoice.id AS invoice_id,
                     invoice.number AS invoice_number,
@@ -496,6 +515,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 LEFT JOIN user_account AS creator
                   ON creator.id = creation_event.actor_user_id
                 LEFT JOIN invoice ON invoice.commitment_id = commitment.id
+                LEFT JOIN donation ON donation.commitment_id = commitment.id
                 LEFT JOIN commitment_delivery AS delivery
                   ON delivery.commitment_id = commitment.id
                 LEFT JOIN commitment_cancellation AS cancellation
@@ -720,10 +740,79 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             occurred_at=occurred_at,
             full_window_booked=full_window_booked,
         )
+        if draft.donation_amount_minor is not None:
+            if await donation_offered(connection, action_id) is None:
+                raise Conflict(
+                    "commitment_donation_not_offered",
+                    "Für diese Aktion kann mit einer Bestellung derzeit keine "
+                    "Spende zugesagt werden.",
+                )
+            await connection.execute(
+                "UPDATE commitment SET donation_pledge_minor = $2 WHERE id = $1",
+                commitment.id,
+                draft.donation_amount_minor,
+            )
+            if status is CommitmentStatus.REVIEW_READY:
+                await self._pledge_order_donation(
+                    connection,
+                    commitment,
+                    actor_user_id=actor_user_id,
+                    request_id=request_id,
+                    occurred_at=occurred_at,
+                )
         await self._confirm_to_buyer(
             connection, commitment, mail_links=mail_links, occurred_at=occurred_at
         )
         return commitment
+
+    @staticmethod
+    async def _pledge_order_donation(
+        connection: asyncpg.Connection[Any],
+        commitment: Commitment,
+        *,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> None:
+        """Creates the donation of an order that just became binding, when
+        the buyer added one. Donor is the order's invoice recipient; the
+        pledge is sent by a manager, not by itself."""
+
+        amount = await connection.fetchval(
+            "SELECT donation_pledge_minor FROM commitment WHERE id = $1",
+            commitment.id,
+        )
+        if amount is None:
+            return
+        if commitment.invoice_recipient is None:
+            raise DomainInvariantError(
+                "commitment_donation_recipient_required",
+                "Eine Bestellung mit Spende benötigt einen vollständigen "
+                "Rechnungsempfänger: Er ist der Spender.",
+            )
+        if await donation_offered(connection, commitment.action_id) is None:
+            raise Conflict(
+                "commitment_donation_not_offered",
+                "Für diese Aktion kann mit einer Bestellung derzeit keine "
+                "Spende zugesagt werden.",
+            )
+        await pledge_order_donation(
+            connection,
+            action_id=commitment.action_id,
+            commitment_id=commitment.id,
+            amount_minor=int(amount),
+            recipient=commitment.invoice_recipient,
+            buyer=commitment.buyer,
+            source=(
+                DonationSource.ACQUISITION
+                if commitment.source is CommitmentSource.ACQUISITION
+                else DonationSource.ADMIN
+            ),
+            actor_user_id=actor_user_id,
+            request_id=request_id,
+            occurred_at=occurred_at,
+            send_pledge=False,
+        )
 
     @staticmethod
     def _guard_quoted_prices(
@@ -1040,6 +1129,24 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             ),
             cancellation=cancellation,
             invoice=invoice,
+            donation=(
+                OrderDonationState(
+                    pledged_minor=int(header["donation_pledge_minor"]),
+                    donation_id=header["donation_id"],
+                    number=(
+                        str(header["donation_number"])
+                        if header["donation_number"] is not None
+                        else None
+                    ),
+                    status=(
+                        DonationStatus(str(header["donation_status"]))
+                        if header["donation_status"] is not None
+                        else None
+                    ),
+                )
+                if header["donation_pledge_minor"] is not None
+                else None
+            ),
             delivered=bool(header["delivered"]),
             buyer_mail_due=(
                 commitment.status is not CommitmentStatus.CANCELLED

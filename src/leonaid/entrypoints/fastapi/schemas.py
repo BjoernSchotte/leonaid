@@ -1394,6 +1394,12 @@ class CreateCommitmentRequest(TransportModel):
     buyer: CommitmentBuyerRequest
     invoice_recipient: CommitmentInvoiceRecipientRequest | None = None
     lines: list[CommitmentLineRequest] = Field(min_length=1, max_length=100)
+    # A voluntary extra donation of the buyer in cents (1,00 € to
+    # 10.000,00 €), not part of the order total. Only when the action's form
+    # offers it: 409 `commitment_donation_not_offered` otherwise. The
+    # donation is created when the order becomes binding and then needs a
+    # complete invoice recipient.
+    donation_amount_minor: int | None = Field(default=None, ge=100, le=1_000_000)
 
 
 class CompleteCommitmentRequest(TransportModel):
@@ -1504,6 +1510,13 @@ class CommitmentCaptureContextResponse(TransportModel):
     action_id: UUID
     action_name: str
     offerings: list[ConfiguredOfferingResponse]
+    donation_receiving_body: str | None = Field(
+        default=None,
+        description=(
+            "Name of the body that receives an extra donation added to an "
+            "order. Null: orders of this action carry no donation."
+        ),
+    )
     internal_order_mails: bool = Field(
         default=False,
         description=(
@@ -1561,12 +1574,23 @@ class CommitmentCancellationResponse(TransportModel):
     )
 
 
+class CommitmentDonationResponse(TransportModel):
+    """The extra donation of an order (ADR-0016)."""
+
+    pledged_minor: int = Field(ge=100)
+    # Set once the order is binding and the donation has its number.
+    donation_id: UUID | None
+    number: str | None
+    status: Literal["pledged", "paid", "cancelled"] | None
+
+
 class CommitmentRecordResponse(TransportModel):
     commitment: CommitmentResponse
     created_at: datetime
     captured_by_display_name: str | None
     cancellation: CommitmentCancellationResponse | None = None
     invoice: CommitmentInvoiceSummaryResponse | None = None
+    donation: CommitmentDonationResponse | None = None
     delivered: bool = Field(
         default=False,
         description="Marked delivered on the delivery board; blocks cancellation.",
@@ -1591,6 +1615,14 @@ class CancelCommitmentRequest(TransportModel):
             "When the order's invoice is cancelled with it: also send its "
             "cancellation invoice to the invoice's recipient by mail. Ignored "
             "when no invoice is cancelled."
+        ),
+    )
+    cancel_donation: bool = Field(
+        default=True,
+        description=(
+            "Also cancel the unpaid donation that came with the order. A paid "
+            "donation is never cancelled with the order. Ignored when the "
+            "order has no unpaid donation."
         ),
     )
 
@@ -2429,6 +2461,10 @@ class SetResponsibleAdministratorsRequest(TransportModel):
 
 class SetActionGoalRequest(ActionGoalRequest):
     revision: int = Field(ge=1)
+
+
+class SetOrderFormDonationRequest(TransportModel):
+    allow_donation: bool
 
 
 class SetActionCapabilitiesRequest(TransportModel):
