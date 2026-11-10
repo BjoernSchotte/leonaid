@@ -26,6 +26,7 @@ unabhängige Implementierung.
 | LEG-006 | Im PoC wird nur eine exakte Vollzahlung verbucht; Storno ist ein eigener begründeter Vorgang und verändert Rechnung oder PDF nicht | Produktverantwortlicher / Implementierung | 2026-07-27 | ADR-0009 |
 | LEG-007 | Eine Rechnung hält mehrere Zahlungseinträge; offen, teilweise bezahlt, bezahlt und überzahlt folgen aus der Summe; Einträge werden begründet zurückgebucht statt gelöscht. Ersetzt den Vollzahlungsteil von LEG-006 | Produktverantwortlicher / Implementierung | 2026-11-06 | ADR-0014 |
 | LEG-008 | Ein Nummernkreis je Belegart und Präfix gilt für die Installation, nicht je Aktion; jede Nummer gibt es einmal. Ein Storno stellt eine Stornorechnung mit der nächsten Nummer des Rechnungsnummernkreises aus; die Rechnung bleibt unverändert. Ersetzt „pro Aktion und Präfix“ aus LEG-003 | Produktverantwortlicher / Implementierung | 2026-11-10 | ADR-0015 |
+| LEG-009 | Spenden sind eine eigene Fähigkeit der Aktion. Die empfangende Körperschaft steht als freiwilliger Teil in der Rechtskonfiguration und darf ein anderer Rechtsträger sein als der Rechnungsaussteller; ohne sie entsteht keine Spende. Jede Spende hat eine Nummer aus dem Nummernkreis `donation` und eine Spendenzusage, die keine Rechnung ist. Eine Zahlung je Spende; Storno nur ohne Zahlung | Produktverantwortlicher / Leitung / Implementierung | 2026-11-10 | ADR-0016 |
 
 ## Offene Entscheidungen mit spätestem Klärpunkt
 

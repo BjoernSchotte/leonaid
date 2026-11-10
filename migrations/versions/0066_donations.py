@@ -1,6 +1,6 @@
 """Donations: capability, receiving body, donations and their pledge document.
 
-Revision ID: 0064_donations
+Revision ID: 0066_donations
 Revises: 0063_document_series
 
 ADR-0016, spec mails-documents-donations-push §8.1 to §8.4.
@@ -26,7 +26,7 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0064_donations"
+revision: str = "0066_donations"
 down_revision: str | None = "0063_document_series"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -106,6 +106,7 @@ def upgrade() -> None:
             CONSTRAINT ck_donation_payment CHECK (
                 (
                     status = 'paid'
+                    AND received_minor IS NOT NULL
                     AND received_minor > 0
                     AND received_on IS NOT NULL
                     AND payment_recorded_by_user_id IS NOT NULL
@@ -123,6 +124,7 @@ def upgrade() -> None:
             CONSTRAINT ck_donation_cancellation CHECK (
                 (
                     status = 'cancelled'
+                    AND cancel_reason IS NOT NULL
                     AND length(btrim(cancel_reason)) BETWEEN 8 AND 500
                     AND cancelled_by_user_id IS NOT NULL
                     AND cancelled_at IS NOT NULL
@@ -153,6 +155,9 @@ def upgrade() -> None:
         AS $$
         BEGIN
             IF NEW.action_id IS DISTINCT FROM OLD.action_id
+               OR NEW.number IS DISTINCT FROM OLD.number
+               OR NEW.donor_snapshot IS DISTINCT FROM OLD.donor_snapshot
+               OR NEW.note IS DISTINCT FROM OLD.note
                OR NEW.pledged_minor IS DISTINCT FROM OLD.pledged_minor
                OR NEW.currency IS DISTINCT FROM OLD.currency
                OR NEW.source IS DISTINCT FROM OLD.source
@@ -296,7 +301,7 @@ def downgrade() -> None:
                )
             THEN
                 RAISE EXCEPTION
-                    '0064 downgrade refused: donations, the donations '
+                    '0066 downgrade refused: donations, the donations '
                     'capability or a receiving body exist and the old schema '
                     'cannot hold them';
             END IF;

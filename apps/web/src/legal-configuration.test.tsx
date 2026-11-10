@@ -58,6 +58,7 @@ function values(
     bankAccountHolder: "Förderverein Lions Club Musterstadt e. V.",
     bic: null,
     consentTextVersion: "public-order-v1",
+    donations: null,
     eInvoiceDecision: "pending",
     eInvoiceEvidenceId: null,
     iban: "DE02120300000000202051",
@@ -776,5 +777,242 @@ describe("LegalConfigurationPage four-eyes flow", () => {
         expect.objectContaining({ legalForm: "ggmbh" }),
       ),
     );
+  });
+});
+
+describe("LegalConfigurationPage part Spenden", () => {
+  const receivingBody: NonNullable<
+    LegalConfigurationValuesResponse["donations"]
+  > = {
+    assessmentPeriodFrom: 2021,
+    assessmentPeriodTo: 2023,
+    bankAccountHolder: "Förderverein Lions Club Musterstadt e. V.",
+    bic: "BYLADEM1001",
+    city: "Musterstadt",
+    countryCode: "DE",
+    iban: "DE02120300000000202051",
+    legalForm: "registered_association",
+    legalName: "Förderverein Lions Club Musterstadt e. V.",
+    machineNotifiedOn: null,
+    noticeDate: "2025-03-15",
+    noticeKind: "freistellungsbescheid",
+    numberWidth: 4,
+    pledgePrefix: "SP26-",
+    pledgeText:
+      "Ihre Spende ist freiwillig. Sie erhalten dafür keine Gegenleistung.",
+    postalCode: "12345",
+    purposes: "Förderung der Jugendhilfe",
+    receiptLiabilityText:
+      "Hinweis: Wer vorsätzlich oder grob fahrlässig eine unrichtige Zuwendungsbestätigung erstellt, haftet.",
+    receiptPrefix: "ZB26-",
+    signatoryFunction: "Schatzmeisterin",
+    signatoryName: "Erika Mustermann",
+    signing: "by_hand",
+    streetLine1: "Marktplatz 1",
+    taxNumber: "123/456/78901",
+    taxOffice: "Finanzamt Musterstadt",
+  };
+
+  const field = (key: string) =>
+    document.getElementById(`legal-field-${key}`) as
+      | HTMLInputElement
+      | HTMLSelectElement
+      | HTMLTextAreaElement
+      | null;
+  const set = (key: string, value: string) =>
+    fireEvent.change(field(key)!, { target: { value } });
+
+  async function startDraft(
+    activeDonations: LegalConfigurationValuesResponse["donations"],
+  ) {
+    const client = fakeClient(
+      stateWith({
+        active: version(1, simone, { donations: activeDonations }),
+        draft: null,
+      }),
+    );
+    client.saveLegalConfigurationDraft.mockResolvedValueOnce(stateWith());
+    renderPage(client, undefined, "/admin/legal/donations");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neuen Entwurf beginnen" }),
+    );
+    return client;
+  }
+
+  const save = () =>
+    fireEvent.click(
+      within(screen.getByTestId("legal-editor")).getByRole("button", {
+        name: "Als Entwurf speichern",
+      }),
+    );
+
+  it("has its own part in the list", () => {
+    expect(legalPart("/admin/legal/donations")).toBe("donations");
+  });
+
+  it("sends null while the club takes no donations", async () => {
+    const client = await startDraft(null);
+    expect((field("donationsEnabled") as HTMLInputElement).checked).toBe(false);
+    expect(field("donationLegalName")).toBeNull();
+    save();
+    await waitFor(() =>
+      expect(client.saveLegalConfigurationDraft).toHaveBeenCalledTimes(1),
+    );
+    const request = client.saveLegalConfigurationDraft.mock.calls[0]?.[0];
+    // The field is sent: leaving it out would keep the stored value.
+    expect(request).toHaveProperty("donations", null);
+  });
+
+  it("sends the receiving body, without a period for § 60a and with the machine date", async () => {
+    const client = await startDraft(null);
+    fireEvent.click(field("donationsEnabled")!);
+    // The default notice kind carries an assessment period.
+    expect(field("donationAssessmentFrom")).not.toBeNull();
+    expect(field("donationAssessmentTo")).not.toBeNull();
+    expect(field("donationMachineNotifiedOn")).toBeNull();
+
+    set("donationLegalName", " Förderverein Lions Club Musterstadt e. V. ");
+    set("donationLegalForm", "registered_association");
+    set("donationStreetLine1", "Marktplatz 1");
+    set("donationPostalCode", "12345");
+    set("donationCity", "Musterstadt");
+    set("donationTaxOffice", "Finanzamt Musterstadt");
+    set("donationTaxNumber", "123/456/78901");
+    set("donationNoticeKind", "feststellung_60a");
+    expect(field("donationAssessmentFrom")).toBeNull();
+    expect(field("donationAssessmentTo")).toBeNull();
+    set("donationNoticeDate", "2025-03-15");
+    set("donationPurposes", "Förderung der Jugendhilfe");
+    set("donationBankAccountHolder", "Förderverein Lions Club Musterstadt");
+    set("donationIban", "DE02 1203 0000 0000 2020 51");
+    set("donationSignatoryName", "Erika Mustermann");
+    set("donationSignatoryFunction", "Schatzmeisterin");
+    set("donationSigning", "machine");
+    set("donationMachineNotifiedOn", "2025-04-01");
+    set("donationPledgePrefix", "sp26-");
+    set("donationReceiptPrefix", "zb26-");
+    fireEvent.click(screen.getByTestId("legal-template-donationPledgeText"));
+    fireEvent.click(
+      screen.getByTestId("legal-template-donationReceiptLiabilityText"),
+    );
+    expect(field("donationPledgeText")!.value).toBe(
+      "Ihre Spende ist freiwillig. Sie erhalten dafür keine Gegenleistung. Dieses Schreiben ist keine Rechnung. Nach Eingang Ihrer Zahlung senden wir Ihnen eine Zuwendungsbestätigung für Ihre Steuererklärung.",
+    );
+    expect(field("donationReceiptLiabilityText")!.value).toMatch(
+      /^Hinweis: Wer vorsätzlich oder grob fahrlässig .*\(§ 63 Abs\. 5 AO\)\.$/,
+    );
+    save();
+    await waitFor(() =>
+      expect(client.saveLegalConfigurationDraft).toHaveBeenCalledTimes(1),
+    );
+    expect(
+      client.saveLegalConfigurationDraft.mock.calls[0]?.[0].donations,
+    ).toEqual({
+      assessmentPeriodFrom: null,
+      assessmentPeriodTo: null,
+      bankAccountHolder: "Förderverein Lions Club Musterstadt",
+      bic: null,
+      city: "Musterstadt",
+      countryCode: "DE",
+      iban: "DE02 1203 0000 0000 2020 51",
+      legalForm: "registered_association",
+      legalName: "Förderverein Lions Club Musterstadt e. V.",
+      machineNotifiedOn: "2025-04-01",
+      noticeDate: "2025-03-15",
+      noticeKind: "feststellung_60a",
+      numberWidth: 4,
+      pledgePrefix: "SP26-",
+      pledgeText: expect.stringMatching(/^Ihre Spende ist freiwillig\./),
+      postalCode: "12345",
+      purposes: "Förderung der Jugendhilfe",
+      receiptLiabilityText: expect.stringMatching(/^Hinweis: Wer vorsätzlich/),
+      receiptPrefix: "ZB26-",
+      signatoryFunction: "Schatzmeisterin",
+      signatoryName: "Erika Mustermann",
+      signing: "machine",
+      streetLine1: "Marktplatz 1",
+      taxNumber: "123/456/78901",
+      taxOffice: "Finanzamt Musterstadt",
+    });
+  });
+
+  it("shows the stored part and keeps the period for a Freistellungsbescheid", async () => {
+    const client = fakeClient(
+      stateWith({
+        active: version(1, simone, { donations: receivingBody }),
+        draft: null,
+      }),
+    );
+    client.saveLegalConfigurationDraft.mockResolvedValueOnce(stateWith());
+    renderPage(client, undefined, "/admin/legal/donations");
+    const current = within(await screen.findByTestId("legal-current"));
+    expect(current.getByText("Empfangende Körperschaft")).toBeTruthy();
+    expect(current.getByText("Freistellungsbescheid")).toBeTruthy();
+    expect(current.getByText("15.03.2025")).toBeTruthy();
+    expect(current.getByText("2021")).toBeTruthy();
+    expect(current.getByText("eigenhändig")).toBeTruthy();
+    expect(current.getByText("SP26-")).toBeTruthy();
+    // Signed by hand: no date of a notice to the tax office.
+    expect(current.queryByText("Dem Finanzamt angezeigt am")).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Neuen Entwurf beginnen" }),
+    );
+    expect((field("donationsEnabled") as HTMLInputElement).checked).toBe(true);
+    set("donationAssessmentTo", "2024");
+    save();
+    await waitFor(() =>
+      expect(client.saveLegalConfigurationDraft).toHaveBeenCalledTimes(1),
+    );
+    expect(
+      client.saveLegalConfigurationDraft.mock.calls[0]?.[0].donations,
+    ).toEqual({ ...receivingBody, assessmentPeriodTo: 2024 });
+  });
+
+  it("shows a club without donations as such", async () => {
+    renderPage(
+      fakeClient(stateWith({ draft: null })),
+      undefined,
+      "/admin/legal/donations",
+    );
+    const current = within(await screen.findByTestId("legal-current"));
+    expect(current.getByText("Der Club nimmt Spenden entgegen")).toBeTruthy();
+    expect(current.getByText("Nein")).toBeTruthy();
+    expect(current.queryByText("Empfangende Körperschaft")).toBeNull();
+  });
+
+  it("refuses equal number prefixes and a missing machine date", async () => {
+    const client = await startDraft(receivingBody);
+    set("donationReceiptPrefix", "sp26-");
+    save();
+    expect(
+      await screen.findByText(
+        "Die Präfixe für Rechnungen, Spendenzusagen und Zuwendungsbestätigungen müssen sich unterscheiden.",
+      ),
+    ).toBeTruthy();
+    set("donationReceiptPrefix", "ZB26-");
+    set("donationSigning", "machine");
+    // The date of the notice to the tax office is required with "machine":
+    // the browser's own check holds the form back.
+    const notified = field("donationMachineNotifiedOn") as HTMLInputElement;
+    expect(notified.required).toBe(true);
+    expect(notified.validity.valueMissing).toBe(true);
+    save();
+    expect(client.saveLegalConfigurationDraft).not.toHaveBeenCalled();
+  });
+
+  it("shows a new receiving body as a change for review", async () => {
+    renderPage(
+      fakeClient(
+        stateWith({ draft: version(2, klara, { donations: receivingBody }) }),
+      ),
+      undefined,
+      "/admin/legal/donations",
+    );
+    const draft = within(await screen.findByTestId("legal-draft"));
+    expect(draft.getByText("Der Club nimmt Spenden entgegen")).toBeTruthy();
+    expect(draft.getByText("Name der Körperschaft")).toBeTruthy();
+    // By hand: the machine date is in neither version and is no change.
+    expect(draft.queryByText("Dem Finanzamt angezeigt am")).toBeNull();
   });
 });

@@ -42,7 +42,8 @@
       "offerings",
       "ordering",
       "invoicing",
-      "delivery"
+      "delivery",
+      "donations"
     ],
     "membershipRole": [
       "CHARITY_ADMIN",

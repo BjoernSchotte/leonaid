@@ -82,6 +82,7 @@ Security-, Betriebs- und Recoveryentscheidungen sind in
 | PoC-Scope und Beweis | [ADR-0001](decisions/ADR-0001-poc-scope.md), [ADR-0002](decisions/ADR-0002-proof-and-delivery.md)                                       |
 | Core- und API-Grenze | [ADR-0003](decisions/ADR-0003-core-architecture.md)                                                                                     |
 | Rechnung und Typst   | [ADR-0004](decisions/ADR-0004-invoice-issuing.md), [ADR-0005](decisions/ADR-0005-typst-invoice-renderer.md), [ADR-0015](decisions/ADR-0015-document-series.md)                             |
+| Spenden              | [ADR-0016](decisions/ADR-0016-donations.md)                                                                                             |
 | Dokumente und S3     | [ADR-0006](decisions/ADR-0006-provider-neutral-object-storage.md), [ADR-0007](decisions/ADR-0007-contextual-document-access.md)         |
 | Mail und Zahlung     | [ADR-0008](decisions/ADR-0008-durable-invoice-delivery.md), [ADR-0009](decisions/ADR-0009-exact-invoice-settlement.md), [ADR-0014](decisions/ADR-0014-invoice-partial-payments.md)                  |
 | Feature Flags        | [ADR-0010](decisions/ADR-0010-openfeature-rollout-controls.md)                                                                          |

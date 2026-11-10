@@ -89,7 +89,7 @@
     #grid(
       columns: (1fr, auto),
       column-gutter: 4mm,
-      row-gutter: 1.6mm,
+      row-gutter: 2.2mm,
       [Datum], [#data.issuedOn],
       [Spende], [#text(weight: "bold")[#data.amount]],
     )
@@ -119,7 +119,7 @@
   #grid(
     columns: (32mm, 1fr),
     column-gutter: 3mm,
-    row-gutter: 1mm,
+    row-gutter: 2.2mm,
     [Betrag], [#text(weight: "bold")[#data.amount]],
     [Kontoinhaber], [#data.bank.accountHolder],
     [IBAN], [#data.bank.iban],

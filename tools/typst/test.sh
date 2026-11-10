@@ -136,6 +136,7 @@ docker run --rm \
   /proof/database-snapshots.json \
   /repo/tests/fixtures/golden/v1/documents \
   /repo/tests/fixtures/golden/v1/cancellations \
+  /repo/tests/fixtures/golden/v1/donations \
   /proof/rendered
 
 verify_pdfs() {
@@ -157,6 +158,7 @@ verify_pdfs() {
     /proof/pages \
     --template src/leonaid/adapters/typst/templates/invoice-v2.typ \
     --template src/leonaid/adapters/typst/templates/invoice-cancellation-v1.typ \
+    --template src/leonaid/adapters/typst/templates/donation-pledge-v1.typ \
     "$@"
 }
 

@@ -162,6 +162,18 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --entrypoint python \
   api tools/documents/contract.py cancellation-invoice
 
+# The running worker renders the pledge of a donation recorded now and mails
+# it to the donor with exactly the stored bytes.
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+  --env-from-file "$env_file" \
+  --env API_BASE_URL=http://api:8000 \
+  --env MAIL_TEST_API_URL=http://mailpit:8025/mail \
+  --env PYTHONPATH=/repo:/workspace/src \
+  --volume "$root:/repo:ro" \
+  --workdir /repo \
+  --entrypoint python \
+  api tools/documents/contract.py donation-pledge
+
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --env API_BASE_URL=http://api:8000 \

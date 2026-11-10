@@ -444,12 +444,22 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
                 if not report.found:
                     return None
                 retention = report.retention
-                retention_reasons = (
+                retention_reasons: tuple[str, ...] = (
                     "Ausgestellte Rechnungen und ihre PDFs bleiben gemäß "
                     f"freigegebener Frist {retention.invoice_days} Tage erhalten.",
                     "Consent-Nachweise bleiben gemäß freigegebener Frist "
                     f"{retention.consent_evidence_days} Tage nachvollziehbar.",
                 )
+                if any(
+                    item.reference_type == "donation"
+                    for item in report.module_references
+                ):
+                    retention_reasons = (
+                        *retention_reasons,
+                        "Spenden und ihre Dokumente bleiben als steuerliche "
+                        "Nachweise gemäß freigegebener Frist "
+                        f"{retention.invoice_days} Tage erhalten.",
+                    )
                 commitment_ids = [item.id for item in report.commitments]
                 company_ids = list(report.twenty_company_ids)
                 person_ids = list(report.twenty_person_ids)

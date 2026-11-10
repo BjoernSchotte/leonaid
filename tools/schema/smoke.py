@@ -41,6 +41,8 @@ EXPECTED_TABLES = {
     "consent_record",
     "document_number",
     "document_series",
+    "donation",
+    "donation_payment_withdrawal",
     "generated_document",
     "inbox_case",
     "inbox_case_comment",

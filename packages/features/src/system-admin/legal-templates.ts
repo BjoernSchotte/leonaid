@@ -1,5 +1,6 @@
 /**
- * Default texts for the public privacy page (/datenschutz).
+ * Default texts for the public privacy page (/datenschutz) and, at the end
+ * of the file, proposals for the donation documents.
  *
  * LEGAL REVIEW PENDING: Björn Schotte has not reviewed these templates yet.
  * They describe only what LeonAid itself does; everything the club must
@@ -87,3 +88,16 @@ Die Daten liegen nur auf diesem Gerät, verschlüsselt im Speicher des Browsers.
 Die App sendet Einträge, sobald du wieder online bist, und löscht sie danach sofort vom Gerät; das gilt auch für die Rechnungs- und Lieferadresse einer Bestellung. Ein Eintrag, der 14 Tage lang nicht gesendet werden konnte, gilt als abgelaufen und wird zwei Tage später gelöscht. Die Sponsorenliste zeigt die App nach 7 Tagen nicht mehr an und löscht sie nach 14 Tagen. Endet deine Mitarbeit in einer Aktion oder schaltet der Club die Akquise dort ab, kann die App deren Einträge nicht mehr senden: Du kannst sie noch lesen und verwerfen; bis dahin bleiben sie auf dem Gerät.
 
 Wenn du dich abmeldest, in der Akquise-App oder im Verwaltungsbereich, löscht die App alle Daten, die sie auf dem Gerät gespeichert hat. Endet deine Sitzung, löscht sie die Kurzform deiner Anmeldung und die Sponsorenliste; noch nicht gesendete Einträge bleiben, bis du dich wieder anmeldest, längstens bis zu den oben genannten Fristen. Meldet sich auf dem Gerät eine andere Person an, löscht die App deine Daten, bevor sie deren Arbeitsbereich zeigt. Wenn du die Website-Daten im Browser löschst oder die App entfernst, sind die Daten ebenfalls gelöscht.`;
+
+/**
+ * Proposals for the wording blocks of the part "Spenden"
+ * (specs/mails-documents-donations-push/PLAN.md, Appendix A.3).
+ * LEGAL REVIEW PENDING, as the header says: the liability note follows the
+ * official sample for money donations and must be compared with the current
+ * sample of the Federal Ministry of Finance before a real club uses it.
+ */
+export const DONATION_PLEDGE_TEXT_TEMPLATE =
+  "Ihre Spende ist freiwillig. Sie erhalten dafür keine Gegenleistung. Dieses Schreiben ist keine Rechnung. Nach Eingang Ihrer Zahlung senden wir Ihnen eine Zuwendungsbestätigung für Ihre Steuererklärung.";
+
+export const DONATION_RECEIPT_LIABILITY_TEMPLATE =
+  "Hinweis: Wer vorsätzlich oder grob fahrlässig eine unrichtige Zuwendungsbestätigung erstellt oder veranlasst, dass Zuwendungen nicht zu den in der Zuwendungsbestätigung angegebenen steuerbegünstigten Zwecken verwendet werden, haftet für die entgangene Steuer (§ 10b Abs. 4 EStG, § 9 Abs. 3 KStG, § 9 Nr. 5 GewStG). Diese Bestätigung wird nicht als Nachweis für die steuerliche Berücksichtigung der Zuwendung anerkannt, wenn das Datum des Freistellungsbescheides länger als 5 Jahre bzw. das Datum der Feststellung der Einhaltung der satzungsmäßigen Voraussetzungen nach § 60a Abs. 1 AO länger als 3 Jahre seit Ausstellung des Bescheides zurückliegt (§ 63 Abs. 5 AO).";

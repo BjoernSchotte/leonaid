@@ -13824,7 +13824,8 @@
               "document",
               "assignment",
               "activity",
-              "inbox_case"
+              "inbox_case",
+              "donation"
             ],
             "title": "Referencetype",
             "type": "string"

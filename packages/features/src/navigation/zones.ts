@@ -4,6 +4,7 @@ import {
   ClipboardList,
   Flag,
   Globe,
+  HandHeart,
   Handshake,
   Inbox,
   LayoutDashboard,
@@ -95,6 +96,14 @@ export const navigationZones: readonly NavigationZone[] = [
     icon: ReceiptEuro,
     group: "Arbeit",
     hint: "Rechnungen, Zahlungen, Stornos, Dokumente",
+  },
+  {
+    navKey: "donations",
+    key: "n",
+    label: "Spenden",
+    icon: HandHeart,
+    group: "Arbeit",
+    hint: "Spenden, Zahlungen, Spendenzusagen",
   },
   {
     navKey: "tasks",

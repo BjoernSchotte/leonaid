@@ -1,4 +1,5 @@
 import {
+  CAMPAIGN_SCOPED_NAV_KEYS,
   CAMPAIGN_STORAGE_KEY,
   readStoredCampaign,
   selectCampaign,
@@ -13,6 +14,12 @@ const campaigns = [
 
 describe("campaign selection", () => {
   afterEach(() => window.sessionStorage.clear());
+
+  it("carries the campaign into the money areas", () => {
+    expect(CAMPAIGN_SCOPED_NAV_KEYS.has("invoices")).toBe(true);
+    expect(CAMPAIGN_SCOPED_NAV_KEYS.has("donations")).toBe(true);
+    expect(CAMPAIGN_SCOPED_NAV_KEYS.has("members")).toBe(false);
+  });
 
   it("lets the URL win on pages that read it", () => {
     expect(

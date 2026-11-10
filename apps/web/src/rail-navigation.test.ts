@@ -141,4 +141,22 @@ describe("rail navigation", () => {
       ["invoices", "Rechnungen", "Arbeit", "r"],
     ]);
   });
+
+  it("puts Spenden into Arbeit right after Rechnungen with g n", () => {
+    const rail = railNavigation(
+      [
+        item("donations", "Spenden", "/admin/donations"),
+        item("invoices", "Rechnungen", "/admin/invoices"),
+        item("tasks", "Aufgaben", "/admin/tasks"),
+      ],
+      ["tasks"],
+    );
+    expect(
+      rail.map((entry) => [entry.key, entry.label, entry.group, entry.goKey]),
+    ).toEqual([
+      ["invoices", "Rechnungen", "Arbeit", "r"],
+      ["donations", "Spenden", "Arbeit", "n"],
+      ["tasks", "Aufgaben", "Module", "t"],
+    ]);
+  });
 });

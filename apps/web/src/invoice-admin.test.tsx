@@ -242,6 +242,7 @@ function documentFor(invoiceId: string, number: string) {
       commitmentId: null,
       createdAt: "2026-10-01T10:00:30Z",
       documentType: "invoice_pdf",
+      donationId: null,
       filename: `Rechnung-${number}.pdf`,
       id: `d-${invoiceId}`,
       invoiceId,

@@ -363,6 +363,7 @@ class PrivacyReferenceResponse(TransportModel):
         "assignment",
         "activity",
         "inbox_case",
+        "donation",
     ]
     action_id: UUID | None
     status: str | None

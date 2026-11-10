@@ -274,7 +274,7 @@ function AdminDashboard({
   const action = encodeURIComponent(dashboard.actionId);
   const ordersHref = `${ADMIN_BASE}orders?action=${action}`;
   const pipelineHref = href("admin.pipeline", adminHref("acquisition"));
-  const { commitments, invoices } = data;
+  const { commitments, donations, invoices } = data;
   const toReview = commitments.draft + commitments.reviewReady;
 
   const queue: QueueItem[] = [
@@ -615,6 +615,26 @@ function AdminDashboard({
                 {invoices.open === 1 ? "Rechnung" : "Rechnungen"}
               </dd>
             </div>
+            {donations.enabled ? (
+              <div data-testid="dashboard-donations">
+                <dt>
+                  <a href={`${ADMIN_BASE}donations?action=${action}`}>
+                    Spenden
+                  </a>
+                </dt>
+                <dd>
+                  <strong className="num">
+                    {formatMoney(donations.receivedMinor, commitments.currency)}
+                  </strong>
+                  eingegangen ·{" "}
+                  {formatMoney(
+                    donations.pledgedOpenMinor,
+                    commitments.currency,
+                  )}{" "}
+                  zugesagt, noch offen
+                </dd>
+              </div>
+            ) : null}
           </dl>
         }
         items={dashboard.metricDefinitions}

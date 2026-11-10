@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 import asyncpg
@@ -46,6 +46,7 @@ from leonaid.domain.donations import (
     DonorSnapshot,
     ReceivingBody,
 )
+from leonaid.domain.privacy import PrivacyReference
 
 CREATE_COMMAND = "create_donation_v1"
 PAYMENT_COMMAND = "record_donation_payment_v1"
@@ -1231,3 +1232,42 @@ class AsyncpgDonationRepository:
                 return await AsyncpgInvoiceDeliveryRepository._get(
                     connection, delivery_id
                 )
+
+
+class DonationPrivacyContributor:
+    """Donations in the privacy subject report.
+
+    A donation, its pledge and later its receipt are tax records of the
+    receiving body: like issued invoices they stay unchanged for the approved
+    retention period. The erasure therefore changes nothing here; the report
+    names the donations so the person handling the request sees what is kept
+    and why.
+    """
+
+    async def references(
+        self, connection: object, normalized_email: str
+    ) -> tuple[PrivacyReference, ...]:
+        rows = await cast("asyncpg.Connection[Any]", connection).fetch(
+            """
+            SELECT id, action_id, status, number
+            FROM donation
+            WHERE lower(donor_snapshot ->> 'email') = $1
+            ORDER BY pledged_at, id
+            """,
+            normalized_email,
+        )
+        return tuple(
+            PrivacyReference(
+                id=row["id"],
+                reference_type="donation",
+                action_id=row["action_id"],
+                status=str(row["status"]),
+                label=f"Spendenzusage {row['number']}",
+            )
+            for row in rows
+        )
+
+    async def anonymize(
+        self, connection: object, normalized_email: str, occurred_at: datetime
+    ) -> int:
+        return 0

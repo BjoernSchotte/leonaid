@@ -102,6 +102,7 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
     /repo/tests/integration/test_search_api.py \
     /repo/tests/integration/test_order_cancellation_api.py \
     /repo/tests/integration/test_cancellation_invoice_api.py \
+    /repo/tests/integration/test_donations_api.py \
     /repo/tests/integration/test_offline_capture_api.py \
     /repo/tests/integration/test_public_origins_api.py \
     /repo/tests/integration/test_public_campaigns_api.py \
@@ -516,5 +517,33 @@ if [ "$series" != "LEGACY-=8,ZZ-=5" ]; then
   echo "poc021-test: ERROR: 0063 did not survive downgrade and upgrade: $series" >&2
   exit 1
 fi
+
+echo "poc021-test: 0066 goes back only while nothing uses donations"
+donations_parent=$(sed -n 's/^down_revision: str | None = "\(.*\)"$/\1/p' \
+  "$root/migrations/versions/0066_donations.py")
+[ -n "$donations_parent" ] || {
+  echo "poc021-test: ERROR: 0066 names no down_revision" >&2
+  exit 1
+}
+printf '%s\n' "INSERT INTO charity_action_capability (action_id, capability) VALUES ('20000000-0000-4000-8000-000000000001', 'donations');" | series_sql
+if output=$(compose run --rm --no-deps --entrypoint alembic api downgrade "$donations_parent" 2>&1); then
+  echo "poc021-test: ERROR: 0066 went back although an action takes donations" >&2
+  exit 1
+fi
+case "$output" in
+  *"0066 downgrade refused"*) ;;
+  *)
+    printf '%s\n' "$output" >&2
+    echo "poc021-test: ERROR: 0066 downgrade failed for another reason" >&2
+    exit 1
+    ;;
+esac
+printf '%s\n' "DELETE FROM charity_action_capability WHERE capability = 'donations';" | series_sql
+compose run --rm --no-deps --entrypoint alembic api downgrade "$donations_parent"
+if printf '%s\n' "INSERT INTO charity_action_capability (action_id, capability) VALUES ('20000000-0000-4000-8000-000000000001', 'donations');" | series_sql >/dev/null 2>&1; then
+  echo "poc021-test: ERROR: the capability check was not put back" >&2
+  exit 1
+fi
+compose run --rm --no-deps --entrypoint alembic api upgrade head
 
 echo "poc021-test: OK: build from empty, upgrade, constraints and data retention proven"

@@ -43,9 +43,8 @@ def pledge_render_payload(document: DonationPledgeDocument) -> dict[str, object]
         ),
         "purpose": document.action_purpose,
         "request": (
-            f"Bitte überweisen Sie den Betrag auf das Konto des "
-            f"{body.legal_name} und geben Sie als Verwendungszweck "
-            f"{document.number} an."
+            "Bitte überweisen Sie den Betrag auf das folgende Konto und geben "
+            "Sie als Verwendungszweck die Nummer dieser Spendenzusage an."
         ),
         "notice": body.pledge_text,
         "donor": {

@@ -8,6 +8,7 @@ export const CAMPAIGN_SCOPED_NAV_KEYS: ReadonlySet<string> = new Set([
   "overview-web",
   "orders",
   "invoices",
+  "donations",
   "acquisition-web",
 ]);
 
