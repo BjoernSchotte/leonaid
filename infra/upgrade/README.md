@@ -86,8 +86,8 @@ it:
 
 Do not migrate while processes of the previous release still serve writes:
 they would count from the old per-action counter. If that happened anyway,
-the new release does not get stuck: the next allocation moves the series past
-the highest issued number. Before the release, list invoices in actions
+the new release does not get stuck: the next allocation moves the series on to
+the next number that no document holds. Before the release, list invoices in actions
 without a profile (they still cancel; the query shows what to expect):
 
 ```sql

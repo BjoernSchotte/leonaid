@@ -175,31 +175,14 @@ async def allocate_document_number(
     # The counter can be behind an issued number: an invoice written by the
     # previous release after the migration, or one restored or inserted by
     # hand. Such a number would be refused by the registry on every try. The
-    # counter then moves past the highest registered number of the prefix.
-    # After the previous release issued the next numbers in a row, no gap
-    # follows. A number written by hand further up leaves the numbers below
-    # it unused: a gap, traceable to that row, never a duplicate.
-    if await connection.fetchval(
+    # counter then moves on to the next number nobody holds, whichever
+    # series issued the numbers in its way (with the series "A" and "A1",
+    # "A1001" may be number 1001 of "A" or number 1 of "A1"). It can only
+    # skip numbers that exist, never collide and never jump further.
+    while await connection.fetchval(
         "SELECT EXISTS (SELECT 1 FROM document_number WHERE number = $1)", number
     ):
-        # Here every registered number that starts with the prefix and
-        # ends in digits counts, whichever series issued it: with the series
-        # "A" and "A1", "A1001" may be number 1001 of "A" or number 1 of
-        # "A1". Past the highest of them the next number is free for sure;
-        # this can only skip numbers, never collide.
-        serial = int(
-            await connection.fetchval(
-                """
-                SELECT COALESCE(max(
-                    substring(number FROM char_length($1) + 1)::bigint
-                ), 0) + 1
-                FROM document_number
-                WHERE left(number, char_length($1)) = $1
-                  AND substring(number FROM char_length($1) + 1) ~ '^[0-9]{1,18}$'
-                """,
-                prefix,
-            )
-        )
+        serial += 1
         number = format_document_number(prefix, serial, series.width)
     updated = await connection.execute(
         """

@@ -56,11 +56,10 @@ Präfix, mit dem sie anfängt.
 Steht der Zähler hinter einer schon vergebenen Nummer (eine Rechnung, die
 ein Prozess der Vorversion nach der Migration geschrieben hat, oder ein von
 Hand eingespielter Beleg), rückt die Vergabe ihn in derselben Transaktion
-hinter die höchste registrierte Nummer des Präfixes. Hat die Vorversion die nächsten Nummern der Reihe vergeben, entsteht keine
-Lücke. Liegt eine von Hand eingespielte Nummer weiter oben, bleiben die
-Nummern darunter unbenutzt: eine Lücke, die sich auf diesen Beleg
-zurückführen lässt, nie eine doppelte Nummer. Ohne diese Regel scheiterte jede weitere Freigabe
-und jedes Storno des Präfixes dauerhaft.
+auf die nächste Nummer, die noch kein Beleg trägt. Übersprungen werden nur
+Nummern, die es gibt; es entsteht weder eine Lücke noch eine doppelte Nummer. Ohne
+diese Regel scheiterte jede weitere Freigabe und jedes Storno des Präfixes
+dauerhaft.
 
 `invoice_profile.next_number` bleibt eine Version lang in der Tabelle. Die
 Anwendung liest und schreibt die Spalte nicht mehr. Die Rückmigration
