@@ -838,7 +838,11 @@ async def prove_delete(stack: Stack, company_id: UUID, name: str, token: str) ->
 
 
 async def spend_twenty_quota(twenty: httpx.AsyncClient) -> None:
-    """Send reads until Twenty itself answers 429 (100 requests a minute)."""
+    """Send reads until Twenty's minute bucket (100 requests) is spent.
+
+    Twenty frees the bucket again piece by piece, so a request sent right
+    after this may still pass; the caller must not rely on the opposite.
+    """
 
     for _ in range(40):
         responses = await asyncio.gather(
@@ -875,33 +879,74 @@ async def wait_for_twenty_quota(twenty: httpx.AsyncClient) -> None:
 
 
 async def prove_rate_limit(stack: Stack, twenty: httpx.AsyncClient) -> None:
-    """The run stops on the first 429 and keeps what it had."""
+    """The first 429 ends the run: no request follows it, progress is kept.
+
+    The proof counts what the gateway really sent and received. It does not
+    pin how many requests Twenty still accepted before the 429: the quota
+    is Twenty's, and its window can reopen between the spending and the run.
+    """
 
     await stack.connection.execute(
         "UPDATE sponsor_search_sync SET full_pass_completed_at = NULL"
     )
-    entries_before = await stack.connection.fetchval(
-        "SELECT count(*) FROM sponsor_search_entry"
+    entries_before = await stack.connection.fetch(
+        "SELECT party_kind, twenty_id, display_name, city, erased_at "
+        "FROM sponsor_search_entry ORDER BY party_kind, twenty_id"
     )
-    await spend_twenty_quota(twenty)
     try:
-        report = await stack.run()
+        for _ in range(5):
+            await spend_twenty_quota(twenty)
+            limited_before = stack.gateway.rate_limited_responses
+            report = await stack.run()
+            limited = stack.gateway.rate_limited_responses - limited_before
+            if limited:
+                break
+            # Twenty accepted the whole run after all (the window reopened):
+            # nothing to judge. Make the pass due again and spend once more.
+            check(
+                report.mode == "full" and report.complete,
+                f"A run without a 429 did not complete: {report!r}",
+            )
+            await stack.connection.execute(
+                "UPDATE sponsor_search_sync SET full_pass_completed_at = NULL"
+            )
+        else:
+            raise ContractFailure("No run met a 429 in five attempts")
+        # Exactly one 429, and it was the answer to the last request the
+        # run sent (Stack.run checked report.requests against the gateway).
+        check(
+            limited == 1 and stack.gateway.last_status_code == 429,
+            f"The run sent a request after its first 429: {limited} answers "
+            f"were a 429, the last status was {stack.gateway.last_status_code}",
+        )
         check(
             report.mode == "full"
             and report.rate_limited
-            and report.requests == 1
+            and report.requests >= 1
             and not report.complete
             and report.crm_error == "crm_rate_limited",
             f"The run did not stop on the first 429: {report!r}",
         )
         state = await stack.index.sync_state()
         check(
-            state.full_pass_completed_at is None and state.full_pass_after is None,
-            "A rate-limited run moved the full pass",
+            state.full_pass_completed_at is None,
+            "A rate-limited run recorded a completed full pass",
         )
+        # Every request before the 429 is one stored batch; the cursor
+        # stands behind the last of them, or nowhere when the 429 came first.
         check(
-            await stack.connection.fetchval("SELECT count(*) FROM sponsor_search_entry")
-            == entries_before,
+            (state.full_pass_after is None) == (report.requests == 1),
+            f"The cursor does not match the batches read before the 429: "
+            f"{report!r}, cursor {state.full_pass_after!r}",
+        )
+        # The index was complete before; batches read again change nothing.
+        check(
+            await stack.connection.fetch(
+                "SELECT party_kind, twenty_id, display_name, city, erased_at "
+                "FROM sponsor_search_entry ORDER BY party_kind, twenty_id"
+            )
+            == entries_before
+            and report.deleted == 0,
             "A rate-limited run changed the index",
         )
     finally:
