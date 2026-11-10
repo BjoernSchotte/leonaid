@@ -63,6 +63,7 @@ from leonaid.bootstrap.api import (
     build_delivery_board_service,
     build_delivery_tour_service,
     build_order_cancellation_service,
+    build_push_service,
     build_inbox_service,
     build_knowledge_service,
     build_material_service,
@@ -94,6 +95,8 @@ from leonaid.application.assignments import AssignmentManagementService
 from leonaid.application.actions import CharityActionService
 from leonaid.application.campaign_aliases import CampaignAliasService
 from leonaid.application.site_hosts import SiteHostService
+from leonaid.adapters.postgres.buyer_mails import AsyncpgBuyerMailRepository
+from leonaid.application.buyer_mails import BuyerMailService
 from leonaid.application.commitments import CommitmentService
 from leonaid.application.delivery_completion import DeliveryCompletionService
 from leonaid.application.documents import GeneratedDocumentService
@@ -139,10 +142,12 @@ from leonaid.configuration import (
     Settings,
     load_map_settings,
     load_module_settings,
+    load_push_settings,
     load_settings,
 )
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.platform import PlatformIdentity
+from leonaid.entrypoints.fastapi.push import router as push_router
 from leonaid.entrypoints.fastapi.routes import router
 from leonaid.entrypoints.fastapi.site_hosts import (
     action_router as action_url_router,
@@ -415,12 +420,21 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.delivery_board_service = build_delivery_board_service(
             pool, disabled_modules, application.state.feature_flag_service
         )
+        # The buyer's order mails link the campaign and the legal pages. The
+        # campaign link is the permanent edition URL on the campaign host
+        # (decision D8), else the public host page, else none (§7.6).
+        order_mail_links = OrderMailLinkResolver(
+            settings.links, site_directory.edition_link
+        )
         application.state.commitment_service = CommitmentService(
-            AsyncpgCommitmentRepository(pool)
+            AsyncpgCommitmentRepository(pool), mail_links=order_mail_links
+        )
+        application.state.buyer_mail_service = BuyerMailService(
+            AsyncpgBuyerMailRepository(pool), mail_links=order_mail_links
         )
         application.state.search_service = SearchService(AsyncpgSearchRepository(pool))
         application.state.delivery_completion_service = DeliveryCompletionService(
-            AsyncpgDeliveryCompletionRepository(pool)
+            AsyncpgDeliveryCompletionRepository(pool), mail_links=order_mail_links
         )
         application.state.invoice_service = InvoiceService(
             AsyncpgInvoiceRepository(pool)
@@ -434,17 +448,17 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.donation_service = DonationService(
             AsyncpgDonationRepository(pool)
         )
-        # The buyer's order mails link the campaign and the legal pages. The
-        # campaign link is the permanent edition URL on the campaign host
-        # (decision D8), else the public host page, else none (§7.6).
-        order_mail_links = OrderMailLinkResolver(
-            settings.links, site_directory.edition_link
-        )
         application.state.order_cancellation_service = build_order_cancellation_service(
             pool, disabled_modules, mail_links=order_mail_links
         )
         application.state.delivery_tour_service = build_delivery_tour_service(
             pool, application.state.feature_flag_service, load_map_settings()
+        )
+        application.state.push_service = build_push_service(
+            pool,
+            application.state.feature_flag_service,
+            disabled_modules,
+            load_push_settings(),
         )
         legal_configuration_repository = AsyncpgLegalConfigurationRepository(pool)
         application.state.legal_configuration_service = LegalConfigurationService(
@@ -849,6 +863,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         core=(
             router,
             site_host_router,
+            push_router,
             public_site_router,
             site_host_infrastructure_router,
             action_url_router,

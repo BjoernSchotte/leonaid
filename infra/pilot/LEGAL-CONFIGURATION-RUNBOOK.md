@@ -92,6 +92,20 @@ The templates are not legal advice. The device-storage section of the
 members' notice describes the acquisition app's offline capture and carries a
 placeholder until the club decides it applies.
 
+The section „Benachrichtigungen auf deinem Gerät" of the members' notice
+describes push notifications of the acquisition app: the address at the push
+service of the browser vendor (Google, Apple, Mozilla or Microsoft) and the
+two keys that LeonAid stores per device, and the consent as legal basis.
+LeonAid stores nothing about the browser itself. LEGAL REVIEW PENDING: the wording is a proposal
+(`specs/mails-documents-donations-push/PLAN.md`, Appendix A.4, item P4). The
+feature flag `pwa.push` (System → Feature-Flags, „Benachrichtigungen in der
+Akquise-App") may be switched on only once the **active** version of the
+legal configuration carries this section in the members' notice, as for the
+offline capture (`pwa.offline_queue`). LeonAid does not enforce this order;
+the system admin who switches the flag checks it. Without
+`LEONAID_VAPID_PRIVATE_KEY` the page says „noch nicht eingerichtet" whatever
+the flag says.
+
 ## After an update
 
 A version activated before new requirements can be incomplete afterwards

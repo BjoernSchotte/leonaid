@@ -28,7 +28,8 @@ TWIN_COMPANIES = (
     (UUID("40000000-0000-4000-8000-00000000f072"), "POC072 Zwilling-Werk GmbH"),
     (UUID("40000000-0000-4000-8000-00000000f073"), "POC072 Zwilling Werk GmbH"),
 )
-PUBLIC_REFERENCE = re.compile(r"^LA-[A-F0-9]{32}$")
+# The short order number of every new order (domain.commitments.order_number).
+PUBLIC_REFERENCE = re.compile(r"^LA-[2-9A-HJKMNP-Z]{8}$")
 PRIVACY_NOTICE_VERSION = "public-order-golden-v1"
 PRIVACY_NOTICE_TEXT = (
     "Wir verarbeiten Ihre Angaben ausschließlich zur Durchführung, "
@@ -495,6 +496,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             email="mara.muster@musterwerk.leonaid.invalid",
             quantity=1,
         )
+        await expect_feed_push(connection)
         existing = await submit(
             api,
             existing_body,
@@ -523,6 +525,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             commitment_id=existing_row["id"],
             expected_recipient_ids={ANNA_ID},
         )
+        await assert_feed_push(connection)
 
         new_company_body = order_body(
             token=token,
@@ -894,6 +897,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         ):
             raise ContractFailure("CRM records were not created exactly once")
 
+    await assert_no_push(connection)
     assignments_after = await assignment_snapshot(connection)
     if assignments_after != assignments_before:
         raise ContractFailure("Public orders changed assignments")
@@ -937,6 +941,91 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         "public-orders-contract: OK:",
         "active legal basis, company/person, server-side price,",
         "idempotency, archive/inactive, spam/rate and ActivityEvents proven",
+    )
+
+
+PUSH_PROOF_SESSION = UUID("95620000-0000-4000-8000-0000000000a1")
+PUSH_PROOF_DEVICE = UUID("95620000-0000-4000-8000-0000000000a2")
+
+
+async def expect_feed_push(connection: asyncpg.Connection[Any]) -> None:
+    """Anna asked for pushes about "Neues" and has a device (ADR-0017)."""
+
+    await connection.execute(
+        "UPDATE feature_flag SET enabled = true, revision = revision + 1 "
+        "WHERE key = 'pwa.push'"
+    )
+    await connection.execute(
+        """
+        INSERT INTO user_session (
+            id, user_id, token_digest, expires_at, last_seen_at,
+            fresh_login_at, device_hint, created_at, updated_at
+        )
+        VALUES ($1, $2, repeat('9', 64), now() + interval '1 day', now(),
+                now(), 'POC072 push', now(), now())
+        ON CONFLICT DO NOTHING
+        """,
+        PUSH_PROOF_SESSION,
+        ANNA_ID,
+    )
+    await connection.execute(
+        """
+        INSERT INTO push_subscription (
+            id, user_id, session_id, endpoint, p256dh, auth, vapid_public_key
+        )
+        VALUES ($1, $2, $3, 'https://fcm.googleapis.com/fcm/send/poc072',
+                decode(repeat('04', 65), 'hex'), decode(repeat('00', 16), 'hex'),
+                repeat('A', 87))
+        ON CONFLICT DO NOTHING
+        """,
+        PUSH_PROOF_DEVICE,
+        ANNA_ID,
+        PUSH_PROOF_SESSION,
+    )
+    await connection.execute(
+        "INSERT INTO push_preference (user_id, kind, enabled) "
+        "VALUES ($1, 'feed', true) ON CONFLICT DO NOTHING",
+        ANNA_ID,
+    )
+
+
+async def assert_feed_push(connection: asyncpg.Connection[Any]) -> None:
+    """The order for Anna's sponsor asked for exactly one push, for her.
+
+    The job names a member, a kind and a count; nothing of the order. The
+    proof removes the job before a worker can act on it and switches the
+    flag off again, so the later orders of this contract ask for none.
+    """
+
+    rows = await connection.fetch(
+        "SELECT aggregate_id, payload FROM outbox_event "
+        "WHERE event_type = 'push.notification.v1'"
+    )
+    payloads = [json.loads(row["payload"]) for row in rows]
+    if payloads != [{"userId": str(ANNA_ID), "kind": "feed", "count": 1}] or [
+        row["aggregate_id"] for row in rows
+    ] != [ANNA_ID]:
+        raise ContractFailure("Public order asked for no push for its acquirer")
+    await connection.execute(
+        "DELETE FROM outbox_event WHERE event_type = 'push.notification.v1'"
+    )
+    await connection.execute(
+        "UPDATE feature_flag SET enabled = false, revision = revision + 1 "
+        "WHERE key = 'pwa.push'"
+    )
+
+
+async def assert_no_push(connection: asyncpg.Connection[Any]) -> None:
+    """With the flag off, or for members who did not ask, nothing is queued."""
+
+    count = await connection.fetchval(
+        "SELECT count(*) FROM outbox_event WHERE event_type = 'push.notification.v1'"
+    )
+    if count != 0:
+        raise ContractFailure("A push was queued although nobody may get one")
+    await connection.execute("DELETE FROM push_preference WHERE user_id = $1", ANNA_ID)
+    await connection.execute(
+        "DELETE FROM user_session WHERE id = $1", PUSH_PROOF_SESSION
     )
 
 

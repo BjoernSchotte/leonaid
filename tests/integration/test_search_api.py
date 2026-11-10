@@ -75,7 +75,8 @@ class Fixture:
         self.action_b = uuid4()
         self.wildcard_action = uuid4()
         self.lookalike_action = uuid4()
-        # Only public-form orders carry a reference (ck_commitment_public_reference).
+        # Order A is a public-form order with its own number; order B is an
+        # internal order whose number follows from its id.
         self.reference_a = f"LA-{uuid4().hex.upper()}"
         self.order_a = uuid4()
         self.order_b = uuid4()
@@ -349,7 +350,7 @@ class Fixture:
             ),
             json.dumps(recipient),
             f"search-proof:{order_id}",
-            reference,
+            reference or f"LA-{order_id.hex.upper()}",
             "public_form" if reference else "admin",
         )
         offering_id = uuid4()

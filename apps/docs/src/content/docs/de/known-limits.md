@@ -4,9 +4,9 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 10
-reviewedRevision: 10
-verifiedAgainst: b78873c3d34a9438bc885e49874cc00ab875117b
+contentRevision: 13
+reviewedRevision: 13
+verifiedAgainst: __SHA__
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -26,6 +26,22 @@ allgemeine Produktionsfreigabe.
   je Fahrer und Liefertag. Der öffentliche Nominatim-Dienst und die
   OSM-Kacheln unterliegen deren Nutzungsbedingungen; bei hohem Aufkommen ist
   ein eigener Anbieter zu konfigurieren.
+- Benachrichtigungen der Akquise-App (Feature-Flag `pwa.push`, siehe
+  [Benachrichtigungen einschalten](/de/user/how-to/switch-on-notifications/))
+  haben Grenzen: Die Zustellung über die Push-Dienste von Google, Mozilla,
+  Apple und Microsoft ist nicht automatisch getestet, nur das Senden an einen
+  entschlüsselnden Empfänger und die Anzeige im Browser; die Prüfung auf
+  einem echten Android-Telefon und iPhone ist Handarbeit. iPhone und iPad
+  brauchen LeonAid auf dem Home-Bildschirm. Es gibt vier Arten
+  (Wiedervorlagen einmal am Tag ab 8 Uhr, neue Bestellungen, Aufgaben,
+  Lieferungen), höchstens eine Benachrichtigung je Art in 15 Minuten, keine
+  Ruhezeiten und keine Einstellung je Gerät. Eine Benachrichtigung nennt nur
+  Art und Anzahl. Sie ist ein Hinweis ohne Zustellgarantie. Nach dem
+  Abmelden schaltet das Mitglied das Gerät neu ein; nach 90 Tagen ohne Öffnen
+  der App kommt nichts mehr, bis sie wieder geöffnet wird. Ein Mitglied kann
+  höchstens zehn Geräte anmelden. Ein neuer `LEONAID_VAPID_PRIVATE_KEY`
+  beendet alle Anmeldungen; jedes Gerät meldet sich beim nächsten Öffnen der
+  App von selbst neu an.
 - `finance_reader` darf Belege nur lesen. Der gepflegte Demo-Benutzer Finn
   Finanzen beweist genau diesen Lesezugriff. Zahlungen und Storno benötigen
   `finance_manager` oder den Charity-Admin der betroffenen Aktion.
@@ -34,11 +50,26 @@ allgemeine Produktionsfreigabe.
 - Öffentliche Bestellungen sind nur für eine veröffentlichte Aktion mit
   aktivem Bestellformular und verfügbarem Angebot möglich. Bei aktivierter
   Lieferplanung ist außerdem ein verfügbares Lieferfenster nötig.
-- Bestellbestätigung und Stornohinweis gehen als reiner Text nur an Besteller
-  aus dem öffentlichen Formular. Bestellungen von Mitgliedern oder
-  Akquisiteuren lösen keine E-Mail aus. Der Link zur Aktion zeigt auf die
-  Aktionsseite des öffentlichen Hosts; eigene Kampagnen-Domains folgen mit
-  Stufe 2. Absender ist die konfigurierte Systemadresse, nicht der Club.
+- Bestellbestätigung und Stornohinweis gehen als reiner Text an Besteller aus
+  dem öffentlichen Formular. Für Bestellungen, die Mitglieder oder
+  Akquisiteure erfassen, schaltet die Aktionsverwaltung sie je Aktion ein
+  (**E-Mails an Käufer**); dann wird eine Bestellung einmal bestätigt, sobald
+  sie prüfbereit ist. Bestellungen ohne E-Mail-Adresse des Käufers und Entwürfe
+  erhalten keine E-Mail, ebenso Bestellungen, die erst nach der Lieferung,
+  nach dem Lieferfenster oder nach Abschluss der Aktion prüfbereit werden;
+  das gilt auch für Bestellungen aus dem öffentlichen Formular. Konnte
+  LeonAid eine rechtzeitig angelegte Bestätigung erst danach senden (Versand
+  gestört), geht sie nicht mehr hinaus und steht in der Bestellung als
+  fehlgeschlagen.
+  Bestellungen von vor dem Einschalten bestätigt die Aktionsverwaltung
+  einzeln in der Bestellung (**Senden**). Die Adresse ist die des Sponsors
+  aus dem CRM. LeonAid prüft nicht, ob die Datenschutzerklärung des Clubs
+  diese E-Mails nennt. Eine E-Mail am Liefertag gibt es noch nicht.
+  Bestellnummern haben zwei Formen: neue sind kurz (`LA-` und acht Zeichen),
+  öffentliche Bestellungen von früher behalten ihre lange Nummer. Der Link zur Aktion zeigt auf die dauerhafte Adresse
+  der Aktion auf ihrer Kampagnen-Domain, sonst auf die Aktionsseite des
+  öffentlichen Hosts. Absender ist die konfigurierte Systemadresse, nicht der
+  Club.
 - Die Suche (**Suchen und Befehle**) findet Sponsoren nur über Name und Ort
   und nur, wenn sie in einer Aktion einem Akquisiteur zugeordnet sind (siehe
   [Mit der Suche finden](/de/user/how-to/find-with-search/)). E-Mail, Telefon
@@ -62,7 +93,8 @@ allgemeine Produktionsfreigabe.
   empfangenden Körperschaft aktiv ist. Es gibt nur Geldspenden in Euro, eine
   Zahlung je Spende und keine Sammelbestätigung; eine zweite Teilzahlung ist
   eine eigene Spende. Nur eine unbezahlte Spende lässt sich stornieren.
-  Spenden entstehen nur in der Verwaltung, noch nicht im Bestellformular. Die
+  Spenden entstehen nur in der Verwaltung, noch nicht im Bestellformular; den
+  Spender trägst du von Hand ein, eine Suche im CRM gibt es dort noch nicht. Die
   Zuwendungsbestätigung stellt LeonAid noch nicht aus. Die Textbausteine sind
   Vorschläge und rechtlich noch nicht geprüft (siehe
   [Spende erfassen](/de/user/how-to/record-donation/)).

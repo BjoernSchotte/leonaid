@@ -531,7 +531,9 @@ RULES: tuple[Rule, ...] = (
             "tests/integration/test_cancellation_invoice_api.py",
             "tests/integration/test_donations_api.py",
             "tests/integration/test_offline_capture_api.py",
+            "tests/integration/test_buyer_mails_api.py",
             "tests/integration/test_campaign_renderer_api.py",
+            "tests/integration/test_push_api.py",
         ),
         integration("schema"),
         "schema proofs",
@@ -689,6 +691,15 @@ RULES: tuple[Rule, ...] = (
         ),
         e2e("invoices", "pwa-offline"),
         "Meine Tour, online and offline",
+    ),
+    # "Benachrichtigungen" and the browser side of Web Push (ADR-0017).
+    Rule(
+        (
+            "packages/features/src/push/**",
+            "apps/web/src/push-notifications.test.tsx",
+        ),
+        e2e("pwa"),
+        "push notifications of the PWA",
     ),
     # The offline queue, device store and tour copy of the PWA.
     Rule(
@@ -876,6 +887,9 @@ E2E_OWNERS: dict[str, tuple[str, ...]] = {
     "search": ("leitsystem-ui",),
     "sponsor_search": ("leitsystem-ui",),
     "public_orders": ("public-orders",),
+    # Push notifications: the page and the service worker handlers run in
+    # the pwa leaf; sending is proven in Integration / schema.
+    "push": ("pwa",),
 }
 # Leaves that send mail, sync the CRM or deliver invoices through the outbox.
 _MESSAGING = (
@@ -899,6 +913,7 @@ MODULE_OWNERS: tuple[tuple[str, tuple[str, ...] | str], ...] = (
     ("leonaid.adapters.typst", ("invoices", "invoice-flows")),
     ("leonaid.adapters.storage", ("knowledge", "inbox", "invoices")),
     ("leonaid.adapters.feature_flags", ("operations",)),
+    ("leonaid.adapters.web_push", ("pwa",)),
     ("leonaid.adapters.operations", ("operations",)),
     ("leonaid.adapters.postgres.outbox", _MESSAGING),
     ("leonaid.entrypoints.worker.outbox", _MESSAGING),

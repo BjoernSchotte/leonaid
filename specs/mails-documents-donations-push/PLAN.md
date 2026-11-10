@@ -105,6 +105,11 @@ arrive; a mail to a buyer after erasure; a second mail by a retry storm.
   the server stores it).
 - Migration: drop `ck_commitment_public_reference`, backfill existing orders
   without a number with the same generator, add `NOT NULL`.
+- The number of a new order is short, so that a buyer can read it out on the
+  phone: `LA-` plus 8 characters of an alphabet without `0`/`O` and
+  `1`/`I`/`L`, unique. The backfill uses the same form. Numbers that public
+  orders already have (`LA-` plus 32 hex digits) stay valid: buyers hold
+  them (ruling on the review of PR #216).
 - The domain rule `commitment_public_reference_forbidden` goes.
   `order_reference()` in the delivery board loses its fallback.
 - The order detail, the order list, the delivery board and the invoice PDF
@@ -176,8 +181,8 @@ with the action and by migration for existing ones:
   order ("Ihre Bestellung wurde von einem Mitglied des … für Sie
   erfasst."), and it links the privacy notice. There is no consent record
   for these buyers; the legal basis is the contract (§13, P1).
-- The UI helper `notifiesBuyer()` in `order-cancellation.tsx` follows the
-  server: the cancellation dialog reads the fact from the order record
+- The cancellation dialog (`buyerNotice()` in `order-cancellation.tsx`)
+  follows the server: it reads the fact from the order record
   (`buyerMailDue`), not from a copy of the rule.
 
 ### 6.3 Delivery-day mail
@@ -627,8 +632,8 @@ All data of the receiving body is synthetic.
 > **Bestellungen, die ein Mitglied für Sie erfasst**
 > Nimmt ein Mitglied des Lions Club Musterstadt Ihre Bestellung persönlich
 > oder am Telefon auf, speichern wir Ihren Namen, Ihre Liefer- und
-> Rechnungsanschrift und, wenn Sie sie nennen, Ihre E-Mail-Adresse. An diese
-> Adresse senden wir die Bestellbestätigung, am Liefertag einen Hinweis auf
+> Rechnungsanschrift und Ihre E-Mail-Adresse, wenn Sie sie nennen oder sie
+> uns aus einer früheren Bestellung vorliegt. An diese Adresse senden wir die Bestellbestätigung, am Liefertag einen Hinweis auf
 > das Lieferfenster und, falls die Bestellung storniert wird, eine
 > Stornobestätigung. Rechtsgrundlage ist die Erfüllung des Vertrags mit
 > Ihnen (Art. 6 Abs. 1 Buchst. b DSGVO). Werbung senden wir an diese Adresse
@@ -637,7 +642,12 @@ All data of the receiving body is synthetic.
 Sentence in the confirmation mail of an internal order:
 
 > Ihre Bestellung wurde von einem Mitglied des Lions Club Musterstadt für
-> Sie erfasst. Stimmt etwas nicht, antworten Sie bitte auf diese E-Mail.
+> Sie erfasst. Stimmt etwas nicht, schreiben Sie uns bitte an
+> kontakt@lions-musterstadt.example.
+
+The mail names the club's address from the legal configuration and does not
+ask for a reply: a reply address (`MAIL_REPLY_TO`) is optional and defaults
+to a system address (ruling on the review of PR #216).
 
 Delivery-day mail:
 
@@ -645,7 +655,7 @@ Delivery-day mail:
 >
 > Guten Morgen,
 >
-> Ihre Bestellung LA-7F3K2 vom Krapfentaxi 2026 wird heute, Samstag,
+> Ihre Bestellung LA-7F3K2QWX vom Krapfentaxi 2026 wird heute, Samstag,
 > 05.12.2026, zwischen 10:00 und 12:00 Uhr geliefert.
 >
 > Lieferadresse: …

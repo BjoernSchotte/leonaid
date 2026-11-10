@@ -52,6 +52,12 @@ export type BindSiteEditionRequest = { readonly actionId: string; readonly atRoo
 export type BindableActionResponse = { readonly archiveSlug: string; readonly availability: "published" | "archive" | "inactive"; readonly campaignPage: boolean; readonly id: string; readonly name: string; readonly status: string; };
 export type Body_addMaterialVersion = { readonly expectedRevision: number; readonly file: Blob; readonly idempotencyKey: string; };
 export type Body_createMaterial = { readonly actionId?: string | null; readonly file: Blob; readonly idempotencyKey: string; readonly title: string; };
+export type BuyerMailCompletionResponse = { readonly confirmationDue: boolean; readonly reason: "no_email" | "switched_off" | "order_draft" | "order_cancelled" | "not_requested" | "not_sent" | "recipient_limit" | "delivery_failed" | "delivery_recorded" | "window_over" | "action_closed" | "scheduled" | "window_before_send_time" | null; };
+export type BuyerMailConfigurationRequest = { readonly deliveryDayMail: boolean; readonly deliveryDaySendTime: string; readonly expectedRevision: number; readonly internalOrderMails: boolean; };
+export type BuyerMailConfigurationResponse = { readonly actionId: string; readonly deliveryDayMail: boolean; readonly deliveryDaySendTime: string; readonly internalOrderMails: boolean; readonly revision: number; };
+export type BuyerMailListResponse = { readonly commitmentId: string; readonly completion: BuyerMailCompletionResponse | null; readonly mails: Array<BuyerMailStatusResponse>; };
+export type BuyerMailResendResponse = { readonly canResend: boolean; readonly kind: "confirmation" | "cancellation" | "delivery_day"; readonly reason: "no_email" | "switched_off" | "order_draft" | "order_cancelled" | "not_requested" | "not_sent" | "recipient_limit" | "delivery_failed" | "delivery_recorded" | "window_over" | "action_closed" | "scheduled" | "window_before_send_time" | null; readonly replayed: boolean; readonly sentAt: string | null; readonly state: "not_due" | "queued" | "sent" | "failed" | "skipped"; };
+export type BuyerMailStatusResponse = { readonly canResend: boolean; readonly kind: "confirmation" | "cancellation" | "delivery_day"; readonly reason: "no_email" | "switched_off" | "order_draft" | "order_cancelled" | "not_requested" | "not_sent" | "recipient_limit" | "delivery_failed" | "delivery_recorded" | "window_over" | "action_closed" | "scheduled" | "window_before_send_time" | null; readonly sentAt: string | null; readonly state: "not_due" | "queued" | "sent" | "failed" | "skipped"; };
 export type CampaignAliasItemResponse = { readonly actionId: string; readonly alias: string; readonly aliasId: string; readonly enabled: boolean; readonly isPrimary: boolean; readonly revision: number; };
 export type CampaignAliasListResponse = { readonly actionId: string; readonly canonicalPath: string; readonly items: Array<CampaignAliasItemResponse>; readonly targets: Array<CampaignAliasTargetResponse>; };
 export type CampaignAliasMutationResponse = { readonly actionId: string; readonly alias: string; readonly aliasId: string; readonly enabled: boolean; readonly removed: boolean; readonly revision: number; };
@@ -77,7 +83,7 @@ export type CommitmentBuyerRequest = { readonly displayName: string; readonly em
 export type CommitmentBuyerResponse = { readonly displayName: string; readonly email: string | null; readonly partyKind: "company" | "person"; readonly twentyId: string; };
 export type CommitmentCancellationResponse = { readonly id: string; readonly invoiceCancellationId?: string | null; readonly invoiceCancellationNumber: string | null; readonly invoiceNumber?: string | null; readonly note?: string | null; readonly previousStatus: "draft" | "review_ready" | "confirmed" | "invoiced"; readonly reason: string; readonly requestedAt: string; readonly requestedByDisplayName?: string | null; };
 export type CommitmentCancellationResultResponse = { readonly cancellation: CommitmentCancellationResponse; readonly commitment: CommitmentResponse; readonly replayed: boolean; };
-export type CommitmentCaptureContextResponse = { readonly actionId: string; readonly actionName: string; readonly deliveryConfiguration?: DeliveryConfigurationResponse | null; readonly offerings: Array<ConfiguredOfferingResponse>; };
+export type CommitmentCaptureContextResponse = { readonly actionId: string; readonly actionName: string; readonly deliveryConfiguration?: DeliveryConfigurationResponse | null; readonly deliveryDayMail?: boolean; readonly internalOrderMails?: boolean; readonly offerings: Array<ConfiguredOfferingResponse>; };
 export type CommitmentCurrencyTotalResponse = { readonly currency: string; readonly totalMinor: number; };
 export type CommitmentInvoiceRecipientRequest = { readonly city: string; readonly countryCode?: string; readonly email?: string | null; readonly postalCode: string; readonly recipientName: string; readonly streetLine1: string; };
 export type CommitmentInvoiceRecipientResponse = { readonly city: string; readonly countryCode: string; readonly email: string | null; readonly postalCode: string; readonly recipientName: string; readonly streetLine1: string; };
@@ -85,8 +91,8 @@ export type CommitmentInvoiceSummaryResponse = { readonly id: string; readonly n
 export type CommitmentLineRequest = { readonly offeringId: string; readonly quantity: number; readonly quotedUnitPriceMinor?: number | null; readonly unit: "box" | "piece" | "package" | "sponsoring"; };
 export type CommitmentLineResponse = { readonly boxCount: number; readonly currency: string; readonly description: string; readonly id: string; readonly lineTotalMinor: number; readonly offeringId: string; readonly pieceCount: number; readonly piecesPerUnit: number | null; readonly quantity: number; readonly unit: "box" | "piece" | "package" | "sponsoring"; readonly unitPriceMinor: number; };
 export type CommitmentListResponse = { readonly actionId: string; readonly currencyTotals: Array<CommitmentCurrencyTotalResponse>; readonly items: Array<CommitmentRecordResponse>; readonly quantities: Array<UnitQuantityResponse>; readonly totalBoxes: number; readonly totalPieces: number; };
-export type CommitmentRecordResponse = { readonly cancellation?: CommitmentCancellationResponse | null; readonly capturedByDisplayName: string | null; readonly commitment: CommitmentResponse; readonly createdAt: string; readonly delivered?: boolean; readonly invoice?: CommitmentInvoiceSummaryResponse | null; };
-export type CommitmentResponse = { readonly actionId: string; readonly buyer: CommitmentBuyerResponse; readonly capturedAt?: string | null; readonly currency: string; readonly deliveryCompletionVersion: string; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; readonly deliveryWindowSnapshot?: Record<string, string> | null; readonly id: string; readonly invoiceRecipient: CommitmentInvoiceRecipientResponse | null; readonly lines: Array<CommitmentLineResponse>; readonly quantities: Array<UnitQuantityResponse>; readonly replayed: boolean; readonly source: "acquisition" | "public_form" | "admin"; readonly status: "draft" | "review_ready" | "confirmed" | "invoiced" | "cancelled"; readonly totalBoxes: number; readonly totalMinor: number; readonly totalPieces: number; };
+export type CommitmentRecordResponse = { readonly buyerMailDue: boolean; readonly cancellation?: CommitmentCancellationResponse | null; readonly capturedByDisplayName: string | null; readonly commitment: CommitmentResponse; readonly createdAt: string; readonly delivered?: boolean; readonly invoice?: CommitmentInvoiceSummaryResponse | null; };
+export type CommitmentResponse = { readonly actionId: string; readonly buyer: CommitmentBuyerResponse; readonly capturedAt?: string | null; readonly currency: string; readonly deliveryCompletionVersion: string; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; readonly deliveryWindowSnapshot?: Record<string, string> | null; readonly id: string; readonly invoiceRecipient: CommitmentInvoiceRecipientResponse | null; readonly lines: Array<CommitmentLineResponse>; readonly publicReference: string; readonly quantities: Array<UnitQuantityResponse>; readonly replayed: boolean; readonly source: "acquisition" | "public_form" | "admin"; readonly status: "draft" | "review_ready" | "confirmed" | "invoiced" | "cancelled"; readonly totalBoxes: number; readonly totalMinor: number; readonly totalPieces: number; };
 export type CompleteCommitmentDeliveryRequest = { readonly allowFullWindow?: boolean; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; readonly expectedVersion: string; readonly invoiceRecipient: CommitmentInvoiceRecipientRequest; };
 export type CompleteCommitmentRequest = { readonly allowFullWindow?: boolean; readonly capturedAt?: string | null; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; };
 export type CompleteFreshLoginRequest = { readonly code?: string | null; readonly magicToken?: string | null; };
@@ -175,9 +181,9 @@ export type EmailChangeDispatchResponse = { readonly changeId: string; readonly 
 export type Epic = { readonly id: string; readonly listId: string; readonly revision: number; readonly title: string; };
 export type Epics = { readonly items: Array<Epic>; readonly nextOffset: number | null; };
 export type FeatureFlagAdminListResponse = { readonly flags: Array<FeatureFlagAdminResponse>; };
-export type FeatureFlagAdminResponse = { readonly clientSafe: boolean; readonly defaultEnabled: boolean; readonly description: string; readonly effect: string; readonly enabled: boolean; readonly key: "admin.system_status_panel" | "admin.preview_notice" | "pwa.offline_queue" | "delivery.tours"; readonly revision: number; readonly title: string; readonly updatedAt: string; readonly updatedByUserId: string | null; };
+export type FeatureFlagAdminResponse = { readonly clientSafe: boolean; readonly defaultEnabled: boolean; readonly description: string; readonly effect: string; readonly enabled: boolean; readonly key: "admin.system_status_panel" | "admin.preview_notice" | "pwa.offline_queue" | "delivery.tours" | "pwa.push"; readonly revision: number; readonly title: string; readonly updatedAt: string; readonly updatedByUserId: string | null; };
 export type FeatureFlagEvaluationListResponse = { readonly flags: Array<FeatureFlagEvaluationResponse>; readonly surface: "web" | "pwa"; };
-export type FeatureFlagEvaluationResponse = { readonly enabled: boolean; readonly key: "admin.system_status_panel" | "admin.preview_notice" | "pwa.offline_queue" | "delivery.tours"; readonly provider: string; readonly reason: string; readonly variant: string; };
+export type FeatureFlagEvaluationResponse = { readonly enabled: boolean; readonly key: "admin.system_status_panel" | "admin.preview_notice" | "pwa.offline_queue" | "delivery.tours" | "pwa.push"; readonly provider: string; readonly reason: string; readonly variant: string; };
 export type FeatureFlagSystemStatusResponse = { readonly checkedAt: string; readonly evaluatedBy: "openfeature"; readonly provider: string; readonly status: "operational"; };
 export type FreeTextItem = { readonly participationId: string; readonly status: "in_progress" | "partial" | "completed"; readonly text: string; };
 export type FreeTextItems = { readonly items: Array<FreeTextItem>; readonly offset: number; readonly questionId: string; readonly snapshotId: string; readonly total: number; };
@@ -312,6 +318,12 @@ export type PublicSiteEditionResponse = { readonly archiveSlug: string; readonly
 export type PublicSiteHistoryResponse = { readonly archiveSlug: string; readonly segment: string; readonly status: 302 | 308; readonly targetUrl: string; };
 export type PublicSiteResponse = { readonly editions: Array<PublicSiteEditionResponse>; readonly history: Array<PublicSiteHistoryResponse>; readonly hostname: string; readonly kind: "campaign" | "redirect"; readonly redirectTo: string | null; readonly root: PublicSiteRootResponse | null; };
 export type PublicSiteRootResponse = { readonly mode: "serve" | "redirect"; readonly segment: string; };
+export type PushConfigurationResponse = { readonly configured: boolean; readonly kinds: Array<PushKindResponse>; readonly publicKey: string | null; };
+export type PushKindResponse = { readonly enabled: boolean; readonly kind: "follow_ups" | "feed" | "tasks" | "delivery"; };
+export type PushPreferenceRequest = { readonly enabled: boolean; readonly kind: "follow_ups" | "feed" | "tasks" | "delivery"; };
+export type PushSubscriptionKeys = { readonly auth: string; readonly p256dh: string; };
+export type PushSubscriptionResponse = { readonly id: string; };
+export type PushTestResponse = { readonly status: "queued"; };
 export type QuestionAggregate = { readonly answered: number | null; readonly counts: Array<AggregateCount>; readonly hidden: number | null; readonly invalid: number | null; readonly kind: "text" | "comment" | "date" | "number" | "radiogroup" | "dropdown" | "checkbox" | "rating" | "matrix"; readonly matrixRows: Array<MatrixRowAggregate>; readonly maximum: number | null; readonly mean: number | null; readonly minimum: number | null; readonly nps: number | null; readonly npsSegments?: NpsSegments | null; readonly questionId: string; readonly relevant: number | null; readonly suppressed?: boolean; readonly title: string; readonly unanswered: number | null; readonly withheldReason?: "unreleasedCondition" | null; };
 export type ReadinessResponse = { readonly checks: Record<string, DependencyStatusResponse>; readonly service: string; readonly status: "ready" | "not-ready"; };
 export type ReceivingBodyRequest = { readonly assessmentPeriodFrom?: number | null; readonly assessmentPeriodTo?: number | null; readonly bankAccountHolder: string; readonly bic?: string | null; readonly city: string; readonly countryCode?: string; readonly iban: string; readonly legalForm: "registered_association" | "unregistered_association" | "ggmbh" | "gmbh" | "cooperative" | "foundation" | "other"; readonly legalName: string; readonly machineNotifiedOn?: string | null; readonly noticeDate: string; readonly noticeKind: "freistellungsbescheid" | "koerperschaftsteuer_anlage" | "feststellung_60a"; readonly numberWidth: number; readonly pledgePrefix: string; readonly pledgeText: string; readonly postalCode: string; readonly purposes: string; readonly receiptLiabilityText: string; readonly receiptPrefix: string; readonly signatoryFunction: string; readonly signatoryName: string; readonly signing: "by_hand" | "machine"; readonly streetLine1: string; readonly taxNumber: string; readonly taxOffice: string; };
@@ -334,9 +346,11 @@ export type ResponseSelection = { readonly createdAt: string; readonly filter: R
 export type ReverseInvoicePaymentRequest = { readonly expectedSettlementVersion?: number | null; readonly reason: string; };
 export type RevokePrivacyConsentRequest = { readonly reason: string; };
 export type SaveLegalConfigurationDraftRequest = { readonly bankAccountHolder: string; readonly bic?: string | null; readonly consentTextVersion: string; readonly donations?: ReceivingBodyRequest | null; readonly eInvoiceDecision: "pending" | "not_required" | "required"; readonly eInvoiceEvidenceId?: string | null; readonly expectedRevision: number; readonly iban: string; readonly imprintContentResponsibleAddress?: string | null; readonly imprintContentResponsibleName?: string | null; readonly imprintPhone?: string | null; readonly imprintRegisterCourt?: string | null; readonly imprintRegisterNumber?: string | null; readonly imprintRepresentatives?: string | null; readonly imprintVatId?: string | null; readonly issuer: LegalIssuerRequest; readonly legalForm?: "registered_association" | "unregistered_association" | "ggmbh" | "gmbh" | "cooperative" | "foundation" | "other" | null; readonly memberPrivacyNoticeText?: string | null; readonly numberPrefix: string; readonly numberWidth: number; readonly paymentTermsDays: number; readonly privacyContactEmail: string; readonly privacyEvidenceId: string; readonly privacyPolicyText?: string | null; readonly publicOrderLegalBasis: string; readonly publicOrderNoticeText: string; readonly retention: LegalRetentionRequest; readonly taxEvidenceId: string; readonly taxNote: string; readonly taxRateBasisPoints: number; readonly taxTreatment: "standard_vat" | "small_business" | "tax_exempt"; };
+export type SavePushSubscriptionRequest = { readonly applicationServerKey: string; readonly endpoint: string; readonly keys: PushSubscriptionKeys; };
 export type SearchResponse = { readonly results: Array<SearchResultResponse>; };
 export type SearchResultResponse = { readonly context: string; readonly href: string; readonly id: string; readonly title: string; readonly type: "action" | "order" | "invoice" | "sponsor" | "member"; };
 export type SelectCampaignRendererRequest = { readonly commandId: string; readonly renderer: "legacy" | "campaign"; readonly revision: number; };
+export type SendTestPushRequest = { readonly subscriptionId: string; };
 export type SessionAuthenticationResponse = { readonly displayName: string; readonly expiresAt: string; readonly freshLoginAt: string; readonly status: "authenticated"; readonly userId: string; };
 export type SessionRevocationResponse = { readonly revokedCount: number; readonly status: "revoked"; };
 export type SetActionBeneficiariesRequest = { readonly beneficiaries: Array<BeneficiaryDraftRequest>; readonly revision: number; };
@@ -414,6 +428,7 @@ export type UpdateCase = { readonly assigneeUserId: string | null; readonly clos
 export type UpdateEpic = { readonly expectedRevision: number; readonly idempotencyKey: string; readonly title: string; };
 export type UpdateFeatureFlagRequest = { readonly enabled: boolean; readonly expectedRevision: number; };
 export type UpdatePage = { readonly content: Record<string, unknown>; readonly expectedRevision: number; readonly idempotencyKey: string; readonly title: string; };
+export type UpdatePushPreferencesRequest = { readonly preferences: Array<PushPreferenceRequest>; };
 export type UpdateTask = { readonly assigneeUserId?: string | null; readonly deferredUntil?: string | null; readonly description?: string; readonly dueAt?: string | null; readonly epicId?: string | null; readonly expectedRevision: number; readonly idempotencyKey: string; readonly status: "open" | "done"; readonly title: string; };
 export type WithdrawInvoiceRefundRequest = { readonly reason: string; };
 
@@ -854,6 +869,33 @@ export class LeonAidApiClient {
     );
   }
 
+  async getBuyerMailConfiguration(
+    actionId: string,
+    options: RequestOptions = {},
+  ): Promise<BuyerMailConfigurationResponse> {
+    return this.request<BuyerMailConfigurationResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/buyer-mail-configuration`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async saveBuyerMailConfiguration(
+    actionId: string,
+    body: BuyerMailConfigurationRequest,
+    options: RequestOptions = {},
+  ): Promise<BuyerMailConfigurationResponse> {
+    return this.request<BuyerMailConfigurationResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/buyer-mail-configuration`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
   async setCharityActionCapabilities(
     actionId: string,
     body: SetActionCapabilitiesRequest,
@@ -916,6 +958,31 @@ export class LeonAidApiClient {
     return this.request<CommitmentResponse>(
       `/api/v1/actions/${encodeURIComponent(String(actionId))}/commitments/${encodeURIComponent(String(commitmentId))}`,
       { method: "GET" },
+      options,
+    );
+  }
+
+  async listBuyerMails(
+    actionId: string,
+    commitmentId: string,
+    options: RequestOptions = {},
+  ): Promise<BuyerMailListResponse> {
+    return this.request<BuyerMailListResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/commitments/${encodeURIComponent(String(commitmentId))}/buyer-mails`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async resendBuyerMail(
+    actionId: string,
+    commitmentId: string,
+    kind: "confirmation" | "cancellation" | "delivery_day",
+    options: RequestOptions = {},
+  ): Promise<BuyerMailResendResponse> {
+    return this.request<BuyerMailResendResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/commitments/${encodeURIComponent(String(commitmentId))}/buyer-mails/${encodeURIComponent(String(kind))}/resend`,
+      { method: "POST" },
       options,
     );
   }
@@ -3300,6 +3367,72 @@ export class LeonAidApiClient {
   ): Promise<SurveyResponseSnapshot> {
     return this.request<SurveyResponseSnapshot>(
       `/api/v1/public/surveys/${encodeURIComponent(String(surveyId))}/participations/${encodeURIComponent(String(participationId))}/complete`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async getPushConfiguration(
+    options: RequestOptions = {},
+  ): Promise<PushConfigurationResponse> {
+    return this.request<PushConfigurationResponse>(
+      "/api/v1/push/configuration",
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async updatePushPreferences(
+    body: UpdatePushPreferencesRequest,
+    options: RequestOptions = {},
+  ): Promise<PushConfigurationResponse> {
+    return this.request<PushConfigurationResponse>(
+      "/api/v1/push/preferences",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async savePushSubscription(
+    body: SavePushSubscriptionRequest,
+    options: RequestOptions = {},
+  ): Promise<PushSubscriptionResponse> {
+    return this.request<PushSubscriptionResponse>(
+      "/api/v1/push/subscriptions",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async deletePushSubscription(
+    subscriptionId: string,
+    options: RequestOptions = {},
+  ): Promise<void> {
+    return this.requestVoid(
+      `/api/v1/push/subscriptions/${encodeURIComponent(String(subscriptionId))}`,
+      { method: "DELETE" },
+      options,
+    );
+  }
+
+  async sendTestPush(
+    body: SendTestPushRequest,
+    options: RequestOptions = {},
+  ): Promise<PushTestResponse> {
+    return this.request<PushTestResponse>(
+      "/api/v1/push/test",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

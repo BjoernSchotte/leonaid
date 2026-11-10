@@ -288,6 +288,7 @@ async def durable_worker_loop(stopping: asyncio.Event) -> None:
     """Claims jobs until SIGTERM; the job in hand always finishes first."""
     while not stopping.is_set():
         pool = None
+        worker = None
         try:
             pool, _, worker = await build_worker(
                 database_url=os.environ["CORE_DATABASE_URL"],
@@ -307,8 +308,17 @@ async def durable_worker_loop(stopping: asyncio.Event) -> None:
             delay = record_failure(outbox_health, error)
             await pause(stopping, delay)
         finally:
-            if pool is not None:
-                await pool.close()
+            # HTTP clients of the handlers (CRM, Web Push) end with the
+            # worker. A client that cannot close is logged; it must neither
+            # keep the pool open nor end this loop.
+            try:
+                if worker is not None:
+                    await worker.close()
+            except Exception as error:
+                record_failure(outbox_health, error)
+            finally:
+                if pool is not None:
+                    await pool.close()
 
 
 async def database_readiness_loop() -> None:

@@ -116,6 +116,18 @@ order_mails() {
     api tools/public_orders/order_mails.py "$step" /proof/order-mails.json "$@"
 }
 
+internal_order_mails() {
+  compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+    --env-from-file "$env_file" \
+    --env API_BASE_URL=http://api:8000 \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --volume "$proof:/proof" \
+    --workdir /repo \
+    --entrypoint python \
+    api tools/public_orders/internal_order_mails.py "$1" /proof/internal-order-mails.json
+}
+
 run_worker() {
   compose run --rm --no-deps \
     worker python -m leonaid.entrypoints.worker.outbox \
@@ -227,6 +239,17 @@ run_worker redelivery
 order_mails final
 run_worker recovery
 order_mails recovered
+
+# Buyer mails of an order a member entered (specs/mails-documents-donations-
+# push §6.2, §6.4): the switch, one confirmation, "send again" and the
+# cancellation notice through the real worker, SMTP and Mailpit.
+internal_order_mails record
+run_worker internal-confirmation
+internal_order_mails confirmed
+run_worker internal-resend
+internal_order_mails resent
+run_worker internal-cancellation
+internal_order_mails final
 
 for artifact in \
   public-order-form-mobile.png \

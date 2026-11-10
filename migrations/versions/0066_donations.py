@@ -1,7 +1,7 @@
 """Donations: capability, receiving body, donations and their pledge document.
 
 Revision ID: 0066_donations
-Revises: 0063_document_series
+Revises: 0065_pwa_push
 
 ADR-0016, spec mails-documents-donations-push §8.1 to §8.4.
 
@@ -27,7 +27,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "0066_donations"
-down_revision: str | None = "0063_document_series"
+down_revision: str | None = "0065_pwa_push"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 DATA_MIGRATION_REFERENCE = (

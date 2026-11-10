@@ -121,7 +121,7 @@ async function submitOrderResult(form) {
   const reference = (
     await success.locator("[data-order-reference]").textContent()
   )?.trim();
-  expect(reference).toMatch(/^LA-[A-F0-9]{32}$/);
+  expect(reference).toMatch(/^LA-[2-9A-HJKMNP-Z]{8}$/);
   await expect(success).toContainText(
     "Eine Rechnung folgt separat, sobald der Club die Bestellung geprüft hat.",
   );
@@ -310,7 +310,7 @@ test("without JavaScript the confirmation is the focused target of the post @web
     await expect(success).toBeFocused();
     await expect(success).toBeInViewport();
     await expect(success.locator("[data-order-reference]")).toHaveText(
-      /^LA-[A-F0-9]{32}$/,
+      /^LA-[2-9A-HJKMNP-Z]{8}$/,
     );
   } finally {
     await context.close();
@@ -411,7 +411,9 @@ test("the same form posted twice without JavaScript creates one order", async ({
   for (const response of [await post(), await post()]) {
     expect(response.status()).toBe(200);
     const html = await response.text();
-    const match = html.match(/data-order-reference[^>]*>\s*(LA-[A-F0-9]{32})/);
+    const match = html.match(
+      /data-order-reference[^>]*>\s*(LA-[2-9A-HJKMNP-Z]{8})\s*</,
+    );
     expect(
       match,
       `the post renders the confirmation: ${html.match(/data-form-message[\s\S]{0,600}/)?.[0] ?? html.slice(0, 300)}`,

@@ -338,7 +338,9 @@ digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     "RUSTFS_SECRET_KEY=leonaid-rustfs-secret-production-test-006" \
     "TWENTY_ACCESS_TOKEN_SECRET=twenty-access-production-test-007" \
     "TWENTY_INTEGRATION_API_KEY=twenty-integration-production-test-008" \
-    "TWENTY_LOGIN_TOKEN_SECRET=twenty-login-production-test-009"
+    "TWENTY_LOGIN_TOKEN_SECRET=twenty-login-production-test-009" \
+    "LEONAID_VAPID_PRIVATE_KEY=yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw" \
+    "LEONAID_VAPID_SUBJECT=mailto:betrieb@leonaid.org"
 } >>"$env_file"
 chmod 600 "$env_file"
 

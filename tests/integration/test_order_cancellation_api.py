@@ -445,7 +445,7 @@ class Fixture:
             json.dumps(window_snapshot) if window_snapshot else None,
             f"cancel-proof:{order_id}",
             "public_form" if public else "admin",
-            f"LA-{order_id.hex.upper()}" if public else None,
+            f"LA-{order_id.hex.upper()}",
             PUBLIC_MESSAGE if public else None,
         )
         await connection.execute(

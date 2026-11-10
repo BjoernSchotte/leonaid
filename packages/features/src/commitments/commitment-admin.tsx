@@ -9,6 +9,7 @@ import {
   deliveryDetailsMissing,
 } from "./delivery-completion";
 import { BulkReleaseDialog } from "./bulk-release-dialog";
+import { BuyerMails } from "./buyer-mails";
 import {
   releaseSelection,
   takePendingRelease,
@@ -582,6 +583,14 @@ function OrderDetail({
         <DetailProps
           items={[
             {
+              label: "Bestellnummer",
+              value: (
+                <span className="mono commitment-reference">
+                  {commitment.publicReference}
+                </span>
+              ),
+            },
+            {
               label: "Status",
               value: <StatusLabel status={statusLabels[commitment.status]} />,
             },
@@ -718,6 +727,13 @@ function OrderDetail({
           ]}
         />
       </DetailSection>
+
+      <BuyerMails
+        actionId={commitment.actionId}
+        client={client}
+        commitmentId={commitment.id}
+        version={commitment.deliveryCompletionVersion}
+      />
 
       {cancellation ? (
         <DetailSection title="Storno">
@@ -898,6 +914,8 @@ const searchText = (row: OrderRow) => {
   const { commitment } = row;
   return [
     commitment.buyer.displayName,
+    // The order number a buyer quotes on the phone finds the order.
+    commitment.publicReference,
     lineLabel(commitment),
     statusLabels[commitment.status],
     commitment.invoiceRecipient?.recipientName,

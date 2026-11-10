@@ -4,9 +4,9 @@ description: Create, approve and activate the § 5 DDG details and the texts of 
 docId: DOC-P048
 audience: [user]
 diataxis: how-to
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: b78873c3d34a9438bc885e49874cc00ab875117b
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: __SHA__
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -68,6 +68,17 @@ app and in the acquisition app, the links are below your name or in the
    feature flag **Offline-Erfassung in der Akquise-App** only once a notice
    with this section is active. Claude Code proposed the text; like every
    version it needs the four-eyes approval (review by Björn Schotte open).
+   The notice also contains the section "Benachrichtigungen auf deinem
+   Gerät": that LeonAid stores, per device, the address at the notification
+   service of the browser or operating system (Google, Apple, Mozilla or
+   Microsoft) and two keys, that the notifications
+   are encrypted and contain no names, addresses or amounts, that consent is
+   the legal basis, and that switching off, signing out or an invalid
+   address deletes it. Keep it only when notifications are active; it too
+   carries a `[[ … ]]` note. The system administration switches on the
+   feature flag **Benachrichtigungen in der Akquise-App** only once a notice
+   with this section is active. Claude Code proposed this text as well (legal
+   review open).
 4. Format: separate paragraphs with an empty line. `## ` at the start of a line
    starts a heading, `- ` a list item.
 5. Choose **Als Entwurf speichern**.

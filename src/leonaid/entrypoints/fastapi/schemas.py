@@ -291,6 +291,7 @@ FeatureFlagKeyValue = Literal[
     "admin.preview_notice",
     "pwa.offline_queue",
     "delivery.tours",
+    "pwa.push",
 ]
 
 
@@ -1454,6 +1455,12 @@ class CommitmentResponse(TransportModel):
     delivery_window_id: UUID | None = None
     delivery_window_snapshot: dict[str, str] | None = None
     delivery_contact: DeliveryContactRequest | None = None
+    public_reference: str = Field(
+        description=(
+            "The order number the buyer can quote (`LA-…`). Every order has "
+            "one, whatever its source."
+        )
+    )
     buyer: CommitmentBuyerResponse
     invoice_recipient: CommitmentInvoiceRecipientResponse | None
     lines: list[CommitmentLineResponse]
@@ -1485,6 +1492,18 @@ class CommitmentCaptureContextResponse(TransportModel):
     action_id: UUID
     action_name: str
     offerings: list[ConfiguredOfferingResponse]
+    internal_order_mails: bool = Field(
+        default=False,
+        description=(
+            "The action sends the order confirmation and the cancellation "
+            "notice to the buyer of an order recorded here. The capture form "
+            "shows the address they go to."
+        ),
+    )
+    delivery_day_mail: bool = Field(
+        default=False,
+        description="The action sends the buyer a mail on the delivery day.",
+    )
 
 
 class CommitmentInvoiceSummaryResponse(TransportModel):
@@ -1540,6 +1559,14 @@ class CommitmentRecordResponse(TransportModel):
         default=False,
         description="Marked delivered on the delivery board; blocks cancellation.",
     )
+    buyer_mail_due: bool = Field(
+        description=(
+            "Cancelling this order now sends the buyer a cancellation notice: "
+            "the buyer has an e-mail address and the order came through the "
+            "public form or the action sends mails for orders that members "
+            "enter. False for a cancelled order."
+        )
+    )
 
 
 class CancelCommitmentRequest(TransportModel):
@@ -1560,6 +1587,110 @@ class CommitmentCancellationResultResponse(TransportModel):
     commitment: CommitmentResponse
     cancellation: CommitmentCancellationResponse
     replayed: bool
+
+
+# "delivery_day" is the mail on the delivery day (stage 2 of the buyer mails,
+# specs/mails-documents-donations-push §6.3). Until that stage ships, the
+# list never returns it and a resend of it answers 409.
+BuyerMailKindValue = Literal["confirmation", "cancellation", "delivery_day"]
+
+
+class BuyerMailConfigurationRequest(TransportModel):
+    expected_revision: int = Field(ge=1)
+    internal_order_mails: bool = Field(
+        description=(
+            "Confirmation and cancellation notice for orders that members "
+            "and acquirers enter."
+        )
+    )
+    delivery_day_mail: bool = Field(
+        description="The mail on the delivery day; needs the `delivery` capability."
+    )
+    delivery_day_send_time: str = Field(
+        pattern=r"^\d{2}:\d{2}$",
+        description="Local time of the action, `HH:MM`, from 05:00 to 12:00.",
+        examples=["07:00"],
+    )
+
+
+class BuyerMailConfigurationResponse(TransportModel):
+    action_id: UUID
+    internal_order_mails: bool
+    delivery_day_mail: bool
+    delivery_day_send_time: str = Field(pattern=r"^\d{2}:\d{2}$", examples=["07:00"])
+    revision: int = Field(ge=1)
+
+
+BuyerMailReasonValue = Literal[
+    "no_email",
+    "switched_off",
+    "order_draft",
+    "order_cancelled",
+    "not_requested",
+    "not_sent",
+    "recipient_limit",
+    "delivery_failed",
+    "delivery_recorded",
+    "window_over",
+    "action_closed",
+    "scheduled",
+    "window_before_send_time",
+]
+
+
+class BuyerMailStatusResponse(TransportModel):
+    kind: BuyerMailKindValue
+    state: Literal["not_due", "queued", "sent", "failed", "skipped"]
+    sent_at: datetime | None = Field(
+        description="When the mail of this kind was last sent, if ever."
+    )
+    reason: BuyerMailReasonValue | None = Field(
+        description=(
+            "Set for `not_due`, `skipped` and `failed`. `not_requested` and "
+            "`not_sent` mean that the mail is due but never went out; "
+            "`canResend` is then true. A `failed` confirmation with "
+            "`delivery_recorded`, `window_over` or `action_closed` was queued "
+            "in time and reached by the worker too late; it is not sent any "
+            "more. `scheduled` and `window_before_send_time` belong to the "
+            "delivery-day mail."
+        )
+    )
+    can_resend: bool = Field(
+        description=(
+            "`resendBuyerMail` is allowed for this kind now: the mail is due "
+            "and no job of it waits. With `sentAt` null it is the first send."
+        )
+    )
+
+
+class BuyerMailResendResponse(BuyerMailStatusResponse):
+    replayed: bool = Field(
+        description=(
+            "The `Idempotency-Key` was used before: this call wrote no new "
+            "job and sends no further mail."
+        )
+    )
+
+
+class BuyerMailCompletionResponse(TransportModel):
+    confirmation_due: bool = Field(
+        description=("Whether completing the draft now sends the order confirmation.")
+    )
+    reason: BuyerMailReasonValue | None = Field(
+        description="Why no confirmation would be sent; null when one is due."
+    )
+
+
+class BuyerMailListResponse(TransportModel):
+    commitment_id: UUID
+    mails: list[BuyerMailStatusResponse]
+    completion: BuyerMailCompletionResponse | None = Field(
+        description=(
+            "Only for a draft: what completing it now would send. The rule is "
+            "the one of the mail status. A delivery window that the completion "
+            "itself selects is not known here."
+        )
+    )
 
 
 class CommitmentCurrencyTotalResponse(TransportModel):

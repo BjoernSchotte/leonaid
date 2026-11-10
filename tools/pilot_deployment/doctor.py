@@ -28,6 +28,7 @@ from tools.pilot_deployment.validate import (
     is_placeholder,
     object_value,
     twenty_mail_enabled,
+    vapid_problem,
     validate,
 )
 
@@ -242,6 +243,12 @@ def validate_environment(
             if len(value) < 24 or is_placeholder(value):
                 raise DoctorError(f"secret_invalid:{key}")
             secret_values.append(value)
+    # Web Push is optional: without the key push is "not configured".
+    vapid_key = values.get("LEONAID_VAPID_PRIVATE_KEY", "")
+    if vapid_problem(vapid_key, values.get("LEONAID_VAPID_SUBJECT", "")) is not None:
+        raise DoctorError("web_push_settings_invalid")
+    if vapid_key:
+        secret_values.append(vapid_key)
     if len(secret_values) != len(set(secret_values)):
         raise DoctorError("secrets_not_distinct")
 

@@ -6,6 +6,8 @@ import {
   type LeonAidApiClient,
 } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
+
+import { BuyerMailNotice } from "./buyer-mail-notice";
 import {
   DeliveryFields,
   FullWindowConfirm,
@@ -118,6 +120,13 @@ export function CompleteDraft({
               refreshing={context.isFetching}
             />
           ) : null}
+          {/* Completing the draft makes it review-ready: that sends the
+              confirmation. */}
+          <BuyerMailNotice
+            deliveryDayMail={context.data?.deliveryDayMail}
+            email={order.buyer?.email}
+            internalOrderMails={context.data?.internalOrderMails}
+          />
           {complete.isError && !isFullWindowError(complete.error) ? (
             <StatusMessage tone="error">
               {orderError(complete.error)}

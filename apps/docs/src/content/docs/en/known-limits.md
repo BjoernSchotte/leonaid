@@ -4,9 +4,9 @@ description: Verified limits of the current LeonAid development and pilot state.
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 10
-reviewedRevision: 10
-verifiedAgainst: b78873c3d34a9438bc885e49874cc00ab875117b
+contentRevision: 13
+reviewedRevision: 13
+verifiedAgainst: __SHA__
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -25,6 +25,21 @@ general production approval.
   tour per driver and delivery day. The public Nominatim service and the OSM
   tiles are subject to their usage policies; for heavy use, configure your own
   provider.
+- Notifications of the acquisition app (feature flag `pwa.push`, see
+  [Switch on notifications](/en/user/how-to/switch-on-notifications/)) have
+  limits: delivery through the push services of Google, Mozilla, Apple and
+  Microsoft is not tested automatically, only sending to a decrypting
+  receiver and the display in the browser; the check on a real Android phone
+  and iPhone is manual. iPhone and iPad need LeonAid on the home screen.
+  There are four kinds (follow-ups once a day from 8:00, new orders, tasks,
+  deliveries), at most one notification per kind in 15 minutes, no quiet
+  hours and no setting per device. A notification names a kind and a count
+  only. It is a hint without a delivery guarantee. After a sign-out the
+  member switches the device on again; after 90 days without opening the app
+  nothing arrives until it is opened again. A member can register at most
+  ten devices. A new `LEONAID_VAPID_PRIVATE_KEY` ends all device
+  registrations; each device registers again by itself when its app is next
+  opened.
 - `finance_reader` can only read documents. The maintained demo user Finn
   Finanzen proves this read-only access. Payments and cancellation require
   `finance_manager` or the charity administrator for the affected campaign.
@@ -33,10 +48,24 @@ general production approval.
 - Public orders require a published campaign with an active order form and an
   available offering. When delivery planning is enabled, an available delivery
   window is also required.
-- The order confirmation and the cancellation notice are plain-text mails and
-  go only to buyers from the public form. Orders that members or acquirers
-  enter send no e-mail. The campaign link points to the campaign page on the
-  public host; own campaign domains follow with stage 2. The sender is the
+- The order confirmation and the cancellation notice are plain-text mails
+  and go to buyers from the public form. For orders that members or acquirers
+  enter, the campaign's managers switch them on per campaign (**E-Mails an
+  Käufer**); an order is then confirmed once, as soon as it is ready for
+  review. Orders without an e-mail address of the buyer and drafts get no
+  e-mail, nor do orders that become ready for review only after the
+  delivery, after the delivery window or after the campaign was completed;
+  this also holds for orders from the public form. If LeonAid could send a
+  confirmation that was created in time only after that (delivery
+  disturbed), it is not sent any more and the order shows it as failed.
+  The campaign's managers confirm orders from before the switch was set one
+  by one in the order (**Senden**). The address is the sponsor's from the
+  CRM. LeonAid does not check that the club's privacy notice names these
+  e-mails. There is no e-mail on the delivery day yet. Order numbers have
+  two shapes: new ones are short (`LA-` and eight characters), public orders
+  from before keep their long number. The campaign
+  link points to the permanent address of the campaign on its campaign
+  domain, else to the campaign page on the public host. The sender is the
   configured system address, not the club.
 - The search (**Suchen und Befehle**) finds sponsors by name and city only,
   and only if they are assigned to an acquirer in a campaign (see
@@ -61,7 +90,8 @@ general production approval.
   **Rechtliches**. Only money donations in euro exist, one payment per
   donation and no collective receipt; a second part payment is a donation of
   its own. Only an unpaid donation can be cancelled. Donations are recorded
-  in the back office only, not yet in the order form. LeonAid does not issue
+  in the back office only, not yet in the order form; you enter the donor by
+  hand, there is no CRM search in that dialog yet. LeonAid does not issue
   the donation receipt yet. The wording blocks are proposals and have no
   legal review yet (see [Record a donation](/en/user/how-to/record-donation/)).
 - Payments of a cancelled invoice stay recorded and cannot be reversed.
