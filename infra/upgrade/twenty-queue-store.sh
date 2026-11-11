@@ -303,7 +303,7 @@ case "$action" in
     case "$state" in
       absent | empty | valkey | redis-compatible) ;;
       *)
-        fail "$volume holds a $state store; run ./leonaid pilot-release, which migrates it in maintenance mode"
+        fail "$volume holds a $state store; run ./leonaid upgrade, which migrates it in maintenance mode"
         ;;
     esac
     ;;

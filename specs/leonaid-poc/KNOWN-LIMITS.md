@@ -24,7 +24,7 @@ pilot-create-system-admin` an (Anmeldemail, kein Passwort).
   Die erste EmDash-Einrichtung braucht eine LeonAid-Systemadministration im
   Browser (15-Minuten-Freigabe). Eine unterbrochene Einrichtung gibt
   `--reset-setup` nur frei, solange das CMS unbenutzt ist. Backups enthalten
-  das CMS erst ab abgeschlossener Einrichtung. `pilot-release` migriert neue
+  das CMS erst ab abgeschlossener Einrichtung. `upgrade` migriert neue
   EmDash-Migrationen unter geschlossenem CMS-Verkehr; ein Anheben der
   redaktionellen Schemaversion (`upgrade-v<N>` unter dem vorherigen Image)
   gehört noch nicht dazu, und ein Rollback ist ein Restore aus dem
@@ -411,7 +411,7 @@ pilot-create-system-admin` an (Anmeldemail, kein Passwort).
 - Rechtliche Aufbewahrungs-/Löschfristen, produktive Trägerdaten,
   Steuerfall und E-Rechnungsbedarf benötigen Datenschutz-, Rechts- und
   Steuerfreigabe.
-- Updates laufen über `pilot-release` im Wartungsmodus. Es gibt keinen
+- Updates laufen über `upgrade` im Wartungsmodus. Es gibt keinen
   Schutz für laufende Aktionen: offenes Bestellformular oder Liefertag werden
   nicht geprüft, `POST`-Anfragen im Wartungsmodus liefern `503`. Ändert ein
   Club eine von LeonAid verwaltete Twenty-Ansicht, bricht der Provisioner mit

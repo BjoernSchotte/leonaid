@@ -17,7 +17,7 @@ The report assesses, fail-closed:
 - all 21 pilot tasks and their open criteria or dependencies;
 - all 16 hard gates and their assigned tasks;
 - every reserved proof link as `missing`, `partial` or `complete`;
-- all public decision IDs due for `pilot-release`;
+- all public decision IDs due for `upgrade`;
 - branch, commit, clean working tree and being level with `origin/main`;
 - a canonical SHA-256 checksum of the full sanitized report.
 

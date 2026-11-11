@@ -541,7 +541,7 @@ systemctl list-timers 'leonaid-crm-repair*'
 
 A successful run ends with `crm-match-keys: OK:` and the number of
 scanned and repaired records. During maintenance mode (for example
-inside `pilot-release`) Twenty is stopped on purpose. The command then
+inside `upgrade`) Twenty is stopped on purpose. The command then
 reports `SKIPPED` and exits with success, so the unit does not fail. If
 maintenance starts during a run, the run also ends as `SKIPPED`; the next
 run and the nightly full run catch up. It fails when the API container
@@ -561,7 +561,7 @@ service alarms.
   every 1 to 5 minutes and expect the body `ready`. Send its alarms to a
   channel that does not depend on this server.
 
-`pilot-deploy` and `pilot-release` do not restart monitoring. Afterwards, run
+`pilot-deploy` and `upgrade` do not restart monitoring. Afterwards, run
 `./leonaid pilot-monitoring --env-file /etc/leonaid/production.env` so the
 exporter uses the new release image.
 
@@ -581,7 +581,7 @@ twenty-worker` shows the SMTP error.
 The campaign pages and their editor (EmDash) need a database, a media bucket,
 a first setup by a LeonAid System Admin and the campaign schema.
 `./leonaid pilot-cms-provision` does these four steps on the running
-installation. Before it, `pilot-deploy`, `pilot-release` and `pilot-doctor`
+installation. Before it, `pilot-deploy`, `upgrade` and `pilot-doctor`
 refuse `LEONAID_CMS_ENABLED=true` with the hint to run it.
 
 You need:

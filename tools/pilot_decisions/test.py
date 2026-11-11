@@ -50,7 +50,7 @@ EXPECTED_OPEN_BY_GATE = {
         "PILOT-OPS-006",
         "PILOT-RUN-001",
     },
-    "pilot-release": {
+    "upgrade": {
         "PILOT-INV-001",
         "PILOT-INV-002",
         "PILOT-LEG-001",
@@ -179,7 +179,7 @@ def main() -> None:
             checker,
             accepted,
             ready=True,
-            marker="pilot-doctor: OK (pilot-release)",
+            marker="pilot-doctor: OK (upgrade)",
         )
 
         missing_owner = fixtures / "missing-owner"
@@ -215,8 +215,8 @@ def main() -> None:
         contradiction = fixtures / "contradiction"
         bad_tax = mutate(
             accepted_register(canonical),
-            "| accepted | small_business | pilot-release |",
-            "| accepted | full_accounting_required | pilot-release |",
+            "| accepted | small_business | upgrade |",
+            "| accepted | full_accounting_required | upgrade |",
         )
         write_register(contradiction, bad_tax)
         run(
@@ -233,14 +233,14 @@ def main() -> None:
                 "| PILOT-INV-001 | Rechnung | Pflichtangaben und "
                 "Freigabeverantwortung | Rechtlicher Träger und "
                 "Steuerberatung | 2026-07-28 | ADR-0002 | PENDING | open | "
-                "PENDING | pilot-release |"
+                "PENDING | upgrade |"
             ),
             (
                 "| PILOT-INV-001 | Rechnung | Pflichtangaben und "
                 "Freigabeverantwortung | Rechtlicher Träger und "
                 "Steuerberatung | 2026-07-28 | ADR-0002 | "
                 "EVID-INV-APPROVAL-20260728 | accepted | confirmed | "
-                "pilot-release |"
+                "upgrade |"
             ),
         )
         write_register(invoice_contradiction, contradictory_invoice)
@@ -258,14 +258,14 @@ def main() -> None:
                 "| PILOT-TAX-001 | Steuer | Steuerbehandlung der "
                 "Krapfentaxi-Leistung | Steuerberatung und rechtlicher "
                 "Träger | 2026-07-28 | ADR-0002 | PENDING | open | PENDING | "
-                "pilot-release |"
+                "upgrade |"
             ),
             (
                 "| PILOT-TAX-001 | Steuer | Steuerbehandlung der "
                 "Krapfentaxi-Leistung | Steuerberatung und rechtlicher "
                 "Träger | 2026-07-28 | ADR-0002 | "
                 "EVID-TAX-SCOPE-20260728 | stop | "
-                "full_accounting_required | pilot-release |"
+                "full_accounting_required | upgrade |"
             ),
         )
         write_register(accounting, accounting_stop)
@@ -274,14 +274,14 @@ def main() -> None:
             accounting,
             ready=True,
             returncode=3,
-            marker="pilot-doctor: STOP (pilot-release)",
+            marker="pilot-doctor: STOP (upgrade)",
         )
 
         einvoice = fixtures / "einvoice-stop"
         stop_text = mutate(
             accepted_register(canonical),
-            "| accepted | not_required | pilot-release |",
-            "| stop | required | pilot-release |",
+            "| accepted | not_required | upgrade |",
+            "| stop | required | upgrade |",
         )
         write_register(einvoice, stop_text)
         run(
@@ -289,7 +289,7 @@ def main() -> None:
             einvoice,
             ready=True,
             returncode=3,
-            marker="pilot-doctor: STOP (pilot-release)",
+            marker="pilot-doctor: STOP (upgrade)",
         )
 
     print(

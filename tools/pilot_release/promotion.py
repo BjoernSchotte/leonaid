@@ -49,6 +49,12 @@ def _load_ledger(path: Path) -> list[dict[str, Any]]:
     return records
 
 
+def _load_staging(path: Path) -> list[dict[str, Any]]:
+    if not path.is_file():
+        raise InvalidPromotion("staging ledger is missing")
+    return _load_ledger(path)
+
+
 def _staging_verified(records: list[dict[str, Any]], digest: str) -> bool:
     return any(
         record.get("event") == "staging_verified"
@@ -66,6 +72,7 @@ def record_event(
     result: str,
     evidence_id: str,
     occurred_at: str,
+    staging_ledger: Path | None = None,
 ) -> dict[str, Any]:
     validate_manifest(manifest)
     if event not in ALLOWED_EVENTS:
@@ -83,7 +90,18 @@ def record_event(
 
     digest = manifest_sha256(manifest)
     records = _load_ledger(ledger)
-    if event.startswith("production_") and not _staging_verified(records, digest):
+    if staging_ledger is not None and not event.startswith(
+        ("production_", "rollback_")
+    ):
+        raise InvalidPromotion("a staging ledger only backs production events")
+    # Staging may run on another host; its ledger is then copied here and only
+    # read. It never changes the sequence of this host's own ledger.
+    staging_records = (
+        records if staging_ledger is None else records + _load_staging(staging_ledger)
+    )
+    if event.startswith("production_") and not _staging_verified(
+        staging_records, digest
+    ):
         raise InvalidPromotion(
             "production requires the same manifest that was verified in staging"
         )
@@ -121,6 +139,7 @@ def _parse_arguments() -> argparse.Namespace:
     parser.add_argument("--result", choices=("passed", "failed"), required=True)
     parser.add_argument("--evidence-id", required=True)
     parser.add_argument("--occurred-at", required=True)
+    parser.add_argument("--staging-ledger", type=Path)
     return parser.parse_args()
 
 
@@ -135,6 +154,7 @@ def main() -> int:
             result=arguments.result,
             evidence_id=arguments.evidence_id,
             occurred_at=arguments.occurred_at,
+            staging_ledger=arguments.staging_ledger,
         )
     except (InvalidManifest, InvalidPromotion, OSError) as error:
         print(f"pilot-release-promotion: ERROR: {error}", file=sys.stderr)

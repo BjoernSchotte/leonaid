@@ -26,10 +26,10 @@ email addresses, or document bytes.
   security headers, and at least 14 days of certificate validity. Port 80 stays
   available for ACME and the HTTPS redirect.
 - **Twenty CRM check fails:** `doctor` (with the dev stack running) and the
-  `pilot-deploy`/`pilot-release` gates of Pilot Doctor ask the running API
+  `pilot-deploy`/`upgrade` gates of Pilot Doctor ask the running API
   whether Twenty has the `leonaidMatchKey` field and accepts its integration
   key. Locally run `./leonaid provision-twenty`; in a pilot run
-  `./leonaid pilot-release --twenty-bootstrap-file FILE`. The check also
+  `./leonaid upgrade --twenty-bootstrap-file FILE`. The check also
   counts records without a key; run `repair-crm-match-keys` to close that gap
   (pilot: `pilot-repair-crm-match-keys --env-file FILE`, which the
   `leonaid-crm-repair` timers run on schedule and which skips while

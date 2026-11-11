@@ -71,7 +71,7 @@
         "https://docs.bullmq.io/guide/connections"
       ],
       "migration": {
-        "owner": "infra/upgrade/twenty-queue-store.sh in pilot-release (maintenance mode)",
+        "owner": "infra/upgrade/twenty-queue-store.sh in upgrade (maintenance mode)",
         "command": "infra/upgrade/twenty-queue-store.sh migrate: stop twenty-server, drain BullMQ queues with the old twenty-worker, empty the Redis 7.4 volume (RDB 12 is unreadable for Valkey)",
         "reviewed": true,
         "expectedDataChange": true

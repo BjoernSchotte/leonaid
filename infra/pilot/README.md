@@ -134,7 +134,7 @@ the one-time setup grant for the named System Admin, and the campaign
 schema under closed CMS traffic; an interrupted schema step resumes (`tools/pilot_release/migrate-cms.sh
 install`). Every run reads the state of each step first: a repeat changes
 nothing, and a failed run continues at the open step. Until all four steps
-are done, `pilot-deploy`, `pilot-release` and `pilot-doctor` refuse
+are done, `pilot-deploy`, `upgrade` and `pilot-doctor` refuse
 `LEONAID_CMS_ENABLED=true`. From the completed setup on, every backup holds
 the CMS database and its setup state (manifest schema 2); before, backups
 leave the unfinished CMS out, and `LEONAID_CMS_ENABLED=false` switches it off
@@ -179,7 +179,7 @@ explicit Twenty/core migrations and a sequential release ledger runs
 through:
 
 ```sh
-./leonaid pilot-release \
+./leonaid upgrade \
   --env-file /etc/leonaid/staging.env \
   --backup-manifest /var/lib/leonaid/evidence/latest-backup-manifest.json \
   --release-manifest /var/lib/leonaid/evidence/release-2026.1.0.json \

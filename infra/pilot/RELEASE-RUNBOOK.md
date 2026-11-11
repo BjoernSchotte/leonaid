@@ -80,7 +80,7 @@ pre-acceptance:
 waits for the real health state and then runs the full doctor against the
 running environment.
 
-The promotion itself runs only through `pilot-release`. The command verifies
+The promotion itself runs only through `upgrade`. The command verifies
 manifest and doctor, writes the started event, creates a fresh encrypted
 recovery point, activates maintenance mode, runs the explicit Twenty and
 core migrations, starts without a build and lifts maintenance mode only after
@@ -99,14 +99,14 @@ does not simulate human acceptance.
 3. Then run the technical promotion of the same manifest:
 
 ```sh
-./leonaid pilot-release \
+./leonaid upgrade \
   --env-file /etc/leonaid/staging.env \
   --backup-manifest /var/lib/leonaid/evidence/staging-backup-manifest.json \
   --release-manifest /var/lib/leonaid/evidence/release-2026.1.0.json \
   --ledger /var/lib/leonaid/evidence/release-ledger.jsonl \
   --password-file /secure/leonaid/restic-password \
   --credentials-file /secure/leonaid/restic-backend.env \
-  --evidence-id PILOT-RELEASE-STAGING-2026-01 \
+  --evidence-id PILOT-RELEASE-STAGING-2026-01
 ```
 
 The command enforces the order described above and records
@@ -132,7 +132,7 @@ Production builds no images and runs no unbound `head` migration. Target
 revision, files and SHAs come from the already verified manifest.
 
 ```sh
-./leonaid pilot-release \
+./leonaid upgrade \
   --env-file /etc/leonaid/production.env \
   --backup-manifest /var/lib/leonaid/evidence/production-backup-manifest.json \
   --release-manifest /var/lib/leonaid/evidence/release-2026.1.0.json \
@@ -145,8 +145,26 @@ revision, files and SHAs come from the already verified manifest.
 If the ledger lacks `staging_verified` for the same manifest SHA, the command
 stops before the started event, backup, maintenance mode and deployment.
 
+**Staging on another host** (for example a VM in the club's own network):
+each host keeps its own ledger. Copy the staging ledger to the production
+host and pass it with `--staging-ledger`:
+
+```sh
+scp staging-host:/var/lib/leonaid/evidence/release-ledger.jsonl \
+  /var/lib/leonaid/evidence/staging-release-ledger.jsonl
+./leonaid upgrade \
+  --env-file /etc/leonaid/production.env \
+  ... \
+  --ledger /var/lib/leonaid/evidence/release-ledger.jsonl \
+  --staging-ledger /var/lib/leonaid/evidence/staging-release-ledger.jsonl
+```
+
+The command only reads the copy and looks for `staging_verified` of the same
+manifest SHA there; it writes production events to the production ledger
+alone. Staging refuses `--staging-ledger`.
+
 With `LEONAID_CMS_ENABLED=true` the release manifest is the CMS manifest
-(`release-manifest-cms.json`), and `pilot-release` also migrates the CMS, in
+(`release-manifest-cms.json`), and `upgrade` also migrates the CMS, in
 maintenance mode after Core and before the deploy. It closes CMS traffic as
 soon as maintenance starts, so editors (who write without Core) cannot change
 anything after the recovery point; from the backup to that moment the window
@@ -157,9 +175,9 @@ and `tools/pilot_release/migrate-cms.sh` verifies that image against the
 checkout, closes CMS traffic and runs `upgrade-emdash` when the image brings
 EmDash migrations, else `verify`. CMS traffic reopens only after the migrated
 state verifies; the deploy then starts the CMS. `pilot-deploy` refuses a
-release with pending CMS migrations and points to `pilot-release`.
+release with pending CMS migrations and points to `upgrade`.
 
-`pilot-release` and `pilot-deploy` leave the monitoring profile unchanged.
+`upgrade` and `pilot-deploy` leave the monitoring profile unchanged.
 After every successful release,
 `./leonaid pilot-monitoring --env-file /etc/leonaid/production.env` starts
 the exporters, Prometheus and Alertmanager with the new release image; the
@@ -189,7 +207,7 @@ On a failure:
 An operator needs no SQL access for this. Direct database work counts as a
 failed operations proof.
 
-CMS: when the CMS step of `pilot-release` fails, CMS traffic stays closed and
+CMS: when the CMS step of `upgrade` fails, CMS traffic stays closed and
 `campaign-site` stays stopped; Core and the rest of the release are not
 touched further (the deploy does not run). The proof shows that a failing
 EmDash migration rolls back completely (one transaction), so the database
@@ -197,7 +215,7 @@ keeps the previous state.
 
 1. **Retry forward first** when the cause is transient or fixed (a pull or
    network error, a timeout, a corrected release image): lift maintenance as
-   after any failed release and run `pilot-release` again. It accepts the
+   after any failed release and run `upgrade` again. It accepts the
    closed CMS when no `<project>-cms-migration-lock` container exists, and
    reopens traffic only after the migrated state verifies. A failure before
    the CMS step (backup, maintenance, Core migration) changed no CMS data:

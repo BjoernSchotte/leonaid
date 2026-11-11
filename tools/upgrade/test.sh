@@ -522,7 +522,7 @@ response.raise_for_status()'
 
 # The old release ran Redis 7.4 (RDB format 12), which Valkey refuses to load.
 # Prove that the old volume really has that format, then migrate it exactly
-# like pilot-release does: drain with the old containers and reset.
+# like upgrade does: drain with the old containers and reset.
 migrate_queue_store() {
   migrated_project=$1
   docker exec "${migrated_project}-twenty-redis-1" redis-cli SAVE >/dev/null

@@ -22,12 +22,12 @@ Die konkreten Fachfragen und sicheren Übergaberegeln stehen im
 
 | ID | Bereich | Entscheidung | Owner-Rolle | Erfasst am | Quelle | Evidence-ID | Status | Wert | Spätestes Gate |
 |---|---|---|---|---|---|---|---|---|---|
-| PILOT-LEG-001 | Träger | Rechtlicher Träger und Rechnungsaussteller | Rechtlicher Träger | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | pilot-release |
-| PILOT-TAX-001 | Steuer | Steuerbehandlung der Krapfentaxi-Leistung | Steuerberatung und rechtlicher Träger | 2026-07-28 | ADR-0002 | PENDING | open | PENDING | pilot-release |
-| PILOT-INV-001 | Rechnung | Pflichtangaben und Freigabeverantwortung | Rechtlicher Träger und Steuerberatung | 2026-07-28 | ADR-0002 | PENDING | open | PENDING | pilot-release |
-| PILOT-INV-002 | Rechnung | E-Rechnungsbedarf im Pilotzeitraum | Steuerberatung und rechtlicher Träger | 2026-07-28 | ADR-0002 | PENDING | open | PENDING | pilot-release |
+| PILOT-LEG-001 | Träger | Rechtlicher Träger und Rechnungsaussteller | Rechtlicher Träger | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | upgrade |
+| PILOT-TAX-001 | Steuer | Steuerbehandlung der Krapfentaxi-Leistung | Steuerberatung und rechtlicher Träger | 2026-07-28 | ADR-0002 | PENDING | open | PENDING | upgrade |
+| PILOT-INV-001 | Rechnung | Pflichtangaben und Freigabeverantwortung | Rechtlicher Träger und Steuerberatung | 2026-07-28 | ADR-0002 | PENDING | open | PENDING | upgrade |
+| PILOT-INV-002 | Rechnung | E-Rechnungsbedarf im Pilotzeitraum | Steuerberatung und rechtlicher Träger | 2026-07-28 | ADR-0002 | PENDING | open | PENDING | upgrade |
 | PILOT-PRIV-001 | Datenschutz | Aufbewahrungs-, Sperr- und Löschfristen je Fachobjekt | Datenschutz und rechtlicher Träger | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | pilot-import |
-| PILOT-PRIV-002 | Datenschutz | Rechtsgrundlagen und Informationstexte | Datenschutz und rechtlicher Träger | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | pilot-release |
+| PILOT-PRIV-002 | Datenschutz | Rechtsgrundlagen und Informationstexte | Datenschutz und rechtlicher Träger | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | upgrade |
 | PILOT-MAIL-001 | Betrieb | Produktiver Mail-Relay und Mail-Domain-Owner | Betrieb | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | pilot-deploy |
 | PILOT-OPS-001 | Betrieb | DNS-Owner und produktive Domain | Betrieb | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | pilot-deploy |
 | PILOT-OPS-002 | Betrieb | VPS-Owner und Hosting-Verantwortung | Betrieb | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | pilot-deploy |

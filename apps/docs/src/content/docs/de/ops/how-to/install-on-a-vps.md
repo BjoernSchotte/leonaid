@@ -557,7 +557,7 @@ systemctl list-timers 'leonaid-crm-repair*'
 
 Ein erfolgreicher Lauf endet mit `crm-match-keys: OK:` und der Zahl der
 geprüften und reparierten Datensätze. Im Wartungsmodus (etwa während
-`pilot-release`) ist Twenty absichtlich gestoppt. Der Befehl meldet dann
+`upgrade`) ist Twenty absichtlich gestoppt. Der Befehl meldet dann
 `SKIPPED` und endet erfolgreich, die Unit schlägt also nicht fehl. Beginnt
 die Wartung während eines Laufs, endet auch dieser als `SKIPPED`; der
 nächste Lauf und der nächtliche Volllauf holen alles nach. Er schlägt
@@ -577,7 +577,7 @@ externe Dienst alarmiert.
   `https://<portal-domain>/_health` abrufen und den Text `ready` erwarten.
   Seine Alarme gehen an einen Kanal, der nicht von diesem Server abhängt.
 
-`pilot-deploy` und `pilot-release` starten das Monitoring nicht neu. Führe
+`pilot-deploy` und `upgrade` starten das Monitoring nicht neu. Führe
 danach `./leonaid pilot-monitoring --env-file /etc/leonaid/production.env`
 aus, damit der Exporter das neue Release-Image verwendet.
 
@@ -598,7 +598,7 @@ Die Aktionsseiten und ihre Redaktion (EmDash) brauchen eine Datenbank, einen
 Medien-Bucket, eine erste Einrichtung durch eine LeonAid-Systemadministration
 und das Aktionsschema. `./leonaid pilot-cms-provision` erledigt diese vier
 Schritte auf der laufenden Installation. Vorher lehnen `pilot-deploy`,
-`pilot-release` und `pilot-doctor` `LEONAID_CMS_ENABLED=true` mit dem Hinweis
+`upgrade` und `pilot-doctor` `LEONAID_CMS_ENABLED=true` mit dem Hinweis
 auf diesen Befehl ab.
 
 Du brauchst:

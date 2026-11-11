@@ -64,7 +64,7 @@ Verantwortlichen und einen frischen Recovery Point.
    mit `503 maintenance_mode` und `Retry-After` abgewiesen werden.
 2. Erzeuge und prüfe ein verschlüsseltes Backup.
    Führe danach `infra/upgrade/twenty-queue-store.sh migrate` aus (Teil von
-   `pilot-release`). Es arbeitet die Queues eines Redis-7.4-Speichers mit dem
+   `upgrade`). Es arbeitet die Queues eines Redis-7.4-Speichers mit dem
    alten Twenty-Worker ab und leert das Volume, weil Valkey es nicht laden kann.
 3. Aktualisiere RustFS und starte Twenty einmal für seine Voraussetzungen.
    Beim Start der Zieldienste erzeugt Compose `core-postgres` und
@@ -120,7 +120,7 @@ MinIO-Daten (`.minio.sys`) um und läuft auf einem RustFS-Volume nicht. Der
 Image-Benutzer (UID 10001), der Entrypoint, der Pfad `/data` und die
 Umgebungsvariablen, die LeonAid setzt, bleiben unverändert.
 
-`pilot-release` erstellt das Backup, aktiviert den Wartungsmodus und erzeugt
+`upgrade` erstellt das Backup, aktiviert den Wartungsmodus und erzeugt
 `rustfs` dann mit dem neuen Image neu, bevor Twenty und Core migrieren.
 `./leonaid test-upgrade` und `./leonaid test-pilot-release` starten beta.11
 mit Golden Data, hashen jede Objektversion vor und nach dem Imagewechsel und
@@ -135,7 +135,7 @@ Recovery Point wieder her.
 
 ## Aktionsseiten-Migrationen im Pilot-Release
 
-Mit `LEONAID_CMS_ENABLED=true` migriert `./leonaid pilot-release` die
+Mit `LEONAID_CMS_ENABLED=true` migriert `./leonaid upgrade` die
 Aktionsseiten selbst; es gibt keinen Handschritt. Im Wartungsmodus, nach den
 Core-Migrationen, erzeugt es `campaign-site` mit dem Release-Image neu, ohne
 es zu starten, prüft das Image gegen den Checkout, schließt den CMS-Verkehr
@@ -143,13 +143,13 @@ und führt `upgrade-emdash` aus, wenn das Release EmDash-Migrationen mitbringt
 (sonst `verify`). Das vorher erstellte Release-Backup enthält die
 CMS-Datenbank, ihren Einrichtungsstand und die Medien. Der CMS-Verkehr öffnet
 erst, wenn der migrierte Stand geprüft ist. `pilot-deploy` lehnt ein solches
-Release ab und verweist auf `pilot-release`.
+Release ab und verweist auf `upgrade`.
 
 Der CMS-Verkehr schließt, sobald der Wartungsmodus beginnt; die Redaktion
 kann nach dem Wiederherstellungspunkt des Releases nichts mehr ändern.
 Scheitert der CMS-Schritt, bleibt der CMS-Verkehr geschlossen und das CMS
 gestoppt; eine scheiternde EmDash-Migration wird vollständig zurückgerollt.
-Hebe zuerst den Wartungsmodus auf und starte `pilot-release` erneut (es nimmt
+Hebe zuerst den Wartungsmodus auf und starte `upgrade` erneut (es nimmt
 das geschlossene CMS an, wenn keine Migrationssperre übrig ist). Scheitert
 auch das, rolle aus dem Wiederherstellungspunkt des Releases zurück, wie im
 Release-Runbook beschrieben (`infra/pilot/RELEASE-RUNBOOK.md`, „Failure and

@@ -40,7 +40,7 @@ export function migrationState(migrations, names) {
 
 // A live CMS (completed setup) whose database lacks only later migrations of
 // a newer release image: the release's CMS migration step applies them
-// (pilot-release, cms-migration-operator upgrade-emdash), never provisioning.
+// (upgrade, cms-migration-operator upgrade-emdash), never provisioning.
 export function releaseDatabaseState(state, appliedCount, bootstrap) {
   return state === "missing" && appliedCount > 0 && bootstrap === "complete"
     ? "pending"

@@ -47,7 +47,7 @@ dem Logger-Mailtreiber und versenden nichts; `pilot-doctor` warnt, blockiert
 aber nicht.
 
 Wichtige Befehle: `bootstrap`, `doctor`, `dev`, `check`, `backup`, `restore`,
-`pilot-doctor`, `pilot-deploy`, `pilot-cms-provision`, `pilot-create-system-admin`, `pilot-release`, `pilot-backup`,
+`pilot-doctor`, `pilot-deploy`, `pilot-cms-provision`, `pilot-create-system-admin`, `upgrade`, `pilot-backup`,
 `pilot-restore`, `pilot-repair-crm-match-keys`, `crm-admin`, `test-handoff`, `test-backup` und `test-upgrade`. Die aktuelle
 vollständige Liste liefert `./leonaid help`; sie ist maßgeblich, wenn diese
 Referenz abweicht.
@@ -355,7 +355,7 @@ Speicher voll, lehnt er Schreibzugriffe mit einem Fehler ab, bevor die
 Containergrenze ihn beendet. Twenty behält je Queue bis zu 1000 erledigte und
 1000 fehlgeschlagene Jobs (4 Stunden bzw. 7 Tage); ein großer CRM-Import füllt
 den Speicher um etwa 20 MiB pro Minute. Valkey kann die Datendateien von
-Redis 7.4 nicht laden. `pilot-release` (und lokal das erste `up` eines
+Redis 7.4 nicht laden. `upgrade` (und lokal das erste `up` eines
 `./leonaid`-Befehls) führt deshalb einmal
 `infra/upgrade/twenty-queue-store.sh migrate` aus: Es stoppt `twenty-server`,
 lässt den alten `twenty-worker` alle wartenden, aktiven und verzögerten Jobs

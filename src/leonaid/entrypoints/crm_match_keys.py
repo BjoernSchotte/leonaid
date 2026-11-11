@@ -150,7 +150,7 @@ def main() -> int:
             print(
                 "crm-match-keys: ERROR: Twenty lacks the leonaidMatchKey field. "
                 "Run './leonaid provision-twenty' (production: "
-                "'./leonaid pilot-release --twenty-bootstrap-file FILE').",
+                "'./leonaid upgrade --twenty-bootstrap-file FILE').",
                 file=sys.stderr,
             )
             return 1

@@ -25,7 +25,7 @@ personenbezogene Angaben enthalten.
 ### PILOT-LEG-001 – rechtlicher Träger und Rechnungsaussteller
 
 Owner: rechtlicher Träger  
-Spätestes Gate: `pilot-release`
+Spätestes Gate: `upgrade`
 
 - Welche juristische oder natürliche Person tritt für die Aktion als
   Vertragspartner und Rechnungsaussteller auf?
@@ -39,7 +39,7 @@ Registerwert nach Bestätigung: `confirmed`.
 ### PILOT-INV-001 – Pflichtangaben und Freigabeverantwortung
 
 Owner: rechtlicher Träger und Steuerberatung  
-Spätestes Gate: `pilot-release`
+Spätestes Gate: `upgrade`
 
 - Welche Angaben und Rechtstexte müssen auf der konkreten Rechnung stehen?
 - Welche Rolle führt die fachliche Vier-Augen-Freigabe durch?
@@ -52,7 +52,7 @@ Registerwert nach Bestätigung: `confirmed`.
 ### PILOT-TAX-001 – Steuerbehandlung
 
 Owner: Steuerberatung und rechtlicher Träger  
-Spätestes Gate: `pilot-release`
+Spätestes Gate: `upgrade`
 
 Zulässiges Ergebnis:
 
@@ -67,7 +67,7 @@ produktive Antwort übernehmen.
 ### PILOT-INV-002 – E-Rechnungsbedarf
 
 Owner: Steuerberatung und rechtlicher Träger  
-Spätestes Gate: `pilot-release`
+Spätestes Gate: `upgrade`
 
 Zulässiges Ergebnis:
 
@@ -93,7 +93,7 @@ in PILOT-044 autorisiert, versioniert und technisch aktiviert.
 ### PILOT-PRIV-002 – Rechtsgrundlagen und Informationstexte
 
 Owner: Datenschutz und rechtlicher Träger  
-Spätestes Gate: `pilot-release`
+Spätestes Gate: `upgrade`
 
 - Welche Rechtsgrundlage gilt für importierte Kontakte, Akquiseaktivitäten
   und öffentliche Bestellungen?
@@ -154,11 +154,11 @@ LEONAID_PILOT_BACKUP_MANIFEST=/var/lib/leonaid/evidence/latest-backup-manifest.j
 ./leonaid pilot-doctor \
   --env-file "$LEONAID_PILOT_ENV_FILE" \
   --backup-manifest "$LEONAID_PILOT_BACKUP_MANIFEST" \
-  --gate pilot-release
+  --gate upgrade
 ./leonaid pilot-doctor \
   --env-file "$LEONAID_PILOT_ENV_FILE" \
   --backup-manifest "$LEONAID_PILOT_BACKUP_MANIFEST" \
-  --gate pilot-release \
+  --gate upgrade \
   --json
 ```
 
