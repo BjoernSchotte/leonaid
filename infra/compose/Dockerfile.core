@@ -50,7 +50,7 @@ COPY alembic.ini ./
 COPY migrations ./migrations
 COPY infra/compose/start-api.sh ./infra/compose/start-api.sh
 
-# Runtime uv calls (e.g. `uv run alembic` during pilot-release) must not need a
+# Runtime uv calls (e.g. `uv run alembic` during upgrade) must not need a
 # writable home: the root filesystem is read-only and only /tmp is a tmpfs.
 ENV UV_CACHE_DIR=/tmp/uv-cache
 USER 10001:10001

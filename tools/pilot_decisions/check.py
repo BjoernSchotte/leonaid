@@ -42,7 +42,7 @@ HEADERS = (
 STATUSES = {"open", "accepted", "stop"}
 GATES = {
     "pilot-deploy",
-    "pilot-release",
+    "upgrade",
     "pilot-import",
     "pilot-backup",
     "pilot-restore",
@@ -52,7 +52,7 @@ GATE_DECISIONS = {
     "pilot-import": {"pilot-deploy", "pilot-import"},
     "pilot-backup": {"pilot-deploy", "pilot-backup"},
     "pilot-restore": {"pilot-deploy", "pilot-backup", "pilot-restore"},
-    "pilot-release": GATES,
+    "upgrade": GATES,
 }
 TAX_VALUES = {"small_business", "standard_vat", "tax_exempt"}
 EVIDENCE_ID = re.compile(r"^EVID-[A-Z0-9][A-Z0-9._-]{5,63}$")
@@ -231,7 +231,7 @@ def main() -> int:
     parser.add_argument(
         "--gate",
         choices=sorted(GATES),
-        default="pilot-release",
+        default="upgrade",
         help="production gate whose due decisions are checked",
     )
     parser.add_argument(

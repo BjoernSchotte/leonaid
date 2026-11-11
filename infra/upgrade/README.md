@@ -74,7 +74,7 @@ pass unchanged.
 ## Release note: document series (migration `0063_document_series`)
 
 The migration moves the invoice counter from every action's profile to one
-series per prefix (ADR-0015). Deploy order, as `./leonaid pilot-release` does
+series per prefix (ADR-0015). Deploy order, as `./leonaid upgrade` does
 it:
 
 1. Maintenance mode on: no API or worker of the previous release writes an

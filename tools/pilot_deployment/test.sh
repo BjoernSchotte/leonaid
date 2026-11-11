@@ -45,6 +45,8 @@ env_file="$workspace/production.env"
 backup_manifest="$workspace/backup-manifest.json"
 release_manifest="$workspace/release-manifest.json"
 release_ledger="$workspace/release-ledger.jsonl"
+# Staging on another host: its ledger arrives as a copy under the same name.
+staging_ledger="$workspace/staging-host/release-ledger.jsonl"
 drifted_release_manifest="$workspace/drifted-release-manifest.json"
 accepted_decisions="$workspace/accepted-decisions.md"
 target_env_file="$workspace/restore.env"
@@ -405,7 +407,7 @@ docker compose \
   --file "$root/infra/compose/compose.yml" \
   build api web pwa public survey-validator proxy
 
-# The pilot-deploy and pilot-release gates ask the running API whether Twenty
+# The pilot-deploy and upgrade gates ask the running API whether Twenty
 # accepts its integration key and has the match key field. Provision Twenty
 # exactly as pilot-install does: bootstrap overlay (no verification, no
 # proxy), real schema, roles and key; then the real key replaces the
@@ -903,7 +905,7 @@ missing_staging_output=$(
     LEONAID_TEST_WEB_IMAGE="$web_image" \
     LEONAID_TEST_PWA_IMAGE="$pwa_image" \
     LEONAID_TEST_PUBLIC_IMAGE="$public_image" \
-    "$root/leonaid" pilot-release \
+    "$root/leonaid" upgrade \
       --env-file "$env_file" \
       --backup-manifest "$backup_manifest" \
       --release-manifest "$release_manifest" \
@@ -928,20 +930,22 @@ fi
   echo "pilot-deployment-test: ERROR: rejected release changed the ledger" >&2
   exit 1
 }
+mkdir -p "$(dirname -- "$staging_ledger")"
 "$root/leonaid" pilot-release-record \
   --manifest "$release_manifest" \
-  --ledger "$release_ledger" \
+  --ledger "$staging_ledger" \
   --event staging_started \
   --result passed \
   --evidence-id PILOT-043-STAGING-OPERATOR \
   --occurred-at 2026-07-30T12:01:00Z
 "$root/leonaid" pilot-release-record \
   --manifest "$release_manifest" \
-  --ledger "$release_ledger" \
+  --ledger "$staging_ledger" \
   --event staging_verified \
   --result passed \
   --evidence-id PILOT-043-STAGING-OPERATOR \
   --occurred-at 2026-07-30T12:02:00Z
+staging_ledger_before=$(sha256sum "$staging_ledger")
 LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
   LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
   LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
@@ -950,28 +954,39 @@ LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
   LEONAID_TEST_WEB_IMAGE="$web_image" \
   LEONAID_TEST_PWA_IMAGE="$pwa_image" \
   LEONAID_TEST_PUBLIC_IMAGE="$public_image" \
-  "$root/leonaid" pilot-release \
+  "$root/leonaid" upgrade \
     --env-file "$env_file" \
     --backup-manifest "$backup_manifest" \
     --release-manifest "$release_manifest" \
     --ledger "$release_ledger" \
+    --staging-ledger "$staging_ledger" \
     --password-file "$restic_password_file" \
     --credentials-file "$backup_credentials_file" \
     --evidence-id PILOT-043-PRODUCTION-OPERATOR \
     --occurred-at 2026-07-30T12:03:00Z
+[ "$(sha256sum "$staging_ledger")" = "$staging_ledger_before" ] || {
+  echo "pilot-deployment-test: ERROR: upgrade changed the copied staging ledger" >&2
+  exit 1
+}
 docker run --rm \
   --volume "$workspace:/proof:ro" \
   "$PYTHON_IMAGE" \
   python -c 'import json,pathlib
-records=[
-  json.loads(line)
-  for line in pathlib.Path("/proof/release-ledger.jsonl").read_text().splitlines()
-]
-assert [record["event"] for record in records]==[
+def events(path):
+    return [
+        json.loads(line)
+        for line in pathlib.Path(path).read_text().splitlines()
+    ]
+staging=events("/proof/staging-host/release-ledger.jsonl")
+production=events("/proof/release-ledger.jsonl")
+assert [record["event"] for record in staging]==[
   "staging_started","staging_verified",
+]
+assert [record["event"] for record in production]==[
   "production_started","production_verified",
 ]
-assert len({record["manifestSha256"] for record in records})==1'
+assert [record["sequence"] for record in production]==[1,2]
+assert len({record["manifestSha256"] for record in staging+production})==1'
 cp "$backup_manifest" "$manifest_proof_directory/manifest.json"
 docker run --rm \
   --env "EXPECTED_PROJECT=$project" \

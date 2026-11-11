@@ -264,6 +264,7 @@ values = {
   "LEONAID_ALLOWED_ORIGINS": "https://portal.leonaid.org",
   "TWENTY_ADMIN_PORT": os.environ["ADMIN_PORT"],
   "CADDY_ACME_EMAIL": "operations@leonaid.org",
+  "LEONAID_VAPID_SUBJECT": "mailto:operations@leonaid.org",
   "RUSTFS_BUCKET": "leonaid-production-club-111",
   "RESTIC_REPOSITORY": os.environ["REPOSITORY"],
   "LEONAID_BACKUP_MANIFEST_PATH": w + "/evidence/latest-backup-manifest.json",
@@ -1208,7 +1209,7 @@ cms_restore_drill() {
 cms_restore_drill pilot-cms
 echo "pilot-install-test: CMS restore drill: published page, media with the scoped key and closed setup grant restored"
 
-echo "pilot-install-test: proves the CMS step of pilot-release with a synthetic EmDash migration"
+echo "pilot-install-test: proves the CMS step of upgrade with a synthetic EmDash migration"
 # The next release's campaign-site image: this release plus one EmDash
 # migration (999_leonaid_release_probe) in both copies of the migration list,
 # the operators' (node_modules) and the runtime's (Astro server bundle).
@@ -1277,7 +1278,7 @@ release_manifest_for cms-broken 2026.11.2
 broken_ledger="$workspace/release-ledger-broken.jsonl"
 staging_verified "$broken_ledger" "$broken_manifest"
 set +e
-leonaid_test pilot-release --env-file "$env_file" \
+leonaid_test upgrade --env-file "$env_file" \
   --backup-manifest "$backup_manifest" --release-manifest "$broken_manifest" \
   --ledger "$broken_ledger" --password-file "$restic_password_file" \
   --credentials-file "$backup_credentials_file" \
@@ -1287,7 +1288,7 @@ broken_status=$?
 set -e
 [ "$broken_status" -ne 0 ] &&
   grep -Fq "maintenance mode is not lifted automatically" "$workspace/cms-release-broken.log" &&
-  grep -Fq "pilot-release: CMS traffic closed for the release" "$workspace/cms-release-broken.log" &&
+  grep -Fq "upgrade: CMS traffic closed for the release" "$workspace/cms-release-broken.log" &&
   grep -Fq "cms-migration: refused" "$workspace/cms-release-broken.log" || {
   echo "pilot-install-test: ERROR: the failing CMS migration did not stop the release as documented:" >&2
   tail -n 30 "$workspace/cms-release-broken.log" >&2
@@ -1329,7 +1330,7 @@ set -e
 cms_restore_drill pilot-cms-rollback
 echo "pilot-install-test: CMS release failure: maintenance kept, CMS closed and stopped, no lock, rollback restores"
 # Retry forward: lift maintenance as after any failed release, then release
-# the corrected image; pilot-release accepts the closed CMS without a lock.
+# the corrected image; upgrade accepts the closed CMS without a lock.
 maintenance disable
 
 LEONAID_TEST_CAMPAIGN_SITE_IMAGE=$(docker image inspect --format '{{.Id}}' "$next_image_tag")
@@ -1359,16 +1360,16 @@ set -e
 release_ledger="$workspace/release-ledger.jsonl"
 staging_verified "$release_ledger" "$next_manifest"
 backup_before=$(sed -n 's/.*"createdAt": *"\([^"]*\)".*/\1/p' "$backup_manifest" | head -n 1)
-leonaid_test pilot-release --env-file "$env_file" \
+leonaid_test upgrade --env-file "$env_file" \
   --backup-manifest "$backup_manifest" --release-manifest "$next_manifest" \
   --ledger "$release_ledger" --password-file "$restic_password_file" \
   --credentials-file "$backup_credentials_file" \
   --evidence-id PILOT-CMS-RELEASE-PRODUCTION \
   --occurred-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 2>&1 | tee "$workspace/cms-release.log"
-grep -Fq "pilot-release: OK: $project is manifest-bound, migrated and released" "$workspace/cms-release.log"
-grep -Fq "pilot-release: CMS: upgrade-emdash under closed CMS traffic" "$workspace/cms-release.log"
+grep -Fq "upgrade: OK: $project is manifest-bound, migrated and released" "$workspace/cms-release.log"
+grep -Fq "upgrade: CMS: upgrade-emdash under closed CMS traffic" "$workspace/cms-release.log"
 grep -Fq "cms-migration: upgrade-emdash passed" "$workspace/cms-release.log"
-grep -Fq "pilot-release: CMS traffic closed for the release" "$workspace/cms-release.log"
+grep -Fq "upgrade: CMS traffic closed for the release" "$workspace/cms-release.log"
 # The recovery point of the release holds the CMS (taken before the migration).
 assert_cms_backup
 [ "$(sed -n 's/.*"createdAt": *"\([^"]*\)".*/\1/p' "$backup_manifest" | head -n 1)" != "$backup_before" ]
@@ -1388,7 +1389,7 @@ done
 cms_proof public "$cms_slug" "$cms_title"
 cms_manifest_argument=$next_manifest
 cms_expect "repeats as a no-op after the release" 0 "pilot-cms-provision: OK: $project serves the CMS"
-echo "pilot-install-test: pilot-release migrated the CMS (synthetic EmDash migration) and kept the published page"
+echo "pilot-install-test: upgrade migrated the CMS (synthetic EmDash migration) and kept the published page"
 
 echo "pilot-install-test: proves a second first install is refused"
 cp "$env_file" "$workspace/second.env"
@@ -1410,4 +1411,4 @@ echo "pilot-install-test:     full stack, first backup, monitoring and Watchdog,
 echo "pilot-install-test:     Twenty and core mail over implicit TLS, scheduled CRM repair,"
 echo "pilot-install-test:     CMS provisioned, resumed and repeated, a campaign page published"
 echo "pilot-install-test:     on the public host, CMS backups and a CMS restore drill,"
-echo "pilot-install-test:     pilot-release with a synthetic EmDash migration"
+echo "pilot-install-test:     upgrade with a synthetic EmDash migration"

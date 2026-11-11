@@ -52,7 +52,7 @@ import {
 //                but the grant was not marked (crash or a raced reset).
 //   status       read-only state of every step, one "key=value" line each;
 //                database=pending: a live CMS waits for this image's EmDash
-//                migrations (pilot-release applies them).
+//                migrations (upgrade applies them).
 // The campaign schema itself is installed by cms-migration-operator.mjs
 // ("install") under closed CMS traffic.
 const bootstrapDirectory = "/app/bootstrap-state";

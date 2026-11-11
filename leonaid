@@ -212,6 +212,7 @@ Commands:
                     Create or verify an immutable release manifest
   pilot-release-record [OPTIONS]
                     Append a sanitized staging/production release event
+                    (--staging-ledger FILE: a copied staging host ledger)
   pilot-evidence-init
                     Create private 0700 intake/evidence/backup directories
   pilot-doctor --env-file FILE --backup-manifest FILE [--gate GATE] [--json]
@@ -237,11 +238,14 @@ Commands:
                     database, media bucket, editor setup grant, campaign
                     schema; repeatable, resumes where it stopped (exit 75:
                     the System Admin completes the setup, then run again)
-  pilot-release --env-file FILE --backup-manifest FILE --release-manifest FILE
-                --ledger FILE --password-file FILE --evidence-id ID
-                [--twenty-bootstrap-file FILE]
-                    Release staging/production with backup and explicit migrations;
-                    the bootstrap file also applies Twenty schema changes
+  upgrade --env-file FILE --backup-manifest FILE --release-manifest FILE
+          --ledger FILE --password-file FILE --evidence-id ID
+          [--staging-ledger FILE] [--twenty-bootstrap-file FILE]
+                    Upgrade staging/production to a release: backup, maintenance
+                    mode, explicit migrations; production needs the same
+                    manifest verified on staging (its ledger, or a copy of the
+                    staging host's ledger in --staging-ledger); the bootstrap
+                    file also applies Twenty schema changes
   pilot-import <dry-run|apply|verify> SOURCE [OPTIONS]
                     Run the private, fingerprint-bound pilot import
   pilot-backup --env-file FILE --backup-manifest FILE --password-file FILE
@@ -1402,7 +1406,7 @@ pilot_doctor() {
   require_docker
   env_file=
   backup_manifest=
-  gate=pilot-release
+  gate=upgrade
   json_argument=
   first_install_argument=
   while [ "$#" -gt 0 ]; do
@@ -1637,10 +1641,10 @@ pilot_doctor() {
   # running API reaches Twenty and that the match key field is provisioned.
   if [ "$status" -eq 0 ] && [ -z "$first_install_argument" ]; then
     case "$gate" in
-      pilot-deploy|pilot-release)
+      pilot-deploy|upgrade)
         if ! pilot_compose_command "$project" "$env_file" \
           exec -T api python -m leonaid.entrypoints.crm_match_keys --check >&2; then
-          echo "pilot-doctor: BLOCKED: Twenty CRM check failed; apply the schema with './leonaid pilot-release --twenty-bootstrap-file FILE'" >&2
+          echo "pilot-doctor: BLOCKED: Twenty CRM check failed; apply the schema with './leonaid upgrade --twenty-bootstrap-file FILE'" >&2
           status=1
         fi
         ;;
@@ -1654,7 +1658,7 @@ pilot_doctor() {
     case "$gate" in
       pilot-backup|pilot-restore) ;;
       *)
-        if [ "$gate" = pilot-release ]; then
+        if [ "$gate" = upgrade ]; then
           pilot_cms_require_provisioned "$project" "$env_file" pilot-doctor release ||
             status=1
         else
@@ -2033,7 +2037,7 @@ pilot_deploy() {
     "$release_manifest" "$config_file" "$release_commit"
   pilot_decision_gate "$project" pilot-deploy
   # pilot-deploy runs without maintenance mode and must not drain queues;
-  # an old Redis 7.4 store is migrated only by pilot-release.
+  # an old Redis 7.4 store is migrated only by upgrade.
   LEONAID_COMPOSE_PROJECT="$project" \
     /bin/sh "$root/infra/upgrade/twenty-queue-store.sh" require-current "$root"
   # A CMS that is not provisioned would never become healthy; refuse before
@@ -2074,7 +2078,7 @@ pilot_cms_status_value() {
 # media bucket, completed editor setup, campaign schema and open traffic.
 # pilot-cms-provision is the one command that runs before that.
 # With a fourth argument "release", EmDash migrations that the release image
-# brings (database=pending, schema=pending) are accepted: pilot-release
+# brings (database=pending, schema=pending) are accepted: upgrade
 # applies them in its CMS step.
 pilot_cms_require_provisioned() {
   pilot_cms_enabled "$2" || return 0
@@ -2087,14 +2091,14 @@ pilot_cms_require_provisioned() {
       sed 's/^database=pending$/database=ready/; s/^schema=pending$/schema=ready/')
     # Retry forward: a release that stopped after closing CMS traffic (or a
     # transient failure of its CMS step) leaves traffic closed. Without a
-    # migration controller holding the lock, a new pilot-release may continue;
+    # migration controller holding the lock, a new upgrade may continue;
     # its CMS step reopens traffic only after the migrated state verifies.
     if [ -z "$(docker ps -aq --filter "name=^$1-cms-migration-lock\$")" ]; then
       pilot_cms_state=$(printf '%s\n' "$pilot_cms_state" |
         sed 's/^traffic=closed$/traffic=open/')
     fi
   elif printf '%s\n' "$pilot_cms_state" | grep -qx 'database=pending'; then
-    echo "$3: BLOCKED: this release brings CMS (EmDash) migrations; release it with './leonaid pilot-release', which migrates the CMS under closed traffic" >&2
+    echo "$3: BLOCKED: this release brings CMS (EmDash) migrations; release it with './leonaid upgrade', which migrates the CMS under closed traffic" >&2
     return 1
   fi
   pilot_cms_missing=
@@ -2253,7 +2257,7 @@ pilot_cms_provision() {
       exit 1
       ;;
     pending)
-      echo "pilot-cms-provision: BLOCKED: the live CMS waits for this release's EmDash migrations; release it with './leonaid pilot-release'" >&2
+      echo "pilot-cms-provision: BLOCKED: the live CMS waits for this release's EmDash migrations; release it with './leonaid upgrade'" >&2
       exit 1
       ;;
     *)
@@ -2740,7 +2744,7 @@ pilot_install() {
   [ "$(grep -c '^TWENTY_INTEGRATION_API_KEY=' "$install_env")" -eq 1 ] ||
     pilot_install_fail "the environment file needs exactly one TWENTY_INTEGRATION_API_KEY line"
   [ "$(pilot_environment_value TWENTY_INTEGRATION_API_KEY "$install_env")" = PENDING_PILOT_INSTALL ] ||
-    pilot_install_fail "TWENTY_INTEGRATION_API_KEY is not PENDING_PILOT_INSTALL; this installation is provisioned already, use pilot-deploy or pilot-release"
+    pilot_install_fail "TWENTY_INTEGRATION_API_KEY is not PENDING_PILOT_INSTALL; this installation is provisioned already, use pilot-deploy or upgrade"
   # The CMS needs a running installation and a System Admin for its setup.
   if pilot_cms_enabled "$install_env"; then
     pilot_install_fail "install with LEONAID_CMS_ENABLED=false; enable the CMS afterwards with pilot-cms-provision"
@@ -2759,7 +2763,7 @@ pilot_install() {
     docker ps -aq --filter "label=com.docker.compose.project=$install_project"
   )
   [ -z "$install_existing" ] ||
-    pilot_install_fail "$install_project already has Docker volumes or containers. pilot-install only runs on an empty project; use pilot-deploy or pilot-release for an existing installation."
+    pilot_install_fail "$install_project already has Docker volumes or containers. pilot-install only runs on an empty project; use pilot-deploy or upgrade for an existing installation."
 
   install_commit=$(git -C "$root" rev-parse HEAD)
   install_work=$(mktemp -d)
@@ -3012,7 +3016,7 @@ assert required<=files and files-required<={"caddy-data.tar"}, sorted(files)'; t
 
 # Runs the match key repair inside the running API container of the pilot:
 # it already holds the Twenty URL and the integration key, so no secret passes
-# through the command line. While maintenance mode is on (pilot-release,
+# through the command line. While maintenance mode is on (upgrade,
 # upgrades) Twenty is stopped on purpose; the repair then skips with status 0
 # instead of failing, and the next scheduled run or the nightly full run
 # catches up.
@@ -3304,6 +3308,9 @@ pilot_record_release_event() (
   result=$4
   evidence_id=$5
   occurred_at=$6
+  # Optional: the ledger copied from a staging host. Production then accepts
+  # the staging verification recorded there (read-only, never written).
+  staging_ledger=${7:-}
   manifest_directory=$(mktemp -d)
   cp "$release_manifest" "$manifest_directory/release-manifest.json"
   host_user_id=$(id -u)
@@ -3311,22 +3318,28 @@ pilot_record_release_event() (
   ledger_directory=$(dirname -- "$ledger")
   ledger_name=$(basename -- "$ledger")
   trap 'rm -rf "$manifest_directory"' EXIT HUP INT TERM
-  status=0
-  docker run --rm \
+  set -- --rm \
     --user "$host_user_id:$host_group_id" \
     --env PYTHONPATH=/workspace \
     --volume "$root:/workspace:ro" \
     --volume "$manifest_directory:/release:ro" \
-    --volume "$ledger_directory:/ledger" \
-    --workdir /workspace \
-    "$PYTHON_IMAGE" \
+    --volume "$ledger_directory:/ledger"
+  if [ -n "$staging_ledger" ]; then
+    set -- "$@" --volume "$(dirname -- "$staging_ledger"):/staging-ledger:ro"
+  fi
+  set -- "$@" --workdir /workspace "$PYTHON_IMAGE" \
     python tools/pilot_release/promotion.py \
-      --manifest /release/release-manifest.json \
-      --ledger "/ledger/$ledger_name" \
-      --event "$event" \
-      --result "$result" \
-      --evidence-id "$evidence_id" \
-      --occurred-at "$occurred_at" || status=$?
+    --manifest /release/release-manifest.json \
+    --ledger "/ledger/$ledger_name" \
+    --event "$event" \
+    --result "$result" \
+    --evidence-id "$evidence_id" \
+    --occurred-at "$occurred_at"
+  if [ -n "$staging_ledger" ]; then
+    set -- "$@" --staging-ledger "/staging-ledger/$(basename -- "$staging_ledger")"
+  fi
+  status=0
+  docker run "$@" || status=$?
   exit "$status"
 )
 
@@ -3337,9 +3350,10 @@ pilot_release_record() {
   result=
   evidence_id=
   occurred_at=
+  staging_ledger=
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --manifest|--ledger|--event|--result|--evidence-id|--occurred-at)
+      --manifest|--ledger|--staging-ledger|--event|--result|--evidence-id|--occurred-at)
         [ "$#" -ge 2 ] || {
           echo "pilot-release-record: ERROR: $1 needs a value" >&2
           exit 64
@@ -3350,6 +3364,7 @@ pilot_release_record() {
         case "$option" in
           --manifest) release_manifest=$value ;;
           --ledger) ledger=$value ;;
+          --staging-ledger) staging_ledger=$value ;;
           --event) event=$value ;;
           --result) result=$value ;;
           --evidence-id) evidence_id=$value ;;
@@ -3402,9 +3417,12 @@ pilot_release_record() {
     CDPATH= cd -- "$ledger_directory" &&
       pwd
   )/$(basename -- "$ledger")"
+  if [ -n "$staging_ledger" ]; then
+    staging_ledger=$(pilot_absolute_file pilot-release-record "$staging_ledger")
+  fi
   pilot_record_release_event \
     "$release_manifest" "$ledger" "$event" "$result" \
-    "$evidence_id" "$occurred_at"
+    "$evidence_id" "$occurred_at" "$staging_ledger"
 }
 
 pilot_release_migrate() (
@@ -3435,7 +3453,7 @@ print(value["schemas"]["coreAlembicHead"])'
   case "$core_head_valid" in
     true) ;;
     *)
-      echo "pilot-release: BLOCKED: the core migration target is invalid" >&2
+      echo "upgrade: BLOCKED: the core migration target is invalid" >&2
       return 1
       ;;
   esac
@@ -3468,14 +3486,14 @@ print(value["schemas"]["coreAlembicHead"])'
       run --frozen --no-sync alembic current
   )
   echo "$current_revision" | grep -F "$core_head" >/dev/null || {
-    echo "pilot-release: BLOCKED: the core schema does not match the manifest head" >&2
+    echo "upgrade: BLOCKED: the core schema does not match the manifest head" >&2
     return 1
   }
-  echo "pilot-release: OK: RustFS, Twenty and Core were explicitly migrated to the manifest target"
+  echo "upgrade: OK: RustFS, Twenty and Core were explicitly migrated to the manifest target"
 )
 
-# CMS step of pilot-release (specs/release-updates §6.2), still in maintenance
-# and after the pre-release backup that pilot-release took (CMS topology).
+# CMS step of upgrade (specs/release-updates §6.2), still in maintenance
+# and after the pre-release backup that upgrade took (CMS topology).
 # The campaign-site container is recreated on the release image without
 # starting; migrate-cms.sh verifies that image against this checkout, closes
 # CMS traffic and runs cms-migration-operator: upgrade-emdash when the image
@@ -3490,7 +3508,7 @@ pilot_release_cms_close() (
   pilot_compose_command "$1" "$2" \
     run --rm --no-deps --pull missing --entrypoint mkdir campaign-site \
     -p -m 0700 /app/bootstrap-state/cms-maintenance
-  echo "pilot-release: CMS traffic closed for the release (editors wait until it reopens)"
+  echo "upgrade: CMS traffic closed for the release (editors wait until it reopens)"
 )
 
 pilot_release_cms_migrate() (
@@ -3503,11 +3521,11 @@ pilot_release_cms_migrate() (
     pending) mode=upgrade-emdash ;;
     ready) mode=verify ;;
     *)
-      echo "pilot-release: BLOCKED: the CMS database is not provisioned or carries another EmDash state" >&2
+      echo "upgrade: BLOCKED: the CMS database is not provisioned or carries another EmDash state" >&2
       exit 1
       ;;
   esac
-  echo "pilot-release: CMS: $mode under closed CMS traffic"
+  echo "upgrade: CMS: $mode under closed CMS traffic"
   pilot_compose_command "$project" "$env_file" \
     up --no-start --no-build --pull missing campaign-site
   cms_container=$(pilot_compose_command "$project" "$env_file" ps --all --quiet campaign-site)
@@ -3522,12 +3540,12 @@ pilot_release_cms_migrate() (
   state=$(pilot_cms_status "$project" "$env_file")
   for expected in database=ready schema=ready bootstrap=complete setup=complete; do
     printf '%s\n' "$state" | grep -qx "$expected" || {
-      echo "pilot-release: BLOCKED: the migrated CMS does not verify (${expected%%=*}); CMS traffic stays closed" >&2
+      echo "upgrade: BLOCKED: the migrated CMS does not verify (${expected%%=*}); CMS traffic stays closed" >&2
       exit 1
     }
   done
   if [ -n "$(docker ps -aq --filter "name=^$project-cms-migration-lock\$")" ]; then
-    echo "pilot-release: BLOCKED: a CMS migration controller holds $project-cms-migration-lock; CMS traffic stays closed" >&2
+    echo "upgrade: BLOCKED: a CMS migration controller holds $project-cms-migration-lock; CMS traffic stays closed" >&2
     exit 1
   fi
   if [ "$(pilot_cms_status_value traffic "$state")" = closed ]; then
@@ -3535,7 +3553,7 @@ pilot_release_cms_migrate() (
       run --rm --no-deps --pull missing --entrypoint rmdir campaign-site \
       /app/bootstrap-state/cms-maintenance
   fi
-  echo "pilot-release: OK: CMS $mode passed on the release image; traffic reopens with the deploy"
+  echo "upgrade: OK: CMS $mode passed on the release image; traffic reopens with the deploy"
 )
 
 # Apply the versioned Twenty schema with the admin bootstrap credentials and
@@ -3543,15 +3561,15 @@ pilot_release_cms_migrate() (
 pilot_release_twenty_schema() {
   project=$1
   env_file=$2
-  bootstrap_file=$(pilot_absolute_file pilot-release "$3")
+  bootstrap_file=$(pilot_absolute_file upgrade "$3")
   case "$(stat -c %a "$bootstrap_file" 2>/dev/null || stat -f %Lp "$bootstrap_file")" in
     600|400) ;;
     *)
-      echo "pilot-release: BLOCKED: --twenty-bootstrap-file must have mode 0600" >&2
+      echo "upgrade: BLOCKED: --twenty-bootstrap-file must have mode 0600" >&2
       return 1
       ;;
   esac
-  echo "pilot-release: applying the Twenty schema and repairing CRM match keys"
+  echo "upgrade: applying the Twenty schema and repairing CRM match keys"
   pilot_compose_command "$project" "$env_file" \
     run --rm --no-deps \
     --user "$host_user" --env HOME=/tmp \
@@ -3567,22 +3585,23 @@ pilot_release_twenty_schema() {
     api -m leonaid.entrypoints.crm_match_keys
 }
 
-pilot_release() {
+upgrade_release() {
   require_docker
   env_file=
   backup_manifest=
   release_manifest=
   twenty_bootstrap_file=
   ledger=
+  staging_ledger=
   password_file=
   credentials_file=
   evidence_id=
   occurred_at=
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --env-file|--backup-manifest|--release-manifest|--ledger|--password-file|--credentials-file|--evidence-id|--occurred-at|--twenty-bootstrap-file)
+      --env-file|--backup-manifest|--release-manifest|--ledger|--staging-ledger|--password-file|--credentials-file|--evidence-id|--occurred-at|--twenty-bootstrap-file)
         [ "$#" -ge 2 ] || {
-          echo "pilot-release: ERROR: $1 needs a value" >&2
+          echo "upgrade: ERROR: $1 needs a value" >&2
           exit 64
         }
         option=$1
@@ -3593,6 +3612,7 @@ pilot_release() {
           --backup-manifest) backup_manifest=$value ;;
           --release-manifest) release_manifest=$value ;;
           --ledger) ledger=$value ;;
+          --staging-ledger) staging_ledger=$value ;;
           --password-file) password_file=$value ;;
           --credentials-file) credentials_file=$value ;;
           --evidence-id) evidence_id=$value ;;
@@ -3601,64 +3621,71 @@ pilot_release() {
         esac
         ;;
       *)
-        echo "pilot-release: ERROR: unknown option '$1'" >&2
+        echo "upgrade: ERROR: unknown option '$1'" >&2
         exit 64
         ;;
     esac
   done
   [ -n "$env_file" ] || {
-    echo "pilot-release: ERROR: --env-file is missing" >&2
+    echo "upgrade: ERROR: --env-file is missing" >&2
     exit 64
   }
   [ -n "$backup_manifest" ] || {
-    echo "pilot-release: ERROR: --backup-manifest is missing" >&2
+    echo "upgrade: ERROR: --backup-manifest is missing" >&2
     exit 64
   }
   [ -n "$release_manifest" ] || {
-    echo "pilot-release: ERROR: --release-manifest is missing" >&2
+    echo "upgrade: ERROR: --release-manifest is missing" >&2
     exit 64
   }
   [ -n "$ledger" ] || {
-    echo "pilot-release: ERROR: --ledger is missing" >&2
+    echo "upgrade: ERROR: --ledger is missing" >&2
     exit 64
   }
   [ -n "$password_file" ] || {
-    echo "pilot-release: ERROR: --password-file is missing" >&2
+    echo "upgrade: ERROR: --password-file is missing" >&2
     exit 64
   }
   [ -n "$evidence_id" ] || {
-    echo "pilot-release: ERROR: --evidence-id is missing" >&2
+    echo "upgrade: ERROR: --evidence-id is missing" >&2
     exit 64
   }
-  env_file=$(pilot_absolute_file pilot-release "$env_file")
-  backup_manifest=$(pilot_absolute_file pilot-release "$backup_manifest")
-  release_manifest=$(pilot_absolute_file pilot-release "$release_manifest")
-  password_file=$(pilot_absolute_file pilot-release "$password_file")
+  env_file=$(pilot_absolute_file upgrade "$env_file")
+  backup_manifest=$(pilot_absolute_file upgrade "$backup_manifest")
+  release_manifest=$(pilot_absolute_file upgrade "$release_manifest")
+  password_file=$(pilot_absolute_file upgrade "$password_file")
   if [ -n "$credentials_file" ]; then
-    credentials_file=$(pilot_absolute_file pilot-release "$credentials_file")
+    credentials_file=$(pilot_absolute_file upgrade "$credentials_file")
   fi
   case "$ledger" in
     /*) ;;
     *)
-      echo "pilot-release: ERROR: --ledger must be absolute" >&2
+      echo "upgrade: ERROR: --ledger must be absolute" >&2
       exit 64
       ;;
   esac
   ledger_directory=$(dirname -- "$ledger")
   [ -d "$ledger_directory" ] || {
-    echo "pilot-release: ERROR: ledger directory is missing" >&2
+    echo "upgrade: ERROR: ledger directory is missing" >&2
     exit 1
   }
   ledger="$(
     CDPATH= cd -- "$ledger_directory" &&
       pwd
   )/$(basename -- "$ledger")"
+  if [ -n "$staging_ledger" ]; then
+    staging_ledger=$(pilot_absolute_file upgrade "$staging_ledger")
+  fi
   [ -n "$occurred_at" ] ||
     occurred_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 
   project=$(pilot_environment_value LEONAID_COMPOSE_PROJECT "$env_file")
   case "$project" in
     leonaid-staging*)
+      if [ -n "$staging_ledger" ]; then
+        echo "upgrade: ERROR: --staging-ledger is for production only" >&2
+        exit 64
+      fi
       started_event=staging_started
       verified_event=staging_verified
       failed_event=
@@ -3669,7 +3696,7 @@ pilot_release() {
       failed_event=production_failed
       ;;
     *)
-      echo "pilot-release: BLOCKED: the project is neither staging nor production" >&2
+      echo "upgrade: BLOCKED: the project is neither staging nor production" >&2
       exit 1
       ;;
   esac
@@ -3685,11 +3712,11 @@ pilot_release() {
     pilot_doctor \
       --env-file "$env_file" \
       --backup-manifest "$backup_manifest" \
-      --gate pilot-release
+      --gate upgrade
   )
   pilot_record_release_event \
     "$release_manifest" "$ledger" "$started_event" passed \
-    "$evidence_id" "$occurred_at"
+    "$evidence_id" "$occurred_at" "$staging_ledger"
 
   maintenance_attempted=false
   maintenance_disabled=false
@@ -3776,7 +3803,7 @@ pilot_release() {
       pilot_doctor \
         --env-file "$env_file" \
         --backup-manifest "$backup_manifest" \
-        --gate pilot-release
+        --gate upgrade
     )
     status=$?
   fi
@@ -3785,25 +3812,25 @@ pilot_release() {
     if [ -n "$failed_event" ]; then
       pilot_record_release_event \
         "$release_manifest" "$ledger" "$failed_event" failed \
-        "$evidence_id" "$occurred_at" || true
+        "$evidence_id" "$occurred_at" "$staging_ledger" || true
     fi
     rm -f "$config_file"
     trap - EXIT HUP INT TERM
     if [ "$maintenance_attempted" = false ]; then
-      echo "pilot-release: BLOCKED: release failed before maintenance mode" >&2
+      echo "upgrade: BLOCKED: release failed before maintenance mode" >&2
     elif [ "$maintenance_disabled" = true ]; then
-      echo "pilot-release: BLOCKED: post-check after maintenance mode ended failed" >&2
+      echo "upgrade: BLOCKED: post-check after maintenance mode ended failed" >&2
     else
-      echo "pilot-release: BLOCKED: maintenance mode is not lifted automatically; check the state" >&2
+      echo "upgrade: BLOCKED: maintenance mode is not lifted automatically; check the state" >&2
     fi
     return "$status"
   fi
   pilot_record_release_event \
     "$release_manifest" "$ledger" "$verified_event" passed \
-    "$evidence_id" "$occurred_at"
+    "$evidence_id" "$occurred_at" "$staging_ledger"
   rm -f "$config_file"
   trap - EXIT HUP INT TERM
-  echo "pilot-release: OK: $project is manifest-bound, migrated and released"
+  echo "upgrade: OK: $project is manifest-bound, migrated and released"
 }
 
 pilot_restore() {
@@ -5162,9 +5189,9 @@ case "$command" in
     shift
     pilot_monitoring "$@"
     ;;
-  pilot-release)
+  upgrade)
     shift
-    pilot_release "$@"
+    upgrade_release "$@"
     ;;
   pilot-import)
     shift

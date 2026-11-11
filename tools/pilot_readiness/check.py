@@ -180,7 +180,7 @@ def assess(root: Path) -> dict[str, Any]:
     validate_register(decisions)
     open_decisions, stop_decisions = decision_readiness(
         decisions,
-        "pilot-release",
+        "upgrade",
     )
     repository = repository_state(root)
     repository_blockers = [

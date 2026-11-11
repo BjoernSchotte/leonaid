@@ -50,8 +50,9 @@ erreicht.
 - **Mit Schlüssel** muss `LEONAID_VAPID_SUBJECT` gesetzt sein. In Produktion
   lehnen API und Worker einen Kontakt mit reserviertem Namen ab
   (`example.org`, `.invalid`, `localhost`). Die Vorlage
-  `infra/pilot/production.env.example` trägt `mailto:operations@example.org`:
-  Ersetze die Adresse. `pilot-doctor` meldet sonst
+  `infra/pilot/production.env.example` trägt `mailto:__OPERATOR_PUSH_CONTACT__`;
+  `pilot-secrets` nennt den Schlüssel unter den von Hand auszufüllenden.
+  Ersetze den Platzhalter durch die Adresse des Betriebs. `pilot-doctor` meldet sonst
   `web_push_settings_invalid`, und der Worker endet beim Start mit
   `worker.configuration.invalid`.
 - **Der Schlüssel bleibt für die Lebensdauer der Installation.** Jede

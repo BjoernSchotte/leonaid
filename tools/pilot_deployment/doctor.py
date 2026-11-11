@@ -663,10 +663,10 @@ def parser() -> argparse.ArgumentParser:
             "pilot-backup",
             "pilot-deploy",
             "pilot-import",
-            "pilot-release",
             "pilot-restore",
+            "upgrade",
         ),
-        default="pilot-release",
+        default="upgrade",
     )
     result.add_argument("--json", action="store_true")
     result.add_argument(

@@ -27,10 +27,10 @@ Tokens, E-Mail-Adressen oder Dokumentbytes.
   Sicherheitsheader und mindestens 14 Tage Zertifikatsrestlaufzeit mit dem
   Pilot Doctor. Port 80 bleibt für ACME und HTTPS-Weiterleitung erreichbar.
 - **Twenty-CRM-Prüfung schlägt fehl:** `doctor` (bei laufendem Dev-Stack) und
-  die Gates `pilot-deploy`/`pilot-release` des Pilot Doctor fragen die laufende
+  die Gates `pilot-deploy`/`upgrade` des Pilot Doctor fragen die laufende
   API, ob Twenty das Feld `leonaidMatchKey` hat und ihren Integrations-Key
   annimmt. Lokal hilft `./leonaid provision-twenty`, im Pilotbetrieb
-  `./leonaid pilot-release --twenty-bootstrap-file FILE`. Die Prüfung zählt
+  `./leonaid upgrade --twenty-bootstrap-file FILE`. Die Prüfung zählt
   außerdem Datensätze ohne Schlüssel; `repair-crm-match-keys` schließt diese
   Lücke (Pilot: `pilot-repair-crm-match-keys --env-file FILE`, den die
   `leonaid-crm-repair`-Timer planmäßig ausführen und der im Wartungsmodus

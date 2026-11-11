@@ -49,7 +49,8 @@ services.
 - **With the key** `LEONAID_VAPID_SUBJECT` must be set. In production the API
   and the worker refuse a contact with a reserved name (`example.org`,
   `.invalid`, `localhost`). The template `infra/pilot/production.env.example`
-  carries `mailto:operations@example.org`: replace the address. Otherwise
+  carries `mailto:__OPERATOR_PUSH_CONTACT__`, and `pilot-secrets` lists the
+  key among those to fill in by hand: put the operator's address there. Otherwise
   `pilot-doctor` reports `web_push_settings_invalid`, and the worker ends at
   start with `worker.configuration.invalid`.
 - **The key stays for the life of the installation.** Every registration of a
