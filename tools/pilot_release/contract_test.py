@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Exercise release-manifest and promotion failures without test doubles."""
+"""Exercise release-manifest failures without test doubles."""
 
 from __future__ import annotations
 
 import json
 import sys
-import tempfile
 from copy import deepcopy
 from pathlib import Path
 from typing import Callable
@@ -17,7 +16,6 @@ from tools.pilot_release.manifest import (
     validate_compose_images,
     validate_manifest,
 )
-from tools.pilot_release.promotion import InvalidPromotion, record_event
 
 COMMIT = "0123456789abcdef0123456789abcdef01234567"
 DIGEST = "a" * 64
@@ -48,7 +46,7 @@ def _images() -> dict[str, str]:
 def _must_reject(callback: Callable[[], object], label: str) -> None:
     try:
         callback()
-    except (InvalidManifest, InvalidPromotion):
+    except InvalidManifest:
         return
     raise AssertionError(f"negative case accepted: {label}")
 
@@ -155,147 +153,9 @@ def main() -> int:
         "compose image mismatch",
     )
 
-    with tempfile.TemporaryDirectory() as temporary:
-        ledger = Path(temporary) / "release-ledger.jsonl"
-        _must_reject(
-            lambda: record_event(
-                manifest=manifest,
-                ledger=ledger,
-                event="production_started",
-                result="passed",
-                evidence_id="PILOT-043-PRODUCTION",
-                occurred_at="2026-07-28T12:00:00Z",
-            ),
-            "production before staging",
-        )
-        record_event(
-            manifest=manifest,
-            ledger=ledger,
-            event="staging_verified",
-            result="passed",
-            evidence_id="PILOT-043-STAGING",
-            occurred_at="2026-07-28T12:00:00Z",
-        )
-        record_event(
-            manifest=manifest,
-            ledger=ledger,
-            event="production_started",
-            result="passed",
-            evidence_id="PILOT-043-PRODUCTION",
-            occurred_at="2026-07-28T12:01:00Z",
-        )
-        records = [
-            json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()
-        ]
-        assert [record["sequence"] for record in records] == [1, 2]
-        assert {record["manifestSha256"] for record in records} == {
-            records[0]["manifestSha256"]
-        }
-        serialized = ledger.read_text(encoding="utf-8")
-        assert "@" not in serialized
-        assert "secret" not in serialized.lower()
-
-    # Staging on another host: production reads a copy of its ledger.
-    with tempfile.TemporaryDirectory() as temporary:
-        staging_ledger = Path(temporary) / "staging-ledger.jsonl"
-        production_ledger = Path(temporary) / "production-ledger.jsonl"
-        _must_reject(
-            lambda: record_event(
-                manifest=manifest,
-                ledger=production_ledger,
-                event="production_started",
-                result="passed",
-                evidence_id="PILOT-043-PRODUCTION",
-                occurred_at="2026-07-28T12:00:00Z",
-                staging_ledger=staging_ledger,
-            ),
-            "missing staging ledger",
-        )
-        record_event(
-            manifest=manifest,
-            ledger=staging_ledger,
-            event="staging_started",
-            result="passed",
-            evidence_id="PILOT-043-STAGING",
-            occurred_at="2026-07-28T11:00:00Z",
-        )
-        _must_reject(
-            lambda: record_event(
-                manifest=manifest,
-                ledger=production_ledger,
-                event="production_started",
-                result="passed",
-                evidence_id="PILOT-043-PRODUCTION",
-                occurred_at="2026-07-28T12:00:00Z",
-                staging_ledger=staging_ledger,
-            ),
-            "staging started but not verified",
-        )
-        _must_reject(
-            lambda: record_event(
-                manifest=manifest,
-                ledger=staging_ledger,
-                event="staging_verified",
-                result="passed",
-                evidence_id="PILOT-043-STAGING",
-                occurred_at="2026-07-28T11:30:00Z",
-                staging_ledger=production_ledger,
-            ),
-            "staging ledger on a staging event",
-        )
-        # A verification of another manifest does not count.
-        with staging_ledger.open("a", encoding="utf-8") as stream:
-            stream.write(
-                json.dumps(
-                    {
-                        "event": "staging_verified",
-                        "manifestSha256": "0" * 64,
-                        "result": "passed",
-                    }
-                )
-                + "\n"
-            )
-        _must_reject(
-            lambda: record_event(
-                manifest=manifest,
-                ledger=production_ledger,
-                event="production_started",
-                result="passed",
-                evidence_id="PILOT-043-PRODUCTION",
-                occurred_at="2026-07-28T12:00:00Z",
-                staging_ledger=staging_ledger,
-            ),
-            "staging verified for another manifest",
-        )
-        record_event(
-            manifest=manifest,
-            ledger=staging_ledger,
-            event="staging_verified",
-            result="passed",
-            evidence_id="PILOT-043-STAGING",
-            occurred_at="2026-07-28T11:45:00Z",
-        )
-        staging_before = staging_ledger.read_bytes()
-        record_event(
-            manifest=manifest,
-            ledger=production_ledger,
-            event="production_started",
-            result="passed",
-            evidence_id="PILOT-043-PRODUCTION",
-            occurred_at="2026-07-28T12:00:00Z",
-            staging_ledger=staging_ledger,
-        )
-        production = [
-            json.loads(line)
-            for line in production_ledger.read_text(encoding="utf-8").splitlines()
-        ]
-        assert [record["sequence"] for record in production] == [1]
-        assert staging_ledger.read_bytes() == staging_before
-
     print(
-        "pilot-release-contract: OK: manifest binding, drift, "
-        "staging promotion (local and copied staging ledger) "
-        "and secret-free ledger proven"
+        "pilot-release-contract: OK: manifest binding, image and "
+        "migration drift rejected"
     )
     return 0
 

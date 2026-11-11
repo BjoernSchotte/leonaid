@@ -5,21 +5,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 from typing import Any
 
 from tools.pilot_release.manifest import (
     _load_object,
-    manifest_sha256,
     validate_manifest,
-)
-
-SECRET_PATTERNS = (
-    re.compile(r"(?i)(password|secret|token|authorization)\s*[:=]"),
-    re.compile(r"(?i)bearer\s+[a-z0-9._-]+"),
-    re.compile(r"(?i)[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}"),
 )
 
 
@@ -55,13 +47,11 @@ def verify(root: Path, artifact_directory: Path) -> None:
         "postContract",
         "postE2e",
         "postGoldenJourney",
-        "sameManifestPromotion",
         "coreMigrationFailureDetected",
         "failedUpgradeDetected",
         "backupRollback",
         "rollbackGoldenJourney",
         "rollbackJourneyEquivalent",
-        "releaseLedger",
         "queueStoreMigration",
         "objectStoreUpgrade",
     }
@@ -76,51 +66,6 @@ def verify(root: Path, artifact_directory: Path) -> None:
     validate_manifest(release_v2, root=root)
     if release_v1["gitCommit"] != release_v2["gitCommit"]:
         raise InvalidEvidence("release versions bind different checkouts")
-
-    ledger_path = artifact_directory / "release-ledger.jsonl"
-    records = [
-        json.loads(line)
-        for line in ledger_path.read_text(encoding="utf-8").splitlines()
-    ]
-    if [record.get("sequence") for record in records] != list(
-        range(1, len(records) + 1)
-    ):
-        raise InvalidEvidence("release ledger has gaps")
-    v2_sha = manifest_sha256(release_v2)
-    staging_indices = [
-        index
-        for index, record in enumerate(records)
-        if record.get("event") == "staging_verified"
-        and record.get("manifestSha256") == v2_sha
-    ]
-    production_indices = [
-        index
-        for index, record in enumerate(records)
-        if record.get("event") == "production_started"
-        and record.get("manifestSha256") == v2_sha
-    ]
-    if (
-        len(staging_indices) != 1
-        or len(production_indices) < 2
-        or staging_indices[0] >= min(production_indices)
-    ):
-        raise InvalidEvidence(
-            "production was not promoted from the verified staging manifest"
-        )
-    events = [str(record.get("event")) for record in records]
-    for required_event in (
-        "production_failed",
-        "production_verified",
-        "rollback_started",
-        "rollback_verified",
-    ):
-        if required_event not in events:
-            raise InvalidEvidence(f"release event is missing: {required_event}")
-
-    public_evidence = ledger_path.read_text(encoding="utf-8")
-    for pattern in SECRET_PATTERNS:
-        if pattern.search(public_evidence):
-            raise InvalidEvidence("release ledger contains sensitive values")
 
     pre = _load_object(artifact_directory / "pre-upgrade.json")
     post = _load_object(artifact_directory / "post-upgrade.json")
@@ -176,7 +121,7 @@ def main() -> int:
         print(f"pilot-release-evidence: ERROR: {error}", file=sys.stderr)
         return 1
     print(
-        "pilot-release-evidence: OK: promotion, migration failure, "
+        "pilot-release-evidence: OK: two releases, migration failure, "
         "rollback and document SHAs proven"
     )
     return 0

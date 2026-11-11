@@ -808,6 +808,21 @@ def probe_running_installation(
         raise DoctorError("clock_skew_exceeded")
 
 
+def due_decisions(
+    root: Path, *, gate: str, staging: bool, deployment_only: bool
+) -> tuple[list[str], list[str]]:
+    """Return the open and STOP decision IDs that block this gate.
+
+    The register gates real clubs, real data and real invoices. A staging
+    installation holds none of them, so it never waits for it.
+    """
+    if deployment_only or staging:
+        return [], []
+    decisions = parse_register(root / "specs/leonaid-pilot/DECISIONS.md")
+    validate_register(decisions)
+    return readiness(decisions, gate)
+
+
 def main() -> int:
     arguments = parser().parse_args()
     root = arguments.root.resolve()
@@ -860,12 +875,13 @@ def main() -> int:
             probe_running_installation(arguments, environment)
 
         warnings = environment_warnings(environment)
-        open_ids: list[str] = []
-        stop_ids: list[str] = []
-        if not arguments.deployment_only:
-            decisions = parse_register(root / "specs/leonaid-pilot/DECISIONS.md")
-            validate_register(decisions)
-            open_ids, stop_ids = readiness(decisions, arguments.gate)
+        staging = environment["LEONAID_DEPLOYMENT_STAGE"] == "staging"
+        open_ids, stop_ids = due_decisions(
+            root,
+            gate=arguments.gate,
+            staging=staging,
+            deployment_only=arguments.deployment_only,
+        )
         if not arguments.json:
             for warning in warnings:
                 print(
@@ -917,9 +933,14 @@ def main() -> int:
                 "disk, backup and dependencies"
             )
         else:
+            decision_scope = (
+                "decisions are not required on staging"
+                if staging
+                else "decisions are approved"
+            )
             print(
-                f"pilot-doctor: OK ({arguments.gate}): "
-                "deployment and decisions are approved"
+                f"pilot-doctor: OK ({arguments.gate}): deployment is ready; "
+                f"{decision_scope}"
             )
         if stop_ids:
             return 3

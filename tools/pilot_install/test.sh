@@ -1257,17 +1257,6 @@ release_manifest_for() {
       --compose-config /tmp/runtime-compose.json \
       --output "/proof/release-manifest-$1.json" <"$workspace/runtime-compose-$1.json"
 }
-# staging_verified LEDGER MANIFEST: the staging events production requires.
-staging_verified() {
-  offset=3
-  for event in staging_started staging_verified; do
-    "$root/leonaid" pilot-release-record --manifest "$2" \
-      --ledger "$1" --event "$event" --result passed \
-      --evidence-id PILOT-CMS-RELEASE-STAGING \
-      --occurred-at "$(date -u -d "-$offset minutes" +%Y-%m-%dT%H:%M:%SZ)"
-    offset=$((offset - 1))
-  done
-}
 previous_cms_image=$LEONAID_TEST_CAMPAIGN_SITE_IMAGE
 
 # Failure path: the release image's EmDash migration throws after its DDL.
@@ -1275,19 +1264,16 @@ LEONAID_TEST_CAMPAIGN_SITE_IMAGE=$(docker image inspect --format '{{.Id}}' "$bro
 export LEONAID_TEST_CAMPAIGN_SITE_IMAGE
 broken_manifest="$workspace/release-manifest-cms-broken.json"
 release_manifest_for cms-broken 2026.11.2
-broken_ledger="$workspace/release-ledger-broken.jsonl"
-staging_verified "$broken_ledger" "$broken_manifest"
 set +e
 leonaid_test upgrade --env-file "$env_file" \
   --backup-manifest "$backup_manifest" --release-manifest "$broken_manifest" \
-  --ledger "$broken_ledger" --password-file "$restic_password_file" \
-  --credentials-file "$backup_credentials_file" \
-  --evidence-id PILOT-CMS-RELEASE-BROKEN \
-  --occurred-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$workspace/cms-release-broken.log" 2>&1
+  --password-file "$restic_password_file" \
+  --credentials-file "$backup_credentials_file" >"$workspace/cms-release-broken.log" 2>&1
 broken_status=$?
 set -e
 [ "$broken_status" -ne 0 ] &&
-  grep -Fq "maintenance mode is not lifted automatically" "$workspace/cms-release-broken.log" &&
+  grep -Fq "upgrade: FAILED: maintenance mode stays on" "$workspace/cms-release-broken.log" &&
+  grep -Fq "./leonaid pilot-restore --env-file $env_file" "$workspace/cms-release-broken.log" &&
   grep -Fq "upgrade: CMS traffic closed for the release" "$workspace/cms-release-broken.log" &&
   grep -Fq "cms-migration: refused" "$workspace/cms-release-broken.log" || {
   echo "pilot-install-test: ERROR: the failing CMS migration did not stop the release as documented:" >&2
@@ -1357,16 +1343,12 @@ set -e
 
 # The release: backup before, maintenance, Core and CMS migrations under
 # closed CMS traffic on the verified release image, deploy, doctor.
-release_ledger="$workspace/release-ledger.jsonl"
-staging_verified "$release_ledger" "$next_manifest"
 backup_before=$(sed -n 's/.*"createdAt": *"\([^"]*\)".*/\1/p' "$backup_manifest" | head -n 1)
 leonaid_test upgrade --env-file "$env_file" \
   --backup-manifest "$backup_manifest" --release-manifest "$next_manifest" \
-  --ledger "$release_ledger" --password-file "$restic_password_file" \
-  --credentials-file "$backup_credentials_file" \
-  --evidence-id PILOT-CMS-RELEASE-PRODUCTION \
-  --occurred-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 2>&1 | tee "$workspace/cms-release.log"
-grep -Fq "upgrade: OK: $project is manifest-bound, migrated and released" "$workspace/cms-release.log"
+  --password-file "$restic_password_file" \
+  --credentials-file "$backup_credentials_file" 2>&1 | tee "$workspace/cms-release.log"
+grep -Fq "upgrade: OK: $project runs the release; recovery point: ${backup_manifest%.json}.pre-upgrade-" "$workspace/cms-release.log"
 grep -Fq "upgrade: CMS: upgrade-emdash under closed CMS traffic" "$workspace/cms-release.log"
 grep -Fq "cms-migration: upgrade-emdash passed" "$workspace/cms-release.log"
 grep -Fq "upgrade: CMS traffic closed for the release" "$workspace/cms-release.log"
