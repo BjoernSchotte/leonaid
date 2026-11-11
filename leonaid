@@ -1123,11 +1123,14 @@ check_groups_end() {
   fi
 }
 
+# Linted by ruff in CI (tools/ci/lint-types.sh) but not typed by mypy.
+ruff_only_paths="tools/testing tools/proxy"
+
 check_ruff() {
   # Intentional word splitting of the path lists.
   # shellcheck disable=SC2086
-  run_python uv run --frozen --no-sync ruff check tests $python_source_paths "$@" &&
-    run_python uv run --frozen --no-sync ruff format --check tests $python_source_paths "$@"
+  run_python uv run --frozen --no-sync ruff check tests $python_source_paths $ruff_only_paths "$@" &&
+    run_python uv run --frozen --no-sync ruff format --check tests $python_source_paths $ruff_only_paths "$@"
 }
 
 check_mypy() {

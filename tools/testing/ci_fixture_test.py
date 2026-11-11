@@ -99,7 +99,10 @@ class FixtureBoundaryTests(unittest.TestCase):
                 (root / name).parent.mkdir(parents=True, exist_ok=True)
                 (root / name).write_text(text)
             original = key(root)
-            for unrelated in ("src/leonaid/domain/push.py", "tools/testing/module_browser.sh"):
+            for unrelated in (
+                "src/leonaid/domain/push.py",
+                "tools/testing/module_browser.sh",
+            ):
                 (root / unrelated).write_text("# changed\n")
                 self.assertEqual(key(root), original, unrelated)
             for imported in (
