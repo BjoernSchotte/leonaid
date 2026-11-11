@@ -1288,7 +1288,7 @@ broken_status=$?
 set -e
 [ "$broken_status" -ne 0 ] &&
   grep -Fq "maintenance mode is not lifted automatically" "$workspace/cms-release-broken.log" &&
-  grep -Fq "upgrade:CMS traffic closed for the release" "$workspace/cms-release-broken.log" &&
+  grep -Fq "upgrade: CMS traffic closed for the release" "$workspace/cms-release-broken.log" &&
   grep -Fq "cms-migration: refused" "$workspace/cms-release-broken.log" || {
   echo "pilot-install-test: ERROR: the failing CMS migration did not stop the release as documented:" >&2
   tail -n 30 "$workspace/cms-release-broken.log" >&2
@@ -1366,10 +1366,10 @@ leonaid_test upgrade --env-file "$env_file" \
   --credentials-file "$backup_credentials_file" \
   --evidence-id PILOT-CMS-RELEASE-PRODUCTION \
   --occurred-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 2>&1 | tee "$workspace/cms-release.log"
-grep -Fq "upgrade:OK: $project is manifest-bound, migrated and released" "$workspace/cms-release.log"
-grep -Fq "upgrade:CMS: upgrade-emdash under closed CMS traffic" "$workspace/cms-release.log"
+grep -Fq "upgrade: OK: $project is manifest-bound, migrated and released" "$workspace/cms-release.log"
+grep -Fq "upgrade: CMS: upgrade-emdash under closed CMS traffic" "$workspace/cms-release.log"
 grep -Fq "cms-migration: upgrade-emdash passed" "$workspace/cms-release.log"
-grep -Fq "upgrade:CMS traffic closed for the release" "$workspace/cms-release.log"
+grep -Fq "upgrade: CMS traffic closed for the release" "$workspace/cms-release.log"
 # The recovery point of the release holds the CMS (taken before the migration).
 assert_cms_backup
 [ "$(sed -n 's/.*"createdAt": *"\([^"]*\)".*/\1/p' "$backup_manifest" | head -n 1)" != "$backup_before" ]
