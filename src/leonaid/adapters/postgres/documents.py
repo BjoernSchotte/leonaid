@@ -252,6 +252,12 @@ class AsyncpgGeneratedDocumentRepository(GeneratedDocumentRepository):
                     CASE
                         WHEN document.document_type = 'invoice_cancellation_pdf'
                         THEN cancellation.number
+                        WHEN document.document_type = 'donation_receipt_pdf'
+                        THEN (
+                            SELECT receipt.number FROM donation_receipt AS receipt
+                            WHERE receipt.donation_id = document.donation_id
+                              AND receipt.document_version = document.version
+                        )
                         WHEN document.donation_id IS NOT NULL
                         THEN donation.number
                     END AS document_number,

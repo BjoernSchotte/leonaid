@@ -22,13 +22,17 @@ from leonaid.adapters.storage import S3ObjectStorage
 from leonaid.adapters.typst import (
     CANCELLATION_RENDER_VERSION,
     PLEDGE_RENDER_VERSION,
+    RECEIPT_RENDER_VERSION,
     TypstDonationPledgeRenderer,
+    TypstDonationReceiptRenderer,
     TypstInvoiceCancellationRenderer,
 )
 from leonaid.application.object_storage import (
     ObjectDeletionAuthorization,
     ObjectLocation,
 )
+from leonaid.domain.calendar import local_day
+from leonaid.domain.donation_receipts import DonationReceiptDocument
 from leonaid.domain.donations import DonationPledgeDocument
 from leonaid.domain.invoice_cancellation_documents import InvoiceCancellationDocument
 from leonaid.domain.sessions import (
@@ -763,6 +767,190 @@ async def donation_pledge(connection: asyncpg.Connection[Any]) -> None:
     )
 
 
+async def donation_receipt(connection: asyncpg.Connection[Any]) -> None:
+    """The real worker renders, stores and mails a donation receipt.
+
+    The donation SP26-0001 of `donation-pledge` gets its payment (more than
+    was pledged) and its receipt. The browser spec before this step issued
+    and voided ZB26-0001, so this one is ZB26-0002. The golden receiving
+    body signs by machine: the receipt goes out by mail.
+    """
+
+    token = token_for("admin", ADMIN_ID)
+    headers = session_headers(token)
+    path = f"/api/v1/actions/{ACTION_ID}/donations"
+    today = local_day(datetime.now(timezone.utc))
+    async with (
+        httpx.AsyncClient(
+            base_url=require_env("API_BASE_URL").rstrip("/"), timeout=60
+        ) as api,
+        httpx.AsyncClient(
+            base_url=require_env("MAIL_TEST_API_URL").rstrip("/"), timeout=10
+        ) as mailpit,
+    ):
+        listing = await api.get(path, headers=headers)
+        listing.raise_for_status()
+        donation = next(
+            item for item in listing.json()["items"] if item["number"] == "SP26-0001"
+        )
+        base = f"{path}/{donation['id']}"
+        # The day of the pledge in the club's time zone: the earliest day a
+        # payment may carry.
+        received_on = local_day(
+            datetime.fromisoformat(donation["pledgedAt"])
+        ).isoformat()
+        paid = await api.post(
+            f"{base}/payment",
+            headers={**headers, "Idempotency-Key": "poc093:donation-payment"},
+            json={"amountMinor": 6000, "receivedOn": received_on},
+        )
+        if paid.status_code != 201:
+            raise ContractFailure(
+                f"Payment was not recorded: {paid.status_code} {paid.text}"
+            )
+        issued = await api.post(
+            f"{base}/receipts",
+            headers={**headers, "Idempotency-Key": "poc093:donation-receipt"},
+        )
+        if issued.status_code != 201:
+            raise ContractFailure(
+                f"Receipt was not issued: {issued.status_code} {issued.text}"
+            )
+        receipt: dict[str, Any] = issued.json()["receipts"][0]
+        number = str(receipt["number"])
+        if not number.startswith("ZB26-") or receipt["signing"] != "machine":
+            raise ContractFailure(f"Unexpected receipt: {receipt}")
+        for _attempt in range(90):
+            listing = await api.get(path, headers=headers)
+            listing.raise_for_status()
+            record = next(
+                item for item in listing.json()["items"] if item["id"] == donation["id"]
+            )
+            receipt = record["receipts"][0]
+            if receipt["document"]["status"] == "available":
+                break
+            await asyncio.sleep(1)
+        else:
+            raise ContractFailure("The worker did not render the donation receipt")
+        document_id = receipt["document"]["id"]
+        filename = f"Zuwendungsbestaetigung-{number}.pdf"
+        if receipt["document"]["filename"] != filename:
+            raise ContractFailure("The receipt PDF has the wrong filename")
+        download = await api.get(
+            f"/api/v1/actions/{ACTION_ID}/documents/{document_id}/download",
+            headers=headers,
+        )
+        acquirer = await api.get(
+            f"/api/v1/actions/{ACTION_ID}/documents/{document_id}/download",
+            headers=session_headers(token_for("acquirer", ACQUIRER_ID)),
+        )
+        cleared = await mailpit.delete("/api/v1/messages")
+        cleared.raise_for_status()
+        sent = await api.post(
+            f"{base}/receipts/{receipt['id']}/deliveries",
+            headers={**headers, "Idempotency-Key": "poc093:donation-receipt-mail"},
+        )
+        if sent.status_code != 201:
+            raise ContractFailure(
+                f"The receipt mail was not queued: {sent.status_code} {sent.text}"
+            )
+        delivery: dict[str, Any] = sent.json()
+        for _attempt in range(90):
+            listing = await api.get(path, headers=headers)
+            listing.raise_for_status()
+            record = next(
+                item for item in listing.json()["items"] if item["id"] == donation["id"]
+            )
+            delivery = record["receipts"][0]["deliveries"][0]
+            if delivery["status"] == "sent":
+                break
+            await asyncio.sleep(1)
+        else:
+            raise ContractFailure(f"The receipt mail was not sent: {delivery}")
+        messages = await mailpit.get("/api/v1/messages")
+        messages.raise_for_status()
+        summaries = messages.json()["messages"]
+        if len(summaries) != 1:
+            raise ContractFailure(f"Mailpit holds {len(summaries)} mails, not one")
+        raw = await mailpit.get(f"/api/v1/message/{summaries[0]['ID']}/raw")
+        raw.raise_for_status()
+
+    row = await connection.fetchrow(
+        """
+        SELECT document.*, receipt.snapshot, receipt.id AS receipt_id
+        FROM generated_document AS document
+        JOIN donation_receipt AS receipt
+          ON receipt.donation_id = document.donation_id
+         AND receipt.document_version = document.version
+        WHERE document.id = $1
+        """,
+        UUID(document_id),
+    )
+    if row is None:
+        raise ContractFailure("The receipt document row is missing")
+    snapshot = DonationReceiptDocument.from_payload(json.loads(row["snapshot"]))
+    expected = TypstDonationReceiptRenderer().render(snapshot)
+    retrieved = await storage().get(
+        ObjectLocation(
+            bucket=str(row["storage_bucket"]),
+            key=str(row["object_key"]),
+            version_id=str(row["storage_version_id"]),
+        )
+    )
+    expected_key = (
+        f"actions/{ACTION_ID}/donations/{donation['id']}/receipts/"
+        f"{row['receipt_id']}/v{row['version']}/{expected.sha256}.pdf"
+    )
+    if (
+        download.status_code != 200
+        or download.content != expected.content
+        or retrieved.content != expected.content
+        or str(row["object_key"]) != expected_key
+        or str(row["render_version"]) != RECEIPT_RENDER_VERSION
+        or download.headers.get("content-disposition")
+        != f"attachment; filename*=UTF-8''{filename}"
+    ):
+        raise ContractFailure(
+            "Snapshot, renderer, RustFS and API disagree on the donation receipt: "
+            f"{row['object_key']} / {expected_key}"
+        )
+    if (
+        snapshot.amount.amount_minor != 6000
+        or snapshot.received_on.isoformat() != received_on
+        or snapshot.donation_number != "SP26-0001"
+        or snapshot.body.legal_name != "Förderverein Lions Club Musterstadt e. V."
+    ):
+        raise ContractFailure("The receipt does not confirm what arrived")
+    if (
+        acquirer.status_code != 403
+        or error_code(acquirer) != "document_download_required"
+    ):
+        raise ContractFailure("An acquirer could download the donation receipt")
+    message = BytesParser(policy=policy.default).parsebytes(raw.content)
+    plain = message.get_body(preferencelist=("plain",))
+    attachments = list(message.iter_attachments())
+    attachment = attachments[0].get_payload(decode=True) if attachments else None
+    if (
+        str(message["To"]).casefold() != DONOR_EMAIL
+        or str(message["Subject"])
+        != f"Zuwendungsbestätigung {number} · Krapfentaxi 2026"
+        or plain is None
+        or "60,00 €" not in plain.get_content()
+        or "ohne Unterschrift" not in " ".join(plain.get_content().split())
+        or len(attachments) != 1
+        or attachments[0].get_filename() != filename
+        or not isinstance(attachment, bytes)
+        or hashlib.sha256(attachment).hexdigest() != expected.sha256
+    ):
+        raise ContractFailure("The receipt mail or its PDF attachment is wrong")
+    if today < snapshot.received_on:
+        raise ContractFailure("The receipt names a day in the future")
+    print(
+        f"document-contract: OK: donation receipt {number} for 60,00 € rendered "
+        "by the worker, stored, served byte-identical and mailed with its PDF"
+    )
+
+
 async def assert_missing_object(connection: asyncpg.Connection[Any]) -> None:
     # The invoice PDF; the invoice also has its cancellation invoice by now.
     row = await connection.fetchrow(
@@ -834,6 +1022,8 @@ async def main(arguments: argparse.Namespace) -> None:
             await cancellation_invoice(connection)
         elif arguments.command == "donation-pledge":
             await donation_pledge(connection)
+        elif arguments.command == "donation-receipt":
+            await donation_receipt(connection)
         else:
             await assert_missing_object(connection)
     finally:
@@ -848,6 +1038,7 @@ def parser() -> argparse.ArgumentParser:
     exercise_command.add_argument("golden_pdf_directory", type=Path)
     commands.add_parser("cancellation-invoice")
     commands.add_parser("donation-pledge")
+    commands.add_parser("donation-receipt")
     commands.add_parser("assert-missing")
     return value
 

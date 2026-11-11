@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from enum import StrEnum
@@ -31,6 +32,8 @@ class InvoiceDeliveryKind(StrEnum):
     # A delivery of a donation's pledge; it belongs to a donation, not to
     # an invoice (application/donations.py).
     DONATION_PLEDGE = "donation_pledge"
+    # A delivery of a donation receipt (application/donation_receipts.py).
+    DONATION_RECEIPT = "donation_receipt"
 
 
 class InvoiceDeliveryStatus(StrEnum):
@@ -260,6 +263,14 @@ def cancellation_delivery_draft(
 
 class InvoiceDeliveryWorkerRepository(Protocol):
     async def job(self, delivery_id: UUID) -> InvoiceDeliveryJob | None: ...
+
+    def sending(self, delivery_id: UUID) -> AbstractAsyncContextManager[bool]:
+        """Holds the document of the delivery as it is while the mail goes
+        out, and says whether it may still go out. False: the document was
+        withdrawn meanwhile (a donation receipt declared void); the job then
+        ends without a mail. A withdrawal that arrives during the send waits
+        until the mail is recorded."""
+        ...
 
     async def was_sent(self, idempotency_key: str) -> bool: ...
 

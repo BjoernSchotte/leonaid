@@ -827,6 +827,7 @@ async def clear_donations(connection: asyncpg.Connection[Any]) -> None:
     await connection.execute(
         "DELETE FROM generated_document WHERE donation_id IS NOT NULL"
     )
+    await connection.execute("DELETE FROM donation_receipt")
     await connection.execute("DELETE FROM donation")
     await connection.execute(
         "DELETE FROM document_series WHERE kind IN ('donation', 'donation_receipt')"

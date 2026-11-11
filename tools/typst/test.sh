@@ -159,6 +159,7 @@ verify_pdfs() {
     --template src/leonaid/adapters/typst/templates/invoice-v2.typ \
     --template src/leonaid/adapters/typst/templates/invoice-cancellation-v1.typ \
     --template src/leonaid/adapters/typst/templates/donation-pledge-v1.typ \
+    --template src/leonaid/adapters/typst/templates/donation-receipt-v1.typ \
     "$@"
 }
 

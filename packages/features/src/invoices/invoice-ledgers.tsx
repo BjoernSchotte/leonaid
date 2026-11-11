@@ -212,7 +212,7 @@ export function DocumentsLedger({
       <LedgerBody state={state}>
         {shown.length === 0 ? (
           <EmptyState
-            description="Das PDF einer Rechnung entsteht beim Ausstellen, das einer Stornorechnung beim Stornieren, das einer Spendenzusage beim Erfassen der Spende."
+            description="Das PDF einer Rechnung entsteht beim Ausstellen, das einer Stornorechnung beim Stornieren, das einer Spendenzusage beim Erfassen der Spende, das einer Zuwendungsbestätigung beim Ausstellen."
             headingLevel={2}
             icon={FileText}
             title="Noch keine Dokumente"
@@ -269,15 +269,19 @@ function DocumentRow({
   const { document: generated } = record;
   const cancellation = generated.documentType === "invoice_cancellation_pdf";
   const pledge = generated.documentType === "donation_pledge_pdf";
-  const kind = pledge
-    ? "Spendenzusage"
-    : cancellation
-      ? "Stornorechnung"
-      : "Rechnung";
+  const receipt = generated.documentType === "donation_receipt_pdf";
+  const kind = receipt
+    ? "Zuwendungsbestätigung"
+    : pledge
+      ? "Spendenzusage"
+      : cancellation
+        ? "Stornorechnung"
+        : "Rechnung";
   // A cancellation invoice has its own number; the invoice number stays the
-  // cancelled invoice's. A pledge carries the donation number.
+  // cancelled invoice's. A pledge carries the donation number, a donation
+  // receipt its own number; the buyer name is then the donor.
   const number =
-    cancellation || pledge
+    cancellation || pledge || receipt
       ? (record.documentNumber ?? null)
       : record.invoiceNumber;
   const title = number

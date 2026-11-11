@@ -12,7 +12,10 @@ to §8.4:
 - one payment per donation, of any amount; withdrawing it is reasoned and
   kept; only an unpaid donation can be cancelled;
 - who may read, record and send; fresh login; replay;
-- the pledge mail, the sums of the list and of the dashboard, the navigation.
+- the pledge mail, the sums of the list and of the dashboard, the navigation;
+- the donation receipt (spec §8.5): one valid receipt per paid donation for
+  what arrived, void instead of edited, signing by hand or by machine, no
+  receipt from a notice that is too old.
 
 The legal configuration is one row for the installation: the proof activates
 its own versions and puts the previous state back at the end.
@@ -23,6 +26,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
@@ -31,7 +35,12 @@ import asyncpg
 import httpx
 
 from leonaid.adapters.postgres.dashboard import AsyncpgDashboardRepository
+from leonaid.adapters.postgres.donation_receipts import (
+    AsyncpgDonationReceiptRepository,
+)
+from leonaid.adapters.mail.invoice_smtp import InvoiceSmtpHandler
 from leonaid.adapters.postgres.donations import AsyncpgDonationRepository
+from leonaid.application.outbox import ClaimedOutboxEvent
 from leonaid.adapters.postgres.invoice_deliveries import (
     AsyncpgInvoiceDeliveryRepository,
 )
@@ -102,6 +111,8 @@ class Fixture:
         self.beta = uuid4()
         # Orders only: no `donations` capability.
         self.gamma = uuid4()
+        # Still in planning: its capabilities can change.
+        self.planned = uuid4()
         self.without_body = uuid4()
         self.with_body = uuid4()
         self.users = {name: uuid4() for name in self.USERS}
@@ -174,10 +185,11 @@ class Fixture:
         await self._legal_version(connection, self.without_body, None)
         await self._legal_version(connection, self.with_body, self.body())
         await self.activate(connection, self.without_body)
-        for action_id, name, capabilities in (
-            (self.alpha, "Alpha", ("ordering", "invoicing", "donations")),
-            (self.beta, "Beta", ("donations",)),
-            (self.gamma, "Gamma", ("ordering",)),
+        for action_id, name, capabilities, status in (
+            (self.alpha, "Alpha", ("ordering", "invoicing", "donations"), "active"),
+            (self.beta, "Beta", ("donations",), "active"),
+            (self.gamma, "Gamma", ("ordering",), "active"),
+            (self.planned, "Planung", ("donations",), "scheduled"),
         ):
             await connection.execute(
                 """
@@ -185,12 +197,19 @@ class Fixture:
                     id, carrier_name, name, purpose, status, starts_on, ends_on,
                     archive_slug
                 )
-                VALUES ($1, 'Donation proof', $2, 'Jugendhilfe im Ort', 'active',
+                VALUES ($1, 'Donation proof', $2, 'Jugendhilfe im Ort', $4,
                         '2026-01-01', '2099-12-31', $3)
                 """,
                 action_id,
                 f"Aktion {self.tag} {name}",
                 f"donation-proof-{action_id}",
+                status,
+            )
+            await connection.execute(
+                "INSERT INTO beneficiary (id, action_id, organization_name, "
+                "public_description, sort_order) VALUES ($1, $2, 'Proof', 'Proof', 0)",
+                uuid4(),
+                action_id,
             )
             for capability in capabilities:
                 await connection.execute(
@@ -347,6 +366,7 @@ class Proof:
         self.stale = Session(client, data.stale_token)
         self.today = local_day(datetime.now(timezone.utc))
         self.donations: dict[str, dict[str, Any]] = {}
+        self.receipts: dict[str, dict[str, Any]] = {}
 
     @property
     def charity(self) -> Session:
@@ -457,6 +477,11 @@ class Proof:
         await self.sums_dashboard_and_navigation()
         await self.the_pledge_keeps_the_body_of_its_day()
         await self.a_privacy_erasure_names_and_keeps_donations()
+        await self.the_capability_stays_while_donations_exist()
+        await self.a_paid_donation_gets_its_receipt()
+        await self.a_receipt_is_declared_void_never_edited()
+        await self.another_legal_entity_cannot_confirm_the_donation()
+        await self.signing_by_hand_and_an_old_notice()
         await self.stored_donations_are_final()
 
     async def nothing_without_capability_or_receiving_body(self) -> None:
@@ -729,11 +754,6 @@ class Proof:
             "donation_payment_future_date",
         )
         self.error(
-            await self.pay("first", 5000, self.today - timedelta(days=1)),
-            422,
-            "donation_payment_before_pledge",
-        )
-        self.error(
             await self.charity.post(
                 self.path(self.data.alpha, "first", "/payment/withdrawal"),
                 {"reason": REASON},
@@ -789,11 +809,14 @@ class Proof:
         assert history["reason"] == REASON
         assert history["note"] == "Überweisung vom Geschäftskonto"
         assert history["withdrawnByDisplayName"] == f"Charity {self.data.tag}"
-        # Less than pledged, after the withdrawal.
-        less = await self.pay("first", 4000)
+        # Less than pledged, after the withdrawal, and on a day before the
+        # donation was recorded: the money arrived first.
+        earlier = self.today - timedelta(days=12)
+        less = await self.pay("first", 4000, earlier)
         assert less.status_code == 201, less.text
         assert less.json()["status"] == "paid"
         assert less.json()["payment"]["amountMinor"] == 4000
+        assert less.json()["payment"]["receivedOn"] == earlier.isoformat()
         assert len(less.json()["paymentWithdrawals"]) == 1
         events = await self.db.fetch(
             "SELECT event_type FROM audit_event "
@@ -892,6 +915,17 @@ class Proof:
             409,
             "donation_donor_email_missing",
         )
+        # A paid donation: the pledge asks for money that has arrived.
+        await self.make_available("first")
+        self.error(
+            await self.charity.post(
+                self.path(self.data.alpha, "first", "/pledge/deliveries"),
+                None,
+                self.key(),
+            ),
+            409,
+            "donation_pledge_paid",
+        )
         await self.make_available("replay")
         self.error(
             await self.charity.post(
@@ -949,6 +983,9 @@ class Proof:
         invoices = await self.charity.get(f"/api/v1/actions/{self.data.alpha}/invoices")
         assert invoices.status_code == 200, invoices.text
         assert delivery["id"] not in invoices.text
+        await self.a_failed_pledge_mail_of_a_paid_donation_stays_failed(
+            "after_cancel", UUID(delivery["id"])
+        )
         audit = await self.db.fetchval(
             "SELECT count(*) FROM audit_event "
             "WHERE event_type = 'donation_pledge_delivery_requested' "
@@ -956,6 +993,59 @@ class Proof:
             self.data.alpha,
         )
         assert audit == 1
+
+    async def dead_letter(self, delivery_id: UUID) -> None:
+        """What the worker records when the mail failed for good."""
+
+        await self.db.execute(
+            """
+            UPDATE outbox_event
+            SET status = 'dead_letter', dead_lettered_at = CURRENT_TIMESTAMP,
+                attempts = 5, last_attempt_at = CURRENT_TIMESTAMP,
+                last_error_code = 'smtp_unavailable',
+                last_error_detail = 'smtp_unavailable'
+            WHERE id = (SELECT outbox_event_id FROM invoice_delivery WHERE id = $1)
+            """,
+            delivery_id,
+        )
+
+    async def job_status(self, delivery_id: UUID) -> str:
+        return str(
+            await self.db.fetchval(
+                "SELECT event.status FROM outbox_event AS event "
+                "JOIN invoice_delivery AS delivery "
+                "ON delivery.outbox_event_id = event.id WHERE delivery.id = $1",
+                delivery_id,
+            )
+        )
+
+    async def a_failed_pledge_mail_of_a_paid_donation_stays_failed(
+        self, name: str, delivery_id: UUID
+    ) -> None:
+        retry = self.path(
+            self.data.alpha, name, f"/pledge/deliveries/{delivery_id}/retry"
+        )
+        await self.dead_letter(delivery_id)
+        record = await self.record(name)
+        assert record["pledgeDeliveries"][0]["status"] == "failed"
+        assert record["pledgeDeliveries"][0]["canRetry"] is True
+        paid = await self.pay(name, 5000)
+        assert paid.status_code == 201, paid.text
+        # Paid by now: the payment request is not started again.
+        assert paid.json()["pledgeDeliveries"][0]["canRetry"] is False
+        self.error(await self.charity.post(retry, None), 409, "donation_pledge_paid")
+        assert await self.job_status(delivery_id) == "dead_letter"
+        # Open again after the payment was taken back: the retry works.
+        withdrawn = await self.charity.post(
+            self.path(self.data.alpha, name, "/payment/withdrawal"),
+            {"reason": REASON},
+            self.key(),
+        )
+        assert withdrawn.status_code == 201, withdrawn.text
+        assert withdrawn.json()["pledgeDeliveries"][0]["canRetry"] is True
+        retried = await self.charity.post(retry, None)
+        assert retried.status_code == 202, retried.text
+        assert await self.job_status(delivery_id) == "pending"
 
     async def sums_dashboard_and_navigation(self) -> None:
         listing = await self.listing()
@@ -1006,7 +1096,9 @@ class Proof:
                     "outsider": set(),
                 }[name]
             ), (name, listed)
-            if name in ("charity", "finance"):
+            if name == "charity":
+                assert set(listed) == own | {str(self.data.planned)}, (name, listed)
+            if name == "finance":
                 assert set(listed) == own, (name, listed)
             if own:
                 assert listed[str(self.data.alpha)] == (f"Aktion {self.data.tag} Alpha")
@@ -1095,6 +1187,7 @@ class Proof:
             UUID(donation["id"]),
         )
         assert after == before
+        await self.a_donor_without_an_email_address_is_found()
         # A subject without a donation gets no such reason.
         unknown = await system.post(
             "/api/v1/admin/privacy/lookup",
@@ -1102,6 +1195,740 @@ class Proof:
         )
         assert unknown.status_code == 200, unknown.text
         assert unknown.json()["found"] is False
+
+    async def a_donor_without_an_email_address_is_found(self) -> None:
+        """The donor's e-mail is optional. A donation without one is found
+        through the subject as a CRM person, never through a company: two
+        contacts of one company and the company itself each donated."""
+
+        system = self.sessions["system"]
+        company = uuid4()
+        persons = {"a": uuid4(), "b": uuid4()}
+        emails = {
+            name: f"person-{name}.{self.data.tag.lower()}@donor.leonaid.invalid"
+            for name in persons
+        }
+
+        async def donate(name: str, kind: str, twenty_id: UUID) -> str:
+            body = self.draft(name, email=False)
+            body["donor"] = {
+                **body["donor"],  # type: ignore[dict-item]
+                "partyKind": kind,
+                "twentyId": str(twenty_id),
+            }
+            created = await self.charity.post(
+                self.path(self.data.alpha), body, self.key()
+            )
+            assert created.status_code == 201, created.text
+            assert created.json()["donor"]["email"] is None
+            return str(created.json()["id"])
+
+        donations = {
+            "a": await donate("person_a", "person", persons["a"]),
+            "b": await donate("person_b", "person", persons["b"]),
+            "company": await donate("company", "company", company),
+        }
+
+        async def found(email: str) -> list[str]:
+            response = await system.post(
+                "/api/v1/admin/privacy/lookup", {"email": email}
+            )
+            assert response.status_code == 200, response.text
+            return [
+                item["id"]
+                for item in response.json().get("references", [])
+                if item["referenceType"] == "donation"
+            ]
+
+        assert await found(emails["a"]) == []
+        # The club knows each address for the person and for the company
+        # both work for.
+        for name, person in persons.items():
+            for company_id, person_id in ((None, person), (company, None)):
+                await self.db.execute(
+                    """
+                    INSERT INTO consent_record (
+                        id, action_id, commitment_id, twenty_company_id,
+                        twenty_person_id, normalized_recipient, purpose, channel,
+                        text_version, source, evidence_kind, legal_basis_status,
+                        granted_at
+                    )
+                    VALUES ($1, $2, NULL, $3, $4, $5, 'acquisition', 'email',
+                            'donation-proof-v1', 'acquisition_contact',
+                            'notice_acknowledgement', 'legal_review_pending',
+                            CURRENT_TIMESTAMP)
+                    """,
+                    uuid4(),
+                    self.data.alpha,
+                    company_id,
+                    person_id,
+                    emails[name],
+                )
+        # Each person finds the own donation: not the colleague's, and not
+        # the company's, although the address is known for the company too.
+        assert await found(emails["a"]) == [donations["a"]]
+        assert await found(emails["b"]) == [donations["b"]]
+        erased = await system.post(
+            "/api/v1/admin/privacy/erasures",
+            {"email": emails["a"], "confirmation": emails["a"]},
+        )
+        assert erased.status_code == 200, erased.text
+        assert any(
+            "Spenden und ihre Dokumente" in item
+            for item in erased.json()["retentionReasons"]
+        )
+        # A donation with an address of its own is found by that address
+        # only, whatever CRM person it names.
+        own = self.draft("own_address")
+        own["donor"] = {
+            **own["donor"],  # type: ignore[dict-item]
+            "partyKind": "person",
+            "twentyId": str(persons["b"]),
+        }
+        created = await self.charity.post(self.path(self.data.alpha), own, self.key())
+        assert created.status_code == 201, created.text
+        assert await found(emails["b"]) == [donations["b"]]
+        assert await found(created.json()["donor"]["email"]) == [created.json()["id"]]
+
+    async def the_capability_stays_while_donations_exist(self) -> None:
+        """Without the capability the donations of an action, their pledges
+        and receipts could not be reached any more."""
+
+        base = f"/api/v1/actions/{self.data.planned}"
+        action = await self.charity.get(base)
+        assert action.status_code == 200, action.text
+        body = {"revision": action.json()["revision"], "capabilities": []}
+        # No donation yet: the capability may go, and come back.
+        removed = await self.put(f"{base}/capabilities", body)
+        assert removed.status_code == 200, removed.text
+        back = await self.put(
+            f"{base}/capabilities",
+            {"revision": removed.json()["revision"], "capabilities": ["donations"]},
+        )
+        assert back.status_code == 200, back.text
+        donation = await self.create("planned", action=self.data.planned)
+        body = {"revision": back.json()["revision"], "capabilities": []}
+        self.error(
+            await self.put(f"{base}/capabilities", body),
+            409,
+            "donations_capability_in_use",
+        )
+        # A cancelled donation keeps its number and its pledge: it counts.
+        cancelled = await self.charity.post(
+            f"{base}/donations/{donation['id']}/cancellation",
+            {"reason": REASON},
+            self.key(),
+        )
+        assert cancelled.status_code == 201, cancelled.text
+        self.error(
+            await self.put(f"{base}/capabilities", body),
+            409,
+            "donations_capability_in_use",
+        )
+        listing = await self.listing(self.data.planned)
+        assert [item["status"] for item in listing["items"]] == ["cancelled"]
+
+    async def put(self, path: str, body: dict[str, object]) -> httpx.Response:
+        return await self.charity.client.put(
+            path,
+            headers={**self.charity.headers, "Origin": BASE_URL},
+            json=body,
+        )
+
+    def receipt_number(self, serial: int) -> str:
+        return f"{self.data.receipt_prefix}{serial:04d}"
+
+    async def next_receipt_number(self) -> int | None:
+        value = await self.db.fetchval(
+            "SELECT next_number FROM document_series "
+            "WHERE kind = 'donation_receipt' AND prefix = $1",
+            self.data.receipt_prefix,
+        )
+        return int(value) if value is not None else None
+
+    async def issue_receipt(
+        self, name: str, session: Session | None = None, key: str | None = None
+    ) -> httpx.Response:
+        return await (session or self.charity).post(
+            self.path(self.data.alpha, name, "/receipts"), None, key or self.key()
+        )
+
+    async def a_paid_donation_gets_its_receipt(self) -> None:
+        await self.create("receipted")
+        self.error(
+            await self.issue_receipt("receipted"),
+            409,
+            "donation_receipt_requires_payment",
+        )
+        paid = await self.pay("receipted", 6000)
+        assert paid.status_code == 201, paid.text
+        assert paid.json()["receipts"] == []
+        self.error(
+            await self.issue_receipt("receipted", self.sessions["finance"]),
+            403,
+            "donation_manage_required",
+        )
+        self.error(
+            await self.issue_receipt("receipted", self.stale),
+            401,
+            "fresh_login_required",
+        )
+        assert await self.next_receipt_number() is None
+        listing = await self.listing()
+        assert listing["receiptSigning"] == "machine"
+        assert listing["receiptNoticeValidUntil"] == "2030-03-15"
+
+        key = self.key()
+        issued = await self.issue_receipt("receipted", key=key)
+        assert issued.status_code == 201, issued.text
+        receipts = issued.json()["receipts"]
+        assert len(receipts) == 1
+        receipt = receipts[0]
+        # Pledged 50,00 €, received 60,00 €: the receipt confirms 60,00 €.
+        assert receipt["number"] == self.receipt_number(1)
+        assert receipt["amountMinor"] == 6000
+        assert receipt["receivedOn"] == self.today.isoformat()
+        assert receipt["issuedOn"] == self.today.isoformat()
+        assert receipt["signing"] == "machine"
+        assert receipt["void"] is None
+        assert receipt["issuedByDisplayName"] == f"Charity {self.data.tag}"
+        assert receipt["document"]["status"] == "pending"
+        assert receipt["document"]["version"] == 1
+        assert receipt["deliveries"] == []
+        self.receipts = {"receipted": receipt}
+        donation_id = UUID(self.donations["receipted"]["id"])
+        assert (
+            await self.db.fetchval(
+                "SELECT kind FROM document_number WHERE number = $1",
+                receipt["number"],
+            )
+            == "donation_receipt"
+        )
+        document = await self.db.fetchrow(
+            "SELECT id, status FROM generated_document WHERE donation_id = $1 "
+            "AND document_type = 'donation_receipt_pdf' AND version = 1",
+            donation_id,
+        )
+        assert document is not None and document["status"] == "pending"
+        assert str(document["id"]) == receipt["document"]["id"]
+        assert (
+            await self.db.fetchval(
+                "SELECT count(*) FROM outbox_event "
+                "WHERE aggregate_type = 'generated_document' AND aggregate_id = $1 "
+                "AND event_type = 'document.render.requested.v1'",
+                document["id"],
+            )
+            == 1
+        )
+        audit = await self.db.fetchval(
+            "SELECT payload::text FROM audit_event "
+            "WHERE event_type = 'donation_receipt_issued' AND entity_id = $1",
+            donation_id,
+        )
+        assert receipt["number"] in audit
+        assert "Spenderin" not in audit, "the audit entry carries donor data"
+        # Replay: the same receipt, no second number.
+        again = await self.issue_receipt("receipted", key=key)
+        assert again.status_code == 201, again.text
+        assert again.json()["replayed"] is True
+        assert [item["id"] for item in again.json()["receipts"]] == [receipt["id"]]
+        # One valid receipt per donation.
+        self.error(
+            await self.issue_receipt("receipted"),
+            422,
+            "donation_receipt_already_issued",
+        )
+        assert await self.next_receipt_number() == 2
+        # The receipt confirms the money: the payment stays.
+        self.error(
+            await self.charity.post(
+                self.path(self.data.alpha, "receipted", "/payment/withdrawal"),
+                {"reason": REASON},
+                self.key(),
+            ),
+            422,
+            "donation_receipt_issued",
+        )
+        # What the worker renders: the snapshot of that day.
+        pool = await asyncpg.create_pool(
+            os.environ["CORE_DATABASE_URL"], min_size=1, max_size=1
+        )
+        try:
+            receipts_repository = AsyncpgDonationReceiptRepository(
+                pool, AsyncpgDonationRepository(pool)
+            )
+            snapshot = await receipts_repository.donation_receipt_document(
+                donation_id, 1
+            )
+            assert snapshot is not None
+            assert snapshot.number == receipt["number"]
+            assert snapshot.donation_number == self.donations["receipted"]["number"]
+            assert snapshot.amount.amount_minor == 6000
+            assert snapshot.body.legal_name == self.data.body().legal_name
+            assert "StNr. 123/456/78901" in snapshot.notice_paragraph()
+            assert (
+                await receipts_repository.donation_receipt_document(donation_id, 2)
+            ) is None
+        finally:
+            await pool.close()
+        # The mail: only with the PDF, only by the action manager.
+        send = self.path(
+            self.data.alpha, "receipted", f"/receipts/{receipt['id']}/deliveries"
+        )
+        self.error(
+            await self.charity.post(send, None, self.key()),
+            409,
+            "donation_receipt_document_not_ready",
+        )
+        await self.make_document_available(
+            UUID(receipt["document"]["id"]), "Zuwendungsbestaetigung.pdf"
+        )
+        self.error(
+            await self.sessions["finance_manager"].post(send, None, self.key()),
+            403,
+            "donation_delivery_required",
+        )
+        self.error(
+            await self.stale.post(send, None, self.key()),
+            401,
+            "fresh_login_required",
+        )
+        key = self.key()
+        sent = await self.charity.post(send, None, key)
+        assert sent.status_code == 201, sent.text
+        delivery = sent.json()
+        assert delivery["generatedDocumentId"] == receipt["document"]["id"]
+        assert (
+            delivery["recipientEmail"] == self.donations["receipted"]["donor"]["email"]
+        )
+        assert delivery["subject"].startswith(
+            f"Zuwendungsbestätigung {receipt['number']} · "
+        )
+        replay = await self.charity.post(send, None, key)
+        assert replay.status_code == 201, replay.text
+        assert replay.json()["id"] == delivery["id"]
+        record = await self.record("receipted")
+        assert [item["id"] for item in record["receipts"][0]["deliveries"]] == [
+            delivery["id"]
+        ]
+        # The pledge deliveries stay their own list.
+        assert record["pledgeDeliveries"] == []
+        pool = await asyncpg.create_pool(
+            os.environ["CORE_DATABASE_URL"], min_size=1, max_size=1
+        )
+        try:
+            job = await AsyncpgInvoiceDeliveryRepository(pool).job(UUID(delivery["id"]))
+            assert job.invoice_id is None
+            assert job.filename == "Zuwendungsbestaetigung.pdf"
+            assert "60,00 €" in job.text
+            assert "maschinell erstellt" in job.text
+            assert job.text.endswith(self.data.body().legal_name)
+        finally:
+            await pool.close()
+        # The documents of the action list it under the receipt number.
+        documents = await self.charity.get(
+            f"/api/v1/actions/{self.data.alpha}/documents"
+        )
+        assert documents.status_code == 200, documents.text
+        listed = next(
+            item
+            for item in documents.json()["items"]
+            if item["document"]["id"] == receipt["document"]["id"]
+        )
+        assert listed["document"]["documentType"] == "donation_receipt_pdf"
+        assert listed["documentNumber"] == receipt["number"]
+
+    async def make_document_available(self, document_id: UUID, filename: str) -> None:
+        await self.db.execute(
+            """
+            UPDATE generated_document
+            SET status = 'available', filename = $2,
+                storage_bucket = 'leonaid', object_key = $3,
+                storage_version_id = 'proof', size_bytes = 1200, sha256 = $4,
+                render_version = 'donation-receipt-v1+typst-0.13.1',
+                available_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+            """,
+            document_id,
+            filename,
+            f"proof/{document_id}.pdf",
+            "b" * 64,
+        )
+
+    async def a_receipt_is_declared_void_never_edited(self) -> None:
+        receipt = self.receipts["receipted"]
+        void = self.path(
+            self.data.alpha, "receipted", f"/receipts/{receipt['id']}/void"
+        )
+        for body in (
+            {"reason": "Anschrift des Spenders war falsch"},
+            {"reason": "kurz", "evidence": "original_returned"},
+            {"reason": "Anschrift des Spenders war falsch", "evidence": "verloren"},
+        ):
+            refused = await self.charity.post(void, body, self.key())
+            assert refused.status_code == 422, refused.text
+        body = {
+            "reason": "  Anschrift des Spenders   war falsch ",
+            "evidence": "original_returned",
+        }
+        self.error(
+            await self.sessions["finance"].post(void, body, self.key()),
+            403,
+            "donation_manage_required",
+        )
+        self.error(
+            await self.stale.post(void, body, self.key()),
+            401,
+            "fresh_login_required",
+        )
+        self.error(
+            await self.charity.post(
+                f"/api/v1/actions/{self.data.beta}/donations/"
+                f"{self.donations['receipted']['id']}/receipts/{receipt['id']}/void",
+                body,
+                self.key(),
+            ),
+            404,
+            "donation_not_found",
+        )
+        self.error(
+            await self.charity.post(
+                self.path(self.data.alpha, "receipted", f"/receipts/{uuid4()}/void"),
+                body,
+                self.key(),
+            ),
+            404,
+            "donation_receipt_not_found",
+        )
+        voided = await self.charity.post(void, body, self.key())
+        assert voided.status_code == 201, voided.text
+        state = voided.json()["receipts"][0]
+        assert state["number"] == receipt["number"]
+        assert state["void"]["reason"] == "Anschrift des Spenders war falsch"
+        assert state["void"]["evidence"] == "original_returned"
+        assert state["void"]["voidedByDisplayName"] == f"Charity {self.data.tag}"
+        # The PDF stays. The mail that was still queued is ended with the
+        # void: it never goes out, and it cannot be started again.
+        assert state["document"]["status"] == "available"
+        assert len(state["deliveries"]) == 1
+        ended = state["deliveries"][0]
+        assert ended["status"] == "failed", ended
+        assert ended["lastErrorCode"] == "delivery_withdrawn"
+        assert ended["canRetry"] is False
+        assert ended["sentAt"] is None
+        assert await self.job_status(UUID(ended["id"])) == "completed"
+        self.error(
+            await self.charity.post(void, body, self.key()),
+            422,
+            "donation_receipt_already_void",
+        )
+        self.error(
+            await self.charity.post(
+                self.path(
+                    self.data.alpha,
+                    "receipted",
+                    f"/receipts/{receipt['id']}/deliveries",
+                ),
+                None,
+                self.key(),
+            ),
+            409,
+            "donation_receipt_void",
+        )
+        # A new receipt takes the next number; the void one stays listed.
+        second = await self.issue_receipt("receipted")
+        assert second.status_code == 201, second.text
+        receipts = second.json()["receipts"]
+        assert [item["number"] for item in receipts] == [
+            self.receipt_number(2),
+            self.receipt_number(1),
+        ]
+        assert receipts[0]["void"] is None
+        assert receipts[0]["document"]["version"] == 2
+        assert receipts[1]["void"] is not None
+        for statement in (
+            "UPDATE donation_receipt SET snapshot = '{}'::jsonb WHERE id = $1",
+            "UPDATE donation_receipt SET number = number || 'X' WHERE id = $1",
+            "UPDATE donation_receipt SET issued_on = issued_on + 1 WHERE id = $1",
+            "UPDATE donation_receipt SET voided_at = NULL, void_reason = NULL, "
+            "void_evidence = NULL, voided_by_user_id = NULL WHERE id = $1",
+            "UPDATE donation_receipt SET void_reason = 'eine andere Begründung' "
+            "WHERE id = $1",
+        ):
+            try:
+                async with self.db.transaction():
+                    await self.db.execute(statement, UUID(receipt["id"]))
+            except (
+                asyncpg.IntegrityConstraintViolationError,
+                asyncpg.RaiseError,
+            ):
+                continue
+            raise AssertionError(f"the receipt was changed: {statement}")
+        # Two valid receipts of one donation cannot exist.
+        try:
+            async with self.db.transaction():
+                await self.db.execute(
+                    "UPDATE donation_receipt SET voided_at = NULL WHERE id = $1",
+                    UUID(receipt["id"]),
+                )
+        except asyncpg.IntegrityConstraintViolationError:
+            pass
+        else:
+            raise AssertionError("a void receipt became valid again")
+        # After the valid receipt is void too, the payment can be taken back,
+        # and a donation without payment gets no receipt.
+        await self.a_void_receipt_is_never_mailed(receipts[0])
+        withdrawn = await self.charity.post(
+            self.path(self.data.alpha, "receipted", "/payment/withdrawal"),
+            {"reason": REASON},
+            self.key(),
+        )
+        assert withdrawn.status_code == 201, withdrawn.text
+        assert withdrawn.json()["status"] == "pledged"
+        assert len(withdrawn.json()["receipts"]) == 2
+        self.error(
+            await self.issue_receipt("receipted"),
+            409,
+            "donation_receipt_requires_payment",
+        )
+        assert await self.next_receipt_number() == 3
+
+    async def a_void_receipt_is_never_mailed(self, receipt: dict[str, Any]) -> None:
+        """One mail of the receipt failed for good, a second one is on its
+        way, and the worker is sending it while the receipt is declared void.
+        The void waits for that mail; every other job ends without one."""
+
+        base = self.path(self.data.alpha, "receipted", f"/receipts/{receipt['id']}")
+        await self.make_document_available(
+            UUID(receipt["document"]["id"]), "Zuwendungsbestaetigung.pdf"
+        )
+        first = await self.charity.post(f"{base}/deliveries", None, self.key())
+        assert first.status_code == 201, first.text
+        failed_id = UUID(first.json()["id"])
+        await self.dead_letter(failed_id)
+        second = await self.charity.post(f"{base}/deliveries", None, self.key())
+        assert second.status_code == 201, second.text
+        queued_id = UUID(second.json()["id"])
+        record = await self.record("receipted")
+        assert {
+            item["id"]: item["canRetry"] for item in record["receipts"][0]["deliveries"]
+        } == {str(failed_id): True, str(queued_id): False}
+
+        pool = await asyncpg.create_pool(
+            os.environ["CORE_DATABASE_URL"], min_size=1, max_size=2
+        )
+        try:
+            deliveries = AsyncpgInvoiceDeliveryRepository(pool)
+            # The worker is in the middle of sending the queued mail.
+            sending = deliveries.sending(queued_id)
+            assert await sending.__aenter__() is True
+            void = asyncio.create_task(
+                self.charity.post(
+                    f"{base}/void",
+                    {
+                        "reason": "Zahlung gehörte zu einer anderen Spende",
+                        "evidence": "tax_office_informed",
+                    },
+                    self.key(),
+                )
+            )
+            await asyncio.sleep(0.5)
+            # The void waits: the receipt is valid until that mail is out.
+            assert not void.done(), "the void did not wait for the mail on its way"
+            await sending.__aexit__(None, None, None)
+            voided = await void
+            assert voided.status_code == 201, voided.text
+            state = voided.json()["receipts"][0]
+            assert state["void"]["evidence"] == "tax_office_informed"
+            # Both resting jobs ended with the void: none is a dead letter
+            # that stays, none can be started again.
+            assert await self.job_status(failed_id) == "completed"
+            assert await self.job_status(queued_id) == "completed"
+            assert [
+                (item["status"], item["lastErrorCode"], item["canRetry"])
+                for item in state["deliveries"]
+            ] == [("failed", "delivery_withdrawn", False)] * 2
+            audit = await self.db.fetchval(
+                "SELECT payload ->> 'endedDeliveries' FROM audit_event "
+                "WHERE event_type = 'donation_receipt_voided' "
+                "AND payload ->> 'receiptId' = $1",
+                receipt["id"],
+            )
+            assert audit == "2"
+
+            # A job the worker claimed before the void: the worker looks at
+            # the receipt right before it sends, and sends nothing.
+            async with deliveries.sending(queued_id) as may_send:
+                assert may_send is False
+            event = await self.db.fetchrow(
+                "SELECT event.* FROM outbox_event AS event "
+                "JOIN invoice_delivery AS delivery "
+                "ON delivery.outbox_event_id = event.id WHERE delivery.id = $1",
+                queued_id,
+            )
+            assert event is not None
+
+            class NoMail:
+                """Any use of storage or SMTP is a mail that must not go."""
+
+                def __getattr__(self, name: str) -> Any:
+                    raise AssertionError(f"a void receipt reached the mail: {name}")
+
+            await InvoiceSmtpHandler(
+                repository=deliveries,
+                storage=NoMail(),  # type: ignore[arg-type]
+                transport=NoMail(),  # type: ignore[arg-type]
+            ).handle(
+                ClaimedOutboxEvent(
+                    id=event["id"],
+                    aggregate_type=str(event["aggregate_type"]),
+                    aggregate_id=event["aggregate_id"],
+                    event_type=str(event["event_type"]),
+                    idempotency_key=str(event["idempotency_key"]),
+                    payload=json.loads(event["payload"]),
+                    attempts=1,
+                    claim_token=uuid4(),
+                    claimed_by="proof",
+                )
+            )
+            assert (
+                await self.db.fetchval(
+                    "SELECT count(*) FROM mail_delivery WHERE outbox_event_id = $1",
+                    event["id"],
+                )
+                == 0
+            )
+            # The same handler does send a mail of a valid document: it
+            # reaches the storage (and fails on this double).
+            pledge_delivery = await self.db.fetchval(
+                "SELECT delivery.id FROM invoice_delivery AS delivery "
+                "JOIN generated_document AS document "
+                "ON document.id = delivery.generated_document_id "
+                "WHERE document.document_type = 'donation_pledge_pdf' "
+                "AND document.status = 'available' LIMIT 1"
+            )
+            async with deliveries.sending(pledge_delivery) as may_send:
+                assert may_send is True
+        finally:
+            await pool.close()
+
+        # A job that failed after the void (the worker held it then) cannot
+        # be started again either.
+        await self.dead_letter(failed_id)
+        retry = self.path(
+            self.data.alpha, "receipted", f"/pledge/deliveries/{failed_id}/retry"
+        )
+        self.error(await self.charity.post(retry, None), 409, "donation_receipt_void")
+        assert await self.job_status(failed_id) == "dead_letter"
+        record = await self.record("receipted")
+        assert all(
+            item["canRetry"] is False for item in record["receipts"][0]["deliveries"]
+        )
+        self.error(
+            await self.charity.post(f"{base}/deliveries", None, self.key()),
+            409,
+            "donation_receipt_void",
+        )
+
+    async def another_legal_entity_cannot_confirm_the_donation(self) -> None:
+        """The legal configuration now names another body than the one the
+        donation went to: that body issues no receipt for it."""
+
+        other = uuid4()
+        await self.data._legal_version(
+            self.db,
+            other,
+            replace(
+                self.data.body(),
+                legal_name=f"Hilfswerk {self.data.tag} e. V.",
+                tax_number="987/654/32109",
+            ),
+        )
+        before = await self.next_receipt_number()
+        await self.data.activate(self.db, other)
+        try:
+            refused = await self.issue_receipt("by_manager")
+            self.error(refused, 409, "donation_receipt_body_changed")
+            message = refused.json()["error"]["message"]
+            assert f"Förderverein {self.data.tag} e. V." in message, message
+            assert f"Hilfswerk {self.data.tag} e. V." in message, message
+        finally:
+            await self.data.activate(self.db, self.data.with_body)
+        assert await self.next_receipt_number() == before
+        assert (await self.record("by_manager"))["receipts"] == []
+
+    async def signing_by_hand_and_an_old_notice(self) -> None:
+        by_hand = uuid4()
+        expired = uuid4()
+        await self.data._legal_version(
+            self.db,
+            by_hand,
+            replace(
+                self.data.body(),
+                signing=ReceiptSigning.BY_HAND,
+                machine_notified_on=None,
+            ),
+        )
+        await self.data._legal_version(
+            self.db,
+            expired,
+            replace(
+                self.data.body(),
+                notice_date=date(2019, 1, 10),
+                assessment_period_from=2015,
+                assessment_period_to=2017,
+            ),
+        )
+        try:
+            # An old notice carries no receipt, and takes no number.
+            await self.data.activate(self.db, expired)
+            listing = await self.listing()
+            assert listing["receiptNoticeValidUntil"] == "2024-01-10"
+            refused = await self.issue_receipt("by_manager")
+            self.error(refused, 409, "donation_receipt_notice_expired")
+            message = refused.json()["error"]["message"]
+            assert "10.01.2019" in message and "10.01.2024" in message, message
+            assert "Rechtliches" in message
+            assert await self.next_receipt_number() == 3
+            # Signed by hand: issued, printed, never mailed.
+            await self.data.activate(self.db, by_hand)
+            listing = await self.listing()
+            assert listing["receiptSigning"] == "by_hand"
+            issued = await self.issue_receipt("by_manager")
+            assert issued.status_code == 201, issued.text
+            receipt = issued.json()["receipts"][0]
+            assert receipt["number"] == self.receipt_number(3)
+            assert receipt["signing"] == "by_hand"
+            await self.make_document_available(
+                UUID(receipt["document"]["id"]), "Zuwendungsbestaetigung.pdf"
+            )
+            self.error(
+                await self.charity.post(
+                    self.path(
+                        self.data.alpha,
+                        "by_manager",
+                        f"/receipts/{receipt['id']}/deliveries",
+                    ),
+                    None,
+                    self.key(),
+                ),
+                409,
+                "donation_receipt_signed_by_hand",
+            )
+        finally:
+            await self.data.activate(self.db, self.data.with_body)
+        # The receipt keeps the signing of its day.
+        record = await self.record("by_manager")
+        assert record["receipts"][0]["signing"] == "by_hand"
+        issued_numbers = await self.db.fetch(
+            "SELECT number FROM document_number WHERE kind = 'donation_receipt' "
+            "AND left(number, $2) = $1 ORDER BY number",
+            self.data.receipt_prefix,
+            len(self.data.receipt_prefix),
+        )
+        assert [item["number"] for item in issued_numbers] == [
+            self.receipt_number(serial) for serial in (1, 2, 3)
+        ]
 
     async def stored_donations_are_final(self) -> None:
         first = UUID(self.donations["first"]["id"])
@@ -1170,7 +1997,8 @@ async def main() -> None:
     print(
         "donations-api: OK: capability and receiving body, numbers of the"
         " donation series, one payment, withdrawal, cancellation, roles,"
-        " pledge mail, sums and navigation proven against PostgreSQL"
+        " pledge mail, sums, navigation and the donation receipt proven against"
+        " PostgreSQL"
     )
 
 

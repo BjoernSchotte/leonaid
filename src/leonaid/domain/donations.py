@@ -230,6 +230,18 @@ class ReceivingBody:
             ),
         )
 
+    def same_entity(self, other: ReceivingBody) -> bool:
+        """Whether both describe one legal entity: the same name and the same
+        tax number. Address, notice, account, signatory and wording may
+        change over time; the entity that received the money may not."""
+
+        def digits(value: str) -> str:
+            return "".join(character for character in value if character.isdigit())
+
+        return self.legal_name.casefold() == other.legal_name.casefold() and digits(
+            self.tax_number
+        ) == digits(other.tax_number)
+
     def series_prefixes(self) -> tuple[str, str]:
         return self.pledge_prefix, self.receipt_prefix
 
@@ -634,11 +646,9 @@ class Donation:
                 "donation_payment_currency_mismatch",
                 "Die Zahlungswährung muss der Währung der Spende entsprechen.",
             )
-        if received_on < local_day(self.pledged_at):
-            raise DomainInvariantError(
-                "donation_payment_before_pledge",
-                "Der Zahlungseingang darf nicht vor der Spendenzusage liegen.",
-            )
+        # The day may lie before the pledge: money can arrive before the
+        # donation is recorded, and the receipt prints this day as the day of
+        # the donation. It must be the real one.
         if received_on > local_day(recorded_at):
             raise DomainInvariantError(
                 "donation_payment_future_date",

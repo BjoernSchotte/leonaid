@@ -117,7 +117,11 @@ from leonaid.application.identity import (
     IdentityQueryService,
 )
 from leonaid.application.invoice_deliveries import InvoiceDeliveryService
+from leonaid.adapters.postgres.donation_receipts import (
+    AsyncpgDonationReceiptRepository,
+)
 from leonaid.adapters.postgres.donations import AsyncpgDonationRepository
+from leonaid.application.donation_receipts import DonationReceiptService
 from leonaid.application.donations import DonationService
 from leonaid.application.invoice_settlements import InvoiceSettlementService
 from leonaid.application.invoices import InvoiceService
@@ -445,8 +449,10 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.invoice_settlement_service = InvoiceSettlementService(
             AsyncpgInvoiceSettlementRepository(pool)
         )
-        application.state.donation_service = DonationService(
-            AsyncpgDonationRepository(pool)
+        donation_repository = AsyncpgDonationRepository(pool)
+        application.state.donation_service = DonationService(donation_repository)
+        application.state.donation_receipt_service = DonationReceiptService(
+            AsyncpgDonationReceiptRepository(pool, donation_repository)
         )
         application.state.order_cancellation_service = build_order_cancellation_service(
             pool, disabled_modules, mail_links=order_mail_links

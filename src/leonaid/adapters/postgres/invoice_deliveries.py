@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid5
@@ -26,12 +28,15 @@ from leonaid.application.invoice_deliveries import (
 from leonaid.domain.documents import GeneratedDocumentType
 
 COMMAND_TYPE = "send_invoice_v1"
+# Error code shown for a delivery whose job ended without a mail.
+DELIVERY_WITHDRAWN = "delivery_withdrawn"
 DOCUMENT_TYPES = {
     InvoiceDeliveryKind.INVOICE: GeneratedDocumentType.INVOICE_PDF,
     InvoiceDeliveryKind.INVOICE_CANCELLATION: (
         GeneratedDocumentType.INVOICE_CANCELLATION_PDF
     ),
     InvoiceDeliveryKind.DONATION_PLEDGE: GeneratedDocumentType.DONATION_PLEDGE_PDF,
+    InvoiceDeliveryKind.DONATION_RECEIPT: GeneratedDocumentType.DONATION_RECEIPT_PDF,
 }
 KINDS = {document_type.value: kind for kind, document_type in DOCUMENT_TYPES.items()}
 MAIL_DELIVERY_NAMESPACE = UUID("8a30d44c-d313-4cc6-af6a-237af95a4d4c")
@@ -461,6 +466,33 @@ class AsyncpgInvoiceDeliveryRepository:
                 )
                 return await self._get(connection, delivery_id)
 
+    @asynccontextmanager
+    async def sending(self, delivery_id: UUID) -> AsyncIterator[bool]:
+        """See ``InvoiceDeliveryWorkerRepository.sending``.
+
+        Only a donation receipt can be withdrawn: declaring it void updates
+        its row, which waits for the share lock taken here.
+        """
+
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                voided = await connection.fetchval(
+                    """
+                    SELECT receipt.voided_at IS NOT NULL
+                    FROM invoice_delivery AS delivery
+                    JOIN generated_document AS document
+                      ON document.id = delivery.generated_document_id
+                     AND document.document_type = 'donation_receipt_pdf'
+                    JOIN donation_receipt AS receipt
+                      ON receipt.donation_id = delivery.donation_id
+                     AND receipt.document_version = document.version
+                    WHERE delivery.id = $1
+                    FOR SHARE OF receipt
+                    """,
+                    delivery_id,
+                )
+                yield not voided
+
     async def job(self, delivery_id: UUID) -> InvoiceDeliveryJob | None:
         async with self._pool.acquire() as connection:
             row = await connection.fetchrow(
@@ -790,8 +822,25 @@ class AsyncpgInvoiceDeliveryRepository:
         sent_at = row["sent_at"]
         outbox_status = str(row["outbox_status"])
         attempts = int(row["attempts"])
+        last_error_code = (
+            str(row["last_error_code"]) if row["last_error_code"] is not None else None
+        )
+        last_error_detail = (
+            str(row["last_error_detail"])
+            if row["last_error_detail"] is not None
+            else None
+        )
         if sent_at is not None:
             status = InvoiceDeliveryStatus.SENT
+        elif outbox_status == "completed":
+            # The job ended without a mail, for example because its document
+            # was withdrawn (a donation receipt declared void). It cannot be
+            # started again.
+            status = InvoiceDeliveryStatus.FAILED
+            last_error_code = DELIVERY_WITHDRAWN
+            last_error_detail = (
+                "Der Versand wurde beendet, ohne dass eine E-Mail hinausging."
+            )
         elif outbox_status == "dead_letter":
             status = InvoiceDeliveryStatus.FAILED
         elif outbox_status == "processing":
@@ -812,16 +861,8 @@ class AsyncpgInvoiceDeliveryRepository:
                 str(row["message_id"]) if row["message_id"] is not None else None
             ),
             attempts=attempts,
-            last_error_code=(
-                str(row["last_error_code"])
-                if row["last_error_code"] is not None
-                else None
-            ),
-            last_error_detail=(
-                str(row["last_error_detail"])
-                if row["last_error_detail"] is not None
-                else None
-            ),
+            last_error_code=last_error_code,
+            last_error_detail=last_error_detail,
             requested_at=row["requested_at"],
             sent_at=sent_at,
             can_retry=outbox_status == "dead_letter" and sent_at is None,

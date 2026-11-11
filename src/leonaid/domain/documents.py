@@ -30,6 +30,7 @@ class GeneratedDocumentType(StrEnum):
     INVOICE_PDF = "invoice_pdf"
     INVOICE_CANCELLATION_PDF = "invoice_cancellation_pdf"
     DONATION_PLEDGE_PDF = "donation_pledge_pdf"
+    DONATION_RECEIPT_PDF = "donation_receipt_pdf"
 
 
 @dataclass(frozen=True, slots=True)

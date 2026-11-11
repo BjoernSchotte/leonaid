@@ -219,9 +219,55 @@ The cover mail (`application/donations.py`) repeats amount, number and
 "Dieses Schreiben ist keine Rechnung." and is signed with the name of the
 receiving body.
 
-The liability note (`DONATION_RECEIPT_LIABILITY_TEMPLATE`) is stored now and
-printed on the donation receipt from stage 5 on. Compare it with the current
-official sample of the Federal Ministry of Finance before use.
+The liability note (`DONATION_RECEIPT_LIABILITY_TEMPLATE`) is printed at the
+end of every donation receipt. Compare it with the current official sample of
+the Federal Ministry of Finance before use.
+
+The donation receipt (`donation-receipt-v1.typ`,
+`donation_receipt_renderer.py`, `domain/donation_receipts.py`) follows the
+official sample for money donations. Its fixed texts, for the tax adviser:
+
+> **Bestätigung über Geldzuwendungen**
+> im Sinne des § 10b des Einkommensteuergesetzes an eine der in § 5 Abs. 1
+> Nr. 9 des Körperschaftsteuergesetzes bezeichneten Körperschaften,
+> Personenvereinigungen oder Vermögensmassen
+
+> Es handelt sich nicht um den Verzicht auf Erstattung von Aufwendungen.
+
+Notice paragraph with a Freistellungsbescheid (with the Anlage zum
+Körperschaftsteuerbescheid the words "der Anlage zum
+Körperschaftsteuerbescheid" take the place of "dem Freistellungsbescheid"):
+
+> Wir sind wegen {Zwecke} nach dem Freistellungsbescheid des Finanzamtes
+> {Ort}, StNr. {Steuernummer}, vom {Datum} für den letzten
+> Veranlagungszeitraum {von} bis {bis} nach § 5 Abs. 1 Nr. 9 des
+> Körperschaftsteuergesetzes von der Körperschaftsteuer und nach § 3 Nr. 6
+> des Gewerbesteuergesetzes von der Gewerbesteuer befreit.
+
+Notice paragraph after § 60a AO. The last sentence differs from Appendix A.3:
+the purposes are quoted as entered, because their grammar cannot be derived:
+
+> Die Einhaltung der satzungsmäßigen Voraussetzungen nach den §§ 51, 59, 60
+> und 61 AO wurde vom Finanzamt {Ort}, StNr. {Steuernummer}, mit Bescheid vom
+> {Datum} nach § 60a AO gesondert festgestellt. Wir fördern nach unserer
+> Satzung: {Zwecke}.
+
+> Es wird bestätigt, dass die Zuwendung nur zur {Zwecke} verwendet wird.
+
+This sentence reads well only when the purposes start with a noun such as
+"Förderung der …". Enter them that way.
+
+Under the signatory with the machine procedure:
+
+> Diese Zuwendungsbestätigung wurde maschinell erstellt und trägt keine
+> eigenhändige Unterschrift. Das Verfahren ist dem {Finanzamt} angezeigt
+> (R 10b.1 Abs. 4 EStR).
+
+Rules built in, to confirm: a receipt only for a paid donation and for the
+amount that arrived; no receipt when the notice is older than five years
+(Freistellungsbescheid, Anlage zum Körperschaftsteuerbescheid) or three years
+(§ 60a AO); a receipt signed by hand is never mailed; declaring a receipt
+void needs the original back or the donor's tax office informed.
 
 The dev tenant carries a synthetic receiving body ("Förderverein Lions Club
 Musterstadt e. V.") with the machine procedure; it is not a model for a real

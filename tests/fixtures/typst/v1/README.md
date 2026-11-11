@@ -1,8 +1,8 @@
 # Typst layout references v1
 
 These PNG files are approved renders of the pinned templates `invoice-v2`,
-`invoice-cancellation-v1` and `donation-pledge-v1` with Typst 0.13.1 and
-PyMuPDF 1.26.3 at 144 dpi.
+`invoice-cancellation-v1`, `donation-pledge-v1` and `donation-receipt-v1` with
+Typst 0.13.1 and PyMuPDF 1.26.3 at 144 dpi.
 
 Invoices (`invoice-v2`):
 
@@ -28,6 +28,16 @@ Donation pledges (`donation-pledge-v1`), from the snapshots in
   invoice wording.
 - `SP26-LAYOUT-0001-page-{1,2}.png` carries the longest values (names, a
   million euro, a pledge text of nearly 2,000 characters) and breaks the page.
+
+Donation receipts (`donation-receipt-v1`), from the `ZB26-*.json` snapshots
+in the same directory, following the official sample for money donations:
+
+- `ZB26-0001-page-1.png`: machine procedure, Freistellungsbescheid; the
+  amount in figures and words, the day of the donation, the notice
+  paragraph, the purposes, the signatory with the machine sentence, the
+  liability note.
+- `ZB26-0002-page-1.png`: signed by hand (an empty signature line), notice
+  after § 60a AO, an amount with cents.
 
 `./leonaid test-typst` always renders new candidates (invoices from real Core
 PostgreSQL snapshots, cancellation invoices and donation pledges from the

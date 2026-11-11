@@ -4,9 +4,9 @@ description: Eine Spende erfassen, die Spendenzusage senden, den Zahlungseingang
 docId: DOC-P059
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 8fe6057e8a6c717cdcd73671a2706289d748fb7c
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: 026a2d563f8c79f01ba6f77016dbcf7334a4d602
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -17,8 +17,9 @@ reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 
 Eine Spende hat keine Gegenleistung. Sie bekommt deshalb keine Rechnung,
 sondern eine **Spendenzusage**: ein PDF mit Betrag, Spendenkonto und der
-Nummer der Spende als Verwendungszweck. Die Zuwendungsbestätigung für die
-Steuererklärung stellt LeonAid in dieser Version noch nicht aus.
+Nummer der Spende als Verwendungszweck. Nach dem Zahlungseingang stellst du
+die Zuwendungsbestätigung für die Steuererklärung aus (siehe
+[Zuwendungsbestätigung ausstellen](/de/user/how-to/issue-donation-receipt/)).
 
 ## Voraussetzungen
 
@@ -80,8 +81,10 @@ senden: Lade das PDF herunter und gib es auf anderem Weg weiter.
 1. Öffne die Spende und wähle **Zahlung erfassen**.
 2. Prüfe den **eingegangenen Betrag**. Vorbelegt ist der zugesagte Betrag.
    Ist mehr oder weniger angekommen, trage ein, was angekommen ist.
-3. Trage das **Eingangsdatum** ein. Es liegt nicht vor dem Tag der Zusage und
-   nicht in der Zukunft.
+3. Trage das **Eingangsdatum** ein: den Tag, an dem das Geld eingegangen ist.
+   Er steht später auf der Zuwendungsbestätigung. Er darf vor dem Tag der
+   Zusage liegen, wenn das Geld schon vorher da war, aber nicht in der
+   Zukunft.
 4. Bestätige mit **Zahlung erfassen**.
 
 Die Spende ist danach **Bezahlt**. Es zählt der eingegangene Betrag, nicht
@@ -97,6 +100,9 @@ Hast du eine Zahlung der falschen Spende zugeordnet, wähle im Abschnitt
 der Rücknahme** ein, mindestens acht Zeichen. Die Spende ist danach wieder
 **Offen**. Unter **Zurückgenommene Zahlungen** bleibt sichtbar, was erfasst
 war, wer es erfasst und wer es zurückgenommen hat.
+
+Gibt es zu der Zahlung eine gültige Zuwendungsbestätigung, erklärst du zuerst
+diese für ungültig.
 
 ## Spende stornieren
 

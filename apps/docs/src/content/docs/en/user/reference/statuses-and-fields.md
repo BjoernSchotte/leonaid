@@ -4,9 +4,9 @@ description: Reference for campaign, acquisition, order, invoice, and delivery s
 docId: DOC-P017
 audience: [user]
 diataxis: reference
-contentRevision: 6
-reviewedRevision: 6
-verifiedAgainst: 8fe6057e8a6c717cdcd73671a2706289d748fb7c
+contentRevision: 7
+reviewedRevision: 7
+verifiedAgainst: 1c7cedc2a1d2733b336d30a146b28874c28e8eb1
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -84,6 +84,11 @@ arrived, which may differ from the pledge. Taking back the payment sets it to
 **Offen** again. Only a donation without a payment can be cancelled; a
 cancellation is final (see
 [Record a donation](/en/user/how-to/record-donation/)).
+
+A paid donation with a valid donation receipt is listed in the view
+**Bestätigt**. A donation receipt is valid or declared void (**für ungültig
+erklärt**); it is never changed (see
+[Issue a donation receipt](/en/user/how-to/issue-donation-receipt/)).
 
 The source is `admin` (**Verwaltung**), `public_form` (**Öffentliches
 Formular**), or `acquisition` (**Akquise**). In this version donations are
