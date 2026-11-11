@@ -30,11 +30,9 @@ Organisation erhält eine weitere Installation.
    `./leonaid pilot-deploy --env-file ENV --backup-manifest BACKUP
 --release-manifest RELEASE`.
 
-Der Zielhost baut nicht und veröffentlicht nur Caddy auf 80/443. Für Produktion
-muss derselbe Manifest-SHA zuvor in Staging verifiziert sein
-(`./leonaid upgrade`). Staging darf auf einem anderen Host laufen, etwa als VM
-im eigenen Netz des Vereins: Kopiere dessen Ledger auf den Produktionshost und
-übergib ihn mit `--staging-ledger` (siehe `infra/pilot/RELEASE-RUNBOOK.md`).
-Der reale Start
-bleibt blockiert, solange DNS, vertrauenswürdiges TLS, Mail, Betreiberangaben,
-Recovery-Ziel oder fachliche Entscheidungen offen sind.
+Der Zielhost baut nicht und veröffentlicht nur Caddy auf 80/443. Staging ist
+freiwillig und darf auf einem anderen Host laufen, etwa als VM im eigenen Netz
+des Vereins. Eine Staging-Installation wartet auf keine Entscheidung im
+Register. Der reale Produktionsstart bleibt blockiert, solange DNS,
+vertrauenswürdiges TLS, Mail, Betreiberangaben, Recovery-Ziel oder fachliche
+Entscheidungen offen sind.

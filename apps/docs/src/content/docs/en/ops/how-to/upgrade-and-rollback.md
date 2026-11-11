@@ -81,7 +81,38 @@ run-instance-commands` and `command:prod upgrade` commands through the
    checks, the Golden contract, and the browser journey.
 8. Disable maintenance only after those checks pass.
 
+## Upgrade an installation
+
+An upgrade is one command. Copy the lines of the new version's
+`release-images.env` into the environment file and run:
+
+```sh
+./leonaid upgrade --env-file ENV --backup-manifest MANIFEST \
+  --release-manifest RELEASE --password-file PASSWORD \
+  [--credentials-file CREDENTIALS] [--twenty-bootstrap-file BOOTSTRAP]
+```
+
+1. Pre-check without changes: the doctor runs, and the new version's Core
+   image reads the installed schema. If it does not know the schema, the
+   upgrade stops: the version is older than the installation, or a version in
+   between must be installed first.
+2. Encrypted backup. If it fails, the upgrade stops. A copy of the backup
+   manifest (`….pre-upgrade-<time>.json`) is kept; later nightly backups do
+   not overwrite it.
+3. Maintenance mode, migrations of RustFS, Twenty, Core and the CMS, start,
+   health check, maintenance off, final doctor.
+
+Staging is optional. For a rehearsal, restore the latest production backup on
+the staging host with `./leonaid pilot-restore`, run the same `upgrade` there
+and check the user interface. A staging installation waits for no decision in
+the register.
+
 ## Roll back
+
+If an upgrade fails after the backup, maintenance mode stays on and the
+command prints the kept manifest copy and the complete `./leonaid
+pilot-restore` command. Either fix the cause and run the same upgrade again
+(every step is repeatable), or go back to that backup.
 
 After the first schema write, rollback means restore. Never start an older
 image against a forward-migrated database. Keep writes blocked, stop the

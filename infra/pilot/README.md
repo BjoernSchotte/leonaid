@@ -42,8 +42,8 @@ Containers get only the values their process needs. The public evidence
 report contains only status values and error codes.
 
 Release, migration, promotion and rollback follow
-[`RELEASE-RUNBOOK.md`](RELEASE-RUNBOOK.md). Production accepts only a
-manifest that was verified in staging with exactly the same SHA before.
+[`RELEASE-RUNBOOK.md`](RELEASE-RUNBOOK.md). Staging is optional; production
+does not wait for it.
 Pilot users, role changes, offboarding, data-minimal feedback and the
 support-code flow follow
 [`ONBOARDING-SUPPORT-RUNBOOK.md`](ONBOARDING-SUPPORT-RUNBOOK.md).
@@ -174,25 +174,23 @@ only `up --no-build --pull missing`, waits for all health checks and then
 runs the full deployment doctor. Drift between manifest and Compose never
 reaches the start.
 
-The full technical promotion with a fresh backup, maintenance mode,
-explicit Twenty/core migrations and a sequential release ledger runs
-through:
+An upgrade of a running installation, with a pre-check, a fresh backup,
+maintenance mode and explicit Twenty/core/CMS migrations, runs through:
 
 ```sh
 ./leonaid upgrade \
-  --env-file /etc/leonaid/staging.env \
+  --env-file /etc/leonaid/production.env \
   --backup-manifest /var/lib/leonaid/evidence/latest-backup-manifest.json \
   --release-manifest /var/lib/leonaid/evidence/release-2026.1.0.json \
-  --ledger /var/lib/leonaid/evidence/release-ledger.jsonl \
   --password-file /secure/leonaid/restic-password \
-  --credentials-file /secure/leonaid/restic-backend.env \
-  --evidence-id PILOT-RELEASE-STAGING-2026-01
+  --credentials-file /secure/leonaid/restic-backend.env
 ```
 
-The evidence ID references the private functional browser and document
-evidence for the same manifest SHA; it does not replace it.
-Production is blocked before any mutation as long as exactly this SHA is not
-recorded as `staging_verified` in the ledger.
+Before the backup and the downtime, the release's Core image reads the
+installed schema. A schema it does not know (an older release, or a skipped
+release that must be installed first) stops the upgrade with nothing changed.
+On a failure after that, maintenance mode stays on and the command prints the
+kept recovery point and the restore command.
 
 ## Backup and restore
 

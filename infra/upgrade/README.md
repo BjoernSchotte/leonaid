@@ -146,8 +146,7 @@ separate target clone and restores it from the encrypted recovery point.
 Secret-free results are stored under `.artifacts/poc113/`.
 
 The pilot release evidence extends this component contract with an immutable
-release manifest, identical staging/production promotion, a real failed
-Alembic run and a secret-free promotion ledger:
+release manifest for two versions and a real failed Alembic run:
 
 ```sh
 ./leonaid test-pilot-release

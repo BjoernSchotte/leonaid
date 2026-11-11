@@ -201,7 +201,7 @@ Commands:
   test-pilot-alerting
                     Prove real Prometheus/Alertmanager delivery and recovery
   test-pilot-release
-                    Prove immutable promotion, migration failure and rollback
+                    Prove two releases, migration failure and rollback
   test-pilot-rehearsal --synthetic
                     Prove the full local rehearsal without claiming external gates
   test-pilot-readiness
@@ -210,9 +210,6 @@ Commands:
                     Assess all hard gates without simulating external approval
   pilot-release-manifest <create|verify> [OPTIONS]
                     Create or verify an immutable release manifest
-  pilot-release-record [OPTIONS]
-                    Append a sanitized staging/production release event
-                    (--staging-ledger FILE: a copied staging host ledger)
   pilot-evidence-init
                     Create private 0700 intake/evidence/backup directories
   pilot-doctor --env-file FILE --backup-manifest FILE [--gate GATE] [--json]
@@ -239,13 +236,13 @@ Commands:
                     schema; repeatable, resumes where it stopped (exit 75:
                     the System Admin completes the setup, then run again)
   upgrade --env-file FILE --backup-manifest FILE --release-manifest FILE
-          --ledger FILE --password-file FILE --evidence-id ID
-          [--staging-ledger FILE] [--twenty-bootstrap-file FILE]
-                    Upgrade staging/production to a release: backup, maintenance
-                    mode, explicit migrations; production needs the same
-                    manifest verified on staging (its ledger, or a copy of the
-                    staging host's ledger in --staging-ledger); the bootstrap
-                    file also applies Twenty schema changes
+          --password-file FILE [--credentials-file FILE]
+          [--twenty-bootstrap-file FILE]
+                    Upgrade an installation to a release: pre-check, backup,
+                    maintenance mode, migrations, start, health check; on a
+                    failure it stays in maintenance and prints the restore
+                    command; the bootstrap file also applies Twenty schema
+                    changes
   pilot-import <dry-run|apply|verify> SOURCE [OPTIONS]
                     Run the private, fingerprint-bound pilot import
   pilot-backup --env-file FILE --backup-manifest FILE --password-file FILE
@@ -3300,131 +3297,6 @@ crm-admin: The Twenty CRM has no public address. Open it through SSH:
 EOF
 }
 
-pilot_record_release_event() (
-  set -e
-  release_manifest=$1
-  ledger=$2
-  event=$3
-  result=$4
-  evidence_id=$5
-  occurred_at=$6
-  # Optional: the ledger copied from a staging host. Production then accepts
-  # the staging verification recorded there (read-only, never written).
-  staging_ledger=${7:-}
-  manifest_directory=$(mktemp -d)
-  cp "$release_manifest" "$manifest_directory/release-manifest.json"
-  host_user_id=$(id -u)
-  host_group_id=$(id -g)
-  ledger_directory=$(dirname -- "$ledger")
-  ledger_name=$(basename -- "$ledger")
-  trap 'rm -rf "$manifest_directory"' EXIT HUP INT TERM
-  set -- --rm \
-    --user "$host_user_id:$host_group_id" \
-    --env PYTHONPATH=/workspace \
-    --volume "$root:/workspace:ro" \
-    --volume "$manifest_directory:/release:ro" \
-    --volume "$ledger_directory:/ledger"
-  if [ -n "$staging_ledger" ]; then
-    set -- "$@" --volume "$(dirname -- "$staging_ledger"):/staging-ledger:ro"
-  fi
-  set -- "$@" --workdir /workspace "$PYTHON_IMAGE" \
-    python tools/pilot_release/promotion.py \
-    --manifest /release/release-manifest.json \
-    --ledger "/ledger/$ledger_name" \
-    --event "$event" \
-    --result "$result" \
-    --evidence-id "$evidence_id" \
-    --occurred-at "$occurred_at"
-  if [ -n "$staging_ledger" ]; then
-    set -- "$@" --staging-ledger "/staging-ledger/$(basename -- "$staging_ledger")"
-  fi
-  status=0
-  docker run "$@" || status=$?
-  exit "$status"
-)
-
-pilot_release_record() {
-  release_manifest=
-  ledger=
-  event=
-  result=
-  evidence_id=
-  occurred_at=
-  staging_ledger=
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-      --manifest|--ledger|--staging-ledger|--event|--result|--evidence-id|--occurred-at)
-        [ "$#" -ge 2 ] || {
-          echo "pilot-release-record: ERROR: $1 needs a value" >&2
-          exit 64
-        }
-        option=$1
-        value=$2
-        shift 2
-        case "$option" in
-          --manifest) release_manifest=$value ;;
-          --ledger) ledger=$value ;;
-          --staging-ledger) staging_ledger=$value ;;
-          --event) event=$value ;;
-          --result) result=$value ;;
-          --evidence-id) evidence_id=$value ;;
-          --occurred-at) occurred_at=$value ;;
-        esac
-        ;;
-      *)
-        echo "pilot-release-record: ERROR: unknown option '$1'" >&2
-        exit 64
-        ;;
-    esac
-  done
-  [ -n "$release_manifest" ] || {
-    echo "pilot-release-record: ERROR: --manifest is missing" >&2
-    exit 64
-  }
-  [ -n "$ledger" ] || {
-    echo "pilot-release-record: ERROR: --ledger is missing" >&2
-    exit 64
-  }
-  [ -n "$event" ] || {
-    echo "pilot-release-record: ERROR: --event is missing" >&2
-    exit 64
-  }
-  [ -n "$result" ] || {
-    echo "pilot-release-record: ERROR: --result is missing" >&2
-    exit 64
-  }
-  [ -n "$evidence_id" ] || {
-    echo "pilot-release-record: ERROR: --evidence-id is missing" >&2
-    exit 64
-  }
-  [ -n "$occurred_at" ] || {
-    echo "pilot-release-record: ERROR: --occurred-at is missing" >&2
-    exit 64
-  }
-  release_manifest=$(
-    pilot_absolute_file pilot-release-record "$release_manifest"
-  )
-  case "$ledger" in
-    /*) ;;
-    *) ledger="$root/$ledger" ;;
-  esac
-  ledger_directory=$(dirname -- "$ledger")
-  [ -d "$ledger_directory" ] || {
-    echo "pilot-release-record: ERROR: ledger directory is missing" >&2
-    exit 1
-  }
-  ledger="$(
-    CDPATH= cd -- "$ledger_directory" &&
-      pwd
-  )/$(basename -- "$ledger")"
-  if [ -n "$staging_ledger" ]; then
-    staging_ledger=$(pilot_absolute_file pilot-release-record "$staging_ledger")
-  fi
-  pilot_record_release_event \
-    "$release_manifest" "$ledger" "$event" "$result" \
-    "$evidence_id" "$occurred_at" "$staging_ledger"
-}
-
 pilot_release_migrate() (
   set -e
   project=$1
@@ -3585,21 +3457,64 @@ pilot_release_twenty_schema() {
     api -m leonaid.entrypoints.crm_match_keys
 }
 
+# Before any change and before the downtime: pull the release's Core image
+# and let it read the installed schema. Alembic refuses a revision it does not
+# know: a release older than the installation, or a skipped required release.
+pilot_release_preflight() (
+  set -e
+  project=$1
+  env_file=$2
+  status=0
+  output=$(
+    pilot_compose_command "$project" "$env_file" \
+      run --rm --no-deps --pull missing --entrypoint uv api \
+      run --frozen --no-sync alembic current 2>&1
+  ) || status=$?
+  if [ "$status" -ne 0 ]; then
+    if printf '%s\n' "$output" | grep -F "Can't locate revision" >/dev/null; then
+      echo "upgrade: BLOCKED: this release does not know the installed database schema. The release is older than the installation, or a release in between must be installed first. Nothing was changed." >&2
+    else
+      printf '%s\n' "$output" | tail -n 20 >&2
+      echo "upgrade: BLOCKED: the release's Core image cannot read the installed database. Nothing was changed." >&2
+    fi
+    exit 1
+  fi
+  echo "upgrade: OK: the release reads the installed database schema"
+)
+
+# Tell the operator how to go back after a failed upgrade. The recovery point
+# is the backup taken right before the change; its manifest copy is not
+# overwritten by later backups.
+pilot_release_failure_help() {
+  env_file=$1
+  recovery_manifest=$2
+  password_file=$3
+  cat >&2 <<HELP
+upgrade: The backup taken right before the change is listed in
+upgrade:   $recovery_manifest
+upgrade: Either fix the cause and run the same upgrade again (every step is
+upgrade: repeatable), or go back to that backup: restore it into a new
+upgrade: project and start the previous release there:
+upgrade:   ./leonaid pilot-restore --env-file $env_file \\
+upgrade:     --backup-manifest $recovery_manifest \\
+upgrade:     --target-env-file RESTORE.env --password-file $password_file \\
+upgrade:     --confirm RESTORE:leonaid-restore-NAME
+upgrade: Never start the previous release on this migrated database.
+upgrade: Steps: infra/pilot/RELEASE-RUNBOOK.md, "Failure and rollback".
+HELP
+}
+
 upgrade_release() {
   require_docker
   env_file=
   backup_manifest=
   release_manifest=
   twenty_bootstrap_file=
-  ledger=
-  staging_ledger=
   password_file=
   credentials_file=
-  evidence_id=
-  occurred_at=
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --env-file|--backup-manifest|--release-manifest|--ledger|--staging-ledger|--password-file|--credentials-file|--evidence-id|--occurred-at|--twenty-bootstrap-file)
+      --env-file|--backup-manifest|--release-manifest|--password-file|--credentials-file|--twenty-bootstrap-file)
         [ "$#" -ge 2 ] || {
           echo "upgrade: ERROR: $1 needs a value" >&2
           exit 64
@@ -3611,12 +3526,8 @@ upgrade_release() {
           --env-file) env_file=$value ;;
           --backup-manifest) backup_manifest=$value ;;
           --release-manifest) release_manifest=$value ;;
-          --ledger) ledger=$value ;;
-          --staging-ledger) staging_ledger=$value ;;
           --password-file) password_file=$value ;;
           --credentials-file) credentials_file=$value ;;
-          --evidence-id) evidence_id=$value ;;
-          --occurred-at) occurred_at=$value ;;
           --twenty-bootstrap-file) twenty_bootstrap_file=$value ;;
         esac
         ;;
@@ -3638,16 +3549,8 @@ upgrade_release() {
     echo "upgrade: ERROR: --release-manifest is missing" >&2
     exit 64
   }
-  [ -n "$ledger" ] || {
-    echo "upgrade: ERROR: --ledger is missing" >&2
-    exit 64
-  }
   [ -n "$password_file" ] || {
     echo "upgrade: ERROR: --password-file is missing" >&2
-    exit 64
-  }
-  [ -n "$evidence_id" ] || {
-    echo "upgrade: ERROR: --evidence-id is missing" >&2
     exit 64
   }
   env_file=$(pilot_absolute_file upgrade "$env_file")
@@ -3657,49 +3560,7 @@ upgrade_release() {
   if [ -n "$credentials_file" ]; then
     credentials_file=$(pilot_absolute_file upgrade "$credentials_file")
   fi
-  case "$ledger" in
-    /*) ;;
-    *)
-      echo "upgrade: ERROR: --ledger must be absolute" >&2
-      exit 64
-      ;;
-  esac
-  ledger_directory=$(dirname -- "$ledger")
-  [ -d "$ledger_directory" ] || {
-    echo "upgrade: ERROR: ledger directory is missing" >&2
-    exit 1
-  }
-  ledger="$(
-    CDPATH= cd -- "$ledger_directory" &&
-      pwd
-  )/$(basename -- "$ledger")"
-  if [ -n "$staging_ledger" ]; then
-    staging_ledger=$(pilot_absolute_file upgrade "$staging_ledger")
-  fi
-  [ -n "$occurred_at" ] ||
-    occurred_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
-
   project=$(pilot_environment_value LEONAID_COMPOSE_PROJECT "$env_file")
-  case "$project" in
-    leonaid-staging*)
-      if [ -n "$staging_ledger" ]; then
-        echo "upgrade: ERROR: --staging-ledger is for production only" >&2
-        exit 64
-      fi
-      started_event=staging_started
-      verified_event=staging_verified
-      failed_event=
-      ;;
-    leonaid-production*)
-      started_event=production_started
-      verified_event=production_verified
-      failed_event=production_failed
-      ;;
-    *)
-      echo "upgrade: BLOCKED: the project is neither staging nor production" >&2
-      exit 1
-      ;;
-  esac
 
   release_commit=$(git -C "$root" rev-parse HEAD)
   config_file=$(mktemp)
@@ -3714,12 +3575,11 @@ upgrade_release() {
       --backup-manifest "$backup_manifest" \
       --gate upgrade
   )
-  pilot_record_release_event \
-    "$release_manifest" "$ledger" "$started_event" passed \
-    "$evidence_id" "$occurred_at" "$staging_ledger"
+  pilot_release_preflight "$project" "$env_file"
 
   maintenance_attempted=false
   maintenance_disabled=false
+  recovery_manifest=
   set +e
   if [ -n "$credentials_file" ]; then
     (
@@ -3739,6 +3599,12 @@ upgrade_release() {
         --backup-manifest "$backup_manifest" \
         --password-file "$password_file"
     )
+    status=$?
+  fi
+  if [ "$status" -eq 0 ]; then
+    # Keep this recovery point: the next nightly backup rewrites the manifest.
+    recovery_manifest="${backup_manifest%.json}.pre-upgrade-$(date -u '+%Y%m%dT%H%M%SZ').json"
+    cp -p "$backup_manifest" "$recovery_manifest"
     status=$?
   fi
   if [ "$status" -eq 0 ]; then
@@ -3808,29 +3674,21 @@ upgrade_release() {
     status=$?
   fi
   set -e
+  rm -f "$config_file"
+  trap - EXIT HUP INT TERM
   if [ "$status" -ne 0 ]; then
-    if [ -n "$failed_event" ]; then
-      pilot_record_release_event \
-        "$release_manifest" "$ledger" "$failed_event" failed \
-        "$evidence_id" "$occurred_at" "$staging_ledger" || true
-    fi
-    rm -f "$config_file"
-    trap - EXIT HUP INT TERM
     if [ "$maintenance_attempted" = false ]; then
-      echo "upgrade: BLOCKED: release failed before maintenance mode" >&2
+      echo "upgrade: FAILED before maintenance mode: the installation was not changed and keeps running" >&2
     elif [ "$maintenance_disabled" = true ]; then
-      echo "upgrade: BLOCKED: post-check after maintenance mode ended failed" >&2
+      echo "upgrade: FAILED: the health check after the upgrade failed; maintenance mode had already ended" >&2
+      pilot_release_failure_help "$env_file" "$recovery_manifest" "$password_file"
     else
-      echo "upgrade: BLOCKED: maintenance mode is not lifted automatically; check the state" >&2
+      echo "upgrade: FAILED: maintenance mode stays on, so nobody can change data" >&2
+      pilot_release_failure_help "$env_file" "$recovery_manifest" "$password_file"
     fi
     return "$status"
   fi
-  pilot_record_release_event \
-    "$release_manifest" "$ledger" "$verified_event" passed \
-    "$evidence_id" "$occurred_at" "$staging_ledger"
-  rm -f "$config_file"
-  trap - EXIT HUP INT TERM
-  echo "upgrade: OK: $project is manifest-bound, migrated and released"
+  echo "upgrade: OK: $project runs the release; recovery point: $recovery_manifest"
 }
 
 pilot_restore() {
@@ -5148,11 +5006,6 @@ case "$command" in
     require_docker
     shift
     pilot_release_manifest "$@"
-    ;;
-  pilot-release-record)
-    require_docker
-    shift
-    pilot_release_record "$@"
     ;;
   pilot-evidence-init)
     require_docker

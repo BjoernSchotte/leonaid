@@ -14,6 +14,7 @@ from typing import Any, Callable
 from tools.pilot_deployment.doctor import (
     PENDING_INTEGRATION_KEY,
     DoctorError,
+    due_decisions,
     parse_resolve,
     read_dotenv,
     validate_backup,
@@ -399,6 +400,20 @@ def main() -> None:
                 )
 
             rejected(label, validate_mismatch)
+
+    # The real register still has open decisions: production waits for them
+    # at the first start and at every later gate, staging never does.
+    for gate in ("pilot-deploy", "upgrade"):
+        open_ids, _ = due_decisions(
+            root, gate=gate, staging=False, deployment_only=False
+        )
+        if "PILOT-TAX-001" not in open_ids:
+            raise AssertionError(f"production {gate} ignores the tax decision")
+        if due_decisions(root, gate=gate, staging=True, deployment_only=False) != (
+            [],
+            [],
+        ):
+            raise AssertionError(f"staging {gate} waits for the decision register")
 
     print(
         "pilot-deployment-doctor-test: OK: unsafe real file and parameter "

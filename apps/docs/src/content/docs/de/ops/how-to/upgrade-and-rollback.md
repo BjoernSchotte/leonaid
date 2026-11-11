@@ -86,7 +86,39 @@ Verantwortlichen und einen frischen Recovery Point.
    Healthchecks, Golden-Contract und Browser-Journey.
 8. Deaktiviere die Wartung erst nach diesen Nachweisen.
 
+## Eine Installation aktualisieren
+
+Ein Upgrade ist ein Befehl. Übernimm die Zeilen aus `release-images.env` der
+neuen Version in die Umgebungsdatei und führe aus:
+
+```sh
+./leonaid upgrade --env-file ENV --backup-manifest MANIFEST \
+  --release-manifest RELEASE --password-file PASSWORD \
+  [--credentials-file CREDENTIALS] [--twenty-bootstrap-file BOOTSTRAP]
+```
+
+1. Vorprüfung ohne Änderung: Doctor, und das Core-Image der neuen Version
+   liest das installierte Schema. Kennt es das Schema nicht, bricht das
+   Upgrade ab: Die Version ist älter als die Installation, oder eine Version
+   dazwischen muss zuerst installiert werden.
+2. Verschlüsseltes Backup. Scheitert es, bricht das Upgrade ab. Eine Kopie des
+   Backup-Manifests (`….pre-upgrade-<Zeit>.json`) bleibt liegen; spätere
+   nächtliche Backups überschreiben sie nicht.
+3. Wartungsmodus, Migrationen von RustFS, Twenty, Core und CMS, Start,
+   Healthcheck, Wartungsmodus aus, abschließender Doctor.
+
+Staging ist freiwillig. Für einen Probelauf spielst du die letzte
+Produktionssicherung mit `./leonaid pilot-restore` auf dem Staging-Host ein,
+führst dort dasselbe `upgrade` aus und prüfst die Oberfläche. Eine
+Staging-Installation wartet auf keine Entscheidung im Register.
+
 ## Rollback
+
+Scheitert ein Upgrade nach dem Backup, bleibt der Wartungsmodus an, und der
+Befehl gibt die aufbewahrte Manifest-Kopie und den fertigen
+`./leonaid pilot-restore`-Befehl aus. Behebe entweder die Ursache und führe
+dasselbe Upgrade erneut aus (jeder Schritt ist wiederholbar), oder gehe auf
+dieses Backup zurück.
 
 Nach der ersten Schemaänderung bedeutet Rollback Restore: Starte kein älteres
 Image gegen eine vorwärts migrierte Datenbank. Halte die Schreibsperre aktiv,

@@ -25,8 +25,10 @@ recovery point. Maintenance mode blocks new writes while dependent systems
 migrate in a defined order. After a schema write, the safe recovery path is a
 fresh-volume restore, not an older image running against newer data.
 
-Production receives only a SHA already verified in staging with the identical
-manifest. Configuration, secrets, domains, buckets, SMTP, and backup targets
-stay separate between environments. Synthetic tests prove the mechanism;
+An upgrade is one command, like in other self-hosted projects: it checks
+that the release can read the installed database, backs up, migrates and
+checks health. Staging is optional: restore a production backup on a staging
+host and run the same upgrade there first. Configuration, secrets, domains,
+buckets, SMTP, and backup targets stay separate between environments. Synthetic tests prove the mechanism;
 operators must additionally verify DNS, TLS, mail delivery, restore time, and
 business approval in the real environment.

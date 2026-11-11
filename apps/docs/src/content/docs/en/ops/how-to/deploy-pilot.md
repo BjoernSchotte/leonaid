@@ -30,9 +30,7 @@ config --format json`, using `infra/compose/compose.yml` and
 --env-file ENV --backup-manifest BACKUP --release-manifest RELEASE`.
 
 The target host does not build and exposes only Caddy on ports 80/443.
-Production accepts the same manifest SHA only after staging verification
-(`./leonaid upgrade`). Staging may run on another host, for example a VM in
-the club's own network: copy its ledger to the production host and pass it
-with `--staging-ledger` (see `infra/pilot/RELEASE-RUNBOOK.md`). A
-real deployment stays blocked while DNS, trusted TLS, mail, operator details,
-recovery target, or business decisions remain open.
+Staging is optional and may run on another host, for example a VM in the
+club's own network. A staging installation waits for no decision in the
+register. A real production start stays blocked while DNS, trusted TLS, mail,
+operator details, recovery target, or business decisions remain open.

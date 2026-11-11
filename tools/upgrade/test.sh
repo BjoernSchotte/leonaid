@@ -30,7 +30,6 @@ password_file="$proof/restic-password"
 artifact_directory=${LEONAID_UPGRADE_ARTIFACT_DIR:-"$root/.artifacts/poc113"}
 integration_key=""
 release_commit=$(git -C "$root" rev-parse HEAD)
-release_ledger="$proof/release-ledger.jsonl"
 release_v1="$proof/release-v1.json"
 release_v2="$proof/release-v2.json"
 
@@ -197,28 +196,6 @@ pathlib.Path(os.environ["IMAGE_OUTPUT"]).write_text(json.dumps({
       --deployment-mode test \
       --images "/proof/$(basename "$images")" \
       --output "/proof/$(basename "$output")"
-}
-
-record_release_event() {
-  manifest=$1
-  event=$2
-  result=$3
-  evidence_id=$4
-  occurred_at=$5
-  docker run --rm \
-    --user "$(id -u):$(id -g)" \
-    --env PYTHONPATH=/workspace \
-    --volume "$root:/workspace:ro" \
-    --volume "$proof:/proof" \
-    --workdir /workspace \
-    "$PYTHON_IMAGE" \
-    python tools/pilot_release/promotion.py \
-      --manifest "/proof/$(basename "$manifest")" \
-      --ledger /proof/release-ledger.jsonl \
-      --event "$event" \
-      --result "$result" \
-      --evidence-id "$evidence_id" \
-      --occurred-at "$occurred_at"
 }
 
 run_plan_gate() {
@@ -662,9 +639,6 @@ create_release_manifest \
   pilot-release-v2 2.0.0 \
   "$TWENTY_IMAGE" "$RUSTFS_IMAGE" \
   "$VALKEY_IMAGE" "$POSTGRES_IMAGE" "$release_v2"
-record_release_event \
-  "$release_v1" staging_started passed PILOT-043-STAGING-V1 \
-  2026-07-28T08:00:00Z
 source_old --profile dev-mail up --detach --wait --wait-timeout 420 \
   core-postgres rustfs mailpit twenty-server twenty-worker
 verify_image "${source_project}-twenty-server-1" "$TWENTY_UPGRADE_SOURCE_IMAGE"
@@ -702,12 +676,6 @@ snapshot_and_verify source pre-upgrade golden
 source_old up --detach --wait --wait-timeout 420 worker public pwa web proxy
 run_e2e "$source_project" before
 run_full_golden_journey source "$source_project" before round-1
-record_release_event \
-  "$release_v1" staging_verified passed PILOT-043-STAGING-V1 \
-  2026-07-28T08:10:00Z
-record_release_event \
-  "$release_v2" staging_started passed PILOT-043-STAGING-V2 \
-  2026-07-28T08:20:00Z
 
 LEONAID_COMPOSE_PROJECT="$source_project" \
   LEONAID_HTTP_PORT="$source_http_port" \
@@ -789,9 +757,6 @@ run_dashboard_contract source
 snapshot_and_verify source post-upgrade golden
 run_e2e "$source_project" after
 run_full_golden_journey source "$source_project" after round-2
-record_release_event \
-  "$release_v2" staging_verified passed PILOT-043-STAGING-V2 \
-  2026-07-28T08:40:00Z
 
 # Retain source data but run only one full owned stack at a time.
 source_target --profile '*' stop
@@ -801,9 +766,6 @@ rollback_old --profile dev-mail up --detach --wait --wait-timeout 420
 run_dashboard_contract rollback
 snapshot_and_verify rollback failure-clone-before golden
 
-record_release_event \
-  "$release_v2" production_started passed PILOT-043-PRODUCTION-ATTEMPT-1 \
-  2026-07-28T09:00:00Z
 LEONAID_COMPOSE_PROJECT="$rollback_project" \
   LEONAID_HTTP_PORT="$rollback_http_port" \
   LEONAID_HTTPS_PORT="$rollback_https_port" \
@@ -817,25 +779,13 @@ if rollback_target run --rm --no-deps \
   fail "intentionally invalid core migration was accepted"
 fi
 run_maintenance_contract rollback maintenance
-record_release_event \
-  "$release_v2" production_failed failed PILOT-043-MIGRATION-FAILURE \
-  2026-07-28T09:01:00Z
 
 rollback_target --profile '*' down --volumes --remove-orphans
-record_release_event \
-  "$release_v2" rollback_started passed PILOT-043-MIGRATION-ROLLBACK \
-  2026-07-28T09:02:00Z
 restore_source_version
 rollback_old --profile dev-mail up --detach --wait --wait-timeout 420
 run_dashboard_contract rollback
 snapshot_and_verify rollback migration-failure-restored golden
-record_release_event \
-  "$release_v2" rollback_verified passed PILOT-043-MIGRATION-ROLLBACK \
-  2026-07-28T09:10:00Z
 
-record_release_event \
-  "$release_v2" production_started passed PILOT-043-PRODUCTION-ATTEMPT-2 \
-  2026-07-28T09:20:00Z
 LEONAID_COMPOSE_PROJECT="$rollback_project" \
   LEONAID_HTTP_PORT="$rollback_http_port" \
   LEONAID_HTTPS_PORT="$rollback_https_port" \
@@ -861,9 +811,6 @@ rollback_target --profile dev-mail up --detach --wait --wait-timeout 420
 verify_postgres "$rollback_project"
 run_dashboard_contract rollback
 snapshot_and_verify rollback production-v2 golden
-record_release_event \
-  "$release_v2" production_verified passed PILOT-043-PRODUCTION-V2 \
-  2026-07-28T09:40:00Z
 rollback_target --profile dev-mail run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --env MAIL_SMTP_HOST=mailpit \
@@ -882,14 +829,8 @@ if docker run --rm \
   /workspace/tests/fixtures/golden/v1 >/dev/null 2>&1; then
   fail "intentionally broken upgrade passed the golden contract"
 fi
-record_release_event \
-  "$release_v2" production_failed failed PILOT-043-POST-SMOKE-FAILURE \
-  2026-07-28T09:41:00Z
 
 rollback_target --profile '*' down --volumes --remove-orphans
-record_release_event \
-  "$release_v2" rollback_started passed PILOT-043-POST-SMOKE-ROLLBACK \
-  2026-07-28T09:42:00Z
 restore_source_version
 rollback_old build api public pwa web survey-validator proxy
 rollback_old --profile dev-mail up --detach --wait --wait-timeout 420
@@ -905,9 +846,6 @@ if ! cmp -s \
     "$proof/journey-rollback.normalized.json" >&2 || true
   fail "golden journey is not functionally identical after rollback"
 fi
-record_release_event \
-  "$release_v2" rollback_verified passed PILOT-043-POST-SMOKE-ROLLBACK \
-  2026-07-28T09:50:00Z
 
 mkdir -p "$artifact_directory"
 cp "$proof"/upgrade-before.png \
@@ -926,7 +864,6 @@ cp "$proof"/upgrade-before.png \
     "$proof"/core-migration-failure.log \
     "$proof"/release-v1.json \
     "$proof"/release-v2.json \
-    "$proof"/release-ledger.jsonl \
     "$proof"/twenty-instance-upgrade-primary.log \
   "$proof"/twenty-instance-upgrade-failure-clone.log \
   "$proof"/twenty-upgrade-primary.log \
@@ -964,16 +901,14 @@ pathlib.Path("/artifacts/result.json").write_text(json.dumps({
   "postContract":"passed",
   "postE2e":"passed",
   "postGoldenJourney":"passed",
-  "sameManifestPromotion":"passed",
   "coreMigrationFailureDetected":"passed",
   "failedUpgradeDetected":"passed",
   "backupRollback":"passed",
   "rollbackGoldenJourney":"passed",
-  "rollbackJourneyEquivalent":"passed",
-  "releaseLedger":"passed"
+  "rollbackJourneyEquivalent":"passed"
 },sort_keys=True,indent=2)+"\n")'
 
 echo "upgrade-test: OK: real Twenty, RustFS and PostgreSQL upgrades,"
 echo "upgrade-test:     maintenance boundary, contract/E2E before and after the upgrade"
 echo "upgrade-test:     full golden journeys before/after upgrade and rollback"
-echo "upgrade-test:     plus manifest promotion, migration failure and recovery proven"
+echo "upgrade-test:     plus migration failure and recovery proven"

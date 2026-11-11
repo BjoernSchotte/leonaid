@@ -44,9 +44,6 @@ config="$workspace/compose.json"
 env_file="$workspace/production.env"
 backup_manifest="$workspace/backup-manifest.json"
 release_manifest="$workspace/release-manifest.json"
-release_ledger="$workspace/release-ledger.jsonl"
-# Staging on another host: its ledger arrives as a copy under the same name.
-staging_ledger="$workspace/staging-host/release-ledger.jsonl"
 drifted_release_manifest="$workspace/drifted-release-manifest.json"
 accepted_decisions="$workspace/accepted-decisions.md"
 target_env_file="$workspace/restore.env"
@@ -895,13 +892,18 @@ if ! printf '%s' "$wrong_backup_output" |
 fi
 
 echo "pilot-deployment-test: proves the complete operator release"
-set +e
-missing_staging_output=$(
+core_sql() {
+  runtime_compose exec -T core-postgres psql -v ON_ERROR_STOP=1 -tA \
+    --username "${CORE_POSTGRES_USER:-leonaid}" \
+    --dbname "${CORE_POSTGRES_DB:-leonaid}" \
+    --command "$1"
+}
+upgrade_operator() {
   LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
     LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
     LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
     LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
-      LEONAID_TEST_CORE_IMAGE="$core_image" \
+    LEONAID_TEST_CORE_IMAGE="$core_image" \
     LEONAID_TEST_WEB_IMAGE="$web_image" \
     LEONAID_TEST_PWA_IMAGE="$pwa_image" \
     LEONAID_TEST_PUBLIC_IMAGE="$public_image" \
@@ -909,84 +911,56 @@ missing_staging_output=$(
       --env-file "$env_file" \
       --backup-manifest "$backup_manifest" \
       --release-manifest "$release_manifest" \
-      --ledger "$release_ledger" \
       --password-file "$restic_password_file" \
-      --credentials-file "$backup_credentials_file" \
-      --evidence-id PILOT-043-OPERATOR-NEGATIVE \
-      --occurred-at 2026-07-30T12:00:00Z 2>&1
-)
-missing_staging_status=$?
+      --credentials-file "$backup_credentials_file"
+}
+# A schema the release does not know (an installation newer than the release,
+# or a skipped release) stops the upgrade before the backup and the downtime.
+installed_revision=$(core_sql "SELECT version_num FROM alembic_version")
+backup_manifest_before=$(sha256sum "$backup_manifest")
+core_sql "UPDATE alembic_version SET version_num = '9999_future_release'" >/dev/null
+set +e
+unknown_schema_output=$(upgrade_operator 2>&1)
+unknown_schema_status=$?
 set -e
-if [ "$missing_staging_status" -eq 0 ]; then
-  echo "pilot-deployment-test: ERROR: production without staging promotion was accepted" >&2
+core_sql "UPDATE alembic_version SET version_num = '$installed_revision'" >/dev/null
+if [ "$unknown_schema_status" -eq 0 ]; then
+  echo "pilot-deployment-test: ERROR: an upgrade over an unknown schema was accepted" >&2
   exit 1
 fi
-if ! printf '%s' "$missing_staging_output" |
-  grep -Fq "production requires the same manifest that was verified in staging"; then
-  echo "pilot-deployment-test: ERROR: missing staging promotion is not diagnosable" >&2
+if ! printf '%s' "$unknown_schema_output" |
+  grep -Fq "this release does not know the installed database schema"; then
+  printf '%s\n' "$unknown_schema_output" | tail -n 30 >&2
+  echo "pilot-deployment-test: ERROR: the unknown schema is not diagnosable" >&2
   exit 1
 fi
-[ ! -e "$release_ledger" ] || {
-  echo "pilot-deployment-test: ERROR: rejected release changed the ledger" >&2
+[ "$(sha256sum "$backup_manifest")" = "$backup_manifest_before" ] || {
+  echo "pilot-deployment-test: ERROR: the refused upgrade took a backup" >&2
   exit 1
 }
-mkdir -p "$(dirname -- "$staging_ledger")"
-"$root/leonaid" pilot-release-record \
-  --manifest "$release_manifest" \
-  --ledger "$staging_ledger" \
-  --event staging_started \
-  --result passed \
-  --evidence-id PILOT-043-STAGING-OPERATOR \
-  --occurred-at 2026-07-30T12:01:00Z
-"$root/leonaid" pilot-release-record \
-  --manifest "$release_manifest" \
-  --ledger "$staging_ledger" \
-  --event staging_verified \
-  --result passed \
-  --evidence-id PILOT-043-STAGING-OPERATOR \
-  --occurred-at 2026-07-30T12:02:00Z
-staging_ledger_before=$(sha256sum "$staging_ledger")
-LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
-  LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
-  LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
-  LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
-  LEONAID_TEST_CORE_IMAGE="$core_image" \
-  LEONAID_TEST_WEB_IMAGE="$web_image" \
-  LEONAID_TEST_PWA_IMAGE="$pwa_image" \
-  LEONAID_TEST_PUBLIC_IMAGE="$public_image" \
-  "$root/leonaid" upgrade \
-    --env-file "$env_file" \
-    --backup-manifest "$backup_manifest" \
-    --release-manifest "$release_manifest" \
-    --ledger "$release_ledger" \
-    --staging-ledger "$staging_ledger" \
-    --password-file "$restic_password_file" \
-    --credentials-file "$backup_credentials_file" \
-    --evidence-id PILOT-043-PRODUCTION-OPERATOR \
-    --occurred-at 2026-07-30T12:03:00Z
-[ "$(sha256sum "$staging_ledger")" = "$staging_ledger_before" ] || {
-  echo "pilot-deployment-test: ERROR: upgrade changed the copied staging ledger" >&2
+if printf '%s' "$unknown_schema_output" | grep -Fq "maintenance"; then
+  echo "pilot-deployment-test: ERROR: the refused upgrade touched maintenance mode" >&2
+  exit 1
+fi
+upgrade_output=$(upgrade_operator 2>&1) || {
+  printf '%s\n' "$upgrade_output" | tail -n 40 >&2
+  echo "pilot-deployment-test: ERROR: the operator upgrade failed" >&2
   exit 1
 }
-docker run --rm \
-  --volume "$workspace:/proof:ro" \
-  "$PYTHON_IMAGE" \
-  python -c 'import json,pathlib
-def events(path):
-    return [
-        json.loads(line)
-        for line in pathlib.Path(path).read_text().splitlines()
-    ]
-staging=events("/proof/staging-host/release-ledger.jsonl")
-production=events("/proof/release-ledger.jsonl")
-assert [record["event"] for record in staging]==[
-  "staging_started","staging_verified",
-]
-assert [record["event"] for record in production]==[
-  "production_started","production_verified",
-]
-assert [record["sequence"] for record in production]==[1,2]
-assert len({record["manifestSha256"] for record in staging+production})==1'
+recovery_manifest=$(printf '%s\n' "$upgrade_output" |
+  sed -n 's/^upgrade: OK: .*; recovery point: //p')
+case "$recovery_manifest" in
+  "${backup_manifest%.json}".pre-upgrade-*.json) ;;
+  *)
+    printf '%s\n' "$upgrade_output" | tail -n 20 >&2
+    echo "pilot-deployment-test: ERROR: the upgrade names no kept recovery point" >&2
+    exit 1
+    ;;
+esac
+cmp -s "$recovery_manifest" "$backup_manifest" || {
+  echo "pilot-deployment-test: ERROR: the kept recovery point differs from the upgrade backup" >&2
+  exit 1
+}
 cp "$backup_manifest" "$manifest_proof_directory/manifest.json"
 docker run --rm \
   --env "EXPECTED_PROJECT=$project" \
@@ -1214,5 +1188,5 @@ docker run --rm \
 
 echo "pilot-deployment-test: OK: contract, empty start and real deployment doctor proven"
 echo "pilot-deployment-test: OK: operator deploy is manifest-bound, fail-closed and build-free"
-echo "pilot-deployment-test: OK: operator release enforces staging, backup, maintenance and migrations"
+echo "pilot-deployment-test: OK: operator upgrade enforces a known schema, backup, maintenance and migrations"
 echo "pilot-deployment-test: OK: operator backup/restore preserves four real data components"

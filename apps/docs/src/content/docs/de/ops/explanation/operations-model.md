@@ -27,8 +27,11 @@ ab, während abhängige Systeme in definierter Reihenfolge migrieren. Nach einer
 Schemaänderung führt der sichere Rückweg über einen Fresh-Volume-Restore statt
 über ein älteres Image auf neuen Daten.
 
-Produktion erhält nur einen SHA, der mit demselben Manifest in Staging geprüft
-wurde. Konfiguration, Secrets, Domains, Buckets, SMTP und Backupziel bleiben
-zwischen Staging und Produktion getrennt. Synthetische Tests belegen den
+Ein Upgrade ist ein Befehl, wie bei anderen selbst betriebenen Projekten: Er
+prüft, ob die Version die installierte Datenbank lesen kann, sichert, migriert
+und prüft den Zustand. Staging ist freiwillig: Spiele eine Produktionssicherung
+auf einem Staging-Host ein und führe dort zuerst dasselbe Upgrade aus.
+Konfiguration, Secrets, Domains, Buckets, SMTP und Backupziel bleiben zwischen
+Staging und Produktion getrennt. Synthetische Tests belegen den
 Mechanismus; Betreiber müssen DNS, TLS, Mailzustellung, Restore-Zeit und
 fachliche Freigabe in der echten Umgebung zusätzlich nachweisen.

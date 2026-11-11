@@ -10,62 +10,28 @@ import tempfile
 from pathlib import Path
 
 REGISTER = "specs/leonaid-pilot/DECISIONS.md"
+# Carrier, tax, invoice and legal texts are due at the first productive
+# start, together with the operations decisions.
+DEPLOY_DECISIONS = {
+    "PILOT-INV-001",
+    "PILOT-INV-002",
+    "PILOT-LEG-001",
+    "PILOT-MAIL-001",
+    "PILOT-OPS-001",
+    "PILOT-OPS-002",
+    "PILOT-OPS-004",
+    "PILOT-OPS-005",
+    "PILOT-OPS-006",
+    "PILOT-PRIV-002",
+    "PILOT-RUN-001",
+    "PILOT-TAX-001",
+}
 EXPECTED_OPEN_BY_GATE = {
-    "pilot-deploy": {
-        "PILOT-MAIL-001",
-        "PILOT-OPS-001",
-        "PILOT-OPS-002",
-        "PILOT-OPS-004",
-        "PILOT-OPS-005",
-        "PILOT-OPS-006",
-        "PILOT-RUN-001",
-    },
-    "pilot-import": {
-        "PILOT-MAIL-001",
-        "PILOT-OPS-001",
-        "PILOT-OPS-002",
-        "PILOT-OPS-004",
-        "PILOT-OPS-005",
-        "PILOT-OPS-006",
-        "PILOT-PRIV-001",
-        "PILOT-RUN-001",
-    },
-    "pilot-backup": {
-        "PILOT-MAIL-001",
-        "PILOT-OPS-001",
-        "PILOT-OPS-002",
-        "PILOT-OPS-003",
-        "PILOT-OPS-004",
-        "PILOT-OPS-005",
-        "PILOT-OPS-006",
-        "PILOT-RUN-001",
-    },
-    "pilot-restore": {
-        "PILOT-MAIL-001",
-        "PILOT-OPS-001",
-        "PILOT-OPS-002",
-        "PILOT-OPS-003",
-        "PILOT-OPS-004",
-        "PILOT-OPS-005",
-        "PILOT-OPS-006",
-        "PILOT-RUN-001",
-    },
-    "upgrade": {
-        "PILOT-INV-001",
-        "PILOT-INV-002",
-        "PILOT-LEG-001",
-        "PILOT-MAIL-001",
-        "PILOT-OPS-001",
-        "PILOT-OPS-002",
-        "PILOT-OPS-003",
-        "PILOT-OPS-004",
-        "PILOT-OPS-005",
-        "PILOT-OPS-006",
-        "PILOT-PRIV-001",
-        "PILOT-PRIV-002",
-        "PILOT-RUN-001",
-        "PILOT-TAX-001",
-    },
+    "pilot-deploy": DEPLOY_DECISIONS,
+    "pilot-import": DEPLOY_DECISIONS | {"PILOT-PRIV-001"},
+    "pilot-backup": DEPLOY_DECISIONS | {"PILOT-OPS-003"},
+    "pilot-restore": DEPLOY_DECISIONS | {"PILOT-OPS-003"},
+    "upgrade": DEPLOY_DECISIONS | {"PILOT-OPS-003", "PILOT-PRIV-001"},
 }
 
 
@@ -215,8 +181,8 @@ def main() -> None:
         contradiction = fixtures / "contradiction"
         bad_tax = mutate(
             accepted_register(canonical),
-            "| accepted | small_business | upgrade |",
-            "| accepted | full_accounting_required | upgrade |",
+            "| accepted | small_business | pilot-deploy |",
+            "| accepted | full_accounting_required | pilot-deploy |",
         )
         write_register(contradiction, bad_tax)
         run(
@@ -233,14 +199,14 @@ def main() -> None:
                 "| PILOT-INV-001 | Rechnung | Pflichtangaben und "
                 "Freigabeverantwortung | Rechtlicher Träger und "
                 "Steuerberatung | 2026-07-28 | ADR-0002 | PENDING | open | "
-                "PENDING | upgrade |"
+                "PENDING | pilot-deploy |"
             ),
             (
                 "| PILOT-INV-001 | Rechnung | Pflichtangaben und "
                 "Freigabeverantwortung | Rechtlicher Träger und "
                 "Steuerberatung | 2026-07-28 | ADR-0002 | "
                 "EVID-INV-APPROVAL-20260728 | accepted | confirmed | "
-                "upgrade |"
+                "pilot-deploy |"
             ),
         )
         write_register(invoice_contradiction, contradictory_invoice)
@@ -258,14 +224,14 @@ def main() -> None:
                 "| PILOT-TAX-001 | Steuer | Steuerbehandlung der "
                 "Krapfentaxi-Leistung | Steuerberatung und rechtlicher "
                 "Träger | 2026-07-28 | ADR-0002 | PENDING | open | PENDING | "
-                "upgrade |"
+                "pilot-deploy |"
             ),
             (
                 "| PILOT-TAX-001 | Steuer | Steuerbehandlung der "
                 "Krapfentaxi-Leistung | Steuerberatung und rechtlicher "
                 "Träger | 2026-07-28 | ADR-0002 | "
                 "EVID-TAX-SCOPE-20260728 | stop | "
-                "full_accounting_required | upgrade |"
+                "full_accounting_required | pilot-deploy |"
             ),
         )
         write_register(accounting, accounting_stop)
@@ -280,8 +246,8 @@ def main() -> None:
         einvoice = fixtures / "einvoice-stop"
         stop_text = mutate(
             accepted_register(canonical),
-            "| accepted | not_required | upgrade |",
-            "| stop | required | upgrade |",
+            "| accepted | not_required | pilot-deploy |",
+            "| stop | required | pilot-deploy |",
         )
         write_register(einvoice, stop_text)
         run(
