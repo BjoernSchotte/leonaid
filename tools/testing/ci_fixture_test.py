@@ -79,6 +79,40 @@ class FixtureBoundaryTests(unittest.TestCase):
             migration.write_text("changed schema")
             self.assertNotEqual(key(root), original)
 
+    def test_only_modules_the_construction_imports_invalidate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            files = {
+                "tools/typst/render_fixtures.py": "from leonaid.domain import invoices\n",
+                "src/leonaid/__init__.py": "",
+                "src/leonaid/domain/__init__.py": "",
+                "src/leonaid/domain/invoices.py": "from .errors import Error\n",
+                "src/leonaid/domain/errors.py": "Error = ValueError\n",
+                "src/leonaid/domain/push.py": "import json\n",
+                "tools/testing/ci_fixture.py": "import shared_stack\n",
+                "tools/testing/shared_stack.py": "from . import parallel_stacks\n",
+                "tools/testing/parallel_stacks.py": "",
+                "tools/testing/module_browser.sh": "true\n",
+            }
+            for name, text in files.items():
+                (root / name).parent.mkdir(parents=True, exist_ok=True)
+                (root / name).write_text(text)
+            original = key(root)
+            for unrelated in (
+                "src/leonaid/domain/push.py",
+                "tools/testing/module_browser.sh",
+            ):
+                (root / unrelated).write_text("# changed\n")
+                self.assertEqual(key(root), original, unrelated)
+            for imported in (
+                "src/leonaid/domain/errors.py",
+                "tools/testing/parallel_stacks.py",
+            ):
+                before = key(root)
+                (root / imported).write_text("# changed\n")
+                self.assertNotEqual(key(root), before, imported)
+
     def test_environment_is_deterministic_and_local(self):
         content = environment(ROOT)
         self.assertEqual(content, environment(ROOT))

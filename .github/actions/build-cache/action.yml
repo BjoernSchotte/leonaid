@@ -13,6 +13,9 @@ inputs:
   write:
     description: Only the designated Build job exports the normal cache
     default: "false"
+  stall-seconds:
+    description: Stop the first import after this long so the retry runs (median 72 s)
+    default: "360"
 runs:
   using: composite
   steps:
@@ -43,6 +46,21 @@ runs:
       run: |
         echo "BUILDX_BUILDER=$CACHE_BUILDER" >> "$GITHUB_ENV"
         echo "DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}" >> "$GITHUB_ENV"
+    # A GitHub cache blob download can stall without a timeout (one 44 kB
+    # blob hung 17 min in run 42974599020). Stopping the builder fails the
+    # first attempt; the retry boots it again and keeps the layers it has.
+    - name: Watch the first import for a stall
+      id: watchdog
+      shell: bash
+      env:
+        BUILDER_CONTAINER: buildx_buildkit_${{ steps.builder.outputs.name }}0
+        STALL_SECONDS: ${{ inputs.stall-seconds }}
+      run: |
+        nohup sh -c '
+          sleep "$1"
+          docker kill "$2"
+        ' watchdog "$STALL_SECONDS" "$BUILDER_CONTAINER" </dev/null >/dev/null 2>&1 &
+        echo "pid=$!" >> "$GITHUB_OUTPUT"
     # GitHub cache (429) and registry errors are transient. The first
     # attempt may fail; the retry below then decides the job. A real
     # Dockerfile error fails both attempts.
@@ -65,11 +83,17 @@ runs:
         # the actual harness loads runtime images into the Docker daemon.
         set: "*.output=type=oci,dest=/dev/null"
         github-token: ${{ github.token }}
+    - name: End the stall watch
+      if: always() && steps.watchdog.outputs.pid != ''
+      shell: bash
+      env:
+        WATCHDOG: ${{ steps.watchdog.outputs.pid }}
+      run: kill "$WATCHDOG" 2>/dev/null || true
     - name: Back off before retrying the cache import
       if: steps.bake.outcome == 'failure'
       shell: bash
       run: |
-        echo "::warning title=Infrastructure retry::Docker bake/cache import failed; retrying once in 30s"
+        echo "::warning title=Infrastructure retry::Docker bake/cache import failed or stalled; retrying once in 30s"
         sleep 30
     - name: Retry layer import and image build
       if: steps.bake.outcome == 'failure'

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import base64
 import hashlib
 import json
@@ -22,6 +23,94 @@ def file_digest(path):
         return hashlib.file_digest(source, "sha256").hexdigest()
 
 
+# Python programs the construction runs. Their imports inside the repository
+# are inputs; any other module (domain rules, request handlers, test leaves)
+# does not change the initialized data. Whole directories here rebuilt the
+# fixture in about half of all merges (about 4.5 min each).
+ENTRY_POINTS = (
+    "tools/testing/ci_fixture.py",
+    "tools/testing/reserve_compose_networks.py",
+    "tools/typst/render_fixtures.py",
+    "tools/twenty/provision.py",
+    "tools/surveys/network_override.py",
+)
+INPUT_PREFIXES = (
+    "src/leonaid/adapters/typst/",
+    "src/leonaid/modules/surveys/adapters/typst/",
+    "src/leonaid/modules/surveys/domain/",
+    "migrations/",
+    # Images, pins and the services whose volumes the fixture archives. Pilot,
+    # proxy, observability and security configuration build no data.
+    "infra/backup/",
+    "infra/compose/",
+    "infra/locks/",
+    "infra/rustfs/",
+    "infra/twenty/",
+    "infra/upgrade/",
+    "tools/twenty/",
+    "tools/typst/",
+    "tools/surveys/network",
+    "tests/fixtures/golden/",
+)
+INPUT_FILES = frozenset(
+    {
+        ".env.example",
+        "pyproject.toml",
+        "uv.lock",
+        "alembic.ini",
+        "tools/testing/shared-runtime.yml",
+        "tools/testing/survey-runtime.yml",
+    }
+)
+
+
+def _module_file(root, base, module):
+    """Repository file of an import, or None for the standard library."""
+    parts = module.split(".")
+    for directory in (base, root / "src"):
+        candidate = directory.joinpath(*parts)
+        for path in (candidate.with_suffix(".py"), candidate / "__init__.py"):
+            if path.is_file():
+                return path
+    return None
+
+
+def python_closure(root, entry_points=ENTRY_POINTS):
+    """Repository Python files reachable by imports from the entry points."""
+    seen = set()
+    pending = [root / name for name in entry_points if (root / name).is_file()]
+    while pending:
+        path = pending.pop()
+        if path in seen:
+            continue
+        seen.add(path)
+        for node in ast.walk(ast.parse(path.read_text(), str(path))):
+            if isinstance(node, ast.Import):
+                modules = [(None, alias.name) for alias in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                base = None
+                if node.level:
+                    base = path.parent
+                    for _ in range(node.level - 1):
+                        base = base.parent
+                module = node.module or ""
+                # `from package import name` may name a submodule.
+                modules = [(base, module)] + [
+                    (base, f"{module}.{alias.name}" if module else alias.name)
+                    for alias in node.names
+                ]
+            else:
+                continue
+            for base, module in modules:
+                if not module:
+                    continue
+                # Sibling scripts import each other without a package.
+                target = _module_file(root, base or path.parent, module)
+                if target is not None:
+                    pending.append(target)
+    return {path.relative_to(root).as_posix() for path in seen}
+
+
 def inputs(root):
     # Construction runs migrations, CRM provisioning and PDF rendering, never API
     # request handlers. Ordinary feature changes must not rebuild initialized data.
@@ -33,6 +122,7 @@ def inputs(root):
         .decode()
         .split("\0")
     )
+    imported = python_closure(root)
     return sorted(
         name
         for name in set(names)
@@ -40,31 +130,7 @@ def inputs(root):
         # Documentation next to the inputs (infra/**/README.md) builds nothing;
         # a README change rebuilt the fixture (about 4 min, run 42530398039).
         and not name.endswith(".md")
-        and (
-            name.startswith(
-                (
-                    "src/leonaid/adapters/typst/",
-                    "src/leonaid/modules/surveys/adapters/typst/",
-                    "src/leonaid/modules/surveys/domain/",
-                    "src/leonaid/domain/",
-                    "migrations/",
-                    "infra/",
-                    "tools/testing/",
-                    "tools/twenty/",
-                    "tools/typst/",
-                    "tools/surveys/network",
-                    "tests/fixtures/golden/",
-                )
-            )
-            or name
-            in {
-                ".env.example",
-                "pyproject.toml",
-                "uv.lock",
-                "alembic.ini",
-                "src/leonaid/application/invoice_documents.py",
-            }
-        )
+        and (name.startswith(INPUT_PREFIXES) or name in INPUT_FILES or name in imported)
     )
 
 
