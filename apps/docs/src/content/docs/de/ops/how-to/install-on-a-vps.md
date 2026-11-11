@@ -264,6 +264,9 @@ Hand ausfüllst:
   ihn startet die API in Produktion nicht);
 - die Hostnamen, wenn du `--public-domain` nicht angegeben hast;
 - `CADDY_ACME_EMAIL`, `MAIL_*` und den SMTP-Zugang;
+- `LEONAID_VAPID_SUBJECT`, den Kontakt des Betriebs für Push-Benachrichtigungen
+  (`mailto:betrieb@club.org`); leere ihn zusammen mit
+  `LEONAID_VAPID_PRIVATE_KEY`, um Push auszuschalten;
 - `TWENTY_ADMIN_PORT` nur, wenn Port 3020 auf dem Server belegt ist;
 - `TWENTY_MAIL_FROM_ADDRESS` und `TWENTY_MAIL_FROM_NAME`, den Absender der
   Twenty-eigenen Mails (siehe [Mail für LeonAid und Twenty](#mail-für-leonaid-und-twenty));

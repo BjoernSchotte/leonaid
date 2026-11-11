@@ -258,6 +258,9 @@ overwrites an existing file. It lists the keys that you still fill in by hand:
   start in production without it);
 - the host names, if you did not pass `--public-domain`;
 - `CADDY_ACME_EMAIL`, `MAIL_*` and the SMTP account;
+- `LEONAID_VAPID_SUBJECT`, the operator's contact for push notifications
+  (`mailto:operations@club.org`); empty it together with
+  `LEONAID_VAPID_PRIVATE_KEY` to leave push off;
 - `TWENTY_ADMIN_PORT` only if port 3020 is taken on the server;
 - `TWENTY_MAIL_FROM_ADDRESS` and `TWENTY_MAIL_FROM_NAME`, the sender of
   Twenty's own mail (see [Mail for LeonAid and Twenty](#mail-for-leonaid-and-twenty));

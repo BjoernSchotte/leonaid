@@ -264,6 +264,7 @@ values = {
   "LEONAID_ALLOWED_ORIGINS": "https://portal.leonaid.org",
   "TWENTY_ADMIN_PORT": os.environ["ADMIN_PORT"],
   "CADDY_ACME_EMAIL": "operations@leonaid.org",
+  "LEONAID_VAPID_SUBJECT": "mailto:operations@leonaid.org",
   "RUSTFS_BUCKET": "leonaid-production-club-111",
   "RESTIC_REPOSITORY": os.environ["REPOSITORY"],
   "LEONAID_BACKUP_MANIFEST_PATH": w + "/evidence/latest-backup-manifest.json",

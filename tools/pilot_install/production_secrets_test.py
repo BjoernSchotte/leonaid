@@ -72,8 +72,11 @@ def main() -> None:
                 raise AssertionError("pilot-secrets printed a secret")
         if len({values[key] for key in generated}) != len(generated):
             raise AssertionError("generated secrets are not distinct")
-        if "MAIL_SMTP_PASSWORD" not in result.stdout:
-            raise AssertionError("pilot-secrets must list the keys left to fill")
+        # Keys the doctor refuses until the operator sets them must be named,
+        # or the first sign of them is a blocked install.
+        for key in ("MAIL_SMTP_PASSWORD", "LEONAID_VAPID_SUBJECT"):
+            if key not in result.stdout:
+                raise AssertionError(f"pilot-secrets must list {key} to fill")
 
         before = first.read_bytes()
         again = run(root, first)
