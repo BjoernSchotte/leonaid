@@ -142,15 +142,15 @@ def require_template_response(
     return UUID(str(action["id"]))
 
 
-async def publish_version_three(connection: asyncpg.Connection[Any]) -> None:
+async def publish_version_four(connection: asyncpg.Connection[Any]) -> None:
     await connection.execute(
         """
         INSERT INTO action_template_version (
             template_key, version, display_name, description, presentation_theme
         )
         VALUES (
-            'krapfentaxi', 3, 'Krapfentaxi',
-            'Dritte reale Testversion mit angepasstem Preis.', 'krapfentaxi'
+            'krapfentaxi', 4, 'Krapfentaxi',
+            'Vierte reale Testversion mit angepasstem Preis.', 'krapfentaxi'
         )
         """
     )
@@ -159,7 +159,7 @@ async def publish_version_three(connection: asyncpg.Connection[Any]) -> None:
         INSERT INTO action_template_capability (
             template_key, template_version, capability
         )
-        VALUES ('krapfentaxi', 3, $1)
+        VALUES ('krapfentaxi', 4, $1)
         """,
         [
             (capability,)
@@ -179,7 +179,7 @@ async def publish_version_three(connection: asyncpg.Connection[Any]) -> None:
             pieces_per_unit, unit_price_minor, currency, sort_order
         )
         VALUES (
-            'krapfentaxi', 3, 'krapfenbox-24', 'Krapfenbox',
+            'krapfentaxi', 4, 'krapfenbox-24', 'Krapfenbox',
             'draft', 'box', 24, 4200, 'EUR', 0
         )
         """
@@ -193,7 +193,7 @@ async def publish_version_three(connection: asyncpg.Connection[Any]) -> None:
             require_billing_address, allow_message
         )
         VALUES (
-            'krapfentaxi', 3, 'sponsor-bestellung',
+            'krapfentaxi', 4, 'sponsor-bestellung',
             'Krapfenboxen 2028 bestellen',
             'Unterstützen Sie die nächste Krapfentaxi-Aktion.',
             'Bestellung absenden',
@@ -346,7 +346,7 @@ async def exercise(
         items = initial_list.json()["items"]
         if [(item["key"], item["version"]) for item in items] != [
             ("blank", 1),
-            ("krapfentaxi", 2),
+            ("krapfentaxi", 3),
         ]:
             raise ContractFailure(
                 "PoC list does not contain exactly the empty action and Krapfentaxi"
@@ -409,7 +409,38 @@ async def exercise(
         else:
             raise ContractFailure("published template version was mutable")
 
-        await publish_version_three(connection)
+        # The released version 3 takes donations: capability and the extra
+        # donation of the order form (ADR-0016). Older versions do not.
+        released = await client.post(
+            "/api/v1/actions/from-template",
+            json=template_payload(
+                key="krapfentaxi",
+                slug="krapfentaxi-template-spenden",
+                name="Krapfentaxi Template Spenden",
+            ),
+            cookies=cookies(tokens[KLARA_ID]),
+            headers=request_headers("create-released-v3"),
+        )
+        released.raise_for_status()
+        released_body = released.json()
+        if (
+            released_body["template"]["version"] != 3
+            or released_body["action"]["capabilities"]
+            != [
+                "acquisition",
+                "delivery",
+                "donations",
+                "invoicing",
+                "offerings",
+                "ordering",
+            ]
+            or released_body["orderForm"]["allowDonation"] is not True
+            or released_body["offerings"][0]["unitPriceMinor"] != 3600
+            or v1_body["orderForm"]["allowDonation"] is not False
+        ):
+            raise ContractFailure("Krapfentaxi version 3 does not take donations")
+
+        await publish_version_four(connection)
         current_list = await client.get(
             "/api/v1/action-templates",
             cookies=cookies(tokens[KLARA_ID]),
@@ -419,7 +450,7 @@ async def exercise(
         current_items = current_list.json()["items"]
         if [(item["key"], item["version"]) for item in current_items] != [
             ("blank", 1),
-            ("krapfentaxi", 3),
+            ("krapfentaxi", 4),
         ]:
             raise ContractFailure("latest published template version missing")
 
@@ -516,7 +547,7 @@ async def exercise(
             title="Krapfenboxen bestellen",
         )
 
-        v3_response = await client.post(
+        v4_response = await client.post(
             "/api/v1/actions/from-template",
             json=template_payload(
                 key="krapfentaxi",
@@ -524,12 +555,12 @@ async def exercise(
                 name="Krapfentaxi Template 2028",
             ),
             cookies=cookies(tokens[KLARA_ID]),
-            headers=request_headers("create-v3"),
+            headers=request_headers("create-v4"),
         )
-        v3_response.raise_for_status()
+        v4_response.raise_for_status()
         require_template_response(
-            v3_response.json(),
-            version=3,
+            v4_response.json(),
+            version=4,
             price=4200,
             title="Krapfenboxen 2028 bestellen",
         )

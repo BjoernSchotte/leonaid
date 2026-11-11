@@ -1225,6 +1225,9 @@ async def seed_identity(
             "requireDeliveryAddress": True,
             "requireBillingAddress": True,
             "allowMessage": True,
+            # The dev tenant offers the extra donation (ADR-0016): the action
+            # takes donations and the receiving body is configured.
+            "allowDonation": "donations" in current_action["capabilities"],
         },
     }
     await connection.execute(
@@ -1246,11 +1249,11 @@ async def seed_identity(
             id, action_id, form_key, status, title, introduction,
             submit_label, require_company_name, require_contact_name,
             require_email, require_phone, require_delivery_address,
-            require_billing_address, allow_message
+            require_billing_address, allow_message, allow_donation
         )
         VALUES (
             $1, $2, $3, 'active', $4, $5, $6,
-            $7, $8, $9, $10, $11, $12, $13
+            $7, $8, $9, $10, $11, $12, $13, $14
         )
         """,
         form_id,
@@ -1266,6 +1269,7 @@ async def seed_identity(
         form["requireDeliveryAddress"],
         form["requireBillingAddress"],
         form["allowMessage"],
+        form["allowDonation"],
     )
 
 

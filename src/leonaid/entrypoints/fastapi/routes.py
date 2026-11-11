@@ -339,6 +339,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     CommitmentInvoiceRecipientResponse,
     CommitmentListResponse,
     CommitmentLineResponse,
+    CommitmentDonationResponse,
     CommitmentRecordResponse,
     CancelCommitmentRequest,
     CommitmentCancellationResponse,
@@ -497,6 +498,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     OrderFormConfigurationResponse,
     SetActionBeneficiariesRequest,
     SetActionCapabilitiesRequest,
+    SetOrderFormDonationRequest,
     SetActionGoalRequest,
     SetActionPublicationRequest,
     SetResponsibleAdministratorsRequest,
@@ -1607,6 +1609,13 @@ def public_action_route_response(
                             route.order_form.configuration.require_billing_address
                         ),
                         allow_message=route.order_form.configuration.allow_message,
+                        donation_receiving_body=(
+                            legal_configuration.configuration.donations.legal_name
+                            if route.order_form.configuration.allow_donation
+                            and ActionCapability.DONATIONS in action.capabilities
+                            and legal_configuration.configuration.donations is not None
+                            else None
+                        ),
                         access_token=access_token,
                         privacy_notice_version=(
                             legal_configuration.configuration.consent_text_version
@@ -1705,6 +1714,7 @@ def charity_action_configuration_response(
                     configuration.order_form.configuration.require_billing_address
                 ),
                 allow_message=(configuration.order_form.configuration.allow_message),
+                allow_donation=(configuration.order_form.configuration.allow_donation),
             )
             if configuration.order_form is not None
             else None
@@ -1781,6 +1791,7 @@ def commitment_capture_context_response(
     context: CommitmentCaptureContext,
 ) -> CommitmentCaptureContextResponse:
     return CommitmentCaptureContextResponse(
+        donation_receiving_body=context.donation_receiving_body,
         internal_order_mails=context.internal_order_mails,
         delivery_day_mail=context.delivery_day_mail,
         delivery_configuration=delivery_configuration_response(
@@ -1834,6 +1845,20 @@ def commitment_record_response(
                 recipient_email=invoice.recipient_email,
             )
             if invoice is not None
+            else None
+        ),
+        donation=(
+            CommitmentDonationResponse(
+                pledged_minor=record.donation.pledged_minor,
+                donation_id=record.donation.donation_id,
+                number=record.donation.number,
+                status=(
+                    record.donation.status.value
+                    if record.donation.status is not None
+                    else None
+                ),
+            )
+            if record.donation is not None
             else None
         ),
         delivered=record.delivered,
@@ -2192,6 +2217,7 @@ def commitment_draft(body: CreateCommitmentRequest) -> CommitmentDraft:
     return CommitmentDraft(
         allow_full_window=body.allow_full_window,
         captured_at=body.captured_at,
+        donation_amount_minor=body.donation_amount_minor,
         delivery_window_id=body.delivery_window_id,
         delivery_contact=DeliveryContactSnapshot(**body.delivery_contact.model_dump())
         if body.delivery_contact
@@ -2567,6 +2593,7 @@ def public_order_draft(body: CreatePublicOrderRequest) -> PublicOrderDraft:
         binding_order_confirmed=body.binding_order_confirmed,
         privacy_notice_version=body.privacy_notice_version,
         website=body.website,
+        donation_amount_minor=body.donation_amount_minor,
     )
 
 
@@ -4140,6 +4167,37 @@ async def get_charity_action_configuration(
     return charity_action_configuration_response(action, configuration)
 
 
+@router.put(
+    "/api/v1/actions/{action_id}/order-form/donation",
+    operation_id="setOrderFormDonation",
+    response_model=CharityActionConfigurationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def set_order_form_donation(
+    action_id: UUID,
+    request: Request,
+    body: SetOrderFormDonationRequest,
+    response: Response,
+) -> CharityActionConfigurationResponse:
+    """Switch the optional extra donation of the action's order form.
+
+    The public form and the internal capture offer it only while the action
+    has the `donations` capability and a receiving body is configured.
+    Switching it on without the capability: 409
+    `order_form_donation_capability_missing`.
+    """
+    actor = await identity_service(request).authenticate(session_token(request))
+    action, configuration = await action_service(request).set_order_form_donation(
+        actor,
+        action_id,
+        allow_donation=body.allow_donation,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return charity_action_configuration_response(action, configuration)
+
+
 @router.get(
     "/api/v1/actions/{action_id}/dashboard",
     operation_id="getActionDashboard",
@@ -4388,6 +4446,7 @@ async def cancel_commitment(
             reason=body.reason,
             note=body.note,
             send_invoice_cancellation=body.send_invoice_cancellation,
+            cancel_donation=body.cancel_donation,
         ),
         fresh_login=fresh,
         idempotency_key=request.headers.get("Idempotency-Key", ""),
@@ -4862,6 +4921,7 @@ async def list_donations(
         receiving_body_name=listing.receiving_body_name,
         may_manage=listing.may_manage,
         may_send=listing.may_send,
+        donor_search=listing.donor_search,
         receipt_signing=(
             listing.receipt_signing.value if listing.receipt_signing else None
         ),

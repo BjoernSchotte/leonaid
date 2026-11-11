@@ -208,6 +208,41 @@ Ausstellen und Ungültig-Erklären dürfen der verantwortliche Charity-Admin
 und die globale Finanz-Buchungsrolle, mit frischer Anmeldung und
 Idempotency-Key. Versenden darf nur der verantwortliche Charity-Admin.
 
+### Die Zusatzspende im Bestellformular
+
+Das Bestellformular einer Aktion kann eine freiwillige Zusatzspende anbieten
+(`allow_donation` am Formular der Aktion und der Vorlage, Standard aus). Das
+Feld erscheint nur, wenn zusätzlich die Aktion die Fähigkeit `donations` hat
+und eine empfangende Körperschaft aktiv ist. Den Schalter stellt die
+Aktionsleitung auch bei laufender Aktion; die Fähigkeit selbst bleibt
+gesperrt (D-D4). Solange der Schalter an ist, lässt sich die Fähigkeit nicht
+entfernen. Die Krapfentaxi-Vorlage bekommt Version 3 mit Fähigkeit und
+Schalter; bestehende Aktionen behalten ihre Kopie.
+
+Der Betrag (1,00 € bis 10.000,00 €) steht an der Bestellung
+(`commitment.donation_pledge_minor`) und gehört nicht zur Bestellsumme. Er
+ist Teil des Idempotenz-Fingerabdrucks. Die Spende entsteht mit ihrer Nummer
+in der Transaktion, in der die Bestellung verbindlich wird: sofort bei einer
+öffentlichen Bestellung, beim Abschluss bei einem internen Entwurf. Spender
+ist der Rechnungsempfänger der Bestellung; eine Bestellung mit Spende braucht
+deshalb einen vollständigen Rechnungsempfänger, um verbindlich zu werden.
+
+Bei einer öffentlichen Bestellung geht die Spendenzusage von selbst per
+E-Mail hinaus. Der Versandauftrag entsteht in der Transaktion der Bestellung
+und wartet auf das PDF; er hat keinen anfordernden Benutzer. Bei einer von
+Mitgliedern erfassten Bestellung sendet die Aktionsleitung die Zusage. Die
+Bestellbestätigung nennt die Spende in einem eigenen Absatz.
+
+Beim Storno der Bestellung wird eine unbezahlte Spende mit storniert, wenn
+die Option „Spende ebenfalls stornieren“ gesetzt bleibt (Standard). Eine
+bezahlte Spende bleibt immer bestehen.
+
+„Spende erfassen“ kann den Spender unter den Sponsoren der Aktion suchen
+(die Parteien mit einer Zuordnung in der Aktion). Die Auswahl füllt Name,
+Postleitzahl, Ort und E-Mail und verknüpft die Spende mit dem CRM-Kontakt.
+Eine Suche über das ganze CRM gibt es nicht: Der Suchindex hält nur Name und
+Ort (D-S1), und die Straße liefert der vorhandene CRM-Lesezugriff nicht.
+
 ## Folgen
 
 - Neue Tabellen `donation`, `donation_payment_withdrawal` und
@@ -226,4 +261,4 @@ Idempotency-Key. Versenden darf nur der verantwortliche Charity-Admin.
 
 - Sachspenden, Aufwandsspenden, Sammelbestätigungen und Spenden in anderer
   Währung gibt es nicht.
-- Die Zusatzspende im Bestellformular regelt Stufe 6.
+- Eine Spende ohne Bestellung im öffentlichen Formular gibt es nicht.

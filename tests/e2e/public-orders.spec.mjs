@@ -204,10 +204,22 @@ test("a new company and a private person order in the guided form", async ({
     quantity: 3,
     recipient: "Paula Privat",
   });
+  // The form offers a voluntary extra donation and names who receives it.
+  // It is its own line, not part of the order total.
+  const donation = form.getByTestId("order-donation-amount");
+  await expect(form.locator("[data-order-donation]")).toContainText(
+    "Empfänger ist Förderverein Lions Club Musterstadt e. V.",
+  );
+  await expect(form.getByTestId("order-donation-line")).toBeHidden();
+  await donation.fill("25");
+  await donation.blur();
+  await expect(form.getByTestId("order-donation-line")).toContainText("25,00");
   submitted = await submitOrder(form);
+  await expect(page.locator("[data-order-donation-note]")).toBeVisible();
   proof.orders.push({
     scenario: "person-without-company",
     publicReference: submitted.reference,
+    donationMinor: 2500,
   });
   await page.screenshot({
     path: `${artifactDirectory}/public-order-success-person.png`,
@@ -256,7 +268,9 @@ test("a double submit sends one order request and shows the confirmation", async
     success.getByRole("heading", { name: "Danke für Ihre Bestellung!" }),
   ).toBeVisible();
   await expect(success.locator("[data-order-total]")).toHaveText(/36,00/);
-  await expect(success.locator(".public-next li")).toHaveCount(5);
+  // The sixth step, the donation pledge, shows only for an order with one.
+  await expect(success.locator(".public-next li:not([hidden])")).toHaveCount(5);
+  await expect(success.locator("[data-order-donation-note]")).toBeHidden();
   await expect(
     success.getByRole("link", { name: "Zur Aktionsseite" }),
   ).toBeVisible();

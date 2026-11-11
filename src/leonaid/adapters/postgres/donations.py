@@ -28,13 +28,24 @@ from leonaid.application.donations import (
     DonationPledgeDeliveryContext,
     DonationPledgeDeliveryDraft,
     DonationRecord,
+    pledge_delivery_draft,
 )
 from leonaid.application.errors import Conflict, ResourceNotFound
 from leonaid.application.invoice_deliveries import (
     INVOICE_MAIL_SEND_REQUESTED,
     InvoiceDelivery,
 )
-from leonaid.domain.commitments import Money
+from leonaid.application.order_mails import (
+    RECIPIENT_LIMIT,
+    RECIPIENT_WINDOW,
+    limit_digest,
+    mailbox_key,
+)
+from leonaid.domain.commitments import (
+    BuyerSnapshot,
+    InvoiceRecipientSnapshot,
+    Money,
+)
 from leonaid.domain.document_series import DocumentSeriesKind
 from leonaid.domain.documents import (
     DOCUMENT_RENDER_REQUESTED,
@@ -50,6 +61,7 @@ from leonaid.domain.donations import (
     DonationPledgeDocument,
     DonationSource,
     DonationStatus,
+    DonorPartyKind,
     DonorSnapshot,
     ReceivingBody,
 )
@@ -287,6 +299,194 @@ async def insert_donation(
     return donation
 
 
+async def donation_offered(
+    connection: asyncpg.Connection[Any], action_id: UUID
+) -> str | None:
+    """Name of the receiving body when an order of the action may carry an
+    extra donation: the form allows it, the action takes donations and a
+    receiving body is configured. None otherwise."""
+
+    allowed = await connection.fetchval(
+        """
+        SELECT form.allow_donation AND EXISTS (
+            SELECT 1 FROM charity_action_capability
+            WHERE action_id = form.action_id AND capability = 'donations'
+        )
+        FROM order_form_configuration AS form
+        WHERE form.action_id = $1
+        """,
+        action_id,
+    )
+    if not allowed:
+        return None
+    configured = await active_receiving_body(connection)
+    return configured[1].legal_name if configured else None
+
+
+async def pledge_order_donation(
+    connection: asyncpg.Connection[Any],
+    *,
+    action_id: UUID,
+    commitment_id: UUID,
+    amount_minor: int,
+    recipient: InvoiceRecipientSnapshot,
+    buyer: BuyerSnapshot,
+    source: DonationSource,
+    actor_user_id: UUID | None,
+    request_id: str,
+    occurred_at: datetime,
+    send_pledge: bool,
+) -> Donation:
+    """The donation of an order, created with its number in the transaction
+    in which the order becomes binding. Donor is the order's invoice
+    recipient. With ``send_pledge`` the pledge goes out by mail by itself
+    (public form); the mail job waits for the PDF."""
+
+    donation = await insert_donation(
+        connection,
+        action_id=action_id,
+        draft=DonationDraft(
+            donor=DonorSnapshot(
+                name=recipient.recipient_name,
+                street_line_1=recipient.street_line_1,
+                postal_code=recipient.postal_code,
+                city=recipient.city,
+                country_code=recipient.country_code,
+                email=recipient.email,
+                party_kind=DonorPartyKind(buyer.party_kind.value),
+                twenty_id=buyer.twenty_id,
+            ),
+            pledged=Money(amount_minor, "EUR"),
+            source=source,
+            commitment_id=commitment_id,
+        ),
+        actor_user_id=actor_user_id,
+        idempotency_key=f"order-donation:{commitment_id}",
+        request_id=request_id,
+        occurred_at=occurred_at,
+    )
+    if send_pledge and donation.donor.email:
+        if not await _automatic_pledge_allowed(
+            connection, donation.donor.email, occurred_at
+        ):
+            # The donation stands; a manager can send the pledge by hand.
+            await _audit(
+                connection,
+                action_id=action_id,
+                actor_user_id=actor_user_id,
+                event_type="donation_pledge_delivery_skipped",
+                donation_id=donation.id,
+                request_id=request_id,
+                payload={"number": donation.number, "reason": "recipient_limit"},
+                occurred_at=occurred_at,
+            )
+            return donation
+        context = await AsyncpgDonationRepository.read_pledge_delivery_context(
+            connection,
+            action_id=action_id,
+            donation_id=donation.id,
+            document_may_be_pending=True,
+        )
+        await AsyncpgDonationRepository.send_pledge_in(
+            connection,
+            pledge_delivery_draft(
+                context,
+                idempotency_key=f"order-donation-pledge:{donation.id}",
+                requested_by_user_id=actor_user_id,
+                requested_at=occurred_at,
+            ),
+            request_id=request_id,
+        )
+    return donation
+
+
+async def _automatic_pledge_allowed(
+    connection: asyncpg.Connection[Any], address: str, occurred_at: datetime
+) -> bool:
+    """Whether one more pledge may go out by itself to the mailbox.
+
+    The public form reaches this without a login, and the address is the
+    sender's choice. The limit of the order mails applies: at most
+    ``RECIPIENT_LIMIT`` automatic pledges per mailbox and
+    ``RECIPIENT_WINDOW`` (``+tags`` and Gmail dots count as one mailbox).
+    The lock makes concurrent orders for one mailbox count one after the
+    other.
+    """
+
+    await connection.execute(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+        f"donation-pledge-mailbox:{limit_digest(address)}",
+    )
+    mailbox = mailbox_key(address)
+    rows = await connection.fetch(
+        """
+        SELECT recipient_email_snapshot FROM invoice_delivery
+        WHERE requested_by_user_id IS NULL
+          AND donation_id IS NOT NULL
+          AND requested_at >= $1
+        """,
+        occurred_at - RECIPIENT_WINDOW,
+    )
+    recent = sum(
+        1
+        for row in rows
+        if mailbox_key(str(row["recipient_email_snapshot"])) == mailbox
+    )
+    return recent < RECIPIENT_LIMIT
+
+
+async def cancel_order_donation(
+    connection: asyncpg.Connection[Any],
+    *,
+    action_id: UUID,
+    commitment_id: UUID,
+    reason: str,
+    actor_user_id: UUID,
+    request_id: str,
+    occurred_at: datetime,
+) -> str | None:
+    """Cancels the unpaid donation of a cancelled order; returns its number.
+    A paid donation is never cancelled with the order."""
+
+    row = await connection.fetchrow(
+        """
+        SELECT id, number FROM donation
+        WHERE commitment_id = $1 AND action_id = $2 AND status = 'pledged'
+        FOR UPDATE
+        """,
+        commitment_id,
+        action_id,
+    )
+    if row is None:
+        return None
+    cancellation = DonationCancellation(
+        reason=reason, cancelled_by_user_id=actor_user_id, cancelled_at=occurred_at
+    )
+    await connection.execute(
+        """
+        UPDATE donation
+        SET status = 'cancelled', cancel_reason = $2, cancelled_by_user_id = $3,
+            cancelled_at = $4, updated_at = $4
+        WHERE id = $1 AND status = 'pledged'
+        """,
+        row["id"],
+        cancellation.reason,
+        actor_user_id,
+        occurred_at,
+    )
+    await _audit(
+        connection,
+        action_id=action_id,
+        actor_user_id=actor_user_id,
+        event_type="donation_cancelled",
+        donation_id=row["id"],
+        request_id=request_id,
+        payload={"number": str(row["number"]), "withOrder": str(commitment_id)},
+        occurred_at=occurred_at,
+    )
+    return str(row["number"])
+
+
 def _pledge_paid() -> Conflict:
     return Conflict(
         "donation_pledge_paid",
@@ -341,7 +541,12 @@ class AsyncpgDonationRepository:
                         SELECT 1 FROM charity_action_capability
                         WHERE action_id = charity_action.id
                           AND capability = 'donations'
-                    ) AS donations_enabled
+                    ) AS donations_enabled,
+                    EXISTS (
+                        SELECT 1 FROM charity_action_capability
+                        WHERE action_id = charity_action.id
+                          AND capability = 'acquisition'
+                    ) AS acquisition_enabled
                 FROM charity_action WHERE id = $1
                 """,
                 action_id,
@@ -373,6 +578,7 @@ class AsyncpgDonationRepository:
             receiving_body_name=configured[1].legal_name if configured else None,
             may_manage=False,
             may_send=False,
+            donor_search=bool(action["acquisition_enabled"]),
             receipt_signing=configured[1].signing if configured else None,
             receipt_notice_valid_until=(
                 notice_valid_until(configured[1]) if configured else None
@@ -1057,8 +1263,8 @@ class AsyncpgDonationRepository:
                     connection, draft, request_id=request_id
                 )
 
+    @staticmethod
     async def send_pledge_in(
-        self,
         connection: asyncpg.Connection[Any],
         draft: DonationPledgeDeliveryDraft,
         *,

@@ -154,6 +154,10 @@ class OrderFormConfiguration:
     require_delivery_address: bool
     require_billing_address: bool
     allow_message: bool
+    # The form offers an optional extra donation (ADR-0016). It shows only
+    # while the action has the `donations` capability and a receiving body
+    # is configured.
+    allow_donation: bool = False
 
     def __post_init__(self) -> None:
         if not SLUG.fullmatch(self.form_key):
@@ -195,6 +199,7 @@ class OrderFormConfiguration:
             "requireDeliveryAddress": self.require_delivery_address,
             "requireBillingAddress": self.require_billing_address,
             "allowMessage": self.allow_message,
+            "allowDonation": self.allow_donation,
         }
 
     @classmethod
@@ -211,6 +216,8 @@ class OrderFormConfiguration:
             require_delivery_address=bool(payload["requireDeliveryAddress"]),
             require_billing_address=bool(payload["requireBillingAddress"]),
             allow_message=bool(payload["allowMessage"]),
+            # Snapshots written before the extra donation have no such key.
+            allow_donation=bool(payload.get("allowDonation", False)),
         )
 
 
@@ -531,4 +538,14 @@ def _validate_configuration(
         raise DomainInvariantError(
             "template_ordering_capability_missing",
             "Ein Bestellformular benötigt die Capability Bestellungen.",
+        )
+    if (
+        order_form is not None
+        and order_form.allow_donation
+        and ActionCapability.DONATIONS not in capabilities
+    ):
+        raise DomainInvariantError(
+            "order_form_donation_capability_missing",
+            "Die Zusatzspende im Bestellformular benötigt die Funktion Spenden. "
+            "Schalten Sie zuerst die Zusatzspende im Formular aus.",
         )

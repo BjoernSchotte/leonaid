@@ -230,6 +230,7 @@ function listResponse(
     actionId,
     actionName: "Krapfentaxi 2026",
     currency: "EUR",
+    donorSearch: false,
     items,
     mayManage: true,
     maySend: true,
@@ -528,6 +529,80 @@ describe("DonationAdminPage", () => {
     });
     await waitFor(() => expect(rowShown("SP26-0001")).toBe(false));
     expect(rowShown("SP26-0002")).toBe(true);
+  });
+
+  it("takes the donor from a sponsor of the action and keeps the CRM link", async () => {
+    const client = await renderPage({ list: { donorSearch: true } });
+    const listAcquisitionParties = vi.fn(async () => ({
+      items: [
+        {
+          assignedAcquirerIds: [],
+          city: "Musterstadt",
+          displayName: "Bäckerei Sonnenschein GmbH",
+          email: "kontakt@sonnenschein.example",
+          partyKind: "company",
+          postalCode: "12345",
+          twentyId: "40000000-0000-4000-8000-000000000001",
+        },
+      ],
+      limit: 8,
+      offset: 0,
+      total: 1,
+    }));
+    Object.assign(client, { listAcquisitionParties });
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /Spende erfassen/ })[0]!,
+    );
+    const dialog = within(await screen.findByRole("dialog"));
+    fireEvent.change(dialog.getByTestId("donation-donor-search-input"), {
+      target: { value: "Sonn" },
+    });
+    fireEvent.click(await dialog.findByTestId("donation-donor-pick"));
+    expect(listAcquisitionParties).toHaveBeenCalledWith(actionId, {
+      limit: 8,
+      q: "Sonn",
+    });
+    expect(
+      (dialog.getByTestId("donation-donor-name") as HTMLInputElement).value,
+    ).toBe("Bäckerei Sonnenschein GmbH");
+    expect(
+      (dialog.getByTestId("donation-donor-city") as HTMLInputElement).value,
+    ).toBe("Musterstadt");
+    expect(dialog.getByTestId("donation-donor-party").textContent).toContain(
+      "Bäckerei Sonnenschein GmbH",
+    );
+    // The CRM read has no street: it is typed.
+    fireEvent.change(dialog.getByTestId("donation-donor-street"), {
+      target: { value: "Hauptstraße 5" },
+    });
+    fireEvent.change(dialog.getByTestId("donation-amount"), {
+      target: { value: "50" },
+    });
+    await act(async () => {
+      fireEvent.click(dialog.getByTestId("create-donation"));
+    });
+    const [, body] = client.createDonation.mock.calls[0] as unknown as [
+      string,
+      { donor: Record<string, unknown> },
+    ];
+    expect(body.donor).toMatchObject({
+      city: "Musterstadt",
+      email: "kontakt@sonnenschein.example",
+      name: "Bäckerei Sonnenschein GmbH",
+      partyKind: "company",
+      postalCode: "12345",
+      streetLine1: "Hauptstraße 5",
+      twentyId: "40000000-0000-4000-8000-000000000001",
+    });
+  });
+
+  it("offers no CRM search when the action has no sponsors to search", async () => {
+    await renderPage();
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /Spende erfassen/ })[0]!,
+    );
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.queryByTestId("donation-donor-search")).toBeNull();
   });
 
   it("says what is missing without a receiving body and offers no entry", async () => {

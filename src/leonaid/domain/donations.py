@@ -28,6 +28,9 @@ from leonaid.domain.invoices import (
 
 MINIMUM_PLEDGE_MINOR = 100
 MAXIMUM_PLEDGE_MINOR = 100_000_000
+# What a buyer may add to an order as an extra donation (spec §8.6).
+ORDER_DONATION_MINIMUM_MINOR = 100
+ORDER_DONATION_MAXIMUM_MINOR = 1_000_000
 REASON_MINIMUM = 8
 TAX_NUMBER = re.compile(r"^[0-9][0-9 /]{5,24}[0-9]$")
 

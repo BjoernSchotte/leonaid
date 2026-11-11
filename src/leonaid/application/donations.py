@@ -85,6 +85,9 @@ class DonationList:
     # notice carries one (§ 63 Abs. 5 AO); None without a receiving body.
     receipt_signing: ReceiptSigning | None = None
     receipt_notice_valid_until: date | None = None
+    # "Spende erfassen" can look up the donor among the action's sponsors:
+    # the action has the acquisition capability and the actor manages it.
+    donor_search: bool = False
 
     @property
     def received_total(self) -> Money:
@@ -145,7 +148,8 @@ class DonationPledgeDeliveryDraft:
     recipient_email: str
     subject: str
     text: str
-    requested_by_user_id: UUID
+    # None: the pledge mail that follows a public order by itself.
+    requested_by_user_id: UUID | None
     requested_at: datetime
 
 
@@ -153,7 +157,7 @@ def pledge_delivery_draft(
     context: DonationPledgeDeliveryContext,
     *,
     idempotency_key: str,
-    requested_by_user_id: UUID,
+    requested_by_user_id: UUID | None,
     requested_at: datetime,
 ) -> DonationPledgeDeliveryDraft:
     """The cover mail of a donation pledge; sender is the receiving body."""
@@ -321,6 +325,9 @@ class DonationService:
             may_send=_may_send(actor, action_id),
             receipt_signing=listing.receipt_signing,
             receipt_notice_valid_until=listing.receipt_notice_valid_until,
+            donor_search=listing.donor_search
+            and actor.account.can_authenticate
+            and may_manage_action(actor, action_id),
         )
 
     async def create(

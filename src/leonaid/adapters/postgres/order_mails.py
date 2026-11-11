@@ -20,12 +20,13 @@ from leonaid.adapters.postgres.order_mail_jobs import (
 from leonaid.application.order_mails import (
     ORDER_MAIL_KEY_PREFIXES,
     OrderCancellationFacts,
+    OrderDonationFacts,
     OrderMailFacts,
     OrderMailKind,
     mailbox_key,
 )
 from leonaid.domain.calendar import INSTALLATION_TIME_ZONE
-from leonaid.domain.commitments import CommitmentStatus
+from leonaid.domain.commitments import CommitmentStatus, Money
 
 __all__ = [
     "AsyncpgOrderMailReader",
@@ -95,7 +96,17 @@ class AsyncpgOrderMailReader:
                           AND capability.capability = 'delivery'
                     ) AS delivery_capability,
                     delivery_settings.timezone AS delivery_zone,
-                    delivery.state AS drop_state
+                    delivery.state AS drop_state,
+                    donation.pledged_minor AS donation_minor,
+                    donation.currency AS donation_currency,
+                    donation.number AS donation_number,
+                    donation.pledge_snapshot -> 'body' ->> 'legalName'
+                        AS donation_body,
+                    EXISTS (
+                        SELECT 1 FROM invoice_delivery AS pledge_mail
+                        WHERE pledge_mail.donation_id = donation.id
+                          AND pledge_mail.requested_by_user_id IS NULL
+                    ) AS donation_pledge_mailed
                 FROM commitment
                 JOIN charity_action AS action ON action.id = commitment.action_id
                 LEFT JOIN action_buyer_mail_configuration AS mails
@@ -104,6 +115,9 @@ class AsyncpgOrderMailReader:
                   ON delivery_settings.action_id = commitment.action_id
                 LEFT JOIN commitment_delivery AS delivery
                   ON delivery.commitment_id = commitment.id
+                LEFT JOIN donation
+                  ON donation.commitment_id = commitment.id
+                 AND donation.status <> 'cancelled'
                 WHERE commitment.id = $1
                 """,
                 commitment_id,
@@ -145,6 +159,18 @@ class AsyncpgOrderMailReader:
             commitment=commitment,
             ordered_at=row["created_at"],
             cancellation=cancellation,
+            donation=(
+                OrderDonationFacts(
+                    amount=Money(
+                        int(row["donation_minor"]), str(row["donation_currency"])
+                    ),
+                    number=str(row["donation_number"]),
+                    receiving_body=str(row["donation_body"]),
+                    pledge_mailed=bool(row["donation_pledge_mailed"]),
+                )
+                if row["donation_number"] is not None
+                else None
+            ),
             internal_order_mails=bool(row["internal_order_mails"]),
             action_status=str(row["action_status"]),
             invoicing=bool(row["invoicing"]),

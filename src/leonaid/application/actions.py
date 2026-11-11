@@ -203,6 +203,16 @@ class CharityActionRepository(Protocol):
         action_id: UUID,
     ) -> ActionConfiguration | None: ...
 
+    async def set_order_form_donation(
+        self,
+        action_id: UUID,
+        *,
+        allow_donation: bool,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> None: ...
+
     async def get_management(
         self,
         action_id: UUID,
@@ -905,6 +915,46 @@ class CharityActionService:
             request_id=request_id,
             occurred_at=datetime.now(timezone.utc),
         )
+
+    async def set_order_form_donation(
+        self,
+        actor: IdentityPrincipal,
+        action_id: UUID,
+        *,
+        allow_donation: bool,
+        request_id: str,
+    ) -> tuple[CharityAction, ActionConfiguration]:
+        """Switches the optional extra donation of the action's order form.
+
+        Unlike the capabilities this is no part of what an action is: a
+        manager may switch it while the action runs. Switching it on needs
+        the `donations` capability.
+        """
+
+        action = await self._managed_action(actor, action_id)
+        configuration = await self._repository.get_configuration(action_id)
+        if configuration is None or configuration.order_form is None:
+            raise Conflict(
+                "order_form_missing",
+                "Diese Charity-Aktion besitzt kein Bestellformular.",
+            )
+        if allow_donation and ActionCapability.DONATIONS not in action.capabilities:
+            raise Conflict(
+                "order_form_donation_capability_missing",
+                "Die Zusatzspende im Bestellformular benötigt die Funktion "
+                "Spenden dieser Aktion.",
+            )
+        if configuration.order_form.configuration.allow_donation != allow_donation:
+            await self._repository.set_order_form_donation(
+                action_id,
+                allow_donation=allow_donation,
+                actor_user_id=actor.account.id,
+                request_id=request_id,
+                occurred_at=datetime.now(timezone.utc),
+            )
+            configuration = await self._repository.get_configuration(action_id)
+            assert configuration is not None
+        return action, configuration
 
     async def set_beneficiaries(
         self,

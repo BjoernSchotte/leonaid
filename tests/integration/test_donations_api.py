@@ -683,6 +683,8 @@ class Proof:
         listing = await self.listing(session=finance)
         assert listing["mayManage"] is False
         assert listing["maySend"] is False
+        # No acquisition capability: no donor lookup among sponsors.
+        assert listing["donorSearch"] is False
         assert len(listing["items"]) == 4
         self.error(
             await finance.post(

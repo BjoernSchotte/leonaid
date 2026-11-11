@@ -3,19 +3,26 @@
  * §10.4, against the in-memory QueueStore through the real controller
  * logic where it needs no browser, and as pure functions otherwise.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import type { CommitmentCaptureContextResponse } from "@leonaid/api-client";
+import type {
+  CommitmentCaptureContextResponse,
+  LeonAidApiClient,
+} from "@leonaid/api-client";
 import {
+  MemoryQueueStore,
   acceptPrice,
   asDraft,
   asVisit,
   bookAnyway,
   conflictText,
+  drainQueue,
   followUpDueAt,
+  minimizeCaptureContext,
   nextSendable,
   preflightConflict,
   resolutionsFor,
+  sendEntry,
   withWindow,
   type ActivityEntry,
   type CommitmentEntry,
@@ -261,5 +268,111 @@ describe("my follow-up (§11.4)", () => {
       local.getDate(),
     ]).toEqual([2026, 11, 12]);
     expect([local.getHours(), local.getMinutes()]).toEqual([9, 0]);
+  });
+});
+
+describe("extra donation with an order (mails-documents-donations-push §8.6)", () => {
+  const withDonation = (code = "", details: Record<string, unknown> = {}) => {
+    const entry = order(code, details);
+    return {
+      ...entry,
+      request: { ...entry.request, donationAmountMinor: 2_550 },
+    } as CommitmentEntry;
+  };
+
+  it("replays a queued order with the donation of its stored request", async () => {
+    const store = new MemoryQueueStore();
+    await store.put({
+      ...withDonation(),
+      lastError: null,
+      state: "queued",
+    } as QueueEntry);
+    const createCommitment = vi.fn(async () => ({ id: "c1" }));
+    const client = { createCommitment } as unknown as LeonAidApiClient;
+    const report = await drainQueue({
+      now: () => NOW,
+      send: (entry) => sendEntry(client, entry),
+      store,
+    });
+    expect(report.accepted).toHaveLength(1);
+    expect(createCommitment).toHaveBeenCalledTimes(1);
+    expect(createCommitment).toHaveBeenCalledWith(
+      "action",
+      expect.objectContaining({
+        capturedAt: NOW.toISOString(),
+        donationAmountMinor: 2_550,
+        readyForReview: true,
+      }),
+      expect.objectContaining({
+        headers: { "Idempotency-Key": "pwa-q:entry" },
+      }),
+    );
+  });
+
+  it("sends no donation field for an order without one", async () => {
+    const createCommitment = vi.fn(async () => ({ id: "c1" }));
+    await sendEntry(
+      { createCommitment } as unknown as LeonAidApiClient,
+      order(""),
+    );
+    expect(createCommitment.mock.calls[0]).toBeDefined();
+    const [, body] = createCommitment.mock.calls[0] as unknown as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect("donationAmountMinor" in body).toBe(false);
+  });
+
+  it("keeps the donation through the acquirer's choices", () => {
+    const priced = acceptPrice(
+      withDonation("commitment_price_changed", {
+        lines: [{ offeringId: "krapfen", unitPriceMinor: 3800 }],
+        totalMinor: 7600,
+      }),
+    );
+    expect(priced?.request.donationAmountMinor).toBe(2_550);
+    expect(
+      bookAnyway(withDonation("delivery_window_full")).request
+        .donationAmountMinor,
+    ).toBe(2_550);
+    expect(
+      asDraft(withDonation("delivery_window_full")).request.donationAmountMinor,
+    ).toBe(2_550);
+  });
+
+  it("says in the queue why Core refused the donation", () => {
+    expect(
+      conflictText(
+        withDonation("commitment_donation_not_offered"),
+        "Krapfentaxi 2026",
+      ),
+    ).toBe(
+      "Krapfentaxi 2026 bietet keine Zusatzspende mehr an. Verwirf den Eintrag und erfasse die Bestellung ohne Zusatzspende neu.",
+    );
+    expect(
+      conflictText(withDonation("commitment_donation_recipient_required"), ""),
+    ).toContain("braucht einen vollständigen Rechnungsempfänger");
+    expect(
+      conflictText(withDonation("commitment_donation_amount_invalid"), ""),
+    ).toContain("zwischen 1,00 € und 10.000,00 €");
+    expect(
+      resolutionsFor(withDonation("commitment_donation_not_offered")),
+    ).toEqual(["discard"]);
+  });
+
+  it("keeps the receiving body in the device copy of the capture context", () => {
+    const context: CommitmentCaptureContextResponse = {
+      actionId: "action",
+      actionName: "Krapfentaxi 2026",
+      deliveryConfiguration: null,
+      deliveryDayMail: false,
+      donationReceivingBody: "Lions Hilfswerk Beispielstadt e. V.",
+      internalOrderMails: false,
+      offerings: [],
+    };
+    expect(minimizeCaptureContext(context)).toEqual(context);
+    // A copy from before the field existed offers no donation.
+    const { donationReceivingBody: _dropped, ...old } = context;
+    expect(minimizeCaptureContext(old).donationReceivingBody).toBeNull();
   });
 });

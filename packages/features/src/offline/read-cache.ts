@@ -89,6 +89,9 @@ export function minimizeCaptureContext(
     // A copy from before these fields existed has none: no notice then.
     internalOrderMails: context.internalOrderMails ?? false,
     deliveryDayMail: context.deliveryDayMail ?? false,
+    // The receiving body is the club's public name, no personal data. A
+    // copy from before the field existed offers no donation.
+    donationReceivingBody: context.donationReceivingBody ?? null,
   };
 }
 

@@ -4,9 +4,9 @@ description: Record a donation, send the donation pledge, book or take back the 
 docId: DOC-P059
 audience: [user]
 diataxis: how-to
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: 026a2d563f8c79f01ba6f77016dbcf7334a4d602
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: 72207916006de2ceab6bafc415460a2b6acb0879
 reviewer: Claude Code (review by Björn Schotte pending)
 ---
 
@@ -37,19 +37,49 @@ capability.
 
 1. Open **Spenden** in the back office and choose the action at the top.
 2. Choose **Spende erfassen**.
-3. Enter **Name des Spenders**, **Straße und Hausnummer**, **Postleitzahl**
-   and **Ort**. Write the name as the donation receipt shall show it later.
-4. Enter the **E-Mail** if you want to send the donation pledge by e-mail.
+3. If the action has sponsors from acquisition and you manage it, you can
+   search a sponsor of this action by name or city under **Spender im CRM
+   suchen** and choose it with **Übernehmen**. Name, postal code, city and
+   e-mail are then filled in, and the donation is linked to the CRM contact.
+   You type the street yourself.
+4. Enter or check **Name des Spenders**, **Straße und Hausnummer**,
+   **Postleitzahl** and **Ort**. Write the name as the donation receipt shall show it later.
+5. Enter the **E-Mail** if you want to send the donation pledge by e-mail.
    The field is optional.
-5. Enter the **Betrag in €**, from 1.00 € to 1,000,000.00 €. This is the
+6. Enter the **Betrag in €**, from 1.00 € to 1,000,000.00 €. This is the
    pledged amount.
-6. Confirm with **Spende erfassen**. Because a document is issued, you may
+7. Confirm with **Spende erfassen**. Because a document is issued, you may
    have to confirm your login again.
 
 The donation gets a number from the series of donation pledges at once, for
 example **SP26-0007**. The series applies to the whole installation. Name,
 address and amount cannot be changed afterwards. To correct a mistake, cancel
 the donation and record it again.
+
+## Donation with an order
+
+An action can offer a voluntary extra donation in its order form.
+
+- **Switch on:** open the action and switch on **Zusatzspende im
+  Bestellformular anbieten** in the area **Zusatzspende im Bestellformular**.
+  This also works while the action runs. The action needs the capability
+  **Spenden**, and the part **Spenden** must be active under **Rechtliches**;
+  otherwise no form shows the field. Actions from the template
+  **Krapfentaxi** from version 3 on have both already.
+- **Public form:** buyers enter an amount from 1.00 € to 10,000.00 € under
+  **Zusätzlich spenden**. The donation is created at once with its own
+  number, and the donation pledge goes to the buyer by e-mail by itself.
+- **Capture by members:** the back office and the acquisition app have the
+  field **Zusatzspende in €**. For a draft LeonAid keeps only the amount; the
+  donation is created when the order becomes binding. You then send the
+  donation pledge yourself.
+- The **donor** is always the invoice recipient of the order. An order with
+  a donation therefore needs a complete invoice recipient.
+- The donation is not part of the order total and is not on the invoice. The
+  order shows it with number and state and links to it.
+- If the order is cancelled, an unpaid donation is cancelled with it while
+  you keep the tick in the dialog (see
+  [Cancel an order](/en/user/how-to/cancel-order/)).
 
 ## View and send the donation pledge
 

@@ -22,6 +22,7 @@ import {
   OrderCancellationDialog,
   takeCancellationDraft,
 } from "./order-cancellation";
+import { OrderDonation } from "./order-donation";
 
 export { legacyOrdersSearch } from "./orders-url";
 export { releaseSelection, runRelease } from "./bulk-release";
@@ -614,6 +615,10 @@ function OrderDetail({
                 </span>
               ),
             },
+            // Extra donation (§8.6): its own pledge, never part of the invoice.
+            ...(record.donation
+              ? [{ label: "Spende", value: <OrderDonation record={record} /> }]
+              : []),
             {
               label: "Herkunft",
               value:
@@ -1278,6 +1283,11 @@ export function CommitmentAdminPage({
             : (row.capturedByDisplayName ??
               sourceLabels[row.commitment.source]),
           shortDay.format(new Date(row.createdAt)),
+          ...(row.donation
+            ? [
+                `Spende: ${euro(row.donation.pledgedMinor, row.commitment.currency)}`,
+              ]
+            : []),
         ].join(" · "),
       trailing: (row) => (
         <span

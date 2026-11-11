@@ -285,6 +285,7 @@ export function DonationAdminPage({
         maySend={Boolean(data?.maySend)}
         onChanged={refetch}
         onRetry={refetch}
+        donorSearch={Boolean(data?.donorSearch)}
         receiptNoticeValidUntil={data?.receiptNoticeValidUntil ?? null}
         receiptSigning={data?.receiptSigning ?? null}
         receivingBodyName={data?.receivingBodyName ?? null}
@@ -310,6 +311,7 @@ export function DonationAdminPage({
 function DonationList({
   actionId,
   client,
+  donorSearch,
   mayManage,
   maySend,
   onChanged,
@@ -324,6 +326,7 @@ function DonationList({
 }: {
   readonly actionId: string;
   readonly client: LeonAidApiClient;
+  readonly donorSearch: boolean;
   readonly mayManage: boolean;
   readonly maySend: boolean;
   readonly onChanged: () => void;
@@ -577,6 +580,7 @@ function DonationList({
         <CreateDonationDialog
           actionId={actionId}
           client={client}
+          donorSearch={donorSearch}
           onChanged={onChanged}
           onClose={closeCreate}
           open={creating && mayCreate}

@@ -1158,6 +1158,197 @@ describe("order cancellation", () => {
     });
   });
 
+  const withDonation = (
+    index: number,
+    donation: NonNullable<CommitmentRecordResponse["donation"]>,
+  ): CommitmentRecordResponse => ({ ...rows[index]!, donation });
+  const pledged = {
+    donationId: "d1",
+    number: "SP26-0007",
+    pledgedMinor: 2550,
+    status: "pledged" as const,
+  };
+
+  it("cancels the order's unpaid donation with it by default", async () => {
+    const { client, cancel } = clientWith([withDonation(0, pledged)]);
+    await renderPage("?view=all&open=c1", client);
+    fireEvent.click(await screen.findByTestId("open-order-cancellation"));
+    const dialog = await screen.findByRole("alertdialog");
+    const box = within(dialog).getByTestId(
+      "cancel-order-donation",
+    ) as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    expect(box.closest("label")!.textContent).toBe(
+      "Spende ebenfalls stornieren",
+    );
+    expect(
+      within(dialog).getByTestId("cancel-order-donation-hint").textContent,
+    ).toContain(
+      "Die Spendenzusage SP26-0007 über 25,50\u00a0€ wird mit der Bestellung storniert.",
+    );
+    fireEvent.change(reasonField(dialog), {
+      target: { value: "Sponsor hat die Bestellung zurückgezogen" },
+    });
+    fireEvent.click(within(dialog).getByTestId("cancel-order"));
+    await screen.findByText("Bestellung storniert.");
+    expect(cancel.mock.calls[0]![2]).toEqual({
+      cancelDonation: true,
+      expectedVersion: "v1",
+      note: null,
+      reason: "Sponsor hat die Bestellung zurückgezogen",
+    });
+    expect(
+      screen.getByText("Spendenzusage SP26-0007 ist ebenfalls storniert."),
+    ).toBeTruthy();
+  });
+
+  it("keeps the donation when the box is unchecked, as a new command", async () => {
+    const { client, cancel } = clientWith([withDonation(0, pledged)]);
+    await renderPage("?view=all&open=c1", client);
+    fireEvent.click(await screen.findByTestId("open-order-cancellation"));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByTestId("cancel-order-donation"));
+    expect(
+      within(dialog).getByTestId("cancel-order-donation-hint").textContent,
+    ).toBe("Die Spendenzusage SP26-0007 über 25,50\u00a0€ bleibt bestehen.");
+    fireEvent.change(reasonField(dialog), {
+      target: { value: "Sponsor hat die Bestellung zurückgezogen" },
+    });
+    fireEvent.click(within(dialog).getByTestId("cancel-order"));
+    await screen.findByText("Bestellung storniert.");
+    expect(cancel.mock.calls[0]![2]).toMatchObject({ cancelDonation: false });
+    expect(
+      screen.queryByText("Spendenzusage SP26-0007 ist ebenfalls storniert."),
+    ).toBeNull();
+  });
+
+  it("leaves a paid donation alone and says so", async () => {
+    const { client, cancel } = clientWith([
+      withDonation(0, { ...pledged, status: "paid" }),
+    ]);
+    await renderPage("?view=all&open=c1", client);
+    fireEvent.click(await screen.findByTestId("open-order-cancellation"));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).queryByTestId("cancel-order-donation")).toBeNull();
+    expect(
+      within(dialog).getByTestId("cancel-order-donation-paid").textContent,
+    ).toBe("Die bezahlte Spende SP26-0007 bleibt bestehen.");
+    fireEvent.change(reasonField(dialog), {
+      target: { value: "Sponsor hat die Bestellung zurückgezogen" },
+    });
+    fireEvent.click(within(dialog).getByTestId("cancel-order"));
+    await screen.findByText("Bestellung storniert.");
+    expect("cancelDonation" in (cancel.mock.calls[0]![2] as object)).toBe(
+      false,
+    );
+  });
+
+  it("asks nothing about a donation for a draft that only keeps the amount or a cancelled one", async () => {
+    const { client } = clientWith([
+      withDonation(1, {
+        donationId: null,
+        number: null,
+        pledgedMinor: 2550,
+        status: null,
+      }),
+      withDonation(0, { ...pledged, status: "cancelled" }),
+    ]);
+    await renderPage("?view=all&open=c2", client);
+    fireEvent.click(await screen.findByTestId("open-order-cancellation"));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).queryByTestId("cancel-order-donation")).toBeNull();
+    expect(
+      within(dialog).queryByTestId("cancel-order-donation-paid"),
+    ).toBeNull();
+  });
+
+  it("keeps the donation choice across the fresh sign-in", async () => {
+    const { client, cancel } = clientWith([withDonation(0, pledged)]);
+    cancel.mockRejectedValueOnce(
+      apiError(401, "fresh_login_required", "Anmeldung bestätigen"),
+    );
+    await renderPage("?view=all&open=c1", client);
+    fireEvent.click(await screen.findByTestId("open-order-cancellation"));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByTestId("cancel-order-donation"));
+    fireEvent.change(reasonField(dialog), {
+      target: { value: "Sponsor hat die Bestellung zurückgezogen" },
+    });
+    fireEvent.click(within(dialog).getByTestId("cancel-order"));
+    await within(dialog).findByText(
+      "Für diese Änderung wird Ihre Anmeldung erneut bestätigt.",
+    );
+    cleanup();
+    await renderPage("?view=all&open=c1", client);
+    const restored = await screen.findByRole("alertdialog");
+    expect(
+      (
+        within(restored).getByTestId(
+          "cancel-order-donation",
+        ) as HTMLInputElement
+      ).checked,
+    ).toBe(false);
+    fireEvent.click(within(restored).getByTestId("cancel-order"));
+    await screen.findByText("Bestellung storniert.");
+    expect(cancel.mock.calls[1]![2]).toMatchObject({ cancelDonation: false });
+    expect(cancel.mock.calls[1]![3]).toEqual(cancel.mock.calls[0]![3]);
+  });
+
+  it("shows the order's donation with number, link and state in the pane and the list", async () => {
+    const { client } = clientWith([
+      withDonation(0, pledged),
+      withDonation(1, {
+        donationId: null,
+        number: null,
+        pledgedMinor: 1000,
+        status: null,
+      }),
+      rows[2]!,
+    ]);
+    await renderPage("?view=all&open=c1", client);
+    const donation = await screen.findByTestId("order-donation");
+    expect(donation.textContent).toBe(
+      "Spende: 25,50\u00a0€ · SP26-0007 · Offen",
+    );
+    expect(
+      within(donation).getByTestId("order-donation-link").getAttribute("href"),
+    ).toBe(`/admin/donations?action=${actionId}&open=d1`);
+    const row = (id: string) =>
+      document.querySelector(`[data-order-id="${id}"]`)!.closest("li")!;
+    expect(row("c1").textContent).toContain("Spende: 25,50\u00a0€");
+    expect(row("c2").textContent).toContain("Spende: 10,00\u00a0€");
+    expect(row("c3").textContent).not.toContain("Spende");
+    cleanup();
+    // A draft only keeps the amount: the donation comes with the completion.
+    await renderPage("?view=all&open=c2", client);
+    const draft = await screen.findByTestId("order-donation");
+    expect(draft.textContent).toBe(
+      "Spende: 10,00\u00a0€ (wird mit dem Abschluss der Bestellung angelegt)",
+    );
+    expect(within(draft).queryByTestId("order-donation-link")).toBeNull();
+    cleanup();
+    // An order without a donation shows no such line.
+    await renderPage("?view=all&open=c3", client);
+    await screen.findByTestId("open-order-cancellation");
+    expect(screen.queryByTestId("order-donation")).toBeNull();
+  });
+
+  it("names the state of a paid and of a cancelled donation", async () => {
+    const { client } = clientWith([
+      withDonation(0, { ...pledged, status: "paid" }),
+      withDonation(2, { ...pledged, donationId: "d2", status: "cancelled" }),
+    ]);
+    await renderPage("?view=all&open=c1", client);
+    expect((await screen.findByTestId("order-donation")).textContent).toContain(
+      "· Bezahlt",
+    );
+    cleanup();
+    await renderPage("?view=all&open=c3", client);
+    expect((await screen.findByTestId("order-donation")).textContent).toContain(
+      "· Storniert",
+    );
+  });
+
   it("shows a cancelled order with stamp, reason, note and history, without the action", async () => {
     const cancelled: CommitmentRecordResponse = {
       ...rows[0]!,

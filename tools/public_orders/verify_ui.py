@@ -135,6 +135,37 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
                 or int(line["unit_price_minor"]) != 3_600
             ):
                 raise VerificationFailure(f"UI order is incomplete: {scenario}")
+            # The extra donation of the form: its own donation with a number
+            # and a pledge mail that was queued by itself; the order total
+            # above is the goods alone.
+            donation = await connection.fetchrow(
+                """
+                SELECT donation.pledged_minor, donation.source, donation.status,
+                       donation.number,
+                       (SELECT count(*) FROM invoice_delivery
+                        WHERE donation_id = donation.id
+                          AND requested_by_user_id IS NULL) AS pledge_mails
+                FROM donation WHERE commitment_id = $1
+                """,
+                row["id"],
+            )
+            expected_donation = item.get("donationMinor")
+            if expected_donation is None:
+                if donation is not None:
+                    raise VerificationFailure(
+                        f"UI order without a donation has one: {scenario}"
+                    )
+            elif (
+                donation is None
+                or int(donation["pledged_minor"]) != int(expected_donation)
+                or str(donation["source"]) != "public_form"
+                or str(donation["status"]) != "pledged"
+                or not str(donation["number"]).startswith("SP26-")
+                or int(donation["pledge_mails"]) != 1
+            ):
+                raise VerificationFailure(
+                    f"The donation of the UI order is wrong: {scenario}"
+                )
             recipients = await connection.fetch(
                 """
                 SELECT recipient.user_id

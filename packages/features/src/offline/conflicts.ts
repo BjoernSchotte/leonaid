@@ -147,6 +147,12 @@ export function conflictText(entry: QueueEntry, actionName: string): string {
     case "delivery_address_required":
     case "delivery_window_required":
       return "Für diese Aktion braucht eine Bestellung jetzt eine Lieferadresse und ein Lieferfenster.";
+    case "commitment_donation_not_offered":
+      return `${actionName || "Diese Aktion"} bietet keine Zusatzspende mehr an. Verwirf den Eintrag und erfasse die Bestellung ohne Zusatzspende neu.`;
+    case "commitment_donation_amount_invalid":
+      return "Die Zusatzspende muss zwischen 1,00 € und 10.000,00 € liegen. Verwirf den Eintrag und erfasse die Bestellung neu.";
+    case "commitment_donation_recipient_required":
+      return "Eine Bestellung mit Zusatzspende braucht einen vollständigen Rechnungsempfänger, denn er ist der Spender. Verwirf den Eintrag und erfasse die Bestellung mit Rechnungsanschrift neu.";
     case "captured_at_out_of_range":
       return "Die Uhrzeit deines Geräts stimmt nicht. Prüfe Datum und Uhrzeit.";
     default:

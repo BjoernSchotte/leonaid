@@ -33,6 +33,7 @@ import {
   useActionConfiguration,
 } from "./action-templates";
 import { BuyerMailSection } from "./buyer-mail-section";
+import { OrderFormDonationSection } from "./order-form-donation";
 import { CampaignAliasesSection } from "./campaign-aliases";
 import { ActionPublicUrls } from "./public-urls";
 import { DeliverySection } from "./delivery-section";
@@ -523,6 +524,15 @@ export function ManageActionPage({
                 <GoalSection {...shared} />
                 <BeneficiariesSection {...shared} />
                 <CapabilitiesSection {...shared} />
+                {configuration.data?.orderForm ? (
+                  <OrderFormDonationSection
+                    actionId={actionId}
+                    client={client}
+                    disabled={archived}
+                    hasDonations={action.capabilities.includes("donations")}
+                    orderForm={configuration.data.orderForm}
+                  />
+                ) : null}
                 {action.capabilities.includes("ordering") ? (
                   <BuyerMailSection
                     actionId={actionId}

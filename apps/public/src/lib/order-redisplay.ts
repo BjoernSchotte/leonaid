@@ -19,6 +19,7 @@ const fieldLimits = {
   invoiceCity: 200,
   invoiceEmail: 320,
   message: 1000,
+  donationAmount: 20,
 } as const;
 type Field = keyof typeof fieldLimits;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -40,6 +40,7 @@ import {
   validDonationReceipt,
   withPeriod,
 } from "./donation-model";
+import { DonorSearch, type DonorParty } from "./donor-search";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -65,6 +66,8 @@ const emptyCreate: Readonly<Record<CreateField, string>> = {
 interface CreateDonationDialogProps {
   readonly actionId: string;
   readonly client: LeonAidApiClient;
+  /** The donor can be looked up among the sponsors of the action. */
+  readonly donorSearch: boolean;
   readonly open: boolean;
   /** The body that receives the donation and issues its documents. */
   readonly receivingBodyName: string;
@@ -84,6 +87,7 @@ export function CreateDonationDialog(props: CreateDonationDialogProps) {
 function CreateDonationForm({
   actionId,
   client,
+  donorSearch,
   onChanged,
   onClose,
   receivingBodyName,
@@ -94,6 +98,8 @@ function CreateDonationForm({
     {},
   );
   const [serverError, setServerError] = useState<string>();
+  // The CRM party the donor was taken from; kept with the donation.
+  const [party, setParty] = useState<DonorParty | null>(null);
   const storageKey = donationCreateStorageKey(actionId);
 
   function set(field: CreateField, value: string) {
@@ -114,6 +120,10 @@ function CreateDonationForm({
             postalCode: values.postalCode.trim(),
             city: values.city.trim(),
             email: values.email.trim() || null,
+            // Only a donor taken from the CRM carries the link.
+            ...(party
+              ? { partyKind: party.partyKind, twentyId: party.twentyId }
+              : {}),
           },
           pledgedMinor,
           note: values.note.trim() || null,
@@ -213,6 +223,33 @@ function CreateDonationForm({
           submit();
         }}
       >
+        {donorSearch ? (
+          <DonorSearch
+            actionId={actionId}
+            client={client}
+            onPick={(picked) => {
+              forgetCommandKey(storageKey);
+              setParty({
+                partyKind: picked.partyKind,
+                twentyId: picked.twentyId,
+                displayName: picked.displayName,
+              });
+              setValues((previous) => ({
+                ...previous,
+                name: picked.displayName,
+                postalCode: picked.postalCode ?? previous.postalCode,
+                city: picked.city ?? previous.city,
+                email: picked.email ?? previous.email,
+              }));
+              setErrors({});
+            }}
+            onUnlink={() => {
+              forgetCommandKey(storageKey);
+              setParty(null);
+            }}
+            party={party}
+          />
+        ) : null}
         <Field
           error={errors.name}
           hint="Person oder Firma, wie sie auf der Zuwendungsbestätigung stehen soll."
@@ -221,7 +258,7 @@ function CreateDonationForm({
         >
           <Input
             autoComplete="off"
-            autoFocus
+            autoFocus={!donorSearch}
             data-testid="donation-donor-name"
             maxLength={200}
             onChange={(event) => set("name", event.target.value)}

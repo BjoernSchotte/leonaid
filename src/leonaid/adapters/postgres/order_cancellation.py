@@ -23,6 +23,7 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from leonaid.adapters.postgres.donations import cancel_order_donation
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.delivery_board import order_link
 from leonaid.adapters.postgres.invoice_payment_state import ACTIVE_PAID_MINOR_SQL
@@ -280,6 +281,31 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
                 send_document=request.send_invoice_cancellation,
             )
             invoice_cancellation_id = invoice_cancellation.id
+
+        if request.cancel_donation and await connection.fetchval(
+            """
+            SELECT EXISTS (
+                SELECT 1 FROM donation
+                WHERE commitment_id = $1 AND status = 'pledged'
+            )
+            """,
+            commitment_id,
+        ):
+            # Cancelling a donation needs a fresh login, as on its own page.
+            if not fresh_login:
+                raise AuthenticationRequired(
+                    "fresh_login_required",
+                    "Für diese Änderung muss die Anmeldung erneut bestätigt werden.",
+                )
+            await cancel_order_donation(
+                connection,
+                action_id=action_id,
+                commitment_id=commitment_id,
+                reason=request.reason,
+                actor_user_id=actor_user_id,
+                request_id=request_id,
+                occurred_at=occurred_at,
+            )
 
         cancellation = OrderCancellation(
             id=cancellation_id,

@@ -352,8 +352,12 @@ def main() -> None:
         # 0064 gives every order an order number: an order of the public
         # form keeps its own, an internal order gets the one derived from
         # its id. Nothing else of an existing order changes.
+        # 0068 adds the extra donation of an order; existing orders have none.
+        assert not db.execute(
+            "SELECT 1 FROM commitment WHERE donation_pledge_minor IS NOT NULL"
+        ).fetchall()
         assert db.execute(
-            "SELECT to_jsonb(commitment) - 'delivery_window_id' - 'delivery_window_snapshot' - 'delivery_contact_snapshot' - 'captured_at' - 'public_reference' FROM commitment ORDER BY id"
+            "SELECT to_jsonb(commitment) - 'delivery_window_id' - 'delivery_window_snapshot' - 'delivery_contact_snapshot' - 'captured_at' - 'public_reference' - 'donation_pledge_minor' FROM commitment ORDER BY id"
         ).fetchall() == [
             (
                 {

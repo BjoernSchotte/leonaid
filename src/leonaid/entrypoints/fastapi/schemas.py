@@ -1050,6 +1050,13 @@ class PublicOrderFormResponse(TransportModel):
     require_delivery_address: bool
     require_billing_address: bool
     allow_message: bool
+    donation_receiving_body: str | None = Field(
+        description=(
+            "Name of the body that receives an extra donation. Null: this "
+            "form offers no donation (flag off, capability off or no "
+            "receiving body configured)."
+        ),
+    )
     access_token: str
     privacy_notice_version: str
     privacy_notice_text: str
@@ -1221,6 +1228,10 @@ class CreatePublicOrderRequest(TransportModel):
         pattern=r"^[a-z0-9][a-z0-9._-]{2,63}$",
     )
     website: str | None = Field(default=None, max_length=300)
+    # A voluntary extra donation in cents (1,00 € to 10.000,00 €); only when
+    # the form offers it (`orderForm.donationReceivingBody`). Not part of
+    # the order total.
+    donation_amount_minor: int | None = Field(default=None, ge=100, le=1_000_000)
 
 
 class PublicOrderQuantityResponse(TransportModel):
@@ -1319,6 +1330,7 @@ class OrderFormConfigurationResponse(TransportModel):
     require_delivery_address: bool
     require_billing_address: bool
     allow_message: bool
+    allow_donation: bool
 
 
 class CharityActionConfigurationResponse(TransportModel):
@@ -1382,6 +1394,12 @@ class CreateCommitmentRequest(TransportModel):
     buyer: CommitmentBuyerRequest
     invoice_recipient: CommitmentInvoiceRecipientRequest | None = None
     lines: list[CommitmentLineRequest] = Field(min_length=1, max_length=100)
+    # A voluntary extra donation of the buyer in cents (1,00 € to
+    # 10.000,00 €), not part of the order total. Only when the action's form
+    # offers it: 409 `commitment_donation_not_offered` otherwise. The
+    # donation is created when the order becomes binding and then needs a
+    # complete invoice recipient.
+    donation_amount_minor: int | None = Field(default=None, ge=100, le=1_000_000)
 
 
 class CompleteCommitmentRequest(TransportModel):
@@ -1492,6 +1510,13 @@ class CommitmentCaptureContextResponse(TransportModel):
     action_id: UUID
     action_name: str
     offerings: list[ConfiguredOfferingResponse]
+    donation_receiving_body: str | None = Field(
+        default=None,
+        description=(
+            "Name of the body that receives an extra donation added to an "
+            "order. Null: orders of this action carry no donation."
+        ),
+    )
     internal_order_mails: bool = Field(
         default=False,
         description=(
@@ -1549,12 +1574,23 @@ class CommitmentCancellationResponse(TransportModel):
     )
 
 
+class CommitmentDonationResponse(TransportModel):
+    """The extra donation of an order (ADR-0016)."""
+
+    pledged_minor: int = Field(ge=100)
+    # Set once the order is binding and the donation has its number.
+    donation_id: UUID | None
+    number: str | None
+    status: Literal["pledged", "paid", "cancelled"] | None
+
+
 class CommitmentRecordResponse(TransportModel):
     commitment: CommitmentResponse
     created_at: datetime
     captured_by_display_name: str | None
     cancellation: CommitmentCancellationResponse | None = None
     invoice: CommitmentInvoiceSummaryResponse | None = None
+    donation: CommitmentDonationResponse | None = None
     delivered: bool = Field(
         default=False,
         description="Marked delivered on the delivery board; blocks cancellation.",
@@ -1579,6 +1615,14 @@ class CancelCommitmentRequest(TransportModel):
             "When the order's invoice is cancelled with it: also send its "
             "cancellation invoice to the invoice's recipient by mail. Ignored "
             "when no invoice is cancelled."
+        ),
+    )
+    cancel_donation: bool = Field(
+        default=True,
+        description=(
+            "Also cancel the unpaid donation that came with the order. A paid "
+            "donation is never cancelled with the order. Ignored when the "
+            "order has no unpaid donation."
         ),
     )
 
@@ -2231,6 +2275,13 @@ class DonationListResponse(TransportModel):
     )
     may_manage: bool
     may_send: bool
+    donor_search: bool = Field(
+        description=(
+            '"Spende erfassen" can look the donor up among the sponsors of the '
+            "action (`listAcquisitionParties`): the action has the acquisition "
+            "capability and the account manages it."
+        ),
+    )
     receipt_signing: Literal["by_hand", "machine"] | None = Field(
         description=(
             "How the active receiving body signs receipts; null without a "
@@ -2417,6 +2468,10 @@ class SetResponsibleAdministratorsRequest(TransportModel):
 
 class SetActionGoalRequest(ActionGoalRequest):
     revision: int = Field(ge=1)
+
+
+class SetOrderFormDonationRequest(TransportModel):
+    allow_donation: bool
 
 
 class SetActionCapabilitiesRequest(TransportModel):

@@ -220,6 +220,16 @@
         "property-type-changed:GeneratedDocumentResponse.documentType"
       ],
       "rationale": "Bundle stage 5 (specs/mails-documents-donations-push §8.5, ADR-0016): the donation receipt. A donation carries its receipts (always present, an empty list without one); the donation list says how the active receiving body signs and until which day its notice carries a receipt (both null without a receiving body). The document type gains donation_receipt_pdf. No field is removed or narrowed and no request field becomes required on an existing operation. The only clients are the generated client and the apps of this repository, regenerated in the same change. Ratified by the lead under Björn's standing delegation on 2026-11-10 (E-049). Approval is bound to these exact contract hashes and changes."
+    },
+    {
+      "oldSha256": "525f1b540e5ef2fbc660a2e6628b47b00f4af7bc93cfb83ce6d1a6e4c06bc89a",
+      "newSha256": "00ed3228cc65d9fe1f9a41a335d1d6f67c84edd04485eecccea44ff8e778cb84",
+      "changes": [
+        "property-newly-required:DonationListResponse.donorSearch",
+        "property-newly-required:OrderFormConfigurationResponse.allowDonation",
+        "property-newly-required:PublicOrderFormResponse.donationReceivingBody"
+      ],
+      "rationale": "Bundle stage 6 (specs/mails-documents-donations-push §8.6): the extra donation with an order. The order form configuration always says whether it offers the donation (false by default); the public form names the receiving body (null when the donation is off); the donation list says whether the donor search over the action's sponsors is available. Three new, always present response fields; no field is removed or narrowed and no request field becomes required. The only clients are the generated client and the apps in this repository."
     }
   ]
 }

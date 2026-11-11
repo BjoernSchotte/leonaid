@@ -764,6 +764,37 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 )
         return changed
 
+    async def set_order_form_donation(
+        self,
+        action_id: UUID,
+        *,
+        allow_donation: bool,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> None:
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                await connection.execute(
+                    """
+                    UPDATE order_form_configuration
+                    SET allow_donation = $2, updated_at = $3
+                    WHERE action_id = $1
+                    """,
+                    action_id,
+                    allow_donation,
+                    occurred_at,
+                )
+                await self._audit_by_id(
+                    connection,
+                    action_id=action_id,
+                    actor_user_id=actor_user_id,
+                    event_type="order_form_donation_changed",
+                    request_id=request_id,
+                    payload={"allowDonation": allow_donation},
+                    occurred_at=occurred_at,
+                )
+
     async def replace_capabilities(
         self,
         action: CharityAction,
@@ -1087,7 +1118,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 id, action_id, form_key, status, title, introduction, submit_label,
                 require_company_name, require_contact_name, require_email,
                 require_phone, require_delivery_address,
-                require_billing_address, allow_message
+                require_billing_address, allow_message, allow_donation
             FROM order_form_configuration
             WHERE action_id = $1
             """,
@@ -1262,7 +1293,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 form_key, title, introduction, submit_label,
                 require_company_name, require_contact_name, require_email,
                 require_phone, require_delivery_address,
-                require_billing_address, allow_message
+                require_billing_address, allow_message, allow_donation
             FROM action_template_order_form
             WHERE template_key = $1 AND template_version = $2
             """,
@@ -1418,13 +1449,14 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                     id, action_id, form_key, status, title, introduction,
                     submit_label, require_company_name, require_contact_name,
                     require_email, require_phone, require_delivery_address,
-                    require_billing_address, allow_message, created_at, updated_at
+                    require_billing_address, allow_message, allow_donation,
+                    created_at, updated_at
                 )
                 VALUES (
                     $1, $2, $3, 'draft', $4, $5,
                     $6, $7, $8,
                     $9, $10, $11,
-                    $12, $13, $14, $14
+                    $12, $13, $15, $14, $14
                 )
                 """,
                 form.id,
@@ -1441,6 +1473,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 value.require_billing_address,
                 value.allow_message,
                 occurred_at,
+                value.allow_donation,
             )
 
     @staticmethod
@@ -1573,4 +1606,5 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
             require_delivery_address=bool(row["require_delivery_address"]),
             require_billing_address=bool(row["require_billing_address"]),
             allow_message=bool(row["allow_message"]),
+            allow_donation=bool(row["allow_donation"]),
         )

@@ -67,6 +67,7 @@ describe("where the buyer's mails of a recorded order go", () => {
       actionName: "Test",
       deliveryConfiguration: null,
       deliveryDayMail: true,
+      donationReceivingBody: null,
       internalOrderMails: true,
       offerings: [],
     };

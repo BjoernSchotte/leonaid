@@ -63,6 +63,11 @@ import {
   isFullWindowError,
   selectableWindows,
 } from "./delivery-fields";
+import {
+  donationRequestPart,
+  parseDonationInput,
+  type DonationInput,
+} from "./order-donation";
 import { configuredWindowLabel } from "./order-format";
 import { quantityLabel, unitLabels } from "./quantities";
 import { PWA_BASE } from "@leonaid/ui/base-paths";
@@ -88,6 +93,18 @@ function formatMoney(amountMinor: number, currency: string) {
     currency,
     style: "currency",
   }).format(amountMinor / 100);
+}
+
+const NO_DONATION: DonationInput = { kind: "empty" };
+const DONATION_INVALID =
+  "Bitte gib einen Betrag zwischen 1,00 € und 10.000,00 € ein oder lass das Feld leer.";
+
+/** The order needs a complete invoice recipient: the recipient is the donor. */
+function isDonationRecipientRequired(error: unknown) {
+  return (
+    error instanceof ApiError &&
+    error.detail.code === "commitment_donation_recipient_required"
+  );
 }
 
 function isPriceChange(error: unknown) {
@@ -127,6 +144,12 @@ function captureError(error: unknown) {
     }
     if (error.detail.code === "idempotency_conflict") {
       return "Die Bestellung wurde bereits mit anderen Angaben gespeichert. Öffne den Sponsor neu und prüfe die Eingabe.";
+    }
+    if (error.detail.code === "commitment_donation_amount_invalid") {
+      return `${DONATION_INVALID} Den Betrag änderst du im ersten Schritt.`;
+    }
+    if (error.detail.code === "commitment_donation_not_offered") {
+      return "Diese Aktion bietet keine Zusatzspende mehr an. Die Angaben wurden neu geladen; speichere die Bestellung ohne Zusatzspende.";
     }
     if (error.detail.code === "offering_not_available") {
       return "Das gewählte Angebot ist nicht mehr verfügbar. Lade die Angebote neu und wähle erneut.";
@@ -255,6 +278,30 @@ interface QueuedOrder {
   readonly readyForReview: boolean;
   readonly totalMinor: number;
   readonly currency: string;
+  /** The extra donation sent with the order, if any (not in the total). */
+  readonly donationMinor?: number;
+}
+
+/** The extra donation on a confirmation: never part of the invoice. */
+function DonationNote({
+  bound,
+  currency,
+  minor,
+}: {
+  /** The order is binding: the donation gets its pledge now. */
+  readonly bound: boolean;
+  readonly currency: string;
+  readonly minor: number | undefined;
+}) {
+  if (minor === undefined) return null;
+  return (
+    <p className="small muted" data-testid="capture-donation-note">
+      Zusatzspende: {formatMoney(minor, currency)}.{" "}
+      {bound
+        ? "Sie erhält eine eigene Spendenzusage und steht nicht auf der Rechnung."
+        : "Die Spende wird mit dem Abschluss der Bestellung angelegt."}
+    </p>
+  );
 }
 
 /** §12.3: "Bestellung gespeichert. Wird gesendet, …" (prototype copy). */
@@ -311,6 +358,11 @@ function QueuedConfirmation({
               ? `${later} Die Aktionsleitung prüft die Bestellung und stellt danach die Rechnung aus.`
               : `${later} Sie geht als Entwurf an LeonAid.`}
       </p>
+      <DonationNote
+        bound={order.readyForReview}
+        currency={order.currency}
+        minor={order.donationMinor}
+      />
       {sponsor ? (
         <a
           className={`${buttonClassName({ size: "lg", variant: "primary" })} pwa-wide`}
@@ -328,10 +380,13 @@ function CaptureSuccess({
   actionId,
   client,
   commitment,
+  donationMinor,
   onCompleted,
   sponsor,
   showDelivery,
 }: {
+  /** The extra donation captured with this order on this screen, if any. */
+  readonly donationMinor?: number;
   readonly actionId: string;
   readonly client: LeonAidApiClient;
   readonly commitment: CommitmentResponse;
@@ -379,6 +434,11 @@ function CaptureSuccess({
           ? "Die Aktionsleitung prüft die Bestellung und stellt danach die Rechnung aus."
           : "Die Bestellung ist gespeichert, aber noch nicht zur Prüfung freigegeben."}
       </p>
+      <DonationNote
+        bound={ready}
+        currency={commitment.currency}
+        minor={donationMinor}
+      />
       {showDelivery ? <DeliverySummary order={commitment} /> : null}
       {!ready && commitment.status === "draft" ? (
         <CompleteDraft
@@ -445,6 +505,13 @@ export function CommitmentCapturePage({
   const [recipient, setRecipient] = useState<RecipientDraft>(() =>
     recipientFor(undefined),
   );
+  // Extra donation (§8.6): the text as typed; empty is no donation.
+  const [donationText, setDonationText] = useState("");
+  const [showDonationError, setShowDonationError] = useState(false);
+  const [savedDonation, setSavedDonation] = useState<{
+    readonly commitmentId: string;
+    readonly minor: number;
+  } | null>(null);
   const [stepError, setStepError] = useState("");
   const [showMissing, setShowMissing] = useState(false);
   const heading = useScreenHeading();
@@ -515,6 +582,12 @@ export function CommitmentCapturePage({
     : undefined;
   const configuration = context.data?.deliveryConfiguration;
   const deliveryEnabled = Boolean(configuration?.enabled);
+  // Non-null: the action offers an extra donation and names who receives it.
+  const donationReceivingBody = context.data?.donationReceivingBody ?? null;
+  const donation = donationReceivingBody
+    ? parseDonationInput(donationText)
+    : NO_DONATION;
+  const donationMinor = donation.kind === "amount" ? donation.minor : undefined;
   const completeDelivery =
     !configuration?.enabled ||
     (hasDeliveryAddress(delivery) &&
@@ -533,6 +606,8 @@ export function CommitmentCapturePage({
     appliedBuyer.current = buyerKey;
     setRecipient(recipientFor(sponsor));
     setDelivery(deliveryDraft());
+    setDonationText("");
+    setShowDonationError(false);
     setStep(1);
     commandId.current = crypto.randomUUID();
   }, [buyerKey]);
@@ -574,6 +649,7 @@ export function CommitmentCapturePage({
         ],
         readyForReview,
         source: "acquisition",
+        ...donationRequestPart(donation),
       };
       if (!runtime.enabled || !runtime.queue || !sponsor) {
         return client.createCommitment(actionId, body, {
@@ -660,6 +736,7 @@ export function CommitmentCapturePage({
         reason: outcome.state === "queued" ? outcome.reason : undefined,
         readyForReview,
         totalMinor: quantity * selectedOffering.unitPriceMinor,
+        donationMinor,
       };
     },
     onSuccess: (saved) => {
@@ -669,6 +746,11 @@ export function CommitmentCapturePage({
         return;
       }
       const order = saved;
+      setSavedDonation(
+        donationMinor === undefined
+          ? null
+          : { commitmentId: order.id, minor: donationMinor },
+      );
       setSavedOrder(order);
       // The sponsor's status and the pipeline move with the order.
       void queries.invalidateQueries({
@@ -686,9 +768,17 @@ export function CommitmentCapturePage({
       if (
         error instanceof ApiError &&
         (error.detail.code.startsWith("delivery_") ||
-          error.detail.code === "commitment_price_changed")
+          error.detail.code === "commitment_price_changed" ||
+          error.detail.code === "commitment_donation_not_offered")
       ) {
         void context.refetch();
+      }
+      // The donor is the invoice recipient: the refusal belongs to its
+      // fields, so the person lands there with the server's words.
+      if (isDonationRecipientRequired(error)) {
+        setShowMissing(true);
+        setStepError((error as ApiError).detail.message);
+        goToStep(2);
       }
       // Switched to "ausgebucht" meanwhile: ask, then book anyway.
       setConfirmFull(isFullWindowError(error));
@@ -703,6 +793,7 @@ export function CommitmentCapturePage({
     quantity,
     delivery,
     recipient,
+    donationText,
     step,
   ]);
   const resetCreate = create.reset;
@@ -781,6 +872,11 @@ export function CommitmentCapturePage({
         actionId={actionId}
         client={client}
         commitment={result}
+        donationMinor={
+          savedDonation?.commitmentId === result.id
+            ? savedDonation.minor
+            : undefined
+        }
         onCompleted={setSavedOrder}
         showDelivery={showDelivery(result)}
         sponsor={sponsor}
@@ -965,10 +1061,52 @@ export function CommitmentCapturePage({
                   {`Preis vom ${formatDateTime(priceFrom)}. Ändert er sich, fragt LeonAid dich vor dem Senden.`}
                 </p>
               ) : null}
+              {donationReceivingBody ? (
+                <Field
+                  error={
+                    showDonationError && donation.kind === "invalid"
+                      ? DONATION_INVALID
+                      : undefined
+                  }
+                  hint={`Freiwillig und zusätzlich zur Bestellung. Empfänger ist ${donationReceivingBody}. Spender ist der Rechnungsempfänger. Er erhält eine eigene Spendenzusage; die Spende steht nicht auf der Rechnung.`}
+                  label="Zusatzspende in €"
+                  optional
+                >
+                  <Input
+                    autoComplete="off"
+                    data-testid="capture-donation-amount"
+                    id="commitment-donation-amount"
+                    inputMode="decimal"
+                    maxLength={20}
+                    onBlur={() => setShowDonationError(true)}
+                    onChange={(event) => setDonationText(event.target.value)}
+                    placeholder="z. B. 25,00"
+                    value={donationText}
+                  />
+                </Field>
+              ) : null}
+              {donationMinor !== undefined && offering ? (
+                <p
+                  className="small muted num"
+                  data-testid="capture-donation-line"
+                >
+                  Spende: {formatMoney(donationMinor, offering.currency)} (nicht
+                  in der Summe)
+                </p>
+              ) : null}
               <Button
                 className="pwa-wide"
                 disabled={!offering}
-                onClick={() => goToStep(2)}
+                onClick={() => {
+                  if (donation.kind === "invalid") {
+                    setShowDonationError(true);
+                    document
+                      .getElementById("commitment-donation-amount")
+                      ?.focus();
+                    return;
+                  }
+                  goToStep(2);
+                }}
                 size="lg"
                 variant="primary"
               >
@@ -1178,6 +1316,20 @@ export function CommitmentCapturePage({
                   <strong>{formatMoney(total, offering.currency)}</strong>
                 </dd>
               </div>
+              {donationMinor !== undefined ? (
+                <div data-testid="capture-donation-review">
+                  <dt>Zusatzspende</dt>
+                  <dd>
+                    <span className="num">
+                      {formatMoney(donationMinor, offering.currency)}
+                    </span>{" "}
+                    <span className="small muted">
+                      an {donationReceivingBody}, eigene Spendenzusage, nicht
+                      Teil der Rechnung
+                    </span>
+                  </dd>
+                </div>
+              ) : null}
             </dl>
           </section>
           <p className="small muted">
@@ -1206,7 +1358,9 @@ export function CommitmentCapturePage({
                 </p>
               </div>
             </StatusMessage>
-          ) : create.isError && !isFullWindowError(create.error) ? (
+          ) : create.isError &&
+            !isFullWindowError(create.error) &&
+            !isDonationRecipientRequired(create.error) ? (
             <StatusMessage tone="error">
               {captureError(create.error)}
             </StatusMessage>
@@ -1254,6 +1408,7 @@ export function CommitmentCapturePage({
               queued: "conflict",
               readyForReview: pending.readyForReview,
               totalMinor: total,
+              donationMinor,
             });
             pendingEntry.current = null;
           }

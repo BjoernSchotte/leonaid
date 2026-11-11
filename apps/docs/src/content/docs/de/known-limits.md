@@ -4,9 +4,9 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 15
-reviewedRevision: 15
-verifiedAgainst: 1c7cedc2a1d2733b336d30a146b28874c28e8eb1
+contentRevision: 16
+reviewedRevision: 16
+verifiedAgainst: 1236a5c74b40ce3254ab273018c8c6c3d18c6c6d
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -100,8 +100,10 @@ allgemeine Produktionsfreigabe.
   empfangenden Körperschaft aktiv ist. Es gibt nur Geldspenden in Euro, eine
   Zahlung je Spende und keine Sammelbestätigung; eine zweite Teilzahlung ist
   eine eigene Spende. Nur eine unbezahlte Spende lässt sich stornieren.
-  Spenden entstehen nur in der Verwaltung, noch nicht im Bestellformular; den
-  Spender trägst du von Hand ein, eine Suche im CRM gibt es dort noch nicht. Die
+  Spenden entstehen in der Verwaltung oder als Zusatzspende einer Bestellung
+  (1,00 € bis 10.000,00 €); eine Spende ohne Bestellung gibt es im
+  öffentlichen Formular nicht. Die Suche nach dem Spender im CRM findet nur
+  Sponsoren der Aktion und füllt keine Straße aus. Die
   Zuwendungsbestätigung gibt es nur als Einzelbestätigung für Geldspenden,
   eine je Spende; sie wird nie geändert, nur für ungültig erklärt. Mit
   eigenhändiger Unterschrift sendet LeonAid sie nicht per E-Mail. Ist der
