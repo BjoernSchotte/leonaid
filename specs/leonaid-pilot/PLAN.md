@@ -220,7 +220,7 @@ Im Pilot einzuführende, ebenfalls Docker-basierte Befehle:
 ```text
 ./leonaid pilot-doctor
 ./leonaid pilot-deploy
-./leonaid pilot-release
+./leonaid upgrade
 ./leonaid pilot-import <dry-run|apply|verify>
 ./leonaid pilot-backup
 ./leonaid pilot-restore
@@ -864,9 +864,11 @@ Akzeptanzkriterien:
 
 - [x] Release-Manifest bindet Git-Commit, Images/Digests,
       Schema-/Templateversionen und erforderliche Migrationen.
-- [x] Staging erhält exakt dasselbe Manifest vor Produktion.
-- [x] Deployment aktiviert bei inkompatiblen Änderungen Wartungsmodus,
-      erstellt Recovery Point und prüft Vorbedingungen.
+- [x] Staging ist ein freiwilliger Probelauf mit demselben Manifest, kein
+      Gate (seit #234, 2026-11-11).
+- [x] Upgrade prüft vor jeder Änderung, ob die Release den installierten
+      Schemastand kennt, erstellt einen aufbewahrten Recovery Point und
+      aktiviert den Wartungsmodus.
 - [x] Datenbank-, Twenty- und RustFS-Migrationen laufen fail-closed.
 - [x] Smoke- und Readiness-Gates entscheiden automatisch über Freigabe.
 - [x] Rollbackgrenze und Vorwärtsreparatur sind je Komponente dokumentiert.
@@ -876,13 +878,14 @@ Akzeptanzkriterien:
 
 Tests/Nachweise:
 
-- [x] `./leonaid test-pilot-release` promoted zwei reale Versionen durch
-      Staging, erzeugt einen absichtlichen Migrationsfehler und rollt sauber
+- [x] `./leonaid test-pilot-release` führt zwei reale Versionen nacheinander
+      ein, erzeugt einen absichtlichen Migrationsfehler und rollt sauber
       zurück.
 - [x] `./leonaid test-pilot-deployment` beweist den realen Operatorbefehl
-      `pilot-release`: Produktion ohne identische Staging-Promotion wird vor
-      Mutation abgewiesen; der positive Pfad erzwingt Backup,
-      Wartungsmodus, explizite Migrationen und buildfreien Zielstart.
+      `upgrade`: Ein unbekannter Schemastand wird vor Backup und Wartung
+      abgewiesen; der positive Pfad erzwingt Backup, aufbewahrte
+      Manifest-Kopie, Wartungsmodus, explizite Migrationen und buildfreien
+      Zielstart.
 - [x] Golden Journey läuft vor und nach Upgrade/Rollback.
 - [x] Audit/Releaseprotokoll enthält keine Secrets.
 - [x] Recovery Point und alle Dokument-SHAs stimmen nach Rollback.
