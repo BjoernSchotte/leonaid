@@ -1927,6 +1927,19 @@ pilot_compose_command() {
 pilot_decision_gate() {
   project=$1
   gate=$2
+  gate_env_file=$3
+  # The register gates real clubs, data and invoices; a staging installation
+  # holds none of them (same rule as due_decisions in the doctor). Both the
+  # stage and the project name must say staging: pilot-deploy runs the doctor,
+  # which checks that they match, only after the start.
+  case "$project" in
+    leonaid-staging|leonaid-staging-*)
+      if [ "$(pilot_environment_value LEONAID_DEPLOYMENT_STAGE "$gate_env_file")" = staging ]; then
+        echo "pilot-doctor: OK ($gate): decisions are not required on staging"
+        return 0
+      fi
+      ;;
+  esac
   decisions_file=${LEONAID_PILOT_TEST_DECISIONS_FILE:-}
   if [ -n "$decisions_file" ]; then
     case "$project" in
@@ -2049,7 +2062,7 @@ pilot_deploy() {
   pilot_compose_config "$project" "$env_file" "$config_file"
   pilot_verify_release_manifest \
     "$release_manifest" "$config_file" "$release_commit"
-  pilot_decision_gate "$project" pilot-deploy
+  pilot_decision_gate "$project" pilot-deploy "$env_file"
   # pilot-deploy runs without maintenance mode and must not drain queues;
   # an old Redis 7.4 store is migrated only by upgrade.
   LEONAID_COMPOSE_PROJECT="$project" \
@@ -2790,7 +2803,7 @@ pilot_install() {
   echo "pilot-install: checking configuration, release manifest and decisions"
   pilot_compose_config "$install_project" "$install_env" "$install_config"
   pilot_verify_release_manifest "$install_release" "$install_config" "$install_commit"
-  (pilot_decision_gate "$install_project" pilot-deploy)
+  (pilot_decision_gate "$install_project" pilot-deploy "$install_env")
   (pilot_doctor --env-file "$install_env" --backup-manifest "$install_manifest" \
     --gate pilot-deploy --first-install)
 
