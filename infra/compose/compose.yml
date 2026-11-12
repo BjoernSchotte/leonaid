@@ -831,7 +831,7 @@ services:
       LISTMONK_db__host: listmonk-postgres
       LISTMONK_db__port: "5432"
       LISTMONK_db__user: listmonk
-      LISTMONK_db__password: ${LISTMONK_POSTGRES_PASSWORD}
+      LISTMONK_db__password: ${LISTMONK_POSTGRES_PASSWORD:-}
       LISTMONK_db__database: listmonk
       LISTMONK_db__ssl_mode: disable
     networks:
@@ -857,7 +857,9 @@ services:
     environment:
       POSTGRES_DB: listmonk
       POSTGRES_USER: listmonk
-      POSTGRES_PASSWORD: ${LISTMONK_POSTGRES_PASSWORD}
+      # Empty outside the dev "mailing" profile (no pilot warning); Postgres
+      # refuses to start without a password, so the profile stays fail-closed.
+      POSTGRES_PASSWORD: ${LISTMONK_POSTGRES_PASSWORD:-}
     volumes:
       - listmonk-postgres-data:/var/lib/postgresql/data
     networks:
