@@ -307,9 +307,7 @@ def test_staging_mailpit_relay_needs_its_flag_and_private_ca() -> None:
                 {key: value for key, value in staging.items() if key != missing}
             )
     with raises(ValidationError):
-        MailTransportSettings.model_validate(
-            {**staging, "MAIL_SMTP_HOST": "localhost"}
-        )
+        MailTransportSettings.model_validate({**staging, "MAIL_SMTP_HOST": "localhost"})
 
 
 def test_production_mail_requires_explicit_delivery_identities() -> None:
