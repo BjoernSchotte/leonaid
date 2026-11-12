@@ -54,6 +54,13 @@ PRIVATE_NETWORKS = {"core-data", "crm-data", "mail-data", "storage-data", "telem
 # carries SMTP of the two mail senders and nothing else.
 MAIL_EGRESS_NETWORK = "mail-egress"
 MAIL_EGRESS_SERVICES = {"twenty-worker", "worker"}
+# Staging without a real SMTP account (LEONAID_STAGING_MAILPIT=true, profile
+# staging-mail in infra/pilot/compose.yml): Mailpit plays the relay. The
+# doctor allows it only on a staging installation.
+STAGING_MAIL_SERVICES = {"mailpit", "staging-mail-tls"}
+STAGING_MAIL_HOST = "mailpit"
+STAGING_MAIL_CA_FILE = "/run/leonaid-staging-mail/ca.pem"
+STAGING_MAIL_UI_PORT = 8025
 # Twenty 2.54 hands host, port and credentials to nodemailer, which uses
 # implicit TLS exactly on port 465 and otherwise upgrades with STARTTLS only
 # if the relay offers it. Twenty has no option to require STARTTLS, so it may
@@ -224,7 +231,10 @@ def validate_memory_budget(services: dict[str, Any]) -> None:
     total = 0.0
     for service_name, service in services.items():
         limit = memory_mib(service["mem_limit"])
-        total += limit
+        # The staging Mailpit replaces an external relay; a staging host
+        # provides its memory on top of the pilot budget.
+        if service_name not in STAGING_MAIL_SERVICES:
+            total += limit
         environment = service.get("environment")
         node_options = (
             str(environment.get("NODE_OPTIONS", ""))
@@ -272,13 +282,21 @@ def validate_hardened_runtime(service_name: str, service: dict[str, Any]) -> Non
         )
 
 
-def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> None:
+def validate(
+    config: dict[str, Any],
+    *,
+    isolated_test_mode: bool = False,
+    staging_mailpit: bool = False,
+) -> None:
     project = string_value(config, "name")
     if project == "leonaid" or not project.startswith("leonaid-"):
         raise DeploymentContractError("Compose project is not environment-specific")
 
     services = object_value(config.get("services"), "services")
-    if set(services) - {CMS_SERVICE} != REQUIRED_SERVICES:
+    expected_services = REQUIRED_SERVICES | (
+        STAGING_MAIL_SERVICES if staging_mailpit else set()
+    )
+    if set(services) - {CMS_SERVICE} != expected_services:
         raise DeploymentContractError("active service set differs from the pilot core")
 
     published: list[tuple[str, int, int]] = []
@@ -358,8 +376,17 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
             raise DeploymentContractError(
                 "isolated test may publish only Caddy target ports 80/443"
             )
-    elif sorted(others) != [("proxy", 80, 80), ("proxy", 443, 443)]:
-        raise DeploymentContractError("only Caddy may publish exactly 80/443")
+    elif sorted(others) != sorted(
+        [("proxy", 80, 80), ("proxy", 443, 443)]
+        + (
+            [("mailpit", STAGING_MAIL_UI_PORT, STAGING_MAIL_UI_PORT)]
+            if staging_mailpit
+            else []
+        )
+    ):
+        raise DeploymentContractError(
+            "only Caddy may publish exactly 80/443 (and the staging Mailpit 8025)"
+        )
 
     networks = object_value(config.get("networks"), "networks")
     for network_name in PRIVATE_NETWORKS:
@@ -447,7 +474,12 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
         worker_environment, "MAIL_ENVELOPE_FROM"
     ).casefold()
     mail_reply_to = string_value(worker_environment, "MAIL_REPLY_TO").casefold()
-    if mail_host in {"mailpit", "localhost"} or mail_host.startswith("127."):
+    if staging_mailpit:
+        if mail_host != STAGING_MAIL_HOST:
+            raise DeploymentContractError(
+                "the staging Mailpit relay needs MAIL_SMTP_HOST=mailpit"
+            )
+    elif mail_host in {"mailpit", "localhost"} or mail_host.startswith("127."):
         raise DeploymentContractError("production SMTP host is local")
     if any(
         ".invalid" in identity
@@ -458,9 +490,9 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
         raise DeploymentContractError("production SMTP transport is unencrypted")
     if worker_environment.get("MAIL_SMTP_VERIFY_CERTIFICATES") != "true":
         raise DeploymentContractError("production SMTP certificate verification is off")
-    validate_mail_egress(services, networks)
+    validate_mail_egress(services, networks, staging_mailpit=staging_mailpit)
     validate_twenty_admin_access(services, networks, api_environment, admin_port)
-    validate_twenty_mail(services, worker_environment)
+    validate_twenty_mail(services, worker_environment, staging_mailpit=staging_mailpit)
     validate_push(api_environment, worker_environment)
     validate_hosts(services, api_environment, isolated_test_mode=isolated_test_mode)
     if CMS_SERVICE in services:
@@ -707,7 +739,12 @@ def service_networks(service: dict[str, Any]) -> set[str]:
     return set(networks) if isinstance(networks, (dict, list)) else set()
 
 
-def validate_mail_egress(services: dict[str, Any], networks: dict[str, Any]) -> None:
+def validate_mail_egress(
+    services: dict[str, Any],
+    networks: dict[str, Any],
+    *,
+    staging_mailpit: bool = False,
+) -> None:
     egress = object_value(
         networks.get(MAIL_EGRESS_NETWORK), f"networks.{MAIL_EGRESS_NETWORK}"
     )
@@ -720,10 +757,12 @@ def validate_mail_egress(services: dict[str, Any], networks: dict[str, Any]) -> 
         for name, service in services.items()
         if MAIL_EGRESS_NETWORK in service_networks(object_value(service, name))
     }
-    if attached != MAIL_EGRESS_SERVICES:
+    if attached != MAIL_EGRESS_SERVICES | (
+        {STAGING_MAIL_HOST} if staging_mailpit else set()
+    ):
         raise DeploymentContractError(
-            "mail-egress must connect exactly worker and twenty-worker, found "
-            + ",".join(sorted(attached))
+            "mail-egress must connect exactly worker and twenty-worker "
+            "(and the staging Mailpit), found " + ",".join(sorted(attached))
         )
 
 
@@ -797,7 +836,10 @@ def address_domain(value: str) -> str:
 
 
 def validate_twenty_mail(
-    services: dict[str, Any], worker_environment: dict[str, Any]
+    services: dict[str, Any],
+    worker_environment: dict[str, Any],
+    *,
+    staging_mailpit: bool = False,
 ) -> None:
     """Twenty sends only through the core relay, only with implicit TLS and an
     aligned sender; its entrypoint picks the logger driver for other modes."""
@@ -814,9 +856,21 @@ def validate_twenty_mail(
         )
     if mode not in {"starttls", "tls"}:
         raise DeploymentContractError("MAIL_SMTP_MODE must be starttls or tls")
-    if worker_environment.get("MAIL_SMTP_CA_FILE"):
+    # Only the staging Mailpit relay has a private CA, which the core worker
+    # and Twenty both trust; every other relay needs a public CA.
+    expected_ca = STAGING_MAIL_CA_FILE if staging_mailpit else ""
+    if str(worker_environment.get("MAIL_SMTP_CA_FILE") or "") != expected_ca:
         raise DeploymentContractError(
-            "MAIL_SMTP_CA_FILE is not supported in the pilot; Twenty trusts only public CAs"
+            "MAIL_SMTP_CA_FILE is only for the staging Mailpit relay "
+            f"({STAGING_MAIL_CA_FILE}); Twenty trusts only public CAs otherwise"
+        )
+    twenty_worker = object_value(services["twenty-worker"], "services.twenty-worker")
+    twenty_worker_environment = object_value(
+        twenty_worker.get("environment"), "twenty-worker.environment"
+    )
+    if str(twenty_worker_environment.get("NODE_EXTRA_CA_CERTS") or "") != expected_ca:
+        raise DeploymentContractError(
+            "twenty-worker NODE_EXTRA_CA_CERTS must equal MAIL_SMTP_CA_FILE"
         )
     sender_domain = address_domain(string_value(worker_environment, "MAIL_FROM"))
     expected_entrypoint = [

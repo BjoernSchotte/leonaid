@@ -387,6 +387,30 @@ docker compose \
   --profile emdash \
   config --format json >"$workspace/compose-split.json"
 
+# A staging installation behind a TLS-terminating edge with the Mailpit relay
+# (LEONAID_EDGE_TLS, LEONAID_STAGING_MAILPIT; profile staging-mail).
+staging_env_file="$workspace/staging-mail.env"
+cp "$env_file" "$staging_env_file"
+{
+  printf '%s\n' \
+    "LEONAID_DEPLOYMENT_STAGE=staging" \
+    "LEONAID_EDGE_TLS=true" \
+    "LEONAID_STAGING_MAILPIT=true" \
+    "LEONAID_STAGING_MAILPIT_UI_AUTH=operator:staging-mailpit-ui-test-013" \
+    "MAIL_SMTP_HOST=mailpit" \
+    "MAIL_SMTP_PORT=465" \
+    "MAIL_SMTP_MODE=tls" \
+    "MAIL_SMTP_CA_FILE=/run/leonaid-staging-mail/ca.pem"
+} >>"$staging_env_file"
+chmod 600 "$staging_env_file"
+docker compose \
+  --project-name "$project" \
+  --env-file "$staging_env_file" \
+  --file "$root/infra/compose/compose.yml" \
+  --file "$root/infra/pilot/compose.yml" \
+  --profile staging-mail \
+  config --format json >"$workspace/compose-staging-mail.json"
+
 docker run --rm \
   --env PYTHONPATH=/workspace \
   --volume "$root:/workspace:ro" \
@@ -394,7 +418,8 @@ docker run --rm \
   --volume "$workspace:$workspace:ro" \
   --workdir /workspace \
   "$PYTHON_IMAGE" \
-  python tools/pilot_deployment/test.py /proof/compose.json /proof/compose-split.json
+  python tools/pilot_deployment/test.py /proof/compose.json /proof/compose-split.json \
+    /proof/compose-staging-mail.json
 
 echo "pilot-deployment-test: builds six release images before the deployment"
 build_owned=true
