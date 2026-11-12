@@ -762,8 +762,7 @@ def validate_mail_egress(
     ):
         raise DeploymentContractError(
             "mail-egress must connect exactly worker and twenty-worker "
-            "(and the staging Mailpit), found "
-            + ",".join(sorted(attached))
+            "(and the staging Mailpit), found " + ",".join(sorted(attached))
         )
 
 
