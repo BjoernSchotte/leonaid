@@ -86,8 +86,8 @@ start_release_workflow() {
 }
 
 # Resume: a release tag on HEAD means an earlier run stopped after tagging.
-# Push the tag again (a no-op when present) and start the release workflow if
-# the GitHub release is still missing. Never set a new tag here.
+# Push a tag that is missing on origin, or start the release workflow if the
+# tag is there but the GitHub release is still missing. Never set a new tag.
 done_tag=$(git tag --points-at HEAD | grep -E "$_release_re|$_fix_re" | sort_versions | tail -1 || true)
 case $branch in
   release/*)
@@ -98,8 +98,15 @@ esac
 if [ -n "$done_tag" ]; then
   echo "LeonAid ${done_tag#v} is tagged already: resuming"
   [ "$dry" = 0 ] || exit 0
+  # A tag that never reached origin: pushing it starts the workflow (on:
+  # push tags). Starting it once more would build the same version twice,
+  # and the second run fails on the published images.
+  if [ -z "$(git ls-remote --tags origin "refs/tags/$done_tag")" ]; then
+    git push -q origin "$done_tag"
+    echo "release: pushed $done_tag; the release workflow builds the images now"
+    exit 0
+  fi
   gh auth status >/dev/null 2>&1 || die "gh is not logged in"
-  git push -q origin "$done_tag"
   if gh release view "$done_tag" >/dev/null 2>&1; then
     echo "release: GitHub release $done_tag exists; nothing to do"
     exit 0

@@ -252,6 +252,29 @@ class ReleaseScriptTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("2026.11.1 is tagged already: resuming", result.stdout)
 
+    def test_resume_pushes_a_missing_tag_and_starts_no_second_workflow(self) -> None:
+        self.repository.tag("v2026.11.1")
+        marker = Path(self.directory.name) / "workflow-started"
+        result = subprocess.run(
+            ["sh", str(SCRIPT)],
+            cwd=self.repository.path,
+            capture_output=True,
+            text=True,
+            env={
+                **os.environ,
+                "RELEASE_MONTH": "2026.11",
+                "RELEASE_CI_STATE": "green",
+                "RELEASE_WORKFLOW_COMMAND": f"touch {marker}",
+            },
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("pushed v2026.11.1", result.stdout)
+        self.assertIn(
+            "refs/tags/v2026.11.1",
+            git(self.repository.path, "ls-remote", "--tags", "origin"),
+        )
+        self.assertFalse(marker.exists(), "the tag push already starts the workflow")
+
 
 class ReleaseAssetsTest(unittest.TestCase):
     def metadata(self) -> dict[str, object]:
