@@ -1783,9 +1783,26 @@ pilot_cms_enabled() {
   esac
 }
 
+# Staging without a real SMTP account: Mailpit plays the TLS relay
+# (infra/pilot/compose.staging-mail.yml). The doctor refuses it in production.
+pilot_staging_mailpit() {
+  pilot_mailpit_value=$(sed -n 's/^LEONAID_STAGING_MAILPIT=//p' "$1" | tail -n 1)
+  case "$pilot_mailpit_value" in
+    true) return 0 ;;
+    false|'') return 1 ;;
+    *)
+      echo "pilot: ERROR: LEONAID_STAGING_MAILPIT must be true or false (unquoted) in $1" >&2
+      exit 1
+      ;;
+  esac
+}
+
 pilot_cms_profile() {
   if pilot_cms_enabled "$1"; then
     printf '%s\n' --profile emdash
+  fi
+  if pilot_staging_mailpit "$1"; then
+    printf '%s\n' --profile staging-mail
   fi
 }
 
@@ -1821,7 +1838,7 @@ pilot_compose_config() {
   env_file=$2
   output=$3
   pilot_profile=$(pilot_cms_profile "$env_file") || return
-  # shellcheck disable=SC2086 # empty or exactly "--profile emdash"
+  # shellcheck disable=SC2086 # empty, "--profile emdash" and/or "--profile staging-mail"
   set -- $pilot_profile
   if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
     overlay=$(pilot_test_overlay "$project") || return
@@ -1886,7 +1903,7 @@ pilot_compose_command() {
   env_file=$2
   shift 2
   pilot_profile=$(pilot_cms_profile "$env_file") || return
-  # shellcheck disable=SC2086 # empty or exactly "--profile emdash"
+  # shellcheck disable=SC2086 # empty, "--profile emdash" and/or "--profile staging-mail"
   set -- $pilot_profile "$@"
   if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
     overlay=$(pilot_test_overlay "$project") || return
@@ -2455,7 +2472,7 @@ pilot_bootstrap_compose() {
   env_file=$2
   shift 2
   pilot_profile=$(pilot_cms_profile "$env_file") || return
-  # shellcheck disable=SC2086 # empty or exactly "--profile emdash"
+  # shellcheck disable=SC2086 # empty, "--profile emdash" and/or "--profile staging-mail"
   set -- $pilot_profile "$@"
   if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
     overlay=$(pilot_test_overlay "$project") || return

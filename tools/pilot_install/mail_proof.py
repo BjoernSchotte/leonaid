@@ -26,85 +26,19 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from pathlib import Path
 
 
 def certificates(directory: Path, host: str) -> None:
-    from cryptography import x509
-    from cryptography.hazmat.primitives import hashes, serialization
-    from cryptography.hazmat.primitives.asymmetric import ec
-    from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
+    from leonaid.entrypoints.staging_mail_tls import write_certificates
 
-    now = datetime.now(timezone.utc)
-    ca_key = ec.generate_private_key(ec.SECP256R1())
-    ca_name = x509.Name(
-        [x509.NameAttribute(NameOID.COMMON_NAME, "LeonAid pilot-install test CA")]
+    write_certificates(
+        directory,
+        host,
+        validity=timedelta(days=1),
+        ca_common_name="LeonAid pilot-install test CA",
     )
-    ca = (
-        x509.CertificateBuilder()
-        .subject_name(ca_name)
-        .issuer_name(ca_name)
-        .public_key(ca_key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(now - timedelta(minutes=5))
-        .not_valid_after(now + timedelta(days=1))
-        .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
-        .add_extension(
-            x509.KeyUsage(
-                digital_signature=False,
-                content_commitment=False,
-                key_encipherment=False,
-                data_encipherment=False,
-                key_agreement=False,
-                key_cert_sign=True,
-                crl_sign=True,
-                encipher_only=False,
-                decipher_only=False,
-            ),
-            critical=True,
-        )
-        .add_extension(
-            x509.SubjectKeyIdentifier.from_public_key(ca_key.public_key()),
-            critical=False,
-        )
-        .sign(ca_key, hashes.SHA256())
-    )
-    key = ec.generate_private_key(ec.SECP256R1())
-    leaf = (
-        x509.CertificateBuilder()
-        .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, host)]))
-        .issuer_name(ca_name)
-        .public_key(key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(now - timedelta(minutes=5))
-        .not_valid_after(now + timedelta(days=1))
-        .add_extension(
-            x509.SubjectAlternativeName([x509.DNSName(host)]), critical=False
-        )
-        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
-        .add_extension(
-            x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]), critical=False
-        )
-        .add_extension(
-            x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()),
-            critical=False,
-        )
-        .sign(ca_key, hashes.SHA256())
-    )
-    pem = serialization.Encoding.PEM
-    (directory / "ca.pem").write_bytes(ca.public_bytes(pem))
-    (directory / "cert.pem").write_bytes(leaf.public_bytes(pem))
-    (directory / "key.pem").write_bytes(
-        key.private_bytes(
-            pem,
-            serialization.PrivateFormat.PKCS8,
-            serialization.NoEncryption(),
-        )
-    )
-    for name in ("ca.pem", "cert.pem", "key.pem"):
-        # Throwaway test material; Mailpit and Twenty run as other users.
-        (directory / name).chmod(0o644)
 
 
 def core_send(recipient: str) -> None:

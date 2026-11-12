@@ -340,6 +340,9 @@ ROUTES: tuple[Route, ...] = (
 PILOT_GLOBAL = """{
 	email {$CADDY_ACME_EMAIL}
 	admin off
+	# "local_certs" only on staging behind a TLS-terminating edge
+	# (LEONAID_EDGE_TLS=true, checked by the doctor); empty everywhere else.
+	{$LEONAID_PROXY_LOCAL_CERTS}
 	# Campaign hosts (specs/multi-domain §7): a certificate only for a host
 	# Core approves; Caddy 2.11 has no own rate limit, Core has (§9.1).
 	on_demand_tls {

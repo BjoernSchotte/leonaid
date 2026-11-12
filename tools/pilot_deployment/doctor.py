@@ -24,6 +24,9 @@ from tools.pilot_decisions.check import (
     validate_register,
 )
 from tools.pilot_deployment.validate import (
+    IMPLICIT_TLS_PORT,
+    STAGING_MAIL_CA_FILE,
+    STAGING_MAIL_HOST,
     DeploymentContractError,
     is_placeholder,
     object_value,
@@ -171,6 +174,16 @@ def external_https_url_file(path: Path, *, root: Path, label: str) -> str:
     return url
 
 
+def edge_tls_enabled(values: dict[str, str]) -> bool:
+    """Staging behind a TLS-terminating edge: Caddy uses its internal CA."""
+    return values.get("LEONAID_EDGE_TLS", "") == "true"
+
+
+def staging_mailpit_enabled(values: dict[str, str]) -> bool:
+    """Staging with the Mailpit relay instead of a real SMTP account."""
+    return values.get("LEONAID_STAGING_MAILPIT", "") == "true"
+
+
 def validate_environment(
     values: dict[str, str],
     *,
@@ -201,6 +214,28 @@ def validate_environment(
     stage = values["LEONAID_DEPLOYMENT_STAGE"]
     if stage not in {"production", "staging"}:
         raise DoctorError("deployment_stage_invalid")
+    # Staging-only options. Compose turns any non-empty LEONAID_EDGE_TLS into
+    # Caddy's internal CA, so "false" is refused instead of silently enabling it.
+    if values.get("LEONAID_EDGE_TLS", "") not in {"", "true"}:
+        raise DoctorError("edge_tls_invalid")
+    if values.get("LEONAID_STAGING_MAILPIT", "") not in {"", "true", "false"}:
+        raise DoctorError("staging_mailpit_invalid")
+    staging_mailpit = staging_mailpit_enabled(values)
+    if stage != "staging" and (edge_tls_enabled(values) or staging_mailpit):
+        raise DoctorError("staging_option_outside_staging")
+    if staging_mailpit:
+        if (
+            values["MAIL_SMTP_HOST"] != STAGING_MAIL_HOST
+            or values["MAIL_SMTP_PORT"] != IMPLICIT_TLS_PORT
+            or values["MAIL_SMTP_MODE"] != "tls"
+            or values.get("MAIL_SMTP_CA_FILE") != STAGING_MAIL_CA_FILE
+        ):
+            raise DoctorError("staging_mailpit_settings_invalid")
+        user, _, password = values.get("LEONAID_STAGING_MAILPIT_UI_AUTH", "").partition(
+            ":"
+        )
+        if not user or len(password) < 16:
+            raise DoctorError("staging_mailpit_ui_auth_invalid")
     project = values["LEONAID_COMPOSE_PROJECT"]
     project_match = SAFE_PROJECT.fullmatch(project)
     if project_match is None or project_match.group(1) != stage:
@@ -308,10 +343,14 @@ def validate_environment(
             raise DoctorError(f"https_url_invalid:{key}")
         if forbidden_public_host(parsed.hostname):
             raise DoctorError(f"public_host_invalid:{key}")
-    if forbidden_public_host(values["MAIL_SMTP_HOST"]):
+    if not staging_mailpit and forbidden_public_host(values["MAIL_SMTP_HOST"]):
         raise DoctorError("smtp_host_invalid")
 
-    validate(compose_config, isolated_test_mode=isolated_test_mode)
+    validate(
+        compose_config,
+        isolated_test_mode=isolated_test_mode,
+        staging_mailpit=staging_mailpit,
+    )
     return project
 
 
@@ -729,7 +768,7 @@ def probe_running_installation(
     )
     if not portal_body:
         raise DoctorError("portal_response_empty")
-    api_body, _ = probe_https(
+    api_body, api_date = probe_https(
         name="api",
         url=f"{public_base}/api/health/ready",
         context=context,
@@ -779,24 +818,32 @@ def probe_running_installation(
     hosts = [urlparse(public_base).hostname or ""]
     if site_base and site_base != public_base:
         hosts.append(urlparse(site_base).hostname or "")
-    for host in dict.fromkeys([*hosts, *aliases]):
-        probe_http_health(
-            name=f"http:{host}",
-            host=host,
+    # Behind a TLS-terminating edge the edge owns port 80 and the public
+    # certificate; ACME HTTP-01 does not reach this Caddy.
+    if not edge_tls_enabled(environment):
+        for host in dict.fromkeys([*hosts, *aliases]):
+            probe_http_health(
+                name=f"http:{host}",
+                host=host,
+                resolve=resolve,
+                timeout_seconds=arguments.timeout_seconds,
+            )
+    if staging_mailpit_enabled(environment):
+        # The staging relay runs in this stack; the clock is checked against
+        # the public API's Date header instead of the mail provider.
+        provider_date = api_date
+    else:
+        mail_body, provider_date = probe_https(
+            name="mail-provider",
+            url=environment["MAIL_HEALTH_URL"],
+            context=context,
             resolve=resolve,
             timeout_seconds=arguments.timeout_seconds,
+            min_certificate_validity_hours=arguments.minimum_certificate_validity_hours,
+            required_headers=common_headers,
         )
-    mail_body, provider_date = probe_https(
-        name="mail-provider",
-        url=environment["MAIL_HEALTH_URL"],
-        context=context,
-        resolve=resolve,
-        timeout_seconds=arguments.timeout_seconds,
-        min_certificate_validity_hours=arguments.minimum_certificate_validity_hours,
-        required_headers=common_headers,
-    )
-    if not mail_body:
-        raise DoctorError("mail_provider_response_empty")
+        if not mail_body:
+            raise DoctorError("mail_provider_response_empty")
     if provider_date is None:
         raise DoctorError("provider_date_missing")
     skew = abs(

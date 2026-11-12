@@ -106,6 +106,28 @@ def main() -> None:
             ),
         )
 
+        # Staging-only options never pass on a production installation, and
+        # "false" is no off switch for the edge mode (Compose sees non-empty).
+        for label, key, value in (
+            ("edge TLS in production", "LEONAID_EDGE_TLS", "true"),
+            ("edge TLS spelled false", "LEONAID_EDGE_TLS", "false"),
+            ("staging Mailpit in production", "LEONAID_STAGING_MAILPIT", "true"),
+            ("staging Mailpit typo", "LEONAID_STAGING_MAILPIT", "yes"),
+        ):
+            staging_values = dict(values)
+            staging_values[key] = value
+            write_environment(environment_path, staging_values)
+            rejected(
+                label,
+                lambda: validate_environment(
+                    staging_values,
+                    root=root,
+                    env_file=environment_path,
+                    compose_config=compose_config,
+                    expected_release_commit=expected_commit,
+                ),
+            )
+
         # Web Push is optional; a key needs a real contact (ADR-0017).
         for label, key, value in (
             (

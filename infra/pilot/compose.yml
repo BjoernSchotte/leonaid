@@ -32,6 +32,9 @@ services:
       - "${LEONAID_BIND_ADDRESS:-0.0.0.0}:443:443"
     environment:
       CADDY_ACME_EMAIL: ${CADDY_ACME_EMAIL:?CADDY_ACME_EMAIL is missing}
+      # Staging behind a TLS-terminating edge only (the doctor refuses it in
+      # production): Caddy uses its internal CA instead of ACME.
+      LEONAID_PROXY_LOCAL_CERTS: ${LEONAID_EDGE_TLS:+local_certs}
       LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:-}
       # Set together with LEONAID_PROXY_CADDYFILE=Caddyfile.split
       # (specs/multi-domain stage 1); empty for one host.
@@ -119,6 +122,15 @@ services:
       MAIL_SMTP_CA_FILE: ${MAIL_SMTP_CA_FILE:-}
       RUSTFS_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET is missing}
       OBJECT_STORAGE_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET is missing}
+    # The private CA of the staging Mailpit relay (profile staging-mail);
+    # an empty volume everywhere else.
+    volumes:
+      - staging-mail-tls:/run/leonaid-staging-mail:ro
+    # Waits for the staging Mailpit CA; without the profile nothing waits.
+    depends_on:
+      staging-mail-tls:
+        condition: service_completed_successfully
+        required: false
 
   web:
     image: ${LEONAID_WEB_IMAGE:?LEONAID_WEB_IMAGE is missing}
@@ -196,10 +208,71 @@ services:
 
   twenty-worker:
     entrypoint: *twenty-mail-policy
-    environment: *twenty-production-mail
+    environment:
+      <<: *twenty-production-mail
+      # Set to the staging Mailpit CA (profile staging-mail); empty otherwise.
+      NODE_EXTRA_CA_CERTS: ${MAIL_SMTP_CA_FILE:-}
     # Twenty's e-mail queue runs in the worker; it needs the relay.
     networks:
       - mail-egress
+    volumes:
+      - staging-mail-tls:/run/leonaid-staging-mail:ro
+    # Twenty reads the CA at start; without the profile nothing waits.
+    depends_on:
+      staging-mail-tls:
+        condition: service_completed_successfully
+        required: false
+
+  # Staging without a real SMTP account (LEONAID_STAGING_MAILPIT=true, which
+  # ./leonaid turns into this profile; the doctor refuses it in production).
+  # Mailpit plays the relay with implicit TLS on 465 and a private CA that only
+  # the core worker and Twenty trust (MAIL_SMTP_CA_FILE). Nothing leaves the
+  # server: read the mails in Mailpit's web UI on port 8025, protected by
+  # LEONAID_STAGING_MAILPIT_UI_AUTH (user:password) and the host firewall.
+  staging-mail-tls:
+    image: ${LEONAID_CORE_IMAGE:?LEONAID_CORE_IMAGE is missing}
+    profiles: [staging-mail]
+    logging: *default-logging
+    restart: "no"
+    # Writes into a fresh named volume, which belongs to root.
+    user: "0:0"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 32
+    entrypoint: ["uv", "run", "--frozen", "--no-sync", "python", "-m", "leonaid.entrypoints.staging_mail_tls"]
+    command: ["/smtp", "mailpit"]
+    volumes:
+      - staging-mail-tls:/smtp
+
+  mailpit:
+    profiles: !override [staging-mail]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      MP_SMTP_BIND_ADDR: 0.0.0.0:465
+      MP_SMTP_TLS_CERT: /smtp/cert.pem
+      MP_SMTP_TLS_KEY: /smtp/key.pem
+      MP_SMTP_REQUIRE_TLS: "true"
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_UI_BIND_ADDR: 0.0.0.0:8025
+      MP_UI_AUTH: ${LEONAID_STAGING_MAILPIT_UI_AUTH:-}
+      MP_WEBROOT: /
+    ports:
+      - "${LEONAID_BIND_ADDRESS:-0.0.0.0}:8025:8025"
+    volumes: !override
+      - mailpit-data:/data
+      - staging-mail-tls:/smtp:ro
+    networks: !override
+      - mail-egress
+    depends_on:
+      staging-mail-tls:
+        condition: service_completed_successfully
 
   pilot-exporter:
     image: ${LEONAID_CORE_IMAGE:?LEONAID_CORE_IMAGE is missing}
@@ -297,5 +370,6 @@ networks:
 volumes:
   caddy-data:
   caddy-config:
+  staging-mail-tls:
   prometheus-data:
   alertmanager-data:

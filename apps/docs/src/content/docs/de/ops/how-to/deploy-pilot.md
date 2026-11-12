@@ -36,3 +36,35 @@ des Vereins. Eine Staging-Installation wartet auf keine Entscheidung im
 Register. Der reale Produktionsstart bleibt blockiert, solange DNS,
 vertrauenswürdiges TLS, Mail, Betreiberangaben, Recovery-Ziel oder fachliche
 Entscheidungen offen sind.
+
+## Staging hinter einem Proxy und ohne SMTP-Zugang
+
+Zwei Optionen erleichtern eine Staging-VM im eigenen Netz des Vereins. Der
+Doctor lehnt beide ab, wenn `LEONAID_DEPLOYMENT_STAGE=production` gilt.
+
+- **`LEONAID_EDGE_TLS=true`:** Ein Reverse Proxy oder Tunnel vor dem Server
+  (zum Beispiel Pangolin oder Cloudflare Tunnel) hält das öffentliche
+  Zertifikat und Port 80. Caddy nutzt dann seine interne CA. Der Proxy
+  leitet HTTPS auf Port 443 des Servers weiter, mit dem öffentlichen
+  Hostnamen als TLS-Servername (SNI). Der Doctor prüft das öffentliche
+  Zertifikat über den Proxy und lässt die Prüfung von Port 80 aus. Zum
+  Abschalten den Schlüssel weglassen; `false` wird abgelehnt.
+- **`LEONAID_STAGING_MAILPIT=true`:** Mailpit spielt im Stack das SMTP-Relay.
+  Keine Mail verlässt den Server. Setze diese Schlüssel:
+
+  ```sh
+  LEONAID_STAGING_MAILPIT=true
+  LEONAID_STAGING_MAILPIT_UI_AUTH=operator:<Passwort, mindestens 16 Zeichen>
+  MAIL_SMTP_HOST=mailpit
+  MAIL_SMTP_PORT=465
+  MAIL_SMTP_MODE=tls
+  MAIL_SMTP_CA_FILE=/run/leonaid-staging-mail/ca.pem
+  ```
+
+  Der Stack erzeugt eine eigene CA für Mailpit; nur der Core-Worker und
+  Twenty vertrauen ihr. Die Mails, etwa Anmeldecodes, liest du unter
+  `http://SERVER:8025` mit Benutzer und Passwort aus
+  `LEONAID_STAGING_MAILPIT_UI_AUTH`. Öffne Port 8025 nur für dein eigenes
+  Netz. Der Doctor lässt die Prüfung des Mailanbieters aus. Für einen echten
+  SMTP-Zugang später die sechs Zeilen oben entfernen und die Werte des
+  Anbieters eintragen.

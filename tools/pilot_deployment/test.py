@@ -300,11 +300,55 @@ def main() -> None:
     )
     if len(sys.argv) > 2:
         split_hosts_and_cms(json.loads(Path(sys.argv[2]).read_text(encoding="utf-8")))
+        staging_mailpit(json.loads(Path(sys.argv[3]).read_text(encoding="utf-8")))
 
 
 def _environment(config: dict[str, Any], service: str) -> dict[str, Any]:
     environment: dict[str, Any] = config["services"][service]["environment"]
     return environment
+
+
+def staging_mailpit(config: dict[str, Any]) -> None:
+    """Staging with the Mailpit relay passes only in its own mode."""
+
+    validate(config, staging_mailpit=True)
+    try:
+        validate(config)
+    except DeploymentContractError:
+        pass
+    else:
+        raise AssertionError("the staging Mailpit stack passed as production")
+
+    def mailpit_rejected(changed: dict[str, Any], label: str) -> None:
+        try:
+            validate(changed, staging_mailpit=True)
+        except DeploymentContractError:
+            return
+        raise AssertionError(f"unsafe staging mail mutation was allowed: {label}")
+
+    changed = copy.deepcopy(config)
+    del changed["services"]["mailpit"]
+    mailpit_rejected(changed, "Mailpit missing")
+
+    changed = copy.deepcopy(config)
+    changed["services"]["worker"]["environment"]["MAIL_SMTP_HOST"] = "smtp.leonaid.org"
+    mailpit_rejected(changed, "worker bypasses Mailpit")
+
+    changed = copy.deepcopy(config)
+    changed["services"]["worker"]["environment"]["MAIL_SMTP_CA_FILE"] = "/tmp/ca.pem"
+    mailpit_rejected(changed, "worker trusts another CA")
+
+    changed = copy.deepcopy(config)
+    changed["services"]["twenty-worker"]["environment"]["NODE_EXTRA_CA_CERTS"] = ""
+    mailpit_rejected(changed, "Twenty does not trust the Mailpit CA")
+
+    changed = copy.deepcopy(config)
+    changed["services"]["mailpit"]["ports"][0]["published"] = "25"
+    mailpit_rejected(changed, "Mailpit publishes another port")
+
+    changed = copy.deepcopy(config)
+    changed["services"]["api"]["networks"]["mail-egress"] = None
+    mailpit_rejected(changed, "API on the mail egress")
 
 
 def split_hosts_and_cms(config: dict[str, Any]) -> None:
