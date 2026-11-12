@@ -252,7 +252,6 @@ class ReleaseScriptTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("2026.11.1 is tagged already: resuming", result.stdout)
 
-
     def test_resume_pushes_a_missing_tag_and_starts_no_second_workflow(self) -> None:
         self.repository.tag("v2026.11.1")
         marker = Path(self.directory.name) / "workflow-started"
