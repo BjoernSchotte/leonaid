@@ -864,6 +864,13 @@ def validate_twenty_mail(
             "MAIL_SMTP_CA_FILE is only for the staging Mailpit relay "
             f"({STAGING_MAIL_CA_FILE}); Twenty trusts only public CAs otherwise"
         )
+    # The worker's own guard allows the Mailpit host only with this flag.
+    if str(worker_environment.get("LEONAID_STAGING_MAILPIT") or "false") != (
+        "true" if staging_mailpit else "false"
+    ):
+        raise DeploymentContractError(
+            "worker LEONAID_STAGING_MAILPIT differs from the staging mail mode"
+        )
     twenty_worker = object_value(services["twenty-worker"], "services.twenty-worker")
     twenty_worker_environment = object_value(
         twenty_worker.get("environment"), "twenty-worker.environment"

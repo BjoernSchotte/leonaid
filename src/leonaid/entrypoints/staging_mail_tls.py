@@ -1,4 +1,4 @@
-"""TLS material for the staging Mailpit relay (infra/pilot/compose.staging-mail.yml).
+"""TLS material for the staging Mailpit relay (profile staging-mail, infra/pilot/compose.yml).
 
 The pilot sends mail only over TLS with certificate verification. On a staging
 installation without a real SMTP account, Mailpit plays the relay. This

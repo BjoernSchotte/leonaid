@@ -331,6 +331,10 @@ def staging_mailpit(config: dict[str, Any]) -> None:
     mailpit_rejected(changed, "Mailpit missing")
 
     changed = copy.deepcopy(config)
+    changed["services"]["worker"]["environment"]["LEONAID_STAGING_MAILPIT"] = "false"
+    mailpit_rejected(changed, "worker without the staging mail flag")
+
+    changed = copy.deepcopy(config)
     changed["services"]["worker"]["environment"]["MAIL_SMTP_HOST"] = "smtp.leonaid.org"
     mailpit_rejected(changed, "worker bypasses Mailpit")
 

@@ -285,6 +285,31 @@ def test_production_mail_rejects_plaintext_and_disabled_verification() -> None:
         )
 
 
+def test_staging_mailpit_relay_needs_its_flag_and_private_ca() -> None:
+    staging = {
+        "LEONAID_ENV": "production",
+        "MAIL_SMTP_HOST": "mailpit",
+        "MAIL_SMTP_PORT": "465",
+        "MAIL_SMTP_MODE": "tls",
+        "MAIL_SMTP_VERIFY_CERTIFICATES": "true",
+        "MAIL_FROM": "LeonAid Staging <noreply@leonaid.org>",
+        "MAIL_ENVELOPE_FROM": "bounces@leonaid.org",
+        "MAIL_REPLY_TO": "support@leonaid.org",
+        "MAIL_SMTP_CA_FILE": "/run/leonaid-staging-mail/ca.pem",
+        "LEONAID_STAGING_MAILPIT": "true",
+    }
+    settings = MailTransportSettings.model_validate(staging)
+    assert settings.host == "mailpit"
+    assert settings.staging_mailpit
+    for missing in ("LEONAID_STAGING_MAILPIT", "MAIL_SMTP_CA_FILE"):
+        with raises(ValidationError):
+            MailTransportSettings.model_validate(
+                {key: value for key, value in staging.items() if key != missing}
+            )
+    with raises(ValidationError):
+        MailTransportSettings.model_validate({**staging, "MAIL_SMTP_HOST": "localhost"})
+
+
 def test_production_mail_requires_explicit_delivery_identities() -> None:
     base = {
         "LEONAID_ENV": "production",

@@ -575,6 +575,9 @@ class MailTransportSettings(BaseSettings):
         alias="MAIL_SMTP_VERIFY_CERTIFICATES",
     )
     ca_file: Path | None = Field(default=None, alias="MAIL_SMTP_CA_FILE")
+    # Staging only: Mailpit plays the relay with a private CA. The pilot
+    # doctor and deployment contract allow it on a staging installation only.
+    staging_mailpit: bool = Field(default=False, alias="LEONAID_STAGING_MAILPIT")
 
     @field_validator(
         "username",
@@ -624,7 +627,11 @@ class MailTransportSettings(BaseSettings):
                     raise ValueError(
                         f"Production requires an explicit {label} with a real domain."
                     )
-            if self.host.casefold() in {"mailpit", "localhost"}:
+            host = self.host.casefold()
+            staging_relay = (
+                host == "mailpit" and self.staging_mailpit and self.ca_file is not None
+            )
+            if host in {"mailpit", "localhost"} and not staging_relay:
                 raise ValueError(
                     "Mailpit and loopback SMTP are forbidden in production."
                 )
