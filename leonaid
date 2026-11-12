@@ -2703,7 +2703,9 @@ pilot_install_cleanup() {
   if [ "$status" -ne 0 ] && [ "$install_started" = true ]; then
     echo "pilot-install: FAILED. The containers and volumes of $install_project stay for diagnosis." >&2
     echo "pilot-install: a new attempt needs an empty project; remove them first with:" >&2
-    echo "  docker compose --project-name $install_project --env-file $install_env --file $root/infra/compose/compose.yml --file $root/infra/pilot/compose.yml --profile monitoring down --volumes" >&2
+    # The same profiles as the stack, so a staging Mailpit goes too.
+    install_profiles=$(pilot_cms_profile "$install_env" | tr '\n' ' ')
+    echo "  docker compose --project-name $install_project --env-file $install_env --file $root/infra/compose/compose.yml --file $root/infra/pilot/compose.yml --profile monitoring ${install_profiles}down --volumes" >&2
     if [ "$install_key_written" = true ]; then
       echo "pilot-install: the env file holds the key of the removed Twenty; set TWENTY_INTEGRATION_API_KEY=PENDING_PILOT_INSTALL again before the next attempt" >&2
     fi
