@@ -239,12 +239,12 @@ services:
     network_mode: none
     read_only: true
     cap_drop: [ALL]
-    cap_add: [DAC_OVERRIDE]
     security_opt: [no-new-privileges:true]
     mem_limit: 128m
     cpus: 0.5
     pids_limit: 32
-    entrypoint: ["uv", "run", "--frozen", "--no-sync", "python", "-m", "leonaid.entrypoints.staging_mail_tls"]
+    # The image's venv python; uv would need a writable cache.
+    entrypoint: ["python", "-m", "leonaid.entrypoints.staging_mail_tls"]
     command: ["/smtp", "mailpit"]
     volumes:
       - staging-mail-tls:/smtp
