@@ -120,6 +120,7 @@ services:
       MAIL_SMTP_TIMEOUT_SECONDS: ${MAIL_SMTP_TIMEOUT_SECONDS:-10}
       MAIL_SMTP_VERIFY_CERTIFICATES: "true"
       MAIL_SMTP_CA_FILE: ${MAIL_SMTP_CA_FILE:-}
+      LEONAID_STAGING_MAILPIT: ${LEONAID_STAGING_MAILPIT:-false}
       RUSTFS_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET is missing}
       OBJECT_STORAGE_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET is missing}
     # The private CA of the staging Mailpit relay (profile staging-mail);
