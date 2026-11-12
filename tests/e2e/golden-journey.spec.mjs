@@ -274,10 +274,26 @@ test("complete Krapfentaxi journey without database intervention", async ({
       name: "Kein gleichnamiger Sponsor gefunden",
     }),
   ).toBeVisible({ timeout: CRM_BUDGET_TIMEOUT });
+  // The workspace reloads the board after the resolution. Navigating while
+  // that request runs aborts it, and WebKit reports the aborted fetch as a
+  // page error ("... due to access control checks"), so the journey waits
+  // for the first board answer after the resolution.
+  let resolved = false;
   const resolutionPromise = memberPage.waitForResponse(
+    (response) => {
+      const match =
+        response.request().method() === "POST" &&
+        response.url().endsWith("/acquisition/sponsor-match/resolve");
+      if (match) resolved = true;
+      return match;
+    },
+    { timeout: CRM_BUDGET_TIMEOUT },
+  );
+  const boardReloadPromise = memberPage.waitForResponse(
     (response) =>
-      response.request().method() === "POST" &&
-      response.url().endsWith("/acquisition/sponsor-match/resolve"),
+      resolved &&
+      response.request().method() === "GET" &&
+      response.url().includes("/acquisition/activity-board"),
     { timeout: CRM_BUDGET_TIMEOUT },
   );
   await memberPage.getByTestId("sponsor-resolve").click();
@@ -288,6 +304,7 @@ test("complete Krapfentaxi journey without database intervention", async ({
     assignmentCreated: true,
     outcome: "created",
   });
+  await boardReloadPromise;
 
   await memberPage.goto(`${baseUrl}/app/sponsors`);
   const sponsorRow = memberPage
