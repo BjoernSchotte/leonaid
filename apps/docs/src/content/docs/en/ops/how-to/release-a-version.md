@@ -53,4 +53,6 @@ for it; it never creates a second tag.
 Copy the lines of `release-images.env` unchanged into the private environment
 file and continue with
 [Deploy a pilot installation](/en/ops/how-to/deploy-pilot/) using
-`release-manifest.json`.
+`release-manifest.json`. An installation that already runs gets the release
+with one command, `./leonaid upgrade`: see
+[Upgrade an installation](/en/ops/how-to/upgrade-and-rollback/#upgrade-an-installation).

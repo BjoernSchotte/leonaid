@@ -56,4 +56,7 @@ dafür. Einen zweiten Tag legt es nie an.
 
 Die Zeilen aus `release-images.env` unverändert in die private
 Environment-Datei übernehmen und mit `release-manifest.json` bei
-[Pilotinstallation deployen](/de/ops/how-to/deploy-pilot/) weitermachen.
+[Pilotinstallation deployen](/de/ops/how-to/deploy-pilot/) weitermachen. Eine
+laufende Installation bekommt das Release mit einem Befehl,
+`./leonaid upgrade`: siehe
+[Eine Installation aktualisieren](/de/ops/how-to/upgrade-and-rollback/#eine-installation-aktualisieren).

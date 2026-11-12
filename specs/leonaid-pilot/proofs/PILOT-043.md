@@ -1,5 +1,17 @@
 # PILOT-043 – Technischer Nachweis
 
+> **Nachtrag 2026-11-11 (#234):** Das Staging-Gate ist entfallen.
+> `tools/pilot_release/promotion.py`, das Release-Ledger und
+> `pilot-release-record` gibt es nicht mehr; der Operatorbefehl heißt
+> `./leonaid upgrade`. Er prüft vor jeder Änderung mit dem Core-Image der
+> Release `alembic current` (unbekannte Revision: Abbruch ohne Änderung),
+> erstellt ein Backup als harte Vorbedingung, bewahrt dessen Manifest als
+> `….pre-upgrade-<UTC>.json` auf und nennt bei einem Fehler den
+> `pilot-restore`-Befehl. Staging ist ein freiwilliger Probelauf.
+> Entscheidungen aus dem Register gelten nur für Produktion und sind bei
+> `pilot-deploy` fällig. Ablauf: [`RELEASE-RUNBOOK.md`](../../../infra/pilot/RELEASE-RUNBOOK.md).
+> Der Text unten beschreibt den Stand vom 2026-07-30.
+
 Stand: 2026-07-30
 Ergebnis: technische Release-, Migrations- und Rollbackbasis sowie die
 vollständige Krapfentaxi Golden Journey an allen Releasegrenzen bewiesen;
