@@ -15,6 +15,7 @@ from tools.pilot_deployment.doctor import (
     PENDING_INTEGRATION_KEY,
     DoctorError,
     due_decisions,
+    environment_warnings,
     parse_resolve,
     read_dotenv,
     validate_backup,
@@ -28,6 +29,18 @@ def rejected(label: str, operation: Callable[[], object]) -> None:
     except DoctorError:
         return
     raise AssertionError(f"doctor mutation was accepted: {label}")
+
+
+def open_register(text: str) -> str:
+    """The decision register with every decision open again."""
+    lines: list[str] = []
+    for line in text.splitlines():
+        if line.startswith("| PILOT-"):
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            cells[6], cells[7], cells[8] = "PENDING", "open", "PENDING"
+            line = "| " + " | ".join(cells) + " |"
+        lines.append(line)
+    return "\n".join(lines) + "\n"
 
 
 def write_environment(path: Path, values: dict[str, str]) -> None:
@@ -315,13 +328,47 @@ def main() -> None:
                     expected_release_commit=expected_commit,
                 ),
             )
-        missing_heartbeat = dict(values)
-        del missing_heartbeat["LEONAID_ALERT_HEARTBEAT_URL_FILE"]
-        write_environment(environment_path, missing_heartbeat)
+        # Alert delivery is optional: an empty or absent key installs with a
+        # warning, a configured file is still checked in full (cases above).
+        if any(w.startswith("alert_") for w in environment_warnings(values)):
+            raise AssertionError("configured alert files must not warn")
+        for label, keys in (
+            ("absent heartbeat key", ("LEONAID_ALERT_HEARTBEAT_URL_FILE",)),
+            (
+                "empty alert keys",
+                ("LEONAID_ALERT_WEBHOOK_URL_FILE", "LEONAID_ALERT_HEARTBEAT_URL_FILE"),
+            ),
+        ):
+            unconfigured = dict(values)
+            for key in keys:
+                if label.startswith("absent"):
+                    del unconfigured[key]
+                else:
+                    unconfigured[key] = ""
+            write_environment(environment_path, unconfigured)
+            validate_environment(
+                unconfigured,
+                root=root,
+                env_file=environment_path,
+                compose_config=compose_config,
+                expected_release_commit=expected_commit,
+            )
+            expected = {
+                "LEONAID_ALERT_WEBHOOK_URL_FILE": "alert_webhook_not_configured",
+                "LEONAID_ALERT_HEARTBEAT_URL_FILE": "alert_heartbeat_not_configured",
+            }
+            silent = {expected[key] for key in keys} - set(
+                environment_warnings(unconfigured)
+            )
+            if silent:
+                raise AssertionError(f"{label}: no warning {sorted(silent)}")
+        relative_webhook = dict(values)
+        relative_webhook["LEONAID_ALERT_WEBHOOK_URL_FILE"] = "alert-webhook-url"
+        write_environment(environment_path, relative_webhook)
         rejected(
-            "missing heartbeat configuration",
+            "configured but missing webhook file",
             lambda: validate_environment(
-                missing_heartbeat,
+                relative_webhook,
                 root=root,
                 env_file=environment_path,
                 compose_config=compose_config,
@@ -423,19 +470,29 @@ def main() -> None:
 
             rejected(label, validate_mismatch)
 
-    # The real register still has open decisions: production waits for them
-    # at the first start and at every later gate, staging never does.
-    for gate in ("pilot-deploy", "upgrade"):
-        open_ids, _ = due_decisions(
-            root, gate=gate, staging=False, deployment_only=False
+    # Production waits for open decisions at the first start and at every
+    # later gate, staging never does. The real register records what the
+    # installation has decided, so the check runs on an open copy of it.
+    register = "specs/leonaid-pilot/DECISIONS.md"
+    with tempfile.TemporaryDirectory() as temporary:
+        open_root = Path(temporary)
+        (open_root / register).parent.mkdir(parents=True)
+        (open_root / register).write_text(
+            open_register((root / register).read_text(encoding="utf-8")),
+            encoding="utf-8",
         )
-        if "PILOT-TAX-001" not in open_ids:
-            raise AssertionError(f"production {gate} ignores the tax decision")
-        if due_decisions(root, gate=gate, staging=True, deployment_only=False) != (
-            [],
-            [],
-        ):
-            raise AssertionError(f"staging {gate} waits for the decision register")
+        for gate in ("pilot-deploy", "upgrade"):
+            open_ids, _ = due_decisions(
+                open_root, gate=gate, staging=False, deployment_only=False
+            )
+            if "PILOT-TAX-001" not in open_ids:
+                raise AssertionError(f"production {gate} ignores the tax decision")
+            if due_decisions(
+                open_root, gate=gate, staging=True, deployment_only=False
+            ) != ([], []):
+                raise AssertionError(f"staging {gate} waits for the decision register")
+    # The real register itself must stay valid.
+    due_decisions(root, gate="pilot-deploy", staging=False, deployment_only=False)
 
     print(
         "pilot-deployment-doctor-test: OK: unsafe real file and parameter "
