@@ -1103,7 +1103,11 @@ class Proof:
 
         async def earlier_failures(days: int, last_on: timedelta) -> None:
             """Four failures before, the first three days ago, on ``days``
-            different days, the last of them ``last_on`` ago."""
+            different days, the last of them ``last_on`` before the next
+            failure. The club day is taken at the next failure's time (one
+            throttle later), so a proof running near midnight in Berlin does
+            not count an extra day."""
+            next_failure = self.clock.now + PUSH_THROTTLE
             await self.connection.execute(
                 "UPDATE push_subscription SET failure_count = $2, "
                 "failing_since = $3, failure_days = $4, last_failure_on = $5 "
@@ -1112,7 +1116,7 @@ class Proof:
                 DEVICE_FAILURE_LIMIT - 1,
                 self.clock.now - DEVICE_FAILURE_PERIOD - timedelta(hours=1),
                 days,
-                (self.clock.now - last_on).astimezone(BERLIN).date(),
+                (next_failure - last_on).astimezone(BERLIN).date(),
             )
 
         async def refused_again() -> dict[str, Any]:
