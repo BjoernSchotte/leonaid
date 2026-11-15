@@ -6155,8 +6155,15 @@
             "type": "boolean"
           },
           "currency": {
-            "title": "Currency",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "progressBasisPoints": {
             "anyOf": [

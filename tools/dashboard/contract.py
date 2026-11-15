@@ -608,6 +608,7 @@ async def run() -> None:
             UPDATE charity_action
             SET goal_value = NULL,
                 goal_unit = NULL,
+                currency = NULL,
                 actual_value = 125,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $1
@@ -703,6 +704,11 @@ async def run() -> None:
                 or empty_goal.get("targetValue") is not None
                 or empty_goal.get("progressBasisPoints") is not None
                 or empty_goal.get("actualValue") != "125"
+                # A goal without money has no currency (never the text
+                # "None"); order and invoice figures stay in euro.
+                or empty_goal.get("currency") is not None
+                or as_object(empty_admin["commitments"], "Empty orders").get("currency")
+                != "EUR"
                 or as_object(empty_admin["pipeline"], "Empty pipeline").get("total")
                 != 0
                 or as_object(empty_admin["commitments"], "Empty orders").get("total")

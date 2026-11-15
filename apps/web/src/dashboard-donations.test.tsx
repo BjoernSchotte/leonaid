@@ -33,7 +33,10 @@ const identity = {
   roleLabels: [],
 } as unknown as CurrentIdentityResponse;
 
-function dashboard(donations: DashboardDonationResponse): DashboardResponse {
+function dashboard(
+  donations: DashboardDonationResponse,
+  goal: Partial<DashboardResponse["goal"]> = {},
+): DashboardResponse {
   return {
     acquirer: null,
     actionId,
@@ -88,15 +91,19 @@ function dashboard(donations: DashboardDonationResponse): DashboardResponse {
       progressBasisPoints: 1_440,
       targetValue: "1000.00",
       unit: null,
+      ...goal,
     },
     metricDefinitions: [],
   };
 }
 
-async function renderDashboard(donations: DashboardDonationResponse) {
+async function renderDashboard(
+  donations: DashboardDonationResponse,
+  goal: Partial<DashboardResponse["goal"]> = {},
+) {
   window.history.replaceState(null, "", `/admin/?action=${actionId}`);
   const client = {
-    getActionDashboard: vi.fn(async () => dashboard(donations)),
+    getActionDashboard: vi.fn(async () => dashboard(donations, goal)),
     listInboxCases: vi.fn(async () => ({ items: [] })),
   };
   render(
@@ -148,5 +155,24 @@ describe("donation figure of the action overview", () => {
       receivedMinor: 0,
     });
     expect(screen.queryByTestId("dashboard-donations")).toBeNull();
+  });
+});
+
+describe("goal of the action overview", () => {
+  it("shows a goal without money in its unit (no currency)", async () => {
+    await renderDashboard(
+      {
+        currency: "EUR",
+        enabled: false,
+        paid: 0,
+        pledged: 0,
+        pledgedOpenMinor: 0,
+        receivedMinor: 0,
+      },
+      { actualValue: "0", currency: null, targetValue: "1000", unit: "Boxen" },
+    );
+    expect(
+      screen.getByTestId("dashboard-goal").textContent?.replace(/\s+/g, " "),
+    ).toContain("0 Boxen von 1.000 Boxen");
   });
 });

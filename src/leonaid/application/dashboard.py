@@ -131,7 +131,7 @@ class GoalProgress:
     actual_value: Decimal
     target_value: Decimal | None
     unit: str | None
-    currency: str
+    currency: str | None
     progress_basis_points: int | None
 
     @property

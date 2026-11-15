@@ -238,6 +238,14 @@
         "property-newly-required:LegalConfigurationValuesResponse.activationWarnings"
       ],
       "rationale": "E-060: legal-text findings warn instead of blocking. The legal configuration values always carry activationWarnings (missing Impressum parts, placeholders, open e-invoice evidence); activationBlockers keeps only the e-invoice scope stop. One new, always present response field; no field is removed or narrowed and no request field becomes required. The only clients are the generated client and the apps in this repository, regenerated in the same change."
+    },
+    {
+      "oldSha256": "278d50ed0206cba8dd4751f2602acf0772cbaaf6eabda49682202a84fa080930",
+      "newSha256": "705b9e4c56b03bfc3be7e75bc6a0a77aa7d77567939415516b79e6eef9be70c6",
+      "changes": [
+        "property-type-changed:DashboardGoalResponse.currency"
+      ],
+      "rationale": "E-062: an action goal without money has no currency. The dashboard sent the text \"None\" (str(None)) and the admin views crashed in Intl.NumberFormat (first production install, action with goal unit Boxen). The goal currency becomes nullable; order, invoice and donation figures keep a required currency (EUR without a money goal). Only the generated client and the apps in this repository read it, regenerated and handled in the same change."
     }
   ]
 }
