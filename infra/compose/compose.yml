@@ -577,7 +577,13 @@ services:
       interval: 5s
       timeout: 5s
       retries: 60
-      start_period: 20s
+      # The first start of a fresh database runs ~180 legacy migrations before
+      # the server listens: about 8 minutes on an 8-vCPU VPS. Failures inside
+      # the start period do not count, so "compose up --wait" no longer sees
+      # an unhealthy container mid-migration; start_interval keeps the probe
+      # at 5 s, so a quick start is still healthy within seconds.
+      start_period: 900s
+      start_interval: 5s
 
   twenty-worker:
     image: docker.io/twentycrm/twenty:v2.54.0@sha256:e64479a4daa9211864eb45ffdf15ce7a44a3664850dab06213105027538fce1e
