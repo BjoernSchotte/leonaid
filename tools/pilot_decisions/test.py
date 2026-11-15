@@ -66,6 +66,25 @@ def write_register(root: Path, text: str) -> None:
     target.write_text(text, encoding="utf-8")
 
 
+def pending_register(text: str) -> str:
+    """The register with every decision open again.
+
+    The canonical register changes as an installation decides. Gate and
+    negative cases run on this open baseline, so they do not depend on it.
+    """
+    lines: list[str] = []
+    for line in text.splitlines():
+        if not line.startswith("| PILOT-"):
+            lines.append(line)
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        cells[6] = "PENDING"
+        cells[7] = "open"
+        cells[8] = "PENDING"
+        lines.append("| " + " | ".join(cells) + " |")
+    return "\n".join(lines) + "\n"
+
+
 def accepted_register(text: str) -> str:
     lines: list[str] = []
     for line in text.splitlines():
@@ -89,44 +108,49 @@ def accepted_register(text: str) -> str:
 def main() -> None:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     checker = root / "tools/pilot_decisions/check.py"
-    canonical = (root / REGISTER).read_text(encoding="utf-8")
-
+    # The real register records the decisions of this installation and must
+    # stay valid whatever has been decided so far.
     run(checker, root, marker="pilot-decisions: OK: 14 decisions")
-    for gate, expected_open in EXPECTED_OPEN_BY_GATE.items():
-        run(
-            checker,
-            root,
-            ready=True,
-            returncode=2,
-            marker=f"pilot-doctor: BLOCKED ({gate})",
-            arguments=("--gate", gate),
-        )
-        json_response = subprocess.run(
-            [
-                sys.executable,
-                str(checker),
-                str(root),
-                "--ready",
-                "--gate",
-                gate,
-                "--json",
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        payload = json.loads(json_response.stdout)
-        if (
-            json_response.returncode != 2
-            or payload["status"] != "blocked"
-            or payload["gate"] != gate
-            or set(payload["openDecisionIds"]) != expected_open
-            or payload["stopDecisionIds"]
-        ):
-            raise AssertionError(
-                f"{gate} is not fail-closed or contains decisions "
-                f"from the wrong gate: {payload}"
+    canonical = pending_register((root / REGISTER).read_text(encoding="utf-8"))
+
+    with tempfile.TemporaryDirectory() as gate_temporary:
+        pending_root = Path(gate_temporary)
+        write_register(pending_root, canonical)
+        for gate, expected_open in EXPECTED_OPEN_BY_GATE.items():
+            run(
+                checker,
+                pending_root,
+                ready=True,
+                returncode=2,
+                marker=f"pilot-doctor: BLOCKED ({gate})",
+                arguments=("--gate", gate),
             )
+            json_response = subprocess.run(
+                [
+                    sys.executable,
+                    str(checker),
+                    str(pending_root),
+                    "--ready",
+                    "--gate",
+                    gate,
+                    "--json",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            payload = json.loads(json_response.stdout)
+            if (
+                json_response.returncode != 2
+                or payload["status"] != "blocked"
+                or payload["gate"] != gate
+                or set(payload["openDecisionIds"]) != expected_open
+                or payload["stopDecisionIds"]
+            ):
+                raise AssertionError(
+                    f"{gate} is not fail-closed or contains decisions "
+                    f"from the wrong gate: {payload}"
+                )
     help_response = subprocess.run(
         [sys.executable, str(checker), "--help"],
         check=False,

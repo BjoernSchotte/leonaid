@@ -1,6 +1,6 @@
 # Pilot-Entscheidungsregister
 
-Stand: 2026-07-28
+Stand: 2026-11-15
 
 Dieses Register ist die öffentliche, maschinenlesbare Sicht auf die
 Freigabereife einer konkreten LeonAid-Installation. Es dokumentiert keine
@@ -28,20 +28,20 @@ beim ersten `upgrade`.
 
 | ID | Bereich | Entscheidung | Owner-Rolle | Erfasst am | Quelle | Evidence-ID | Status | Wert | Spätestes Gate |
 |---|---|---|---|---|---|---|---|---|---|
-| PILOT-LEG-001 | Träger | Rechtlicher Träger und Rechnungsaussteller | Rechtlicher Träger | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | pilot-deploy |
-| PILOT-TAX-001 | Steuer | Steuerbehandlung der Krapfentaxi-Leistung | Steuerberatung und rechtlicher Träger | 2026-07-28 | ADR-0002 | PENDING | open | PENDING | pilot-deploy |
-| PILOT-INV-001 | Rechnung | Pflichtangaben und Freigabeverantwortung | Rechtlicher Träger und Steuerberatung | 2026-07-28 | ADR-0002 | PENDING | open | PENDING | pilot-deploy |
-| PILOT-INV-002 | Rechnung | E-Rechnungsbedarf im Pilotzeitraum | Steuerberatung und rechtlicher Träger | 2026-07-28 | ADR-0002 | PENDING | open | PENDING | pilot-deploy |
+| PILOT-LEG-001 | Träger | Rechtlicher Träger und Rechnungsaussteller | Rechtlicher Träger | 2026-07-28 | ADR-0001 | EVID-LEG-001-20261115 | accepted | confirmed | pilot-deploy |
+| PILOT-TAX-001 | Steuer | Steuerbehandlung der Krapfentaxi-Leistung | Steuerberatung und rechtlicher Träger | 2026-07-28 | ADR-0002 | EVID-TAX-001-20261115 | accepted | small_business | pilot-deploy |
+| PILOT-INV-001 | Rechnung | Pflichtangaben und Freigabeverantwortung | Rechtlicher Träger und Steuerberatung | 2026-07-28 | ADR-0002 | EVID-INV-001-20261115 | accepted | confirmed | pilot-deploy |
+| PILOT-INV-002 | Rechnung | E-Rechnungsbedarf im Pilotzeitraum | Steuerberatung und rechtlicher Träger | 2026-07-28 | ADR-0002 | EVID-INV-002-20261115 | accepted | not_required | pilot-deploy |
 | PILOT-PRIV-001 | Datenschutz | Aufbewahrungs-, Sperr- und Löschfristen je Fachobjekt | Datenschutz und rechtlicher Träger | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | pilot-import |
-| PILOT-PRIV-002 | Datenschutz | Rechtsgrundlagen und Informationstexte | Datenschutz und rechtlicher Träger | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | pilot-deploy |
-| PILOT-MAIL-001 | Betrieb | Produktiver Mail-Relay und Mail-Domain-Owner | Betrieb | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | pilot-deploy |
-| PILOT-OPS-001 | Betrieb | DNS-Owner und produktive Domain | Betrieb | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | pilot-deploy |
-| PILOT-OPS-002 | Betrieb | VPS-Owner und Hosting-Verantwortung | Betrieb | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | pilot-deploy |
-| PILOT-OPS-003 | Betrieb | Backup-Owner und Wiederherstellungsziel | Betrieb | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | pilot-backup |
-| PILOT-OPS-004 | Betrieb | Secret-Owner und Übergabeweg | Betrieb | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | pilot-deploy |
-| PILOT-OPS-005 | Betrieb | Monitoring-Owner und Alarmweg | Betrieb | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | pilot-deploy |
-| PILOT-OPS-006 | Betrieb | Incident-Owner und Eskalationsweg | Betrieb | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | pilot-deploy |
-| PILOT-RUN-001 | Pilot | Pilotzeitraum, maximale Nutzerzahl und Go/No-Go-Rolle | Produktverantwortlicher und Betrieb | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | pilot-deploy |
+| PILOT-PRIV-002 | Datenschutz | Rechtsgrundlagen und Informationstexte | Datenschutz und rechtlicher Träger | 2026-07-28 | ADR-0001 | EVID-PRIV-002-20261115 | accepted | confirmed | pilot-deploy |
+| PILOT-MAIL-001 | Betrieb | Produktiver Mail-Relay und Mail-Domain-Owner | Betrieb | 2026-07-28 | ADR-0001 | EVID-MAIL-001-20261115 | accepted | confirmed | pilot-deploy |
+| PILOT-OPS-001 | Betrieb | DNS-Owner und produktive Domain | Betrieb | 2026-07-28 | ADR-0001 | EVID-OPS-001-20261115 | accepted | confirmed | pilot-deploy |
+| PILOT-OPS-002 | Betrieb | VPS-Owner und Hosting-Verantwortung | Betrieb | 2026-07-28 | ADR-0001 | EVID-OPS-002-20261115 | accepted | confirmed | pilot-deploy |
+| PILOT-OPS-003 | Betrieb | Backup-Owner und Wiederherstellungsziel | Betrieb | 2026-07-28 | ADR-0001 | EVID-OPS-003-20261115 | accepted | confirmed | pilot-backup |
+| PILOT-OPS-004 | Betrieb | Secret-Owner und Übergabeweg | Betrieb | 2026-07-28 | ADR-0001 | EVID-OPS-004-20261115 | accepted | confirmed | pilot-deploy |
+| PILOT-OPS-005 | Betrieb | Monitoring-Owner und Alarmweg | Betrieb | 2026-07-28 | ADR-0001 | EVID-OPS-005-20261115 | accepted | confirmed | pilot-deploy |
+| PILOT-OPS-006 | Betrieb | Incident-Owner und Eskalationsweg | Betrieb | 2026-07-28 | ADR-0001 | EVID-OPS-006-20261115 | accepted | confirmed | pilot-deploy |
+| PILOT-RUN-001 | Pilot | Pilotzeitraum, maximale Nutzerzahl und Go/No-Go-Rolle | Produktverantwortlicher und Betrieb | 2026-07-28 | ADR-0001 | EVID-RUN-001-20261115 | accepted | confirmed | pilot-deploy |
 
 ## Zulässige Ergebnisse
 
