@@ -4,8 +4,8 @@ description: Create, approve and activate the § 5 DDG details and the texts of 
 docId: DOC-P048
 audience: [user]
 diataxis: how-to
-contentRevision: 4
-reviewedRevision: 4
+contentRevision: 5
+reviewedRevision: 5
 verifiedAgainst: 8fe6057e8a6c717cdcd73671a2706289d748fb7c
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -63,8 +63,8 @@ app and in the acquisition app, the links are below your name or in the
    expire after 14 days and that signing out in either app or another person
    signing in deletes everything. It describes the acquisition app's offline
    capture. Keep it only when offline capture is active; otherwise delete the
-   whole section. The template marks this with a `[[ … ]]` note that blocks
-   activation until you remove it. The system administration switches on the
+   whole section. The template marks this with a `[[ … ]]` note that LeonAid
+   reports as an open placeholder until you remove it. The system administration switches on the
    feature flag **Offline-Erfassung in der Akquise-App** only once a notice
    with this section is active. Claude Code proposed the text; like every
    version it needs the four-eyes approval (review by Björn Schotte open).
@@ -127,32 +127,42 @@ they were recorded.
    **Jetzt aktivieren**.
 3. Within a minute, `/impressum` and `/datenschutz` show the new version.
 
-## If the version cannot be activated
+## Check before going live
 
-In production, the draft lists what is missing under **Noch nicht
-aktivierbar**:
+The club is responsible for complete and correct legal texts. LeonAid
+therefore blocks nothing; the draft lists under **Vor dem Livegang prüfen**
+what the usual obligations still miss. You can activate the version anyway,
+for example with a provisional phone number, and complete it later. Check
+before going live:
 
 - **Im Impressum fehlen die vertretungsberechtigten Personen** or **fehlt die
-  Telefonnummer**: complete the **Impressum** part.
+  Telefonnummer** (§ 5 (1) no. 1 and 2 DDG): complete the **Impressum** part.
 - **Die Rechtsform des Trägers ist nicht gewählt**: choose it in **Träger &
   Anschrift**. Versions from before the update have it only if the name
   contained "e. V.".
-- **Im Impressum fehlt der Registereintrag**: the chosen legal form has a
-  register (e. V., GmbH, gGmbH, eG). Enter the register court and number. An
-  unregistered association, a foundation and "Sonstige" need none.
+- **Im Impressum fehlt der Registereintrag** (§ 5 (1) no. 4 DDG): the chosen
+  legal form has a register (e. V., GmbH, gGmbH, eG). Enter the register
+  court and number. An unregistered association, a foundation and "Sonstige"
+  need none.
 - **Die Steuerkennung ist eine Umsatzsteuer-ID; sie gehört auch ins
-  Impressum**: enter it under **Umsatzsteuer-ID**.
+  Impressum** (§ 5 (1) no. 6 DDG): enter it under **Umsatzsteuer-ID**.
 - **Die Datenschutzerklärung fehlt** or **Der Datenschutzhinweis für
-  Mitglieder fehlt**: enter the text in the **Datenschutzerklärung** part.
+  Mitglieder fehlt** (Art. 13 GDPR): enter the text in the
+  **Datenschutzerklärung** part.
 - **Ein Text enthält noch offene Vorlagen-Platzhalter**: complete or delete
   every `[[ … ]]`.
+- **Produktive Angaben enthalten noch Test- oder Platzhalterwerte**: replace
+  values such as `example.org` or `.invalid`.
+- **Die E-Rechnungs-Pflicht ist noch nicht entschieden**: record the decision
+  in the **E-Rechnung** part.
 
-Edit the draft, save it and have it approved again.
+Only one finding blocks the activation: **E-Rechnungen sind erforderlich**.
+LeonAid cannot provide that.
 
 ## After an update
 
-When new mandatory details are added, the active version can be incomplete
-afterwards. **Rechtliches** then shows **Die aktive Version … ist
-unvollständig** at the top with the missing points. Create a new draft, have
-it approved and activate it. Fields that an older open admin page does not
+When new mandatory details are added, or a version was activated with
+warnings, **Rechtliches** shows **Die aktive Version … ist unvollständig** at
+the top with the missing points. To complete it, create a new draft, have it
+approved and activate it. Fields that an older open admin page does not
 know are taken over from the previous version when you save.

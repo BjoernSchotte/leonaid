@@ -387,16 +387,15 @@ async def prepare(connection: asyncpg.Connection[Any]) -> None:
         if approved.json().get("revision") != 3:
             raise ContractFailure("Approval did not increase the revision")
 
-        blocked = await api.post(
-            f"/api/v1/admin/legal/configuration/draft/{version_id}/activation",
-            headers=session_headers(tokens["simone"]),
-            json={"expectedRevision": 3},
-        )
-        if (
-            blocked.status_code != 409
-            or error_code(blocked) != "legal_configuration_activation_blocked"
+        # E-060: an open e-invoice decision is a warning, not a blocker; the
+        # draft stays unactivated here so act() records the decision first.
+        findings = approved.json()["draft"]["values"]
+        if findings.get("activationBlockers") != [] or (
+            "e_invoice_decision_pending" not in findings.get("activationWarnings", [])
         ):
-            raise ContractFailure("Pending e-invoice decision was activated")
+            raise ContractFailure(
+                f"Pending e-invoice decision is not a plain warning: {findings}"
+            )
 
         stale = await api.put(
             "/api/v1/admin/legal/configuration/draft",

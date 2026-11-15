@@ -11117,6 +11117,13 @@
             "title": "Activationblockers",
             "type": "array"
           },
+          "activationWarnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Activationwarnings",
+            "type": "array"
+          },
           "bankAccountHolder": {
             "title": "Bankaccountholder",
             "type": "string"
@@ -11366,6 +11373,7 @@
           "privacyEvidenceId",
           "eInvoiceEvidenceId",
           "activationBlockers",
+          "activationWarnings",
           "donations"
         ],
         "title": "LegalConfigurationValuesResponse",

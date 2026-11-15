@@ -53,6 +53,10 @@ LATER_OPTIONAL_FIELDS = frozenset(
 # Template texts mark what the club must still fill in as [[...]].
 TEMPLATE_PLACEHOLDER = "[["
 PRIVACY_POLICY_LIMITS = (200, 60_000)
+# Only a requirement LeonAid cannot serve blocks activation; every other
+# finding (missing Impressum parts, placeholders, open evidence) is a
+# warning the club resolves in its own responsibility (E-060).
+ACTIVATION_BLOCKING_FINDINGS = frozenset({"e_invoice_scope_required"})
 MEMBER_NOTICE_LIMITS = (100, 30_000)
 
 
@@ -150,8 +154,8 @@ class LegalConfigurationDraft:
     # form. Production activation requires it.
     legal_form: LegalForm | None = None
     # Impressum (§ 5 DDG, § 18 Abs. 2 MStV). Optional in the type because
-    # versions before 0054 have none; production activation requires the
-    # mandatory ones (activation_blockers).
+    # versions before 0054 have none; production warns about missing
+    # mandatory ones (activation_warnings).
     imprint_representatives: str | None = None
     imprint_phone: str | None = None
     imprint_register_court: str | None = None
@@ -392,6 +396,26 @@ class LegalConfigurationDraft:
         )
 
     def activation_blockers(self, *, production: bool) -> tuple[str, ...]:
+        """Findings that make activation impossible: only a scope LeonAid lacks."""
+        return tuple(
+            finding
+            for finding in self.activation_findings(production=production)
+            if finding in ACTIVATION_BLOCKING_FINDINGS
+        )
+
+    def activation_warnings(self, *, production: bool) -> tuple[str, ...]:
+        """Findings the admins should fix before going live; they do not block.
+
+        Whether the legal texts are complete is the club's responsibility;
+        the operator guide lists the mandatory parts (E-060).
+        """
+        return tuple(
+            finding
+            for finding in self.activation_findings(production=production)
+            if finding not in ACTIVATION_BLOCKING_FINDINGS
+        )
+
+    def activation_findings(self, *, production: bool) -> tuple[str, ...]:
         blockers: list[str] = []
         if self.e_invoice_decision is EInvoiceDecision.PENDING:
             blockers.append("e_invoice_decision_pending")

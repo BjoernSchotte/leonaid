@@ -1101,6 +1101,7 @@ def legal_configuration_version_response(
             privacy_evidence_id=values.privacy_evidence_id,
             e_invoice_evidence_id=values.e_invoice_evidence_id,
             activation_blockers=list(values.activation_blockers(production=production)),
+            activation_warnings=list(values.activation_warnings(production=production)),
             legal_form=(
                 values.legal_form.value if values.legal_form is not None else None
             ),

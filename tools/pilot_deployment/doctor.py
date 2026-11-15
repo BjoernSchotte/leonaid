@@ -672,9 +672,11 @@ def report_json(
     first_install: bool = False,
     warnings: list[str] | None = None,
 ) -> str:
+    # Open decisions are paperwork the club answers for; they warn and block
+    # nothing (E-060). STOP means a scope LeonAid cannot serve.
     status = (
         "ready"
-        if infrastructure_ready and (deployment_only or not open_ids and not stop_ids)
+        if infrastructure_ready and (deployment_only or not stop_ids)
         else "stop"
         if stop_ids
         else "blocked"
@@ -896,7 +898,7 @@ def probe_running_installation(
 def due_decisions(
     root: Path, *, gate: str, staging: bool, deployment_only: bool
 ) -> tuple[list[str], list[str]]:
-    """Return the open and STOP decision IDs that block this gate.
+    """Return the open (warning) and STOP (blocking) decision IDs of this gate.
 
     The register gates real clubs, real data and real invoices. A staging
     installation holds none of them, so it never waits for it.
@@ -973,6 +975,14 @@ def main() -> int:
                     f"pilot-doctor: WARNING: {WARNING_TEXT[warning]}",
                     file=sys.stderr,
                 )
+            if open_ids and not stop_ids:
+                print(
+                    f"pilot-doctor: WARNING: open decisions ({arguments.gate}): "
+                    + ",".join(open_ids)
+                    + "; record them in specs/leonaid-pilot/DECISIONS.md "
+                    "when the club has decided",
+                    file=sys.stderr,
+                )
         if arguments.json:
             print(
                 report_json(
@@ -988,11 +998,6 @@ def main() -> int:
         elif stop_ids:
             print(
                 f"pilot-doctor: STOP ({arguments.gate}): " + ",".join(stop_ids),
-                file=sys.stderr,
-            )
-        elif open_ids:
-            print(
-                f"pilot-doctor: BLOCKED ({arguments.gate}): " + ",".join(open_ids),
                 file=sys.stderr,
             )
         elif arguments.gate == "pilot-restore":
@@ -1021,6 +1026,8 @@ def main() -> int:
             decision_scope = (
                 "decisions are not required on staging"
                 if staging
+                else "some decisions are still open (see warning)"
+                if open_ids
                 else "decisions are approved"
             )
             print(
@@ -1029,8 +1036,6 @@ def main() -> int:
             )
         if stop_ids:
             return 3
-        if open_ids:
-            return 2
         return 0
     except (
         DecisionError,

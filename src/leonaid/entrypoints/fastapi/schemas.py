@@ -561,8 +561,8 @@ class SaveLegalConfigurationDraftRequest(TransportModel):
         max_length=120,
     )
     legal_form: LegalFormValue | None = None
-    # Impressum (§ 5 DDG). Optional in the contract; production activation
-    # lists the missing mandatory ones as activation blockers.
+    # Impressum (§ 5 DDG). Optional in the contract; production lists the
+    # missing mandatory ones as activation warnings.
     imprint_representatives: str | None = Field(default=None, max_length=1_000)
     imprint_phone: str | None = Field(default=None, max_length=40)
     imprint_register_court: str | None = Field(default=None, max_length=200)
@@ -631,6 +631,8 @@ class LegalConfigurationValuesResponse(TransportModel):
     privacy_evidence_id: str
     e_invoice_evidence_id: str | None
     activation_blockers: list[str]
+    # Missing or placeholder legal parts; shown, never blocking (E-060).
+    activation_warnings: list[str]
     legal_form: LegalFormValue | None = None
     imprint_representatives: str | None = None
     imprint_phone: str | None = None

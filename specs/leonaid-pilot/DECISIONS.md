@@ -32,7 +32,7 @@ beim ersten `upgrade`.
 | PILOT-TAX-001 | Steuer | Steuerbehandlung der Krapfentaxi-Leistung | Steuerberatung und rechtlicher Träger | 2026-07-28 | ADR-0002 | EVID-TAX-001-20261115 | accepted | small_business | pilot-deploy |
 | PILOT-INV-001 | Rechnung | Pflichtangaben und Freigabeverantwortung | Rechtlicher Träger und Steuerberatung | 2026-07-28 | ADR-0002 | EVID-INV-001-20261115 | accepted | confirmed | pilot-deploy |
 | PILOT-INV-002 | Rechnung | E-Rechnungsbedarf im Pilotzeitraum | Steuerberatung und rechtlicher Träger | 2026-07-28 | ADR-0002 | EVID-INV-002-20261115 | accepted | not_required | pilot-deploy |
-| PILOT-PRIV-001 | Datenschutz | Aufbewahrungs-, Sperr- und Löschfristen je Fachobjekt | Datenschutz und rechtlicher Träger | 2026-07-28 | ADR-0001 | PENDING | open | PENDING | pilot-import |
+| PILOT-PRIV-001 | Datenschutz | Aufbewahrungs-, Sperr- und Löschfristen je Fachobjekt | Datenschutz und rechtlicher Träger | 2026-07-28 | ADR-0001 | EVID-PRIV-001-20261115 | accepted | confirmed | pilot-import |
 | PILOT-PRIV-002 | Datenschutz | Rechtsgrundlagen und Informationstexte | Datenschutz und rechtlicher Träger | 2026-07-28 | ADR-0001 | EVID-PRIV-002-20261115 | accepted | confirmed | pilot-deploy |
 | PILOT-MAIL-001 | Betrieb | Produktiver Mail-Relay und Mail-Domain-Owner | Betrieb | 2026-07-28 | ADR-0001 | EVID-MAIL-001-20261115 | accepted | confirmed | pilot-deploy |
 | PILOT-OPS-001 | Betrieb | DNS-Owner und produktive Domain | Betrieb | 2026-07-28 | ADR-0001 | EVID-OPS-001-20261115 | accepted | confirmed | pilot-deploy |

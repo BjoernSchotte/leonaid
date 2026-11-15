@@ -219,7 +219,7 @@ def test_a_feststellung_and_a_signature_by_hand_are_valid() -> None:
 
 def test_a_legal_configuration_without_donations_is_complete() -> None:
     assert valid_draft().donations is None
-    assert production_draft().activation_blockers(production=True) == ()
+    assert production_draft().activation_findings(production=True) == ()
 
 
 def test_the_three_series_need_three_prefixes() -> None:
@@ -243,17 +243,17 @@ def test_the_body_takes_a_known_legal_form() -> None:
 
 def test_template_placeholders_in_the_body_block_production() -> None:
     clean = replace(production_draft(), donations=body())
-    assert clean.activation_blockers(production=True) == ()
+    assert clean.activation_findings(production=True) == ()
     draft = replace(
         production_draft(),
         donations=body(pledge_text=PLEDGE_TEXT + " [[Name des Vereins]]"),
     )
-    assert draft.activation_blockers(production=True) == ("template_placeholder_open",)
-    assert draft.activation_blockers(production=False) == ()
+    assert draft.activation_findings(production=True) == ("template_placeholder_open",)
+    assert draft.activation_findings(production=False) == ()
     synthetic = replace(
         production_draft(), donations=body(legal_name="Golden Förderverein e. V.")
     )
-    assert synthetic.activation_blockers(production=True) == (
+    assert synthetic.activation_findings(production=True) == (
         "synthetic_or_placeholder_value",
     )
 
