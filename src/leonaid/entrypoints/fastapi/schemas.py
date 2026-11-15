@@ -2006,7 +2006,8 @@ class DashboardGoalResponse(TransportModel):
     actual_value: str
     target_value: str | None
     unit: str | None
-    currency: str
+    # Only money goals have a currency.
+    currency: str | None
     progress_basis_points: int | None = Field(default=None, ge=0)
 
 

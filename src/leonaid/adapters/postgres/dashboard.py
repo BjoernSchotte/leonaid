@@ -176,7 +176,12 @@ class AsyncpgDashboardRepository(DashboardRepository):
         target_value = (
             Decimal(action["goal_value"]) if action["goal_value"] is not None else None
         )
-        currency = str(action["currency"])
+        # The goal currency is optional (only money goals have one); order,
+        # invoice and donation figures are in euro without it.
+        goal_currency = (
+            str(action["currency"]) if action["currency"] is not None else None
+        )
+        currency = goal_currency or "EUR"
         return DashboardSnapshot(
             action_id=UUID(str(action["id"])),
             action_name=str(action["name"]),
@@ -187,7 +192,7 @@ class AsyncpgDashboardRepository(DashboardRepository):
                 actual_value=actual_value,
                 target_value=target_value,
                 unit=str(action["goal_unit"]) if action["goal_unit"] else None,
-                currency=currency,
+                currency=goal_currency,
                 progress_basis_points=progress_basis_points(
                     actual_value,
                     target_value,

@@ -39,8 +39,13 @@ function goalNumber(value: string) {
   return Number.isFinite(number) ? number : null;
 }
 
-function formatGoalValue(value: number, unit: string | null, currency: string) {
-  if (unit === currency && /^[A-Z]{3}$/.test(currency)) {
+function formatGoalValue(
+  value: number,
+  unit: string | null,
+  currency: string | null,
+) {
+  // Only a money goal has a currency; any other goal shows its unit.
+  if (currency && unit === currency && /^[A-Z]{3}$/.test(currency)) {
     return new Intl.NumberFormat("de-DE", {
       currency,
       maximumFractionDigits: 2,

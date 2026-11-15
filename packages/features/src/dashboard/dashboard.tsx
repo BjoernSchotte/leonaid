@@ -68,9 +68,13 @@ function formatMoney(amountMinor: number, currency: string) {
   }).format(amountMinor / 100);
 }
 
-function formatGoalValue(value: string, unit: string | null, currency: string) {
+function formatGoalValue(
+  value: string,
+  unit: string | null,
+  currency: string | null,
+) {
   const number = Number(value);
-  if (unit === currency && /^[A-Z]{3}$/.test(currency)) {
+  if (currency && unit === currency && /^[A-Z]{3}$/.test(currency)) {
     return new Intl.NumberFormat("de-DE", {
       currency,
       maximumFractionDigits: 2,
