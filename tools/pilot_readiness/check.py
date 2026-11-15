@@ -210,7 +210,6 @@ def assess(root: Path) -> dict[str, Any]:
         status = "stop"
     elif (
         blocked_gates
-        or open_decisions
         or repository_blockers
         or missing_proofs
         or incomplete_proofs

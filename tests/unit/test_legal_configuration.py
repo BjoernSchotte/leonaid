@@ -83,7 +83,7 @@ def test_legal_configuration_normalizes_financial_fields() -> None:
 
     assert draft.iban == "DE89370400440532013000"
     assert draft.bic == "COBADEFFXXX"
-    assert draft.activation_blockers(production=False) == ()
+    assert draft.activation_findings(production=False) == ()
 
 
 def test_required_e_invoice_scope_blocks_activation() -> None:
@@ -92,7 +92,32 @@ def test_required_e_invoice_scope_blocks_activation() -> None:
         e_invoice_decision=EInvoiceDecision.REQUIRED,
     )
 
+    assert draft.activation_findings(production=False) == ("e_invoice_scope_required",)
     assert draft.activation_blockers(production=False) == ("e_invoice_scope_required",)
+    assert draft.activation_warnings(production=False) == ()
+
+
+def test_legal_text_findings_warn_without_blocking() -> None:
+    # E-060: the club answers for its legal texts; LeonAid only points out
+    # what is missing.
+    draft = replace(
+        valid_draft(),
+        e_invoice_decision=EInvoiceDecision.PENDING,
+        e_invoice_evidence_id=None,
+        imprint_phone=None,
+        privacy_policy_text=None,
+    )
+
+    warnings = draft.activation_warnings(production=True)
+    assert draft.activation_blockers(production=True) == ()
+    assert warnings == draft.activation_findings(production=True)
+    for finding in (
+        "e_invoice_decision_pending",
+        "e_invoice_evidence_missing",
+        "imprint_phone_missing",
+        "privacy_policy_missing",
+    ):
+        assert finding in warnings
 
 
 def test_pending_decision_and_synthetic_values_block_production() -> None:
@@ -107,7 +132,7 @@ def test_pending_decision_and_synthetic_values_block_production() -> None:
         e_invoice_evidence_id=None,
     )
 
-    assert draft.activation_blockers(production=True) == (
+    assert draft.activation_findings(production=True) == (
         "e_invoice_decision_pending",
         "e_invoice_evidence_missing",
         "synthetic_or_placeholder_value",
@@ -138,7 +163,7 @@ def production_draft() -> LegalConfigurationDraft:
 
 
 def test_production_draft_has_no_blockers() -> None:
-    assert production_draft().activation_blockers(production=True) == ()
+    assert production_draft().activation_findings(production=True) == ()
 
 
 def test_production_lists_missing_imprint_and_privacy_fields() -> None:
@@ -155,8 +180,8 @@ def test_production_lists_missing_imprint_and_privacy_fields() -> None:
 
     assert draft.imprint_phone is None
     assert draft.privacy_policy_text is None
-    assert draft.activation_blockers(production=False) == ()
-    assert draft.activation_blockers(production=True) == (
+    assert draft.activation_findings(production=False) == ()
+    assert draft.activation_findings(production=True) == (
         # Without a chosen legal form no register can be required yet.
         "legal_form_missing",
         "imprint_representatives_missing",
@@ -179,7 +204,7 @@ def test_the_legal_form_is_chosen_not_read_from_the_name() -> None:
         imprint_register_number=None,
     )
     assert unregistered.required_register() is None
-    assert unregistered.activation_blockers(production=True) == ()
+    assert unregistered.activation_findings(production=True) == ()
 
 
 def test_template_placeholders_block_production() -> None:
@@ -188,8 +213,8 @@ def test_template_placeholders_block_production() -> None:
         member_privacy_notice_text=MEMBER_NOTICE + " [[Rechtsgrundlage ergänzen]]",
     )
 
-    assert draft.activation_blockers(production=False) == ()
-    assert draft.activation_blockers(production=True) == ("template_placeholder_open",)
+    assert draft.activation_findings(production=False) == ()
+    assert draft.activation_findings(production=True) == ("template_placeholder_open",)
 
 
 def test_imprint_fields_are_normalized() -> None:
@@ -256,14 +281,14 @@ def test_register_follows_the_legal_form() -> None:
         )
         assert draft.required_register() == register, legal_form
         assert (
-            "imprint_register_missing" in draft.activation_blockers(production=True)
+            "imprint_register_missing" in draft.activation_findings(production=True)
         ) == (register is not None), legal_form
 
 
 def test_a_missing_legal_form_blocks_production_only() -> None:
     draft = replace(production_draft(), legal_form=None)
-    assert draft.activation_blockers(production=False) == ()
-    assert draft.activation_blockers(production=True) == ("legal_form_missing",)
+    assert draft.activation_findings(production=False) == ()
+    assert draft.activation_findings(production=True) == ("legal_form_missing",)
 
 
 def test_register_label_prefers_the_number_prefix() -> None:
@@ -291,11 +316,11 @@ def test_register_label_prefers_the_number_prefix() -> None:
 
 def test_a_vat_id_on_invoices_is_required_in_the_imprint() -> None:
     draft = replace(production_draft(), imprint_vat_id=None)
-    assert draft.activation_blockers(production=True) == ("imprint_vat_id_missing",)
+    assert draft.activation_findings(production=True) == ("imprint_vat_id_missing",)
     tax_number = replace(
         draft, issuer=replace(draft.issuer, tax_identifier="103/123/45678")
     )
-    assert tax_number.activation_blockers(production=True) == ()
+    assert tax_number.activation_findings(production=True) == ()
 
 
 def test_german_phone_formats_are_accepted() -> None:
@@ -314,12 +339,12 @@ def test_synthetic_and_placeholder_checks_cover_the_new_fields() -> None:
         imprint_content_responsible_name="Paula Golden",
         imprint_content_responsible_address="Clubweg 1, 86150 Augsburg",
     )
-    assert synthetic.activation_blockers(production=True) == (
+    assert synthetic.activation_findings(production=True) == (
         "synthetic_or_placeholder_value",
     )
     placeholder = replace(
         production_draft(), imprint_register_court="[[Registergericht]]"
     )
-    assert placeholder.activation_blockers(production=True) == (
+    assert placeholder.activation_findings(production=True) == (
         "template_placeholder_open",
     )

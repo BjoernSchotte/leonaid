@@ -178,22 +178,14 @@ class LegalConfigurationService:
                 "legal_configuration_approval_required",
                 "Eine zweite System-Administration muss den Entwurf freigeben.",
             )
-        blockers = state.draft.configuration.activation_blockers(
-            production=self._production
-        )
-        if blockers:
-            if "e_invoice_scope_required" in blockers:
-                message = (
-                    "Für diesen Betrieb ist eine E-Rechnung erforderlich. "
-                    "Der ERP-light-Pilot wird nicht still erweitert."
-                )
-            else:
-                message = (
-                    "Die Konfiguration ist noch nicht produktionsreif: "
-                    + ", ".join(blockers)
-                    + "."
-                )
-            raise Conflict("legal_configuration_activation_blocked", message)
+        # Only a scope LeonAid cannot serve blocks; missing legal parts are
+        # warnings in the draft (activation_warnings, E-060).
+        if state.draft.configuration.activation_blockers(production=self._production):
+            raise Conflict(
+                "legal_configuration_activation_blocked",
+                "Für diesen Betrieb ist eine E-Rechnung erforderlich. "
+                "Der ERP-light-Pilot wird nicht still erweitert.",
+            )
         return await self._repository.activate(
             version_id=version_id,
             actor_user_id=actor.account.id,

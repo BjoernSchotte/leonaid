@@ -362,7 +362,9 @@ const emptyForm: LegalForm = {
   taxTreatment: "tax_exempt",
 };
 
-const blockerLabels: Record<string, string> = {
+// Labels of the activation findings: blockers (only a scope LeonAid lacks)
+// and warnings (missing legal parts; the club decides, E-060).
+const findingLabels: Record<string, string> = {
   e_invoice_decision_pending:
     "Die E-Rechnungs-Pflicht ist noch nicht entschieden.",
   e_invoice_evidence_missing: "Der Nachweis zur E-Rechnungsentscheidung fehlt.",
@@ -1109,7 +1111,7 @@ const PARTS = [
     id: "e-invoice",
     name: "E-Rechnung",
     intro:
-      "LeonAid aktiviert ERP light nur, wenn fachlich bestätigt ist, dass keine E-Rechnung erforderlich ist. Eine Pflicht führt zu einem sichtbaren Stopp statt zu einer stillen Teillösung.",
+      "Ist eine E-Rechnung erforderlich, stoppt LeonAid sichtbar statt mit einer stillen Teillösung. Solange das nicht geprüft ist, weist LeonAid darauf hin.",
     fields: [
       {
         key: "eInvoiceDecision",
@@ -1326,8 +1328,8 @@ export function LegalConfigurationPage({
           code: cause.detail.code,
           conflict: true,
           message: blockers.length
-            ? `Noch nicht aktivierbar: ${blockers
-                .map((blocker) => blockerLabels[blocker] ?? blocker)
+            ? `Nicht aktivierbar: ${blockers
+                .map((blocker) => findingLabels[blocker] ?? blocker)
                 .join(" ")}`
             : "Die Version ist noch nicht aktivierbar. Bitte laden Sie die Seite neu.",
           requestId: cause.detail.requestId,
@@ -1472,9 +1474,10 @@ export function LegalConfigurationPage({
   const draftForm = draft ? formFromValues(draft.values) : null;
   const authoredByViewer = draft?.createdByUserId === identity.userId;
   const blockers = draft?.values.activationBlockers ?? [];
-  // A version activated before newer requirements (e.g. the Impressum fields
-  // of migration 0054) can be incomplete now; say so instead of hiding it.
-  const activeBlockers = active?.values.activationBlockers ?? [];
+  const warnings = draft?.values.activationWarnings ?? [];
+  // The active version can lack legal parts (activated with warnings, or
+  // before newer fields such as the Impressum of migration 0054); say so.
+  const activeWarnings = active?.values.activationWarnings ?? [];
   const changedParts = new Set(
     PARTS.filter(
       (item) => changedFields(item, activeForm, draftForm).length,
@@ -1498,10 +1501,10 @@ export function LegalConfigurationPage({
         Version bleibt nachvollziehbar.
       </p>
 
-      {active && activeBlockers.length ? (
+      {active && activeWarnings.length ? (
         <div
           className="callout tone-warn legal-active-blockers"
-          data-testid="legal-active-blockers"
+          data-testid="legal-active-warnings"
           role="status"
         >
           <Icon icon={CircleAlert} size={16} />
@@ -1509,11 +1512,12 @@ export function LegalConfigurationPage({
             <strong>
               Die aktive Version {active.version} ist unvollständig:
             </strong>{" "}
-            {activeBlockers
-              .map((blocker) => blockerLabels[blocker] ?? blocker)
+            {activeWarnings
+              .map((warning) => findingLabels[warning] ?? warning)
               .join(" ")}{" "}
-            Legen Sie einen neuen Entwurf an, lassen Sie ihn freigeben und
-            aktivieren Sie ihn.
+            Ob die Angaben so genügen, entscheidet der Verein. Zum Ergänzen
+            legen Sie einen neuen Entwurf an, lassen ihn freigeben und
+            aktivieren ihn.
           </span>
         </div>
       ) : null}
@@ -1746,10 +1750,26 @@ export function LegalConfigurationPage({
                   >
                     <Icon icon={CircleAlert} size={16} />
                     <span>
-                      <strong>Noch nicht aktivierbar:</strong>{" "}
+                      <strong>Nicht aktivierbar:</strong>{" "}
                       {blockers
-                        .map((blocker) => blockerLabels[blocker] ?? blocker)
+                        .map((blocker) => findingLabels[blocker] ?? blocker)
                         .join(" ")}
+                    </span>
+                  </div>
+                ) : null}
+                {warnings.length ? (
+                  <div
+                    className="callout tone-warn"
+                    data-testid="legal-warnings"
+                  >
+                    <Icon icon={CircleAlert} size={16} />
+                    <span>
+                      <strong>Vor dem Livegang prüfen:</strong>{" "}
+                      {warnings
+                        .map((warning) => findingLabels[warning] ?? warning)
+                        .join(" ")}{" "}
+                      Die Aktivierung ist trotzdem möglich; für vollständige
+                      Rechtstexte ist der Verein verantwortlich.
                     </span>
                   </div>
                 ) : null}

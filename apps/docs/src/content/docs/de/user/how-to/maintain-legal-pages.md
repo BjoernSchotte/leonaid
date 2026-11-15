@@ -4,8 +4,8 @@ description: Pflichtangaben nach § 5 DDG und die Texte der Seite /datenschutz a
 docId: DOC-P048
 audience: [user]
 diataxis: how-to
-contentRevision: 4
-reviewedRevision: 4
+contentRevision: 5
+reviewedRevision: 5
 verifiedAgainst: 8fe6057e8a6c717cdcd73671a2706289d748fb7c
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -66,8 +66,8 @@ deinem Namen beziehungsweise im Menü **Mehr**.
    Anmeldung einer anderen Person alles löscht. Er beschreibt die
    Offline-Erfassung der Akquise-App. Behalte ihn nur, wenn die
    Offline-Erfassung aktiv ist, sonst lösche den ganzen Abschnitt. Die
-   Vorlage markiert das mit einem `[[ … ]]`-Hinweis, der die Aktivierung
-   blockiert, bis du ihn entfernst. Die System-Administration schaltet das
+   Vorlage markiert das mit einem `[[ … ]]`-Hinweis, den LeonAid bis zum
+   Entfernen als offenen Platzhalter meldet. Die System-Administration schaltet das
    Feature-Flag **Offline-Erfassung in der Akquise-App** erst ein, wenn ein
    Hinweis mit diesem Abschnitt aktiv ist. Den Text hat Claude Code
    vorgeschlagen; er braucht wie jede Fassung die Freigabe im
@@ -138,34 +138,44 @@ galt.
 3. Nach spätestens einer Minute zeigen `/impressum` und `/datenschutz` die neue
    Version.
 
-## Wenn sich die Version nicht aktivieren lässt
+## Vor dem Livegang prüfen
 
-Im Produktivbetrieb nennt der Entwurf unter **Noch nicht aktivierbar**, was
-fehlt:
+Für vollständige und richtige Rechtstexte ist der Verein verantwortlich.
+LeonAid sperrt deshalb nichts, sondern nennt im Entwurf unter **Vor dem
+Livegang prüfen**, was nach den üblichen Pflichten fehlt. Du kannst die
+Version trotzdem aktivieren, etwa mit einer vorläufigen Telefonnummer, und
+sie später ergänzen. Prüfe vor dem Livegang:
 
 - **Im Impressum fehlen die vertretungsberechtigten Personen** oder **fehlt
-  die Telefonnummer**: Bereich **Impressum** ergänzen.
+  die Telefonnummer** (§ 5 Abs. 1 Nr. 1 und 2 DDG): Bereich **Impressum**
+  ergänzen.
 - **Die Rechtsform des Trägers ist nicht gewählt**: Wähle sie im Bereich
   **Träger & Anschrift**. Versionen von vor dem Update haben sie nur, wenn der
   Name „e. V.“ enthielt.
-- **Im Impressum fehlt der Registereintrag**: Die gewählte Rechtsform hat ein
-  Register (e. V., GmbH, gGmbH, eG). Trage Registergericht und Registernummer
-  ein. Ein nicht eingetragener Verein, eine Stiftung und „Sonstige“ brauchen
-  keinen Eintrag.
+- **Im Impressum fehlt der Registereintrag** (§ 5 Abs. 1 Nr. 4 DDG): Die
+  gewählte Rechtsform hat ein Register (e. V., GmbH, gGmbH, eG). Trage
+  Registergericht und Registernummer ein. Ein nicht eingetragener Verein, eine
+  Stiftung und „Sonstige“ brauchen keinen Eintrag.
 - **Die Steuerkennung ist eine Umsatzsteuer-ID; sie gehört auch ins
-  Impressum**: Trage sie unter **Umsatzsteuer-ID** ein.
+  Impressum** (§ 5 Abs. 1 Nr. 6 DDG): Trage sie unter **Umsatzsteuer-ID** ein.
 - **Die Datenschutzerklärung fehlt** oder **Der Datenschutzhinweis für
-  Mitglieder fehlt**: Text im Bereich **Datenschutzerklärung** eintragen.
+  Mitglieder fehlt** (Art. 13 DSGVO): Text im Bereich **Datenschutzerklärung**
+  eintragen.
 - **Ein Text enthält noch offene Vorlagen-Platzhalter**: Alle Stellen mit
   `[[ … ]]` ergänzen oder löschen.
+- **Produktive Angaben enthalten noch Test- oder Platzhalterwerte**: Angaben
+  wie `example.org` oder `.invalid` ersetzen.
+- **Die E-Rechnungs-Pflicht ist noch nicht entschieden**: Entscheidung im
+  Bereich **E-Rechnung** eintragen.
 
-Bearbeite den Entwurf, speichere ihn und lass ihn erneut freigeben.
+Nur eine Angabe sperrt die Aktivierung: **E-Rechnungen sind erforderlich**.
+Das kann LeonAid nicht leisten.
 
 ## Nach einem Update
 
-Kommen neue Pflichtangaben hinzu, kann die aktive Version danach
-unvollständig sein. **Rechtliches** zeigt dann oben **Die aktive Version … ist
-unvollständig** mit den fehlenden Punkten. Lege einen neuen Entwurf an, lass
-ihn freigeben und aktiviere ihn. Felder, die eine ältere geöffnete
+Kommen neue Pflichtangaben hinzu, oder wurde eine Version mit Hinweisen
+aktiviert, zeigt **Rechtliches** oben **Die aktive Version … ist
+unvollständig** mit den fehlenden Punkten. Zum Ergänzen legst du einen neuen
+Entwurf an, lässt ihn freigeben und aktivierst ihn. Felder, die eine ältere geöffnete
 Verwaltungsseite nicht kennt, übernimmt LeonAid beim Speichern aus der
 vorigen Version.

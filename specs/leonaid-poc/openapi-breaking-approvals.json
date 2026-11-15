@@ -230,6 +230,14 @@
         "property-newly-required:PublicOrderFormResponse.donationReceivingBody"
       ],
       "rationale": "Bundle stage 6 (specs/mails-documents-donations-push §8.6): the extra donation with an order. The order form configuration always says whether it offers the donation (false by default); the public form names the receiving body (null when the donation is off); the donation list says whether the donor search over the action's sponsors is available. Three new, always present response fields; no field is removed or narrowed and no request field becomes required. The only clients are the generated client and the apps in this repository."
+    },
+    {
+      "oldSha256": "00ed3228cc65d9fe1f9a41a335d1d6f67c84edd04485eecccea44ff8e778cb84",
+      "newSha256": "278d50ed0206cba8dd4751f2602acf0772cbaaf6eabda49682202a84fa080930",
+      "changes": [
+        "property-newly-required:LegalConfigurationValuesResponse.activationWarnings"
+      ],
+      "rationale": "E-060: legal-text findings warn instead of blocking. The legal configuration values always carry activationWarnings (missing Impressum parts, placeholders, open e-invoice evidence); activationBlockers keeps only the e-invoice scope stop. One new, always present response field; no field is removed or narrowed and no request field becomes required. The only clients are the generated client and the apps in this repository, regenerated in the same change."
     }
   ]
 }

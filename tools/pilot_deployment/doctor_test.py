@@ -18,6 +18,7 @@ from tools.pilot_deployment.doctor import (
     environment_warnings,
     parse_resolve,
     read_dotenv,
+    report_json,
     validate_backup,
     validate_environment,
 )
@@ -522,6 +523,29 @@ def main() -> None:
                 open_root, gate=gate, staging=True, deployment_only=False
             ) != ([], []):
                 raise AssertionError(f"staging {gate} waits for the decision register")
+    # E-060: open decisions warn; only STOP blocks.
+    warned = json.loads(
+        report_json(
+            infrastructure_ready=True,
+            gate="upgrade",
+            open_ids=["PILOT-TAX-001"],
+            stop_ids=[],
+            deployment_only=False,
+        )
+    )
+    if warned["status"] != "ready" or warned["openDecisionIds"] != ["PILOT-TAX-001"]:
+        raise AssertionError(f"open decisions still block: {warned}")
+    stopped = json.loads(
+        report_json(
+            infrastructure_ready=True,
+            gate="upgrade",
+            open_ids=[],
+            stop_ids=["PILOT-INV-002"],
+            deployment_only=False,
+        )
+    )
+    if stopped["status"] != "stop":
+        raise AssertionError(f"a STOP decision no longer blocks: {stopped}")
     # The real register itself must stay valid.
     due_decisions(root, gate="pilot-deploy", staging=False, deployment_only=False)
 

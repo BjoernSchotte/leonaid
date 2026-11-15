@@ -55,6 +55,7 @@ function values(
 ): LegalConfigurationValuesResponse {
   return {
     activationBlockers: [],
+    activationWarnings: [],
     bankAccountHolder: "Förderverein Lions Club Musterstadt e. V.",
     bic: null,
     consentTextVersion: "public-order-v1",
@@ -296,11 +297,11 @@ describe("LegalConfigurationPage four-eyes flow", () => {
     expect(screen.queryByRole("button", { name: /aktivieren/ })).toBeNull();
   });
 
-  it("blocks the activation while blockers remain", async () => {
+  it("blocks the activation when e-invoices are required", async () => {
     const client = fakeClient(
       stateWith({
         draft: version(2, klara, {
-          activationBlockers: ["e_invoice_decision_pending"],
+          activationBlockers: ["e_invoice_scope_required"],
         }),
         draftApproval: approval,
       }),
@@ -308,13 +309,38 @@ describe("LegalConfigurationPage four-eyes flow", () => {
     renderPage(client);
 
     expect((await screen.findByTestId("legal-blockers")).textContent).toContain(
-      "Die E-Rechnungs-Pflicht ist noch nicht entschieden.",
+      "E-Rechnungen sind erforderlich",
     );
     expect(screen.queryByRole("button", { name: /aktivieren/ })).toBeNull();
     expect(
       within(screen.getByTestId("legal-next-step")).getByRole("button", {
         name: "Entwurf bearbeiten",
       }),
+    ).toBeTruthy();
+  });
+
+  it("activates an approved draft despite warnings (E-060)", async () => {
+    const client = fakeClient(
+      stateWith({
+        draft: version(2, klara, {
+          activationWarnings: [
+            "e_invoice_decision_pending",
+            "imprint_phone_missing",
+          ],
+        }),
+        draftApproval: approval,
+      }),
+    );
+    renderPage(client);
+
+    const warnings = (await screen.findByTestId("legal-warnings")).textContent;
+    expect(warnings).toContain(
+      "Die E-Rechnungs-Pflicht ist noch nicht entschieden.",
+    );
+    expect(warnings).toContain("Im Impressum fehlt die Telefonnummer.");
+    expect(screen.queryByTestId("legal-blockers")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Version 2 aktivieren" }),
     ).toBeTruthy();
   });
 
@@ -382,8 +408,7 @@ describe("LegalConfigurationPage four-eyes flow", () => {
     client.activateLegalConfigurationDraft.mockRejectedValueOnce(
       new ApiError(409, {
         code: "legal_configuration_activation_blocked",
-        message:
-          "Die Konfiguration ist noch nicht produktionsreif: e_invoice_decision_pending.",
+        message: "Für diesen Betrieb ist eine E-Rechnung erforderlich.",
         requestId: "req-legal-2",
       }),
     );
@@ -391,11 +416,11 @@ describe("LegalConfigurationPage four-eyes flow", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Version 2 aktivieren" }),
     );
-    // Meanwhile someone else reopened the e-invoice decision.
+    // Meanwhile someone else recorded that e-invoices are required.
     client.getLegalConfiguration.mockResolvedValue(
       stateWith({
         draft: version(2, klara, {
-          activationBlockers: ["e_invoice_decision_pending"],
+          activationBlockers: ["e_invoice_scope_required"],
         }),
         draftApproval: approval,
       }),
@@ -406,10 +431,10 @@ describe("LegalConfigurationPage four-eyes flow", () => {
     );
     expect(
       await screen.findByText(
-        "Noch nicht aktivierbar: Die E-Rechnungs-Pflicht ist noch nicht entschieden.",
+        "Nicht aktivierbar: E-Rechnungen sind erforderlich; das liegt außerhalb des ERP-light-Piloten.",
       ),
     ).toBeTruthy();
-    expect(screen.queryByText(/e_invoice_decision_pending/)).toBeNull();
+    expect(screen.queryByText(/e_invoice_scope_required/)).toBeNull();
   });
 
   it("does not call never-active versions replaced", async () => {
@@ -604,11 +629,11 @@ describe("LegalConfigurationPage four-eyes flow", () => {
     ).toBe(stored);
   });
 
-  it("labels the Impressum and privacy blockers", async () => {
+  it("labels the Impressum and privacy warnings", async () => {
     const client = fakeClient(
       stateWith({
         draft: version(2, klara, {
-          activationBlockers: [
+          activationWarnings: [
             "legal_form_missing",
             "imprint_representatives_missing",
             "imprint_phone_missing",
@@ -622,7 +647,7 @@ describe("LegalConfigurationPage four-eyes flow", () => {
       }),
     );
     renderPage(client);
-    const blockers = (await screen.findByTestId("legal-blockers")).textContent;
+    const blockers = (await screen.findByTestId("legal-warnings")).textContent;
     for (const label of [
       "Die Rechtsform des Trägers ist nicht gewählt.",
       "Im Impressum fehlen die vertretungsberechtigten Personen.",
@@ -690,7 +715,7 @@ describe("LegalConfigurationPage four-eyes flow", () => {
     const client = fakeClient(
       stateWith({
         active: version(1, simone, {
-          activationBlockers: [
+          activationWarnings: [
             "imprint_representatives_missing",
             "privacy_policy_missing",
           ],
@@ -699,7 +724,7 @@ describe("LegalConfigurationPage four-eyes flow", () => {
       }),
     );
     renderPage(client);
-    const warning = await screen.findByTestId("legal-active-blockers");
+    const warning = await screen.findByTestId("legal-active-warnings");
     expect(warning.textContent).toContain(
       "Die aktive Version 1 ist unvollständig:",
     );
@@ -714,7 +739,7 @@ describe("LegalConfigurationPage four-eyes flow", () => {
     const client = fakeClient(stateWith({ draft: null }));
     renderPage(client);
     await screen.findByText("Kein offener Entwurf");
-    expect(screen.queryByTestId("legal-active-blockers")).toBeNull();
+    expect(screen.queryByTestId("legal-active-warnings")).toBeNull();
   });
 
   it("requires an explicit legal form and shows its change for review", async () => {
