@@ -21,6 +21,7 @@ import {
   FeatureFlagProvider,
   SystemPage,
   resetCommandPaletteState,
+  isSystemPath,
   systemSection,
   waitedFor,
 } from "@leonaid/features";
@@ -219,6 +220,21 @@ function renderPage(url: string) {
   );
   return client;
 }
+
+describe("isSystemPath", () => {
+  it("routes every System tab, including Domains, to the System page", () => {
+    for (const path of [
+      "/admin/system",
+      "/admin/system/jobs",
+      "/admin/system/flags",
+      "/admin/system/domains/",
+      "/admin/privacy",
+    ])
+      expect(isSystemPath(path)).toBe(true);
+    expect(isSystemPath("/admin/system/ui")).toBe(false);
+    expect(isSystemPath("/admin/")).toBe(false);
+  });
+});
 
 describe("systemSection", () => {
   it("maps each URL to its tab", () => {

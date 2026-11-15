@@ -25,6 +25,7 @@ import {
   PreviewNotice,
   RoleDashboardPage,
   SystemPage,
+  isSystemPath,
   UiSystemCatalogPage,
   useCurrentActionId,
   useLocationHref,
@@ -178,7 +179,7 @@ function route(available: readonly UiModule[]) {
   if (/^\/members(\/invitations)?$/.test(pathname)) {
     return { kind: "members" } as const;
   }
-  if (/^\/(system(\/(jobs|flags))?|privacy)$/.test(pathname)) {
+  if (isSystemPath(window.location.pathname)) {
     return { kind: "system" } as const;
   }
   if (/^\/legal(\/[a-z-]+)?$/.test(pathname)) {

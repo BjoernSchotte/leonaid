@@ -32,10 +32,19 @@ const TABS: readonly { id: SystemSection; label: string; path: string }[] = [
   { id: "privacy", label: "Datenschutz", path: adminHref("privacy") },
 ];
 
+function systemTab(pathname: string) {
+  const path = pathname.replace(/\/+$/, "");
+  return TABS.find((tab) => tab.path === path);
+}
+
 /** `/admin/system[/jobs|/flags|/domains]` or `/admin/privacy`. */
 export function systemSection(pathname: string): SystemSection {
-  const path = pathname.replace(/\/+$/, "");
-  return TABS.find((tab) => tab.path === path)?.id ?? "operations";
+  return systemTab(pathname)?.id ?? "operations";
+}
+
+/** Whether the app router shows the System page for this path (one source: the tabs). */
+export function isSystemPath(pathname: string): boolean {
+  return systemTab(pathname) !== undefined;
 }
 
 export interface SystemPageProps {
