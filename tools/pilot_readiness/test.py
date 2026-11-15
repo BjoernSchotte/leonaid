@@ -152,11 +152,9 @@ def main() -> None:
     checker = root / "tools/pilot_readiness/check.py"
 
     current = run_checker(checker, root, "blocked", 2)
-    if (
-        current["summary"]["hardGateCount"] != 16
-        or len(current["tasks"]) != 21
-        or not current["summary"]["openDecisionIds"]
-    ):
+    # Open decisions are not required here: the register records what the
+    # installation has decided and may be complete.
+    if current["summary"]["hardGateCount"] != 16 or len(current["tasks"]) != 21:
         raise AssertionError("current blocked readiness coverage is incomplete")
     checksum = current.pop("checksumSha256")
     if checksum != checksum_report(current):

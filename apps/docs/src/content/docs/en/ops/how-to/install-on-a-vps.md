@@ -4,8 +4,8 @@ description: Prepare an empty Ubuntu or Debian server and run the first installa
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 11
-reviewedRevision: 11
+contentRevision: 12
+reviewedRevision: 12
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -38,7 +38,7 @@ their own acceptance for every installation.
   public CA, and the server must reach it outbound on port 465 (implicit
   TLS). Twenty sends mail only over implicit TLS; with port 587 (STARTTLS)
   only LeonAid sends mail.
-- **Alerting:** an operator webhook (chat or incident tool), an external
+- **Alerting** (optional for the first start; the doctor then warns): an operator webhook (chat or incident tool), an external
   heartbeat check such as healthchecks.io and an external uptime monitor.
 - **Release:** an approved tag `vYYYY.M.N` with the files `release-images.env`
   and `release-manifest.json` (see
@@ -389,6 +389,14 @@ files. Hand them over read-only:
 sudo chown 65534:65534 /etc/leonaid/secrets/alert-webhook-url /etc/leonaid/secrets/alert-heartbeat-url
 sudo chmod 0400 /etc/leonaid/secrets/alert-webhook-url /etc/leonaid/secrets/alert-heartbeat-url
 ```
+
+If you have no alert channel or heartbeat service yet, leave
+`LEONAID_ALERT_WEBHOOK_URL_FILE` and `LEONAID_ALERT_HEARTBEAT_URL_FILE` empty
+in `production.env` and skip the two files. The installation then completes,
+and every `pilot-doctor` run warns that Alertmanager delivers nothing and that
+no external service notices an outage. Add the paths once you have the URLs
+and run `./leonaid pilot-monitoring --env-file /etc/leonaid/production.env`.
+The doctor checks a configured file in full.
 
 ## Log in to the container registry
 

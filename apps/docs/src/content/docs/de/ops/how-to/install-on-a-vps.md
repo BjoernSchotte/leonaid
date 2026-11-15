@@ -4,8 +4,8 @@ description: Einen leeren Ubuntu- oder Debian-Server vorbereiten und die Erstins
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 11
-reviewedRevision: 11
+contentRevision: 12
+reviewedRevision: 12
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -39,7 +39,7 @@ Pilotentscheidungen brauchen für jede Installation eine eigene Abnahme.
   öffentlichen CA, und der Server muss es ausgehend auf Port 465 (implizites
   TLS) erreichen. Twenty versendet nur über implizites TLS; mit Port 587
   (STARTTLS) versendet nur LeonAid.
-- **Alarmierung:** ein Operator-Webhook (Chat oder Incident-Werkzeug), ein
+- **Alarmierung** (für den Start optional, der Doctor warnt dann): ein Operator-Webhook (Chat oder Incident-Werkzeug), ein
   externer Heartbeat-Check wie healthchecks.io und ein externer
   Uptime-Monitor.
 - **Release:** ein freigegebenes Tag `vYYYY.M.N` mit den Dateien
@@ -397,6 +397,15 @@ URL-Dateien lesen. Übergib sie schreibgeschützt:
 sudo chown 65534:65534 /etc/leonaid/secrets/alert-webhook-url /etc/leonaid/secrets/alert-heartbeat-url
 sudo chmod 0400 /etc/leonaid/secrets/alert-webhook-url /etc/leonaid/secrets/alert-heartbeat-url
 ```
+
+Hast du noch keinen Alarmkanal oder Heartbeat-Dienst, lass
+`LEONAID_ALERT_WEBHOOK_URL_FILE` und `LEONAID_ALERT_HEARTBEAT_URL_FILE` in
+`production.env` leer und überspring die beiden Dateien. Die Installation
+läuft dann durch, und `pilot-doctor` warnt bei jedem Lauf, dass Alertmanager
+nichts zustellt und kein externer Dienst einen Ausfall bemerkt. Trag die
+Pfade nach, sobald die URLs da sind, und führe `./leonaid pilot-monitoring
+--env-file /etc/leonaid/production.env` aus. Eine eingetragene Datei prüft der
+Doctor vollständig.
 
 ## An der Container-Registry anmelden
 

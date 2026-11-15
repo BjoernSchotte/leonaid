@@ -1488,21 +1488,22 @@ pilot_doctor() {
   monitored_disk_path=$(
     pilot_environment_value LEONAID_MONITORED_DISK_PATH "$env_file"
   )
+  # Alert delivery is optional (empty key = not configured, the doctor warns).
   case "$alert_webhook_file" in
-    /*) ;;
+    '' | /*) ;;
     *)
       echo "pilot-doctor: BLOCKED: the alert webhook path must be absolute" >&2
       return 1
       ;;
   esac
   case "$alert_heartbeat_file" in
-    /*) ;;
+    '' | /*) ;;
     *)
       echo "pilot-doctor: BLOCKED: the alert heartbeat path must be absolute" >&2
       return 1
       ;;
   esac
-  [ -f "$alert_heartbeat_file" ] || {
+  [ -z "$alert_heartbeat_file" ] || [ -f "$alert_heartbeat_file" ] || {
     echo "pilot-doctor: BLOCKED: the alert heartbeat URL file is missing" >&2
     return 1
   }
@@ -1513,7 +1514,7 @@ pilot_doctor() {
       return 1
       ;;
   esac
-  [ -f "$alert_webhook_file" ] || {
+  [ -z "$alert_webhook_file" ] || [ -f "$alert_webhook_file" ] || {
     echo "pilot-doctor: BLOCKED: the alert webhook file is missing" >&2
     return 1
   }
@@ -1521,6 +1522,13 @@ pilot_doctor() {
     echo "pilot-doctor: BLOCKED: the monitoring path is missing" >&2
     return 1
   }
+  # Only configured alert files are mounted; paths contain no spaces (absolute,
+  # checked above).
+  alert_volume_arguments=
+  for alert_file in "$alert_webhook_file" "$alert_heartbeat_file"; do
+    [ -z "$alert_file" ] ||
+      alert_volume_arguments="$alert_volume_arguments --volume $alert_file:$alert_file:ro"
+  done
   # pilot-cms-provision: the latest backup may predate the CMS.
   backup_cms_argument=
   if [ "${pilot_doctor_skip_cms:-false}" = true ]; then
@@ -1595,8 +1603,7 @@ pilot_doctor() {
       --volume "$doctor_input_directory:/doctor/input:ro" \
       --volume "$config_file:/doctor/compose.json:ro" \
       "$@" \
-      --volume "$alert_webhook_file:$alert_webhook_file:ro" \
-      --volume "$alert_heartbeat_file:$alert_heartbeat_file:ro" \
+      $alert_volume_arguments \
       --volume "$monitored_disk_path:$monitored_disk_path:ro" \
       --workdir /workspace \
       "$PYTHON_IMAGE" \
@@ -1621,8 +1628,7 @@ pilot_doctor() {
       --volume "$env_file:/doctor/production.env:ro" \
       --volume "$doctor_input_directory:/doctor/input:ro" \
       --volume "$config_file:/doctor/compose.json:ro" \
-      --volume "$alert_webhook_file:$alert_webhook_file:ro" \
-      --volume "$alert_heartbeat_file:$alert_heartbeat_file:ro" \
+      $alert_volume_arguments \
       --volume "$monitored_disk_path:$monitored_disk_path:ro" \
       --workdir /workspace \
       "$PYTHON_IMAGE" \

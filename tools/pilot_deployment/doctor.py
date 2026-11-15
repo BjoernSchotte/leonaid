@@ -66,9 +66,7 @@ CMS_SECRET_KEYS = (
 REQUIRED_ENVIRONMENT_KEYS = (
     "CADDY_ACME_EMAIL",
     "LEONAID_ALLOWED_ORIGINS",
-    "LEONAID_ALERT_HEARTBEAT_URL_FILE",
     "LEONAID_CLUB_NAME",
-    "LEONAID_ALERT_WEBHOOK_URL_FILE",
     "LEONAID_BACKUP_MANIFEST_PATH",
     "LEONAID_COMPOSE_PROJECT",
     "LEONAID_CORE_IMAGE",
@@ -306,19 +304,31 @@ def validate_environment(
 
     backup_path = Path(values["LEONAID_BACKUP_MANIFEST_PATH"])
     require_external_path(backup_path, root, "backup_manifest")
-    alert_webhook_url = external_https_url_file(
-        Path(values["LEONAID_ALERT_WEBHOOK_URL_FILE"]),
-        root=root,
-        label="alert_webhook_url",
+    # Alert delivery is optional: an installation can start before the club
+    # has an operator channel or a heartbeat service. An empty key means "not
+    # configured" (a warning, see environment_warnings); a configured file is
+    # checked in full.
+    alert_webhook_url = (
+        external_https_url_file(
+            Path(values["LEONAID_ALERT_WEBHOOK_URL_FILE"]),
+            root=root,
+            label="alert_webhook_url",
+        )
+        if alert_configured(values, "LEONAID_ALERT_WEBHOOK_URL_FILE")
+        else None
     )
     # The dead man's switch must leave the host: a heartbeat that ends at the
     # operator webhook would fall silent together with the alert path.
-    alert_heartbeat_url = external_https_url_file(
-        Path(values["LEONAID_ALERT_HEARTBEAT_URL_FILE"]),
-        root=root,
-        label="alert_heartbeat_url",
+    alert_heartbeat_url = (
+        external_https_url_file(
+            Path(values["LEONAID_ALERT_HEARTBEAT_URL_FILE"]),
+            root=root,
+            label="alert_heartbeat_url",
+        )
+        if alert_configured(values, "LEONAID_ALERT_HEARTBEAT_URL_FILE")
+        else None
     )
-    if alert_heartbeat_url == alert_webhook_url:
+    if alert_heartbeat_url is not None and alert_heartbeat_url == alert_webhook_url:
         raise DoctorError("alert_heartbeat_url_not_distinct")
     monitored_disk_path = Path(values["LEONAID_MONITORED_DISK_PATH"])
     if not monitored_disk_path.is_dir():
@@ -354,10 +364,19 @@ def validate_environment(
     return project
 
 
+def alert_configured(values: dict[str, str], key: str) -> bool:
+    """An alert URL file is configured when its key names a path."""
+    return bool(values.get(key, "").strip())
+
+
 def environment_warnings(values: dict[str, str]) -> list[str]:
     """Readiness facts that block nothing but need the operator's attention."""
 
     warnings: list[str] = []
+    if not alert_configured(values, "LEONAID_ALERT_WEBHOOK_URL_FILE"):
+        warnings.append("alert_webhook_not_configured")
+    if not alert_configured(values, "LEONAID_ALERT_HEARTBEAT_URL_FILE"):
+        warnings.append("alert_heartbeat_not_configured")
     if not twenty_mail_enabled(values.get("MAIL_SMTP_MODE")):
         # Twenty cannot require STARTTLS; it only sends over implicit TLS.
         warnings.append("twenty_mail_disabled_without_implicit_tls")
@@ -365,6 +384,17 @@ def environment_warnings(values: dict[str, str]) -> list[str]:
 
 
 WARNING_TEXT = {
+    "alert_webhook_not_configured": (
+        "LEONAID_ALERT_WEBHOOK_URL_FILE is empty, so Alertmanager delivers no "
+        "alert (backup stale, disk full, service down). Set it to a file with "
+        "the operator webhook URL and run pilot-monitoring."
+    ),
+    "alert_heartbeat_not_configured": (
+        "LEONAID_ALERT_HEARTBEAT_URL_FILE is empty, so no external service "
+        "notices when this host, Prometheus or Alertmanager stops. Set it to a "
+        "file with a heartbeat ping URL (for example healthchecks.io) and run "
+        "pilot-monitoring."
+    ),
     "twenty_mail_disabled_without_implicit_tls": (
         "MAIL_SMTP_MODE is not tls, so Twenty sends no mail (password reset, "
         "address verification); its SMTP client cannot enforce STARTTLS. "
