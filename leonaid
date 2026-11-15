@@ -9,6 +9,10 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 # Linux bind mounts keep the container's UID, so root containers would leave
 # root-owned .venv, node_modules and caches behind (Docker Desktop hides this).
 host_user="$(id -u):$(id -g)"
+# Pilot stacks on a real server: Twenty's first start runs ~180 legacy
+# migrations and took about 8 minutes on a 8-vCPU IONOS VPS; 420 s was too
+# short. Only a hanging start waits this long.
+PILOT_WAIT_TIMEOUT=${LEONAID_PILOT_WAIT_TIMEOUT:-900}
 # The pilot exporter reads the operator's 0600 backup manifest, so it runs as
 # the account that operates this installation (see infra/pilot/compose.yml).
 LEONAID_OPERATOR_USER=$host_user
@@ -1897,11 +1901,11 @@ pilot_compose_up() {
   # api health budget (20 probes, 5 s apart) leaves the running api unhealthy
   # until Twenty is back and the next probe passes; the proxy depends on it.
   pilot_compose_command "$project" "$env_file" \
-    up --detach --no-build --pull missing --wait --wait-timeout 420 \
+    up --detach --no-build --pull missing --wait --wait-timeout "$PILOT_WAIT_TIMEOUT" \
     twenty-server || return
   pilot_wait_not_unhealthy "$project" api 120 || return
   pilot_compose_command "$project" "$env_file" \
-    up --detach --no-build --pull missing --wait --wait-timeout 420
+    up --detach --no-build --pull missing --wait --wait-timeout "$PILOT_WAIT_TIMEOUT"
 }
 
 pilot_compose_command() {
@@ -2077,7 +2081,7 @@ pilot_deploy() {
   # anything is recreated.
   if pilot_cms_enabled "$env_file"; then
     pilot_compose_command "$project" "$env_file" \
-      up --detach --no-build --pull missing --wait --wait-timeout 420 \
+      up --detach --no-build --pull missing --wait --wait-timeout "$PILOT_WAIT_TIMEOUT" \
       core-postgres rustfs
     pilot_cms_require_provisioned "$project" "$env_file" pilot-deploy
   fi
@@ -2259,7 +2263,7 @@ pilot_cms_provision() {
   pilot_doctor_skip_cms=false
 
   pilot_compose_command "$project" "$env_file" \
-    up --detach --no-build --pull missing --wait --wait-timeout 420 \
+    up --detach --no-build --pull missing --wait --wait-timeout "$PILOT_WAIT_TIMEOUT" \
     core-postgres rustfs
   state=$(pilot_cms_status "$project" "$env_file") || {
     echo "pilot-cms-provision: BLOCKED: the CMS provisioning state cannot be read" >&2
@@ -2413,7 +2417,7 @@ pilot_cms_provision() {
         exit 64
       fi
       pilot_compose_command "$project" "$env_file" \
-        up --detach --no-build --pull missing --wait --wait-timeout 420 \
+        up --detach --no-build --pull missing --wait --wait-timeout "$PILOT_WAIT_TIMEOUT" \
         campaign-site
       admin_base=$(pilot_environment_value LEONAID_PUBLIC_BASE_URL "$env_file")
       echo "pilot-cms-provision: 3/4 editor setup: PENDING"
@@ -2478,7 +2482,7 @@ pilot_cms_provision() {
       /app/bootstrap-state/cms-maintenance
   fi
   pilot_compose_command "$project" "$env_file" \
-    up --detach --no-build --pull missing --wait --wait-timeout 420 \
+    up --detach --no-build --pull missing --wait --wait-timeout "$PILOT_WAIT_TIMEOUT" \
     campaign-site
   pilot_cms_require_provisioned "$project" "$env_file" pilot-cms-provision
   echo "pilot-cms-provision: OK: $project serves the CMS; campaign pages can be created and published"
@@ -2818,7 +2822,7 @@ pilot_install() {
   echo "pilot-install: starting Twenty without public ingress for the admin bootstrap"
   install_started=true
   pilot_bootstrap_compose "$install_project" "$install_env" \
-    up --detach --no-build --pull missing --wait --wait-timeout 420 \
+    up --detach --no-build --pull missing --wait --wait-timeout "$PILOT_WAIT_TIMEOUT" \
     twenty-postgres twenty-redis twenty-server twenty-worker
   [ -z "$(docker ps -q --filter "label=com.docker.compose.project=$install_project" --filter label=com.docker.compose.service=proxy)" ] ||
     pilot_install_fail "the proxy runs during the Twenty bootstrap"
@@ -3374,10 +3378,10 @@ print(value["schemas"]["coreAlembicHead"])'
     /bin/sh "$root/infra/upgrade/twenty-queue-store.sh" migrate "$root"
   pilot_compose_command "$project" "$env_file" \
     up --detach --no-build --pull missing --force-recreate \
-    --wait --wait-timeout 420 rustfs
+    --wait --wait-timeout "$PILOT_WAIT_TIMEOUT" rustfs
   pilot_compose_command "$project" "$env_file" \
     up --detach --no-build --pull missing --force-recreate \
-    --wait --wait-timeout 420 twenty-server
+    --wait --wait-timeout "$PILOT_WAIT_TIMEOUT" twenty-server
   pilot_compose_command "$project" "$env_file" stop twenty-server >/dev/null
   # "upgrade" runs Twenty's whole sequence, instance commands included, along
   # its own cursors; Twenty's entrypoint uses it the same way. A separate
