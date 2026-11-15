@@ -57,6 +57,11 @@ SECRET_KEYS = (
     "TWENTY_INTEGRATION_API_KEY",
     "TWENTY_LOGIN_TOKEN_SECRET",
 )
+# Secrets the operator receives from a provider instead of generating them:
+# their length is the provider's choice (IONOS issues 19 characters), so they
+# only need this minimum. Generated secrets keep the 24-character rule.
+PROVIDER_SECRET_MINIMUM_LENGTH = {"MAIL_SMTP_PASSWORD": 8}
+GENERATED_SECRET_MINIMUM_LENGTH = 24
 # Campaign pages and the EmDash editor (specs/multi-domain stage 0).
 CMS_SECRET_KEYS = (
     "CMS_ENCRYPTION_KEY",
@@ -257,7 +262,10 @@ def validate_environment(
             and value == PENDING_INTEGRATION_KEY
         ):
             continue
-        if len(value) < 24 or is_placeholder(value):
+        minimum = PROVIDER_SECRET_MINIMUM_LENGTH.get(
+            key, GENERATED_SECRET_MINIMUM_LENGTH
+        )
+        if len(value) < minimum or is_placeholder(value):
             raise DoctorError(f"secret_invalid:{key}")
         secret_values.append(value)
     cms_setting = values.get("LEONAID_CMS_ENABLED", "false")

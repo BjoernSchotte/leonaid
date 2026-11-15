@@ -103,6 +103,37 @@ def main() -> None:
             ),
         )
 
+        # A provider-issued SMTP password is as long as the provider makes it
+        # (IONOS: 19 characters); generated secrets keep the 24-character rule.
+        provider_password = dict(values)
+        provider_password["MAIL_SMTP_PASSWORD"] = "Ab3-provider-pw-19c"
+        write_environment(environment_path, provider_password)
+        validate_environment(
+            provider_password,
+            root=root,
+            env_file=environment_path,
+            compose_config=compose_config,
+            expected_release_commit=expected_commit,
+        )
+        for label, key, value in (
+            ("too short SMTP password", "MAIL_SMTP_PASSWORD", "short-7"),
+            ("19-character generated secret", "LEONAID_SECRET_KEY", "x" * 19),
+        ):
+            short = dict(values)
+            short[key] = value
+            write_environment(environment_path, short)
+
+            def validate_short(candidate: dict[str, str] = short) -> str:
+                return validate_environment(
+                    candidate,
+                    root=root,
+                    env_file=environment_path,
+                    compose_config=compose_config,
+                    expected_release_commit=expected_commit,
+                )
+
+            rejected(label, validate_short)
+
         duplicate_secrets = dict(values)
         duplicate_secrets["MAIL_SMTP_PASSWORD"] = duplicate_secrets[
             "LEONAID_SECRET_KEY"
