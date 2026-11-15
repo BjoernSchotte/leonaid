@@ -31,6 +31,8 @@ interface Props {
   readonly actionId: string;
   readonly client: LeonAidApiClient;
   readonly disabled: boolean;
+  /** System admin on an installation with the CMS: may switch the renderer. */
+  readonly canSelectRenderer?: boolean;
 }
 
 const ALIAS = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -61,6 +63,90 @@ function AliasAvailability({
               ? "Freigegeben. Die Zielseite braucht zusätzlich veröffentlichte Inhalte."
               : "Keine öffentliche Weiterleitung freigegeben."}
     </span>
+  );
+}
+
+/**
+ * What the primary alias shows: the order page or the CMS campaign page.
+ * Core does not see the CMS publication state, so the system admin switches
+ * to the campaign page once it is published there (E-028).
+ */
+function RendererSwitch({
+  actionId,
+  canSelect,
+  client,
+  item,
+  onDone,
+}: {
+  readonly actionId: string;
+  readonly canSelect: boolean;
+  readonly client: LeonAidApiClient;
+  readonly item: CampaignAliasItemResponse;
+  readonly onDone: () => Promise<void>;
+}) {
+  const toast = useOptionalToast();
+  const [error, setError] = useState<ActionErrorMessage>();
+  const command = useRef<{ key: string; id: string } | undefined>(undefined);
+  const campaign = item.renderer === "campaign";
+  const next = campaign ? "legacy" : "campaign";
+  const mutation = useMutation({
+    mutationFn: () => {
+      // A retry of the same switch reuses its command id.
+      const key = `${item.aliasId}:${item.revision}:${next}`;
+      if (command.current?.key !== key) {
+        command.current = { key, id: crypto.randomUUID() };
+      }
+      return client.selectCampaignRenderer(actionId, item.aliasId, {
+        commandId: command.current.id,
+        renderer: next,
+        revision: item.revision,
+      });
+    },
+    async onSuccess(result) {
+      command.current = undefined;
+      setError(undefined);
+      toast?.show({
+        title:
+          result.renderer === "campaign"
+            ? `/${result.alias} zeigt jetzt die Kampagnenseite.`
+            : `/${result.alias} zeigt jetzt die Bestellseite.`,
+        tone: "success",
+      });
+      await onDone();
+    },
+    onError(cause) {
+      const message = actionErrorMessage(cause);
+      setError(message);
+      if (isRevisionConflict(message)) void onDone();
+    },
+  });
+  return (
+    <div className="stack" data-testid="alias-renderer">
+      <p className="small">
+        {campaign
+          ? `/${item.alias} führt zur Kampagnenseite aus dem CMS.`
+          : `/${item.alias} zeigt die Bestellseite ohne CMS-Gestaltung.`}
+      </p>
+      {canSelect ? (
+        <div className="cluster">
+          <Button
+            data-testid="alias-renderer-switch"
+            disabled={mutation.isPending}
+            onClick={() => mutation.mutate()}
+            size="sm"
+            variant="secondary"
+          >
+            {campaign ? "Bestellseite verwenden" : "Kampagnenseite verwenden"}
+          </Button>
+          {campaign ? null : (
+            <span className="small subtle">
+              Erst wählen, wenn die Kampagnenseite im CMS veröffentlicht ist.
+            </span>
+          )}
+        </div>
+      ) : null}
+      <AliasError error={error} />
+    </div>
   );
 }
 
@@ -348,6 +434,10 @@ export function CampaignAliasesSection(props: Props) {
     await queryClient.invalidateQueries({
       queryKey: ["campaign-alias-availability"],
     });
+    // The public addresses name the page the primary alias leads to.
+    await queryClient.invalidateQueries({
+      queryKey: ["action-public-urls", props.actionId],
+    });
   };
   const { error, mutation, setError } = useAliasCommand(
     props.actionId,
@@ -409,68 +499,79 @@ export function CampaignAliasesSection(props: Props) {
           title="Keine öffentliche Adresse"
         />
       ) : (
-        <ul className="alias-list" data-testid="alias-list">
-          {primary ? (
-            <li className="alias-row" data-testid="alias-primary">
-              <a className="mono alias-path" href={`/${primary.alias}`}>
-                /{primary.alias}
-              </a>
-              <Badge tone="ok">Aktiver Alias</Badge>
-              <span className="small subtle">
-                Zeitraum und Alias unter „Öffentliche Seite“
-              </span>
-            </li>
-          ) : null}
-          {extra.map((item) => (
-            <li
-              className="alias-row campaign-alias-row"
-              data-testid={`alias-${item.alias}`}
-              key={item.aliasId}
-            >
-              <a className="mono alias-path" href={`/${item.alias}`}>
-                /{item.alias}
-              </a>
-              <Badge tone={item.enabled ? "neutral" : "warn"}>
-                {item.enabled ? "Weiterleitung" : "Deaktiviert"}
-              </Badge>
-              <AliasAvailability client={props.client} item={item} />
-              {!props.disabled ? (
-                <span className="alias-commands">
-                  <Button
-                    aria-label={`/${item.alias} bearbeiten`}
-                    icon={Pencil}
-                    onClick={() => {
-                      setError(undefined);
-                      setEditing(item);
-                    }}
-                    size="sm"
-                    variant="ghost"
-                  >
-                    Bearbeiten
-                  </Button>
-                  <Button
-                    aria-label={`/${item.alias} entfernen`}
-                    icon={Trash2}
-                    onClick={() => {
-                      setError(undefined);
-                      setRemoving(item);
-                    }}
-                    size="sm"
-                    variant="ghost"
-                  >
-                    Entfernen
-                  </Button>
+        <>
+          <ul className="alias-list" data-testid="alias-list">
+            {primary ? (
+              <li className="alias-row" data-testid="alias-primary">
+                <a className="mono alias-path" href={`/${primary.alias}`}>
+                  /{primary.alias}
+                </a>
+                <Badge tone="ok">Aktiver Alias</Badge>
+                <span className="small subtle">
+                  Zeitraum und Alias unter „Öffentliche Seite“
                 </span>
-              ) : null}
+              </li>
+            ) : null}
+            {extra.map((item) => (
+              <li
+                className="alias-row campaign-alias-row"
+                data-testid={`alias-${item.alias}`}
+                key={item.aliasId}
+              >
+                <a className="mono alias-path" href={`/${item.alias}`}>
+                  /{item.alias}
+                </a>
+                <Badge tone={item.enabled ? "neutral" : "warn"}>
+                  {item.enabled ? "Weiterleitung" : "Deaktiviert"}
+                </Badge>
+                <AliasAvailability client={props.client} item={item} />
+                {!props.disabled ? (
+                  <span className="alias-commands">
+                    <Button
+                      aria-label={`/${item.alias} bearbeiten`}
+                      icon={Pencil}
+                      onClick={() => {
+                        setError(undefined);
+                        setEditing(item);
+                      }}
+                      size="sm"
+                      variant="ghost"
+                    >
+                      Bearbeiten
+                    </Button>
+                    <Button
+                      aria-label={`/${item.alias} entfernen`}
+                      icon={Trash2}
+                      onClick={() => {
+                        setError(undefined);
+                        setRemoving(item);
+                      }}
+                      size="sm"
+                      variant="ghost"
+                    >
+                      Entfernen
+                    </Button>
+                  </span>
+                ) : null}
+              </li>
+            ))}
+            <li className="alias-row" data-testid="alias-canonical">
+              <a className="mono alias-path" href={data.canonicalPath}>
+                {data.canonicalPath}
+              </a>
+              <Badge tone="neutral">Dauerhafte Adresse</Badge>
             </li>
-          ))}
-          <li className="alias-row" data-testid="alias-canonical">
-            <a className="mono alias-path" href={data.canonicalPath}>
-              {data.canonicalPath}
-            </a>
-            <Badge tone="neutral">Dauerhafte Adresse</Badge>
-          </li>
-        </ul>
+          </ul>
+          {primary ? (
+            <RendererSwitch
+              actionId={props.actionId}
+              canSelect={Boolean(props.canSelectRenderer) && !props.disabled}
+              client={props.client}
+              item={primary}
+              onDone={saved}
+            />
+          ) : null}
+        </>
       )}
       {extra.length === 0 ? (
         <p className="small subtle">

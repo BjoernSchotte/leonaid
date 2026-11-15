@@ -208,6 +208,8 @@ export interface ManageActionPageProps {
   readonly client: LeonAidApiClient;
   /** CMS editor of this action (campaignEditorHref); absent without the CMS. */
   readonly editorHref?: string | undefined;
+  /** System admin with the CMS: may switch the primary alias renderer. */
+  readonly canSelectRenderer?: boolean;
 }
 
 /**
@@ -218,6 +220,7 @@ export interface ManageActionPageProps {
  */
 export function ManageActionPage({
   actionId,
+  canSelectRenderer = false,
   client,
   editorHref,
 }: ManageActionPageProps) {
@@ -570,6 +573,7 @@ export function ManageActionPage({
             <ActionPublicUrls actionId={actionId} client={client} />
             <CampaignAliasesSection
               actionId={actionId}
+              canSelectRenderer={canSelectRenderer}
               client={client}
               disabled={archived || action.status === "completed"}
             />

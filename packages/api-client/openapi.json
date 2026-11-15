@@ -2515,6 +2515,14 @@
             "title": "Isprimary",
             "type": "boolean"
           },
+          "renderer": {
+            "enum": [
+              "legacy",
+              "campaign"
+            ],
+            "title": "Renderer",
+            "type": "string"
+          },
           "revision": {
             "title": "Revision",
             "type": "integer"
@@ -2526,7 +2534,8 @@
           "alias",
           "isPrimary",
           "enabled",
-          "revision"
+          "revision",
+          "renderer"
         ],
         "title": "CampaignAliasItemResponse",
         "type": "object"

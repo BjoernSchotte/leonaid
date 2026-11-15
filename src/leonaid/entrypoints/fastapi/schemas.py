@@ -2434,6 +2434,7 @@ class CampaignAliasItemResponse(TransportModel):
     is_primary: bool
     enabled: bool
     revision: int
+    renderer: Literal["legacy", "campaign"]
 
 
 class CampaignAliasTargetResponse(TransportModel):
