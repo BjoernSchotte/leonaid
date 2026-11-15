@@ -22,6 +22,10 @@ case "$topology" in legacy|emdash) ;; *) echo "restore: ERROR: unknown topology"
 restore_no_build=${LEONAID_RESTORE_NO_BUILD:-false}
 restore_profile=${LEONAID_RESTORE_PROFILE:-dev-mail}
 reserve_test_networks=${LEONAID_RESTORE_RESERVE_TEST_NETWORKS:-false}
+# Twenty runs five Nest processes on every start (setup, upgrade, cache
+# flush, cron registration, server); at cpus: 2 that takes ~9 minutes, so
+# waits that may include twenty-server share the pilot timeout of ./leonaid.
+wait_timeout=${LEONAID_PILOT_WAIT_TIMEOUT:-900}
 fail() {
   echo "restore: ERROR: $*" >&2
   exit 1
@@ -300,7 +304,7 @@ restore_tls_state "$backup_root" "$target_project" ||
 
 
 if [ "$restore_scope" = full ]; then
-compose up --detach --wait --wait-timeout 420 \
+compose up --detach --wait --wait-timeout "$wait_timeout" \
   core-postgres twenty-postgres rustfs
 compose exec -T core-postgres pg_restore \
   --username "${CORE_POSTGRES_USER:-leonaid}" \
@@ -321,7 +325,7 @@ compose exec -T twenty-postgres pg_restore \
   --no-privileges \
   <"$backup_root/twenty.dump"
 else
-  compose up --detach --wait --wait-timeout 420 core-postgres rustfs
+  compose up --detach --wait --wait-timeout "$wait_timeout" core-postgres rustfs
   echo "restore: CMS-only scope; Core and Twenty dumps/storage are not restored"
 fi
 
@@ -360,16 +364,16 @@ if [ "${LEONAID_RESTORE_START_APP:-true}" = "true" ]; then
   if [ "$restore_no_build" = "true" ]; then
     if [ "$restore_profile" = "none" ]; then
       compose up --no-build --pull missing \
-        --detach --wait --wait-timeout 420
+        --detach --wait --wait-timeout "$wait_timeout"
     else
       compose --profile "$restore_profile" up --no-build --pull missing \
-        --detach --wait --wait-timeout 420
+        --detach --wait --wait-timeout "$wait_timeout"
     fi
   elif [ "$restore_profile" = "none" ]; then
-    compose up --build --detach --wait --wait-timeout 420
+    compose up --build --detach --wait --wait-timeout "$wait_timeout"
   else
     compose --profile "$restore_profile" up --build \
-      --detach --wait --wait-timeout 420
+      --detach --wait --wait-timeout "$wait_timeout"
   fi
 fi
 

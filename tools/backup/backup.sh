@@ -21,6 +21,10 @@ manifest_output_tmp=
 stage=$(mktemp -d)
 writers_stopped=false
 restart_services=""
+# Twenty runs five Nest processes on every start (setup, upgrade, cache
+# flush, cron registration, server); at cpus: 2 that takes ~9 minutes, so
+# waits that may include twenty-server share the pilot timeout of ./leonaid.
+wait_timeout=${LEONAID_PILOT_WAIT_TIMEOUT:-900}
 
 fail() {
   echo "backup: ERROR: $*" >&2
@@ -112,7 +116,7 @@ cleanup() {
     # many hosts) rejects the flag before starting anything. `up` restarts the
     # stopped containers as they are and waits for their health on both.
     if ! compose up --detach --no-deps --no-recreate --no-build --pull never \
-      --wait --wait-timeout 420 $restart_services >/dev/null 2>&1; then
+      --wait --wait-timeout "$wait_timeout" $restart_services >/dev/null 2>&1; then
       echo "backup: ERROR: source services failed to resume; inspect service health before continuing" >&2
       if [ "$status" -eq 0 ]; then status=1; fi
     fi

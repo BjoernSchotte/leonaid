@@ -9,6 +9,9 @@ def main() -> None:
     root = Path(__file__).resolve().parents[2]
     source = (root / "tools/backup/backup.sh").read_text()
     cleanup = source.split("cleanup() {", 1)[1].split("\ntrap cleanup", 1)[0]
+    # Twenty restarts take ~9 minutes; the resume wait shares the pilot timeout.
+    assert "wait_timeout=${LEONAID_PILOT_WAIT_TIMEOUT:-900}\n" in source
+    assert '--wait-timeout "$wait_timeout"' in cleanup
     for stopped, services, initial, resume in (
         ("true", "api rustfs", 0, 0),
         ("true", "api rustfs", 0, 17),
@@ -27,7 +30,7 @@ def main() -> None:
                     """
 set -eu
 compose() {
-  [ "$*" = 'up --detach --no-deps --no-recreate --no-build --pull never --wait --wait-timeout 420 api rustfs' ] || return 99
+  [ "$*" = 'up --detach --no-deps --no-recreate --no-build --pull never --wait --wait-timeout 900 api rustfs' ] || return 99
   printf '%s' invoked > "$marker"
   echo 'private-output-must-not-escape' >&2
   return "$resume"
@@ -49,6 +52,7 @@ exit "$initial"
                     "resume": str(resume),
                     "project": "synthetic-test",
                     "manifest_output_tmp": "",
+                    "wait_timeout": "900",
                 },
                 capture_output=True,
                 timeout=5,
