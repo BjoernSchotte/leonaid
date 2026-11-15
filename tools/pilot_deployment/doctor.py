@@ -873,6 +873,8 @@ def probe_running_installation(
         # the public API's Date header instead of the mail provider.
         provider_date = api_date
     else:
+        # A third-party status page: TLS, status and its clock are ours to
+        # check, its security headers are not (no Permissions-Policy at IONOS).
         mail_body, provider_date = probe_https(
             name="mail-provider",
             url=environment["MAIL_HEALTH_URL"],
@@ -880,7 +882,6 @@ def probe_running_installation(
             resolve=resolve,
             timeout_seconds=arguments.timeout_seconds,
             min_certificate_validity_hours=arguments.minimum_certificate_validity_hours,
-            required_headers=common_headers,
         )
         if not mail_body:
             raise DoctorError("mail_provider_response_empty")

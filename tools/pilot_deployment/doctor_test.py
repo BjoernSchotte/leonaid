@@ -3,14 +3,17 @@
 
 from __future__ import annotations
 
+import ast
 import copy
 import datetime as dt
+import inspect
 import json
 from pathlib import Path
 import sys
 import tempfile
 from typing import Any, Callable
 
+from tools.pilot_deployment import doctor as doctor_module
 from tools.pilot_deployment.doctor import (
     PENDING_INTEGRATION_KEY,
     DoctorError,
@@ -546,6 +549,25 @@ def main() -> None:
     )
     if stopped["status"] != "stop":
         raise AssertionError(f"a STOP decision no longer blocks: {stopped}")
+    # The mail provider's status page is a third-party host: the doctor
+    # checks TLS, status and clock there, never our security headers (the
+    # first IONOS install failed on a missing Permissions-Policy).
+    calls = [
+        node
+        for node in ast.walk(ast.parse(inspect.getsource(doctor_module)))
+        if isinstance(node, ast.Call)
+        and getattr(node.func, "id", None) == "probe_https"
+        and any(
+            keyword.arg == "name"
+            and isinstance(keyword.value, ast.Constant)
+            and keyword.value.value == "mail-provider"
+            for keyword in node.keywords
+        )
+    ]
+    if len(calls) != 1 or any(
+        keyword.arg == "required_headers" for keyword in calls[0].keywords
+    ):
+        raise AssertionError("the mail provider probe must not require our headers")
     # The real register itself must stay valid.
     due_decisions(root, gate="pilot-deploy", staging=False, deployment_only=False)
 
