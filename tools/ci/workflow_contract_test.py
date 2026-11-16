@@ -272,6 +272,18 @@ CI_MUTATIONS = (
 
 OTHER_MUTATIONS = (
     (
+        "nightly-watchdog.yml",
+        "    branches: [main]\n",
+        "",
+        "nightly-watchdog.yml: workflow_run must listen to runs on main only",
+    ),
+    (
+        "docs-watchdog.yml",
+        "    branches: [main]\n",
+        "",
+        "docs-watchdog.yml: workflow_run must listen to runs on main only",
+    ),
+    (
         "pins.yml",
         "          BASE_REF: ${{ github.base_ref }}\n",
         "",

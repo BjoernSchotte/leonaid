@@ -864,6 +864,13 @@ def check_repository(root: Path) -> list[str]:
     problems.extend(check_static_gates(root))
     problems.extend(check_pin_drift(root))
     problems.extend(check_nightly_watchdog(root))
+    for name in ("nightly-watchdog.yml", "docs-watchdog.yml"):
+        on = triggers((workflows / name).read_text(encoding="utf-8"))
+        if "\n  workflow_run:\n" in on and "\n    branches: [main]\n" not in on:
+            problems.append(
+                f"{name}: workflow_run must listen to runs on main only "
+                "(branches: [main]); pull-request runs only start skipped runs."
+            )
     return problems
 
 

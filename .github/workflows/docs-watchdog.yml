@@ -4,6 +4,9 @@ on:
   workflow_run:
     workflows: [Documentation]
     types: [completed]
+    # Runs on main only: pull-request runs started a skipped run each
+    # (about 600 a week, E-069).
+    branches: [main]
   schedule:
     - cron: "47 */6 * * *"
   workflow_dispatch:
