@@ -10,6 +10,8 @@ export const mediaVersionLength = 16;
 // Widths the server renders on request. Larger originals are scaled down,
 // never up; a request for another width is refused.
 export const mediaWidths = Object.freeze([480, 960, 1440, 1920]);
+// Cache answer of a versioned image; every other public answer is no-store.
+export const versionedMediaCache = "public, max-age=31536000, immutable";
 
 export function mediaVersion(contentHash) {
   if (typeof contentHash !== "string" || !hashPattern.test(contentHash))

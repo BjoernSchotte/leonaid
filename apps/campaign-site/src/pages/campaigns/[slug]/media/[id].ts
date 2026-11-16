@@ -8,6 +8,7 @@ import {
   mediaVersion,
   mediaWidths,
   readPublishedMedia,
+  versionedMediaCache,
 } from "../../../../public/published-media.mjs";
 import { publicMediaBytes } from "../../../../public/media-bytes.mjs";
 
@@ -18,8 +19,6 @@ const refusal = {
 // A versioned URL (`?v=` with the content hash) names one file for good: the
 // browser keeps it for a year and does not ask again (E-067). Without a
 // version the answer is not stored, as before.
-const versioned = "public, max-age=31536000, immutable";
-
 export const GET: APIRoute = async ({ params, request, url }) => {
   try {
     const slug = params.slug ?? "";
@@ -54,7 +53,7 @@ export const GET: APIRoute = async ({ params, request, url }) => {
       request.method === "HEAD" ? null : new Uint8Array(file.bytes),
       {
         headers: {
-          "Cache-Control": version === null ? "no-store" : versioned,
+          "Cache-Control": version === null ? "no-store" : versionedMediaCache,
           "X-Content-Type-Options": "nosniff",
           "Content-Type": file.contentType,
           "Content-Length": String(file.bytes.length),
