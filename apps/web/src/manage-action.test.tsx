@@ -1213,7 +1213,9 @@ describe("action detail", () => {
 describe("action detail: extra donation in the order form (§8.6)", () => {
   const orderForm = (
     allowDonation: boolean,
+    active = false,
   ): NonNullable<CharityActionConfigurationResponse["orderForm"]> => ({
+    active,
     allowDonation,
     allowMessage: true,
     formKey: "krapfentaxi",
@@ -1282,20 +1284,58 @@ describe("action detail: extra donation in the order form (§8.6)", () => {
         allowDonation: true,
       }),
     );
-    await within(section).findByText("An");
-    expect(toggle().checked).toBe(true);
+    await waitFor(() => expect(toggle().checked).toBe(true));
     fireEvent.click(toggle());
     await waitFor(() =>
       expect(setOrderFormDonation).toHaveBeenLastCalledWith(actionId, {
         allowDonation: false,
       }),
     );
-    await within(section).findByText("Aus");
+    await waitFor(() => expect(toggle().checked).toBe(false));
     await screen.findByText(
       "Das Bestellformular bietet keine Zusatzspende mehr an.",
     );
     // The action's own revision is not involved.
     expect(client.setCharityActionDetails).not.toHaveBeenCalled();
+  });
+
+  it("opens and closes the public order form", async () => {
+    const { client } = clientWith(["offerings", "ordering"], false);
+    const setOrderFormStatus = vi.fn(
+      async (_id: string, body: { active: boolean }) => ({
+        ...configuration,
+        orderForm: orderForm(false, body.active),
+      }),
+    );
+    Object.assign(client, { setOrderFormStatus });
+    await renderPage("#overview/edit", client);
+    const section = await screen.findByTestId("order-form-donation-section");
+    const open = within(section).getByRole("switch", {
+      name: "Öffentliche Bestellungen annehmen",
+    }) as HTMLInputElement;
+    expect(open.checked).toBe(false);
+    expect(section.textContent).toContain(
+      "solange die Aktion veröffentlicht ist und „Rechtliches“ aktiv ist",
+    );
+    fireEvent.click(open);
+    await waitFor(() =>
+      expect(setOrderFormStatus).toHaveBeenCalledWith(actionId, {
+        active: true,
+      }),
+    );
+    await screen.findByText(
+      "Das Bestellformular nimmt ab jetzt Bestellungen an.",
+    );
+    expect(open.checked).toBe(true);
+    fireEvent.click(open);
+    await waitFor(() =>
+      expect(setOrderFormStatus).toHaveBeenLastCalledWith(actionId, {
+        active: false,
+      }),
+    );
+    await screen.findByText(
+      "Das Bestellformular nimmt keine Bestellungen mehr an.",
+    );
   });
 
   it("stays off and locked without the function Spenden", async () => {

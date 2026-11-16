@@ -1333,6 +1333,9 @@ class OrderFormConfigurationResponse(TransportModel):
     require_billing_address: bool
     allow_message: bool
     allow_donation: bool
+    # The public form takes orders only while active (and the legal
+    # configuration is active); a new action's form starts closed.
+    active: bool
 
 
 class CharityActionConfigurationResponse(TransportModel):
@@ -2476,6 +2479,10 @@ class SetActionGoalRequest(ActionGoalRequest):
 
 class SetOrderFormDonationRequest(TransportModel):
     allow_donation: bool
+
+
+class SetOrderFormStatusRequest(TransportModel):
+    active: bool
 
 
 class SetActionCapabilitiesRequest(TransportModel):

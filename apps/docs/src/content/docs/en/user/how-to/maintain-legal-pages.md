@@ -127,6 +127,20 @@ they were recorded.
    **Jetzt aktivieren**.
 3. Within a minute, `/impressum` and `/datenschutz` show the new version.
 
+## Open the order form
+
+A new action's order form starts closed. The action page then says „Aktuell
+ist für diese Aktion kein Bestellformular freigeschaltet.“
+
+1. Open the action, choose **Bearbeiten** and go to the **Bestellformular**
+   section.
+2. Switch on **Öffentliche Bestellungen annehmen**. The switch applies at
+   once.
+
+The action and campaign pages show the form while the action is published,
+has an offering and a version of **Rechtliches** is active. Switched off, the
+page takes no new orders. Orders that members record stay possible.
+
 ## Check before going live
 
 The club is responsible for complete and correct legal texts. LeonAid

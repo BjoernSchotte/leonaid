@@ -254,6 +254,14 @@
         "property-newly-required:CampaignAliasItemResponse.renderer"
       ],
       "rationale": "E-063: the alias list reports the primary alias renderer (legacy or campaign) so Aktion › Adressen can show and switch it; the switch had an API but no UI. The field is always present (from public_action_alias.campaign_redirect). Only the generated client and the apps in this repository read it, regenerated and handled in the same change."
+    },
+    {
+      "oldSha256": "c84db8dd69ccd27ba445d9fc71109b53a84075f0782ec2e811a998b425a2077c",
+      "newSha256": "81a57506ded3596d38dc579f6174c5b93604f103b8e4f87dc384021d9fcb2e4a",
+      "changes": [
+        "property-newly-required:OrderFormConfigurationResponse.active"
+      ],
+      "rationale": "E-064: a new action's order form starts as a draft and no API or UI could open it; only the demo seed set it active, so the first production action could not take public orders. The action configuration now says whether the form is open (always present, from order_form_configuration.status), and PUT /order-form/status opens or closes it. Only the generated client and the apps in this repository read it, regenerated and handled in the same change."
     }
   ]
 }

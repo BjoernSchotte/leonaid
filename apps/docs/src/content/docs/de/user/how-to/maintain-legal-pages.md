@@ -138,6 +138,21 @@ galt.
 3. Nach spätestens einer Minute zeigen `/impressum` und `/datenschutz` die neue
    Version.
 
+## Bestellformular freischalten
+
+Das Bestellformular einer neuen Aktion ist zunächst geschlossen. Die
+Aktionsseite zeigt dann „Aktuell ist für diese Aktion kein Bestellformular
+freigeschaltet.“
+
+1. Öffne die Aktion, wähle **Bearbeiten** und gehe zum Bereich
+   **Bestellformular**.
+2. Schalte **Öffentliche Bestellungen annehmen** ein. Der Schalter gilt sofort.
+
+Die Aktions- und Kampagnenseite zeigen das Formular, solange die Aktion
+veröffentlicht ist, ein Angebot hat und eine Version von **Rechtliches** aktiv
+ist. Ausgeschaltet nimmt die Seite keine neuen Bestellungen an. Bestellungen,
+die Mitglieder erfassen, bleiben möglich.
+
 ## Vor dem Livegang prüfen
 
 Für vollständige und richtige Rechtstexte ist der Verein verantwortlich.

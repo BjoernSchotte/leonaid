@@ -13307,6 +13307,10 @@
       "OrderFormConfigurationResponse": {
         "additionalProperties": false,
         "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
           "allowDonation": {
             "title": "Allowdonation",
             "type": "boolean"
@@ -13374,7 +13378,8 @@
           "requireDeliveryAddress",
           "requireBillingAddress",
           "allowMessage",
-          "allowDonation"
+          "allowDonation",
+          "active"
         ],
         "title": "OrderFormConfigurationResponse",
         "type": "object"
@@ -18404,6 +18409,20 @@
           "allowDonation"
         ],
         "title": "SetOrderFormDonationRequest",
+        "type": "object"
+      },
+      "SetOrderFormStatusRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "active"
+        ],
+        "title": "SetOrderFormStatusRequest",
         "type": "object"
       },
       "SetPageMember": {
@@ -31089,6 +31108,120 @@
           }
         },
         "summary": "Set Order Form Donation",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/order-form/status": {
+      "put": {
+        "description": "Open or close the action's public order form.\n\nA new action's form starts closed. The public pages offer it only while\nit is open, the action is published, offers something and the legal\nconfiguration is active. Opening it for an archived action: 409\n`order_form_action_archived`; an action without a form: 409\n`order_form_missing`. Idempotent: the same state again changes nothing.",
+        "operationId": "setOrderFormStatus",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetOrderFormStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharityActionConfigurationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Set Order Form Status",
         "tags": [
           "actions"
         ]
