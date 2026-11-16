@@ -12,6 +12,9 @@ on:
   workflow_run:
     workflows: [LeonAid CI, Dependency pins, Image pin drift]
     types: [completed]
+    # Runs on main only: pull-request runs started a skipped run each
+    # (about 600 a week, E-069).
+    branches: [main]
   # Also catches a schedule that stopped firing or a missed workflow_run.
   schedule:
     - cron: "53 9 * * *"
