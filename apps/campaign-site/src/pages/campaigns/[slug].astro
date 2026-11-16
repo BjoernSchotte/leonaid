@@ -15,7 +15,7 @@ import {
 } from "../../public/core-campaign";
 import { readPublishedCampaign } from "../../public/published-campaign.mjs";
 import { editorialHtml } from "../../public/editorial-html.mjs";
-import { publicMediaPath } from "../../public/published-media.mjs";
+import { campaignImageSources } from "../../public/published-media.mjs";
 import type { CampaignPageFields } from "../../campaign-fields.generated";
 import { siteOriginOf } from "../../auth/public-origin";
 
@@ -23,6 +23,8 @@ let state: "published" | "inactive" | "missing" | "unavailable" = "missing";
 let route = null;
 let content: CampaignPageFields | null = null;
 let body = "";
+// Content hash and width per referenced file, for versioned image URLs.
+let media: Record<string, { contentHash: string; width: number }> = {};
 const orderResult = Astro.getActionResult(actions.createPublicOrder);
 // Set when the campaign host middleware mapped this request (§7.2).
 const siteHost = Astro.locals.siteHost;
@@ -52,6 +54,7 @@ try {
     );
     if (published) {
       content = published.data as CampaignPageFields;
+      media = published.media;
       body = editorialHtml(content);
       state = "published";
     }
@@ -137,7 +140,7 @@ const showsInbox = Boolean(
   canonicalUrl={canonicalUrl}
   imageUrl={new URL(
     socialImage && action
-      ? publicMediaPath(action.archiveSlug, socialImage.id)
+      ? campaignImageSources(action.archiveSlug, socialImage.id, media).src
       : "/community-routes.png",
     origin,
   ).href}
@@ -158,7 +161,11 @@ const showsInbox = Boolean(
         name: action.name,
         logo: content?.brand_logo
           ? {
-              src: publicMediaPath(action.archiveSlug, content.brand_logo.id),
+              src: campaignImageSources(
+                action.archiveSlug,
+                content.brand_logo.id,
+                media,
+              ).src,
               alt: "",
               width: content.brand_logo.width,
               height: content.brand_logo.height,
@@ -170,7 +177,12 @@ const showsInbox = Boolean(
   {
     content && action && route && ThemeIntro ? (
       <PublicAction route={route} orderResult={orderResult}>
-        <ThemeIntro slot="intro" route={route} content={content} />
+        <ThemeIntro
+          slot="intro"
+          route={route}
+          content={content}
+          media={media}
+        />
         {!!content.faq?.length && (
           <section
             slot="after-intro"
@@ -212,7 +224,12 @@ const showsInbox = Boolean(
           {content.hero_image && (
             <img
               class="campaign-hero-image"
-              src={publicMediaPath(action.archiveSlug, content.hero_image.id)}
+              {...campaignImageSources(
+                action.archiveSlug,
+                content.hero_image.id,
+                media,
+              )}
+              sizes="(min-width: 48rem) 48rem, 100vw"
               alt={content.hero_image.alt ?? ""}
               width={content.hero_image.width}
               height={content.hero_image.height}
@@ -266,10 +283,12 @@ const showsInbox = Boolean(
                     {partner.logo && (
                       <img
                         class="campaign-partner-logo"
-                        src={publicMediaPath(
+                        {...campaignImageSources(
                           action.archiveSlug,
                           partner.logo.id,
+                          media,
                         )}
+                        sizes="8rem"
                         alt={partner.logo.alt ?? ""}
                         width={partner.logo.width}
                         height={partner.logo.height}

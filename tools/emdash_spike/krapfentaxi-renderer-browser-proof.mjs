@@ -91,7 +91,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       ]) {
         const img = page.locator(selector);
         await img.scrollIntoViewIfNeeded();
-        await expect(img).toHaveAttribute("src", media.url);
+        await expect(img).toHaveAttribute("src", media.versionedUrl);
         await expect
           .poll(() =>
             img.evaluate((image) => image.complete && image.naturalWidth > 0),

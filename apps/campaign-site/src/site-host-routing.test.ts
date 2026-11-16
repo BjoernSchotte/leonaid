@@ -168,6 +168,13 @@ describe("campaign host routing", () => {
     expect(go(`/campaigns/lions-open-2024/media/${MEDIA}`)).toMatchObject({
       kind: "serve",
     });
+    // The version and width survive the rewrite (E-067).
+    expect(
+      go(`/campaigns/lions-open-2025/media/${MEDIA}?v=0123456789abcdef&w=960`),
+    ).toMatchObject({
+      kind: "serve",
+      path: `/campaigns/lions-open-2025/media/${MEDIA}?v=0123456789abcdef&w=960`,
+    });
     expect(go(`/campaigns/krapfentaxi-2026/media/${MEDIA}`)).toEqual({
       kind: "respond",
       status: 404,

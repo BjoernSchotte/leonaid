@@ -49,9 +49,21 @@ export async function readPublishedCampaign(database, actionId) {
         !validCampaignEditorial(item.data)
       )
         throw new PublishedCampaignUnavailable();
-      await requireCampaignMediaReferences(transaction, actionId, item.data);
+      const rows = await requireCampaignMediaReferences(
+        transaction,
+        actionId,
+        item.data,
+      );
       // No author, revision IDs, draft metadata or EmDash slug in the result.
-      return { entryId: item.id, data: item.data };
+      // `media` carries each referenced file's content hash and size for
+      // versioned image URLs (published-media.mjs).
+      const media = Object.fromEntries(
+        rows.map((row) => [
+          row.id,
+          { contentHash: row.content_hash, width: row.width },
+        ]),
+      );
+      return { entryId: item.id, data: item.data, media };
     });
   } catch {
     // Never expose driver errors, draft contents or operational diagnostics.

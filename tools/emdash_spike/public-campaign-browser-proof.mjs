@@ -45,25 +45,32 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
             const image = document.querySelector(selector);
             return image?.complete && image.naturalWidth > 0;
           }, selector);
-          assert.equal(await img.getAttribute("src"), media.url);
+          // Versioned URL plus a smaller rendered width (E-067).
+          assert.equal(await img.getAttribute("src"), media.versionedUrl);
+          assert.equal(
+            await img.getAttribute("srcset"),
+            `${media.versionedUrl}&w=480 480w, ${media.versionedUrl} ${media.width}w`,
+          );
           assert.equal(
             await img.getAttribute("alt"),
             "Synthetisches blaues Kampagnenbild",
           );
+          // The browser picks a width for the slot; the proportions stay.
+          const [naturalWidth, naturalHeight] = await img.evaluate((image) => [
+            image.naturalWidth,
+            image.naturalHeight,
+          ]);
+          assert.ok([480, media.width].includes(naturalWidth));
           assert.equal(
-            await img.evaluate((image) => image.naturalWidth),
-            media.width,
-          );
-          assert.equal(
-            await img.evaluate((image) => image.naturalHeight),
-            media.height,
+            naturalHeight,
+            Math.round((media.height * naturalWidth) / media.width),
           );
         }
         assert.equal(
           await page
             .locator('meta[property="og:image"]')
             .getAttribute("content"),
-          `https://proxy:8443${media.url}`,
+          `https://proxy:8443${media.versionedUrl}`,
         );
         assert.equal(
           await page

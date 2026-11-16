@@ -13,7 +13,13 @@ const url = (id) => `${pagePath}media/${id}`;
 async function call(
   path,
   status = 200,
-  { admin = false, method = "GET", body, headers = {} } = {},
+  {
+    admin = false,
+    method = "GET",
+    body,
+    headers = {},
+    cache = "no-store",
+  } = {},
 ) {
   const bytes =
     body === undefined
@@ -67,7 +73,7 @@ async function call(
     req.end(bytes);
   });
   assert.equal(result.status, status, `public media ${method} status`);
-  assert.equal(result.headers["cache-control"], "no-store");
+  assert.equal(result.headers["cache-control"], cache);
   assert.equal(result.headers["set-cookie"], undefined);
   return {
     ...result,
@@ -219,6 +225,33 @@ if (
     ).bytes.length,
     live.bytes.length,
   );
+  // Versioned URLs (E-067): the content hash pins the file, so browsers keep
+  // it for a year; a wrong version, a width without a version or an unknown
+  // width is refused; a smaller width comes back as WebP of that width.
+  const immutable = "public, max-age=31536000, immutable";
+  const versioned = `${url(first.id)}?v=${first.contentHash.slice(0, 16)}`;
+  const kept = await call(versioned, 200, { cache: immutable });
+  assert.deepEqual(kept.bytes, live.bytes);
+  assert.equal(kept.headers["content-type"], "image/png");
+  await call(`${url(first.id)}?v=${"0".repeat(16)}`, 404);
+  await call(`${url(first.id)}?w=480`, 404);
+  await call(`${versioned}&w=500`, 404);
+  await call(`${versioned}&x=1`, 404);
+  const small = await call(`${versioned}&w=480`, 200, { cache: immutable });
+  assert.equal(small.headers["content-type"], "image/webp");
+  const smallMeta = await sharp(small.bytes).metadata();
+  assert.equal(smallMeta.format, "webp");
+  assert.equal(smallMeta.width, 480);
+  // Served again from the process cache, byte for byte.
+  assert.deepEqual(
+    (await call(`${versioned}&w=480`, 200, { cache: immutable })).bytes,
+    small.bytes,
+  );
+  // Not larger than the original: 960 px of a 640 px file is the original.
+  assert.deepEqual(
+    (await call(`${versioned}&w=960`, 200, { cache: immutable })).bytes,
+    live.bytes,
+  );
   await call(url(first.id), 405, { method: "POST" });
   await call(url(first.id) + "?_preview=synthetic", 403);
   await update(second);
@@ -226,6 +259,9 @@ if (
   assert.deepEqual((await call(url(first.id))).bytes, live.bytes);
   await call(`${editor}/publish`, 200, { admin: true, method: "POST" });
   await call(url(first.id), 404);
+  // A cached version does not outlive the publication on the server.
+  await call(versioned, 404);
+  await call(`${versioned}&w=480`, 404);
   await call(url(second.id));
   await call(url(foreign.id), 404);
   await call(`/campaigns/krapfentaxi-nord-2026/media/${second.id}`, 404);
@@ -234,7 +270,9 @@ if (
   await call(`${editor}/publish`, 200, { admin: true, method: "POST" });
   await call(url(second.id));
   const html = (await call(pagePath)).bytes.toString();
-  assert.ok(html.includes(url(second.id)));
+  assert.ok(
+    html.includes(`${url(second.id)}?v=${second.contentHash.slice(0, 16)}`),
+  );
   assert.ok(!html.includes(url(first.id)));
   assert.ok(!html.includes(first.storageKey));
   assert.ok(!html.includes("/_emdash/api/media/file/"));
@@ -242,6 +280,7 @@ if (
     statePath,
     JSON.stringify({
       url: url(second.id),
+      versionedUrl: `${url(second.id)}?v=${second.contentHash.slice(0, 16)}`,
       id: second.id,
       width: second.width,
       height: second.height,
