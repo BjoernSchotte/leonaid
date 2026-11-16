@@ -55,15 +55,26 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
             await img.getAttribute("alt"),
             "Synthetisches blaues Kampagnenbild",
           );
-          // The browser picks a width for the slot; the proportions stay.
-          const [naturalWidth, naturalHeight] = await img.evaluate((image) => [
-            image.naturalWidth,
-            image.naturalHeight,
-          ]);
-          assert.ok([480, media.width].includes(naturalWidth));
-          assert.equal(
-            naturalHeight,
-            Math.round((media.height * naturalWidth) / media.width),
+          // The browser picks a file for the slot (naturalWidth is then the
+          // density-corrected slot size); the proportions stay.
+          const [currentSrc, naturalWidth, naturalHeight] = await img.evaluate(
+            (image) => [
+              image.currentSrc,
+              image.naturalWidth,
+              image.naturalHeight,
+            ],
+          );
+          assert.ok(
+            [
+              `https://proxy:8443${media.versionedUrl}`,
+              `https://proxy:8443${media.versionedUrl}&w=480`,
+            ].includes(currentSrc),
+            currentSrc,
+          );
+          assert.ok(
+            Math.abs(
+              naturalWidth / naturalHeight - media.width / media.height,
+            ) < 0.02,
           );
         }
         assert.equal(
