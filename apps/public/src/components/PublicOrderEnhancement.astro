@@ -227,6 +227,14 @@
       }
       const total = euro(totalMinor, currency);
       const summary = orderQuantitySummary(lines);
+      // With several sizes every quantity may be 0, but not all (E-068).
+      const first = quantityInputs[0];
+      if (first && quantityInputs.length > 1)
+        first.setCustomValidity(
+          lines.some((line) => line.quantity > 0)
+            ? ""
+            : "Bitte wählen Sie mindestens eine Box.",
+        );
       if (previewTotal) previewTotal.textContent = total;
       if (summaryTotal) summaryTotal.textContent = total;
       if (previewQuantity) previewQuantity.textContent = summary;
@@ -414,6 +422,26 @@
 
     donationInput?.addEventListener("input", syncDonation);
 
+    // The delivery area: the server refuses other postal codes too.
+    const postalInput = form.querySelector<HTMLInputElement>(
+      "[data-delivery-postal-codes]",
+    );
+    const postalCodes = new Set(
+      (postalInput?.dataset.deliveryPostalCodes ?? "")
+        .split(" ")
+        .filter(Boolean),
+    );
+    const syncPostalCode = () => {
+      if (!postalInput || !postalCodes.size) return;
+      const value = postalInput.value.replace(/[\s-]/g, "").toUpperCase();
+      postalInput.setCustomValidity(
+        !value || postalCodes.has(value)
+          ? ""
+          : "Diese Postleitzahl liegt außerhalb unseres Liefergebiets.",
+      );
+    };
+    postalInput?.addEventListener("input", syncPostalCode);
+
     syncBillingFields();
     syncCustomerKind();
     syncDonation();
@@ -425,6 +453,8 @@
       if (submitting) return;
       clearErrors();
       syncDonation();
+      syncPostalCode();
+      syncOrderPreview();
       if (!form.checkValidity()) {
         const fields: Record<string, readonly string[]> = {};
         for (const control of form.querySelectorAll<HTMLInputElement>(

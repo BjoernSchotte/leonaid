@@ -112,6 +112,7 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
     /repo/tests/integration/test_site_hosts_api.py \
     /repo/tests/integration/test_campaign_renderer_api.py \
     /repo/tests/integration/test_order_form_status_api.py \
+    /repo/tests/integration/test_order_options_api.py \
     /repo/tests/integration/test_system_admin_bootstrap.py \
     /repo/tests/integration/test_site_host_checks_api.py \
     /repo/tests/integration/test_public_sites_api.py \

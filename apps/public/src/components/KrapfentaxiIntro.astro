@@ -1,4 +1,5 @@
 ---
+import OrderFacts from "./OrderFacts.astro";
 import { Image } from "astro:assets";
 import type { PublicActionRouteResponse } from "@leonaid/api-client";
 
@@ -107,11 +108,7 @@ const date = (value: string) => dates.format(new Date(`${value}T00:00:00Z`));
       </dd>
     </div>
     <div><dt>Gemeinsam engagiert</dt><dd>{action.carrierName}</dd></div>
-    <div>
-      <dt>Dieser Jahrgang</dt><dd data-testid="public-canonical-path">
-        {route.canonicalPath}
-      </dd>
-    </div>
+    <OrderFacts offerings={action.offerings} orderForm={action.orderForm} />
   </dl>
 </section>
 

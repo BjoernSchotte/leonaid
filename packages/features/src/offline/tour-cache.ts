@@ -82,6 +82,7 @@ function minimizeDrop(drop: DeliveryDropResponse): DeliveryDropResponse {
     driverUserId: drop.driverUserId,
     missedAtClosure: drop.missedAtClosure,
     orderStatus: drop.orderStatus,
+    photosAllowed: drop.photosAllowed,
     quantities: drop.quantities.map((quantity) => ({ ...quantity })),
     revision: drop.revision,
     state: drop.state,

@@ -1102,5 +1102,28 @@
       "file": "packages/features/src/donations/donation-delivery.tsx",
       "contains": ["Zuwendungsbestätigung", "{noun} senden"]
     }
+  ],
+  "DOC-P061": [
+    {
+      "file": "packages/features/src/action-admin/offerings-section.tsx",
+      "contains": [
+        "Angebot hinzufügen",
+        "Spendenanteil",
+        "Bestellschluss",
+        "Angebote speichern",
+        "Zusätze speichern",
+        "Newsletter-Einwilligung",
+        "Foto-Einwilligung",
+        "Hinweis zum Widerrufsrecht"
+      ]
+    },
+    {
+      "file": "apps/public/src/components/OrderFacts.astro",
+      "contains": ["Bestellschluss", "Liefertage", "Liefergebiet"]
+    },
+    {
+      "file": "packages/features/src/delivery/driver-note.tsx",
+      "contains": ["Fotos für Veröffentlichung erlaubt"]
+    }
   ]
 }

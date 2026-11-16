@@ -159,6 +159,7 @@ from leonaid.application.invoices import (
 )
 from leonaid.application.actions import (
     BeneficiaryDraft,
+    OfferingDraft,
     CharityActionService,
     CopyActionDraft,
     CreateActionDraft,
@@ -500,6 +501,8 @@ from leonaid.entrypoints.fastapi.schemas import (
     SetActionBeneficiariesRequest,
     SetActionCapabilitiesRequest,
     SetOrderFormDonationRequest,
+    SetOrderFormOptionsRequest,
+    ReplaceOfferingsRequest,
     SetOrderFormStatusRequest,
     SetActionGoalRequest,
     SetActionPublicationRequest,
@@ -1582,6 +1585,8 @@ def public_action_route_response(
                         pieces_per_unit=item.definition.pieces_per_unit,
                         unit_price_minor=item.definition.unit_price_minor,
                         currency=item.definition.currency,
+                        available_until=item.available_until,
+                        donation_share_minor=item.definition.donation_share_minor,
                     )
                     for item in route.offerings
                 ],
@@ -1613,6 +1618,15 @@ def public_action_route_response(
                             route.order_form.configuration.require_billing_address
                         ),
                         allow_message=route.order_form.configuration.allow_message,
+                        newsletter_consent_text=(
+                            route.order_form.configuration.newsletter_consent_text
+                        ),
+                        photo_consent_text=(
+                            route.order_form.configuration.photo_consent_text
+                        ),
+                        withdrawal_notice=(
+                            route.order_form.configuration.withdrawal_notice
+                        ),
                         donation_receiving_body=(
                             legal_configuration.configuration.donations.legal_name
                             if route.order_form.configuration.allow_donation
@@ -1691,6 +1705,7 @@ def charity_action_configuration_response(
                 pieces_per_unit=item.definition.pieces_per_unit,
                 unit_price_minor=item.definition.unit_price_minor,
                 currency=item.definition.currency,
+                donation_share_minor=item.definition.donation_share_minor,
                 available_from=item.available_from,
                 available_until=item.available_until,
             )
@@ -1720,6 +1735,15 @@ def charity_action_configuration_response(
                 allow_message=(configuration.order_form.configuration.allow_message),
                 allow_donation=(configuration.order_form.configuration.allow_donation),
                 active=configuration.order_form.status is OfferingStatus.ACTIVE,
+                newsletter_consent_text=(
+                    configuration.order_form.configuration.newsletter_consent_text
+                ),
+                photo_consent_text=(
+                    configuration.order_form.configuration.photo_consent_text
+                ),
+                withdrawal_notice=(
+                    configuration.order_form.configuration.withdrawal_notice
+                ),
             )
             if configuration.order_form is not None
             else None
@@ -1730,6 +1754,7 @@ def charity_action_configuration_response(
 def commitment_response(commitment: Commitment) -> CommitmentResponse:
     recipient = commitment.invoice_recipient
     return CommitmentResponse(
+        photo_consent_at=commitment.photo_consent_at,
         delivery_completion_version=delivery_completion_version(commitment),
         delivery_recipient=PublicOrderDeliveryRecipientRequest.model_validate(
             commitment.delivery_recipient
@@ -2599,6 +2624,8 @@ def public_order_draft(body: CreatePublicOrderRequest) -> PublicOrderDraft:
         privacy_notice_version=body.privacy_notice_version,
         website=body.website,
         donation_amount_minor=body.donation_amount_minor,
+        newsletter_consent=body.newsletter_consent,
+        photo_consent=body.photo_consent,
     )
 
 
@@ -4198,6 +4225,83 @@ async def set_order_form_donation(
         actor,
         action_id,
         allow_donation=body.allow_donation,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return charity_action_configuration_response(action, configuration)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/order-form/options",
+    operation_id="setOrderFormOptions",
+    response_model=CharityActionConfigurationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def set_order_form_options(
+    action_id: UUID,
+    request: Request,
+    body: SetOrderFormOptionsRequest,
+    response: Response,
+) -> CharityActionConfigurationResponse:
+    """Set the optional checkboxes and the withdrawal notice of the form.
+
+    A text shows its checkbox (newsletter, delivery photos) or the notice
+    on the public form; null removes it. Each order records the consents
+    its buyer gave with the wording's version (E-068).
+    """
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    action, configuration = await action_service(request).set_order_form_options(
+        actor,
+        action_id,
+        newsletter_consent_text=body.newsletter_consent_text,
+        photo_consent_text=body.photo_consent_text,
+        withdrawal_notice=body.withdrawal_notice,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return charity_action_configuration_response(action, configuration)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/offerings",
+    operation_id="replaceActionOfferings",
+    response_model=CharityActionConfigurationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def replace_action_offerings(
+    action_id: UUID,
+    request: Request,
+    body: ReplaceOfferingsRequest,
+    response: Response,
+) -> CharityActionConfigurationResponse:
+    """Replace what the action offers: sizes, prices and order deadlines.
+
+    Existing orders keep their price and size. An offering that orders
+    contain cannot be removed (409 `offering_in_use`); switch it inactive.
+    """
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    action, configuration = await action_service(request).replace_offerings(
+        actor,
+        action_id,
+        [
+            OfferingDraft(
+                id=item.id,
+                code=item.code,
+                name=item.name,
+                unit=OfferingUnit(item.unit),
+                pieces_per_unit=item.pieces_per_unit,
+                unit_price_minor=item.unit_price_minor,
+                donation_share_minor=item.donation_share_minor,
+                currency=item.currency,
+                active=item.active,
+                available_from=item.available_from,
+                available_until=item.available_until,
+            )
+            for item in body.offerings
+        ],
+        expected_revision=body.expected_revision,
         request_id=request_id(request),
     )
     response.headers["Cache-Control"] = "no-store"
@@ -6415,6 +6519,8 @@ def delivery_configuration_response(
                 > datetime.now(timezone.utc)
             )
         ],
+        postal_codes=sorted(configuration.postal_codes),
+        area_label=configuration.area_label,
     )
 
 
@@ -6473,6 +6579,17 @@ async def save_delivery_configuration(
         timezone=body.timezone,
         revision=body.expected_revision,
         start=requested_start_point(body, current),
+        # Absent fields keep the stored delivery area (older clients).
+        postal_codes=(
+            frozenset(body.postal_codes)
+            if body.postal_codes is not None
+            else current.postal_codes
+        ),
+        area_label=(
+            body.area_label
+            if "area_label" in body.model_fields_set
+            else current.area_label
+        ),
         windows=tuple(
             DeliveryWindow(
                 id=window.id or uuid4(),
@@ -6632,6 +6749,7 @@ def delivery_drop_response(drop: DeliveryDrop) -> DeliveryDropResponse:
         driver_name=drop.driver_name,
         revision=drop.revision,
         missed_at_closure=drop.missed_at_closure,
+        photos_allowed=drop.photos_allowed,
         order_status=drop.order_status,  # type: ignore[arg-type]
     )
 

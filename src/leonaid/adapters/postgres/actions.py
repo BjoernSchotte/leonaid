@@ -795,6 +795,47 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                     occurred_at=occurred_at,
                 )
 
+    async def set_order_form_options(
+        self,
+        action_id: UUID,
+        *,
+        newsletter_consent_text: str | None,
+        photo_consent_text: str | None,
+        withdrawal_notice: str | None,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> None:
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                await connection.execute(
+                    """
+                    UPDATE order_form_configuration
+                    SET newsletter_consent_text = $2, photo_consent_text = $3,
+                        withdrawal_notice = $4, updated_at = $5
+                    WHERE action_id = $1
+                    """,
+                    action_id,
+                    newsletter_consent_text,
+                    photo_consent_text,
+                    withdrawal_notice,
+                    occurred_at,
+                )
+                # The wording is evidence of what buyers agreed to.
+                await self._audit_by_id(
+                    connection,
+                    action_id=action_id,
+                    actor_user_id=actor_user_id,
+                    event_type="order_form_options_changed",
+                    request_id=request_id,
+                    payload={
+                        "newsletterConsentText": newsletter_consent_text,
+                        "photoConsentText": photo_consent_text,
+                        "withdrawalNotice": withdrawal_notice,
+                    },
+                    occurred_at=occurred_at,
+                )
+
     async def set_order_form_status(
         self,
         action_id: UUID,
@@ -918,6 +959,146 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
             action.id,
             wanted,
         )
+
+    async def replace_offerings(
+        self,
+        action: CharityAction,
+        offerings: tuple[ConfiguredOffering, ...],
+        *,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> CharityAction:
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                changed = await self._advance_revision(
+                    connection,
+                    action,
+                    "",
+                    occurred_at=occurred_at,
+                )
+                stored = {
+                    row["id"]: row
+                    for row in await connection.fetch(
+                        """
+                        SELECT id, code, name FROM offering
+                        WHERE action_id = $1
+                        FOR UPDATE
+                        """,
+                        action.id,
+                    )
+                }
+                kept = {item.id for item in offerings}
+                removed = [item for item in stored if item not in kept]
+                if removed:
+                    in_use = await connection.fetchval(
+                        """
+                        SELECT name FROM offering
+                        WHERE id = ANY($1::uuid[])
+                          AND EXISTS (
+                              SELECT 1 FROM commitment_line
+                              WHERE commitment_line.offering_id = offering.id
+                          )
+                        ORDER BY name
+                        LIMIT 1
+                        """,
+                        removed,
+                    )
+                    if in_use is not None:
+                        raise Conflict(
+                            "offering_in_use",
+                            f"„{in_use}“ ist in Bestellungen enthalten und kann "
+                            "nicht entfernt werden. Schalten Sie es stattdessen "
+                            "auf inaktiv.",
+                        )
+                    await connection.execute(
+                        "DELETE FROM offering WHERE id = ANY($1::uuid[])", removed
+                    )
+                # Free codes and names first, so two offerings may swap them.
+                await connection.execute(
+                    """
+                    UPDATE offering
+                    SET code = 'tmp-' || id::text, name = 'tmp-' || id::text
+                    WHERE action_id = $1
+                    """,
+                    action.id,
+                )
+                await connection.executemany(
+                    """
+                    INSERT INTO offering (
+                        id, action_id, code, name, status, unit,
+                        allowed_quantity_units, pieces_per_unit,
+                        unit_price_minor, currency,
+                        available_from, available_until,
+                        created_at, updated_at, donation_share_minor
+                    )
+                    VALUES (
+                        $1, $2, $3, $4, $5, $6, $7, $8, $9,
+                        $10, $11, $12, $13, $13, $14
+                    )
+                    ON CONFLICT (id) DO UPDATE SET
+                        donation_share_minor = EXCLUDED.donation_share_minor,
+                        code = EXCLUDED.code,
+                        name = EXCLUDED.name,
+                        status = EXCLUDED.status,
+                        unit = EXCLUDED.unit,
+                        allowed_quantity_units = EXCLUDED.allowed_quantity_units,
+                        pieces_per_unit = EXCLUDED.pieces_per_unit,
+                        unit_price_minor = EXCLUDED.unit_price_minor,
+                        currency = EXCLUDED.currency,
+                        available_from = EXCLUDED.available_from,
+                        available_until = EXCLUDED.available_until,
+                        updated_at = EXCLUDED.updated_at
+                    WHERE offering.action_id = EXCLUDED.action_id
+                    """,
+                    [
+                        (
+                            item.id,
+                            action.id,
+                            item.definition.code,
+                            item.definition.name,
+                            item.definition.status.value,
+                            item.definition.unit.value,
+                            [value.value for value in item.allowed_quantity_units],
+                            item.definition.pieces_per_unit,
+                            item.definition.unit_price_minor,
+                            item.definition.currency,
+                            item.available_from,
+                            item.available_until,
+                            occurred_at,
+                            item.definition.donation_share_minor,
+                        )
+                        for item in offerings
+                    ],
+                )
+                await self._audit(
+                    connection,
+                    action=changed,
+                    actor_user_id=actor_user_id,
+                    event_type="charity_action.offerings_changed",
+                    request_id=request_id,
+                    payload={
+                        "offerings": [
+                            {
+                                "id": str(item.id),
+                                "code": item.definition.code,
+                                "status": item.definition.status.value,
+                                "piecesPerUnit": item.definition.pieces_per_unit,
+                                "unitPriceMinor": item.definition.unit_price_minor,
+                                "availableUntil": (
+                                    item.available_until.isoformat()
+                                    if item.available_until is not None
+                                    else None
+                                ),
+                            }
+                            for item in offerings
+                        ],
+                        "removed": [str(item) for item in removed],
+                        "revision": changed.revision,
+                    },
+                    occurred_at=occurred_at,
+                )
+        return changed
 
     async def replace_beneficiaries(
         self,
@@ -1143,7 +1324,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
             SELECT
                 id, action_id, code, name, status, unit,
                 allowed_quantity_units, pieces_per_unit,
-                unit_price_minor, currency,
+                unit_price_minor, currency, donation_share_minor,
                 available_from, available_until
             FROM offering
             WHERE action_id = $1
@@ -1157,7 +1338,8 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 id, action_id, form_key, status, title, introduction, submit_label,
                 require_company_name, require_contact_name, require_email,
                 require_phone, require_delivery_address,
-                require_billing_address, allow_message, allow_donation
+                require_billing_address, allow_message, allow_donation,
+                newsletter_consent_text, photo_consent_text, withdrawal_notice
             FROM order_form_configuration
             WHERE action_id = $1
             """,
@@ -1193,6 +1375,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                         ),
                         unit_price_minor=int(row["unit_price_minor"]),
                         currency=str(row["currency"]),
+                        donation_share_minor=row["donation_share_minor"],
                     ),
                     allowed_quantity_units=frozenset(
                         OfferingUnit(str(value))
@@ -1453,11 +1636,11 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                     allowed_quantity_units, pieces_per_unit,
                     unit_price_minor, currency,
                     available_from, available_until,
-                    created_at, updated_at
+                    created_at, updated_at, donation_share_minor
                 )
                 VALUES (
                     $1, $2, $3, $4, $5, $6, $7, $8, $9,
-                    $10, $11, $12, $13, $13
+                    $10, $11, $12, $13, $13, $14
                 )
                 """,
                 [
@@ -1475,6 +1658,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                         item.available_from,
                         item.available_until,
                         occurred_at,
+                        item.definition.donation_share_minor,
                     )
                     for item in configuration.offerings
                 ],
@@ -1489,13 +1673,14 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                     submit_label, require_company_name, require_contact_name,
                     require_email, require_phone, require_delivery_address,
                     require_billing_address, allow_message, allow_donation,
+                    newsletter_consent_text, photo_consent_text, withdrawal_notice,
                     created_at, updated_at
                 )
                 VALUES (
                     $1, $2, $3, 'draft', $4, $5,
                     $6, $7, $8,
                     $9, $10, $11,
-                    $12, $13, $15, $14, $14
+                    $12, $13, $15, $16, $17, $18, $14, $14
                 )
                 """,
                 form.id,
@@ -1513,6 +1698,9 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 value.allow_message,
                 occurred_at,
                 value.allow_donation,
+                value.newsletter_consent_text,
+                value.photo_consent_text,
+                value.withdrawal_notice,
             )
 
     @staticmethod
@@ -1646,4 +1834,8 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
             require_billing_address=bool(row["require_billing_address"]),
             allow_message=bool(row["allow_message"]),
             allow_donation=bool(row["allow_donation"]),
+            # Templates define no options; only an action's form has them.
+            newsletter_consent_text=row.get("newsletter_consent_text"),
+            photo_consent_text=row.get("photo_consent_text"),
+            withdrawal_notice=row.get("withdrawal_notice"),
         )

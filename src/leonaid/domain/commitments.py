@@ -486,6 +486,8 @@ class Commitment:
     # When the acquirer saved the order on the device (PWA queue); history
     # only. The server's creation time keeps driving lists and invoices.
     captured_at: datetime | None = None
+    # The buyer allowed photos of this delivery to be published (E-068).
+    photo_consent_at: datetime | None = None
 
     def __post_init__(self) -> None:
         if self.captured_at is not None:

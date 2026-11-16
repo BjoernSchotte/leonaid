@@ -70,7 +70,7 @@ import {
   dropQuantities,
   dropQuantitiesShort,
 } from "./delivery-shared";
-import { DriverNote } from "./driver-note";
+import { DriverNote, PhotoConsentNote } from "./driver-note";
 import { TourMap, type TourMapPin } from "./tour-map";
 import { TourMapSlot } from "./tour-map-slot";
 import {
@@ -1844,6 +1844,7 @@ function DoneRow({
         <div className="tour-done-panel" id={`tour-done-${id}`}>
           <p>{address ?? copy.noAddress}</p>
           <DriverNote drop={drop} full />
+          <PhotoConsentNote drop={drop} />
           <p className="num">{dropQuantities(drop)}</p>
           <p className="tour-done-state">
             {stateLabel(drop)}
@@ -2106,6 +2107,7 @@ function DockStop({
         <p className="tour-dock-muted">{copy.noAddress}</p>
       )}
       <DriverNote drop={drop} full key={drop.commitmentId} />
+      <PhotoConsentNote drop={drop} key={`photos-${drop.commitmentId}`} />
       {address && map ? (
         <TourMapSlot
           address={address}

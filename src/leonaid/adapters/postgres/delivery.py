@@ -72,7 +72,8 @@ async def read_configuration(
     connection: asyncpg.Connection[Any], action_id: UUID
 ) -> DeliveryConfiguration:
     row = await connection.fetchrow(
-        f"""SELECT c.enabled, c.timezone, c.revision, {START_COLUMNS}
+        f"""SELECT c.enabled, c.timezone, c.revision, c.postal_codes, c.area_label,
+        {START_COLUMNS}
         FROM charity_action a
         LEFT JOIN action_delivery_configuration c ON c.action_id = a.id WHERE a.id = $1""",
         action_id,
@@ -91,6 +92,8 @@ async def read_configuration(
         timezone=zone_name,
         revision=int(row["revision"] or 1),
         start=start_point(row),
+        postal_codes=frozenset(row["postal_codes"] or ()),
+        area_label=row["area_label"],
         windows=tuple(
             DeliveryWindow(
                 id=item["id"],
@@ -366,13 +369,19 @@ class AsyncpgDeliveryRepository:
                                 "Das Lieferfenster gehört nicht zu dieser Aktion.",
                             )
                 await connection.execute(
-                    """INSERT INTO action_delivery_configuration(action_id, enabled, timezone, revision)
-                    VALUES ($1, $2, $3, $4) ON CONFLICT(action_id) DO UPDATE SET
-                    enabled = EXCLUDED.enabled, timezone = EXCLUDED.timezone, revision = EXCLUDED.revision""",
+                    """INSERT INTO action_delivery_configuration(
+                        action_id, enabled, timezone, revision, postal_codes, area_label
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT(action_id) DO UPDATE SET
+                    enabled = EXCLUDED.enabled, timezone = EXCLUDED.timezone,
+                    revision = EXCLUDED.revision, postal_codes = EXCLUDED.postal_codes,
+                    area_label = EXCLUDED.area_label""",
                     configuration.action_id,
                     configuration.enabled,
                     configuration.timezone,
                     current.revision + 1,
+                    sorted(configuration.postal_codes),
+                    configuration.area_label,
                 )
                 await _write_start(
                     connection,

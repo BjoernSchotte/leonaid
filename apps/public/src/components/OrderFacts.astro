@@ -1,0 +1,84 @@
+---
+// Facts of an action's ordering from its data (E-068): order deadline with
+// a countdown, delivery days of the open windows and the delivery area.
+// Each renders only when the action has it; nothing here is campaign text.
+import type { PublicOrderFormResponse } from "@leonaid/api-client";
+import {
+  deadlineLabel,
+  deliveryDays,
+  orderDeadline,
+  remainingLabel,
+  type DeadlineOffering,
+} from "../lib/order-deadline";
+
+interface Props {
+  offerings: readonly DeadlineOffering[];
+  orderForm?: PublicOrderFormResponse | null;
+}
+const { offerings, orderForm } = Astro.props;
+const delivery = orderForm?.deliveryConfiguration ?? null;
+const deadline = orderDeadline(offerings);
+const remaining = deadline ? remainingLabel(deadline, Date.now()) : null;
+const days = delivery?.enabled ? deliveryDays(delivery.windows) : [];
+const area = delivery?.areaLabel ?? null;
+---
+
+{
+  days.length > 0 && (
+    <div data-delivery-days>
+      <dt>Liefertage</dt>
+      <dd>
+        {days.map((day) => (
+          <span class="order-facts__line">{day}</span>
+        ))}
+      </dd>
+    </div>
+  )
+}
+{
+  area && (
+    <div data-delivery-area>
+      <dt>Liefergebiet</dt>
+      <dd>{area}</dd>
+    </div>
+  )
+}
+{
+  deadline && (
+    <div data-order-deadline>
+      <dt>Bestellschluss</dt>
+      <dd>
+        <time datetime={deadline}>
+          {deadlineLabel(deadline, delivery?.timezone)}
+        </time>
+        <span
+          class="order-deadline__remaining"
+          data-deadline-remaining={deadline}
+        >
+          {remaining ? ` · ${remaining}` : " · Bestellungen sind geschlossen"}
+        </span>
+      </dd>
+    </div>
+  )
+}
+
+<script>
+  import { remainingLabel } from "../lib/order-deadline";
+
+  // Keeps the countdown current while the page stays open.
+  const update = () => {
+    for (const element of document.querySelectorAll<HTMLElement>(
+      "[data-deadline-remaining]",
+    )) {
+      const label = remainingLabel(
+        element.dataset.deadlineRemaining ?? "",
+        Date.now(),
+      );
+      element.textContent = label
+        ? ` · ${label}`
+        : " · Bestellungen sind geschlossen";
+    }
+  };
+  update();
+  setInterval(update, 60_000);
+</script>

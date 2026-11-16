@@ -60,6 +60,19 @@ completed.
 If someone else changed the windows in the meantime, the dialog loads the
 current state and keeps your input. Check it and select **Speichern** again.
 
+## Delivery area
+
+Under **Liefergebiet** enter the **Postleitzahlen** the public order form
+delivers to, separated by commas, spaces or line breaks, and optionally a
+**Bezeichnung** such as "Stadt und Landkreis Würzburg". Choose **Liefergebiet
+speichern**.
+
+- The form names the area below the postal code and refuses other postal
+  codes with **Diese Postleitzahl liegt außerhalb unseres Liefergebiets**.
+- The campaign page shows the area and the delivery days of the open windows.
+- Without postal codes every delivery address is possible. Orders that
+  members record are never limited.
+
 ## Complete missing delivery details
 
 Orders captured before delivery planning was enabled have no delivery address

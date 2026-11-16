@@ -60,7 +60,7 @@ import {
   longDay,
   weekday,
 } from "./delivery-shared";
-import { DriverNote } from "./driver-note";
+import { DriverNote, PhotoConsentNote } from "./driver-note";
 import {
   DeliveryViewSwitch,
   TourPlanner,
@@ -1097,6 +1097,7 @@ function DeliveryListPage({
                                   delivery.tours; the driver sees it here
                                   too (spec §5.1, Ruling 26). */}
                               <DriverNote drop={drop} full />
+                              <PhotoConsentNote drop={drop} />
                             </div>
                             {manager ? (
                               <button

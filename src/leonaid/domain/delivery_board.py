@@ -165,6 +165,8 @@ class DeliveryDrop:
     order_status: str | None
     # Missed when the window closed (its later delivery may be undone).
     missed_at_closure: bool = False
+    # The buyer allowed photos of this delivery to be published (E-068).
+    photos_allowed: bool = False
 
 
 @dataclass(frozen=True, slots=True)

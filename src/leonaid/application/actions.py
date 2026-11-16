@@ -22,6 +22,8 @@ from leonaid.domain.action_templates import (
     ConfiguredOffering,
     ConfiguredOrderForm,
     OfferingStatus,
+    OfferingUnit,
+    TemplateOffering,
 )
 from leonaid.domain.actions import (
     ActionManagementState,
@@ -58,6 +60,28 @@ class ActionSummary:
 class BeneficiaryDraft:
     organization_name: str
     public_description: str
+
+
+@dataclass(frozen=True, slots=True)
+class OfferingDraft:
+    """One offering of the action as the manager edits it (E-068).
+
+    `id` names an existing offering; None adds one. `active` false keeps an
+    offering for its orders but takes it off the order forms. The period
+    is the order deadline: outside it the forms do not offer it.
+    """
+
+    id: UUID | None
+    code: str
+    name: str
+    unit: OfferingUnit
+    pieces_per_unit: int | None
+    unit_price_minor: int
+    currency: str
+    active: bool
+    available_from: datetime | None
+    available_until: datetime | None
+    donation_share_minor: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -222,6 +246,28 @@ class CharityActionRepository(Protocol):
         request_id: str,
         occurred_at: datetime,
     ) -> None: ...
+
+    async def set_order_form_options(
+        self,
+        action_id: UUID,
+        *,
+        newsletter_consent_text: str | None,
+        photo_consent_text: str | None,
+        withdrawal_notice: str | None,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> None: ...
+
+    async def replace_offerings(
+        self,
+        action: CharityAction,
+        offerings: tuple[ConfiguredOffering, ...],
+        *,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> CharityAction: ...
 
     async def get_management(
         self,
@@ -966,6 +1012,50 @@ class CharityActionService:
             assert configuration is not None
         return action, configuration
 
+    async def set_order_form_options(
+        self,
+        actor: IdentityPrincipal,
+        action_id: UUID,
+        *,
+        newsletter_consent_text: str | None,
+        photo_consent_text: str | None,
+        withdrawal_notice: str | None,
+        request_id: str,
+    ) -> tuple[CharityAction, ActionConfiguration]:
+        """Sets the optional consents and the withdrawal notice of the form.
+
+        Like the donation switch, a manager may change them while the
+        action runs. Each order records the wording its buyer agreed to.
+        """
+
+        action = await self._managed_action(actor, action_id)
+        configuration = await self._repository.get_configuration(action_id)
+        if configuration is None or configuration.order_form is None:
+            raise Conflict(
+                "order_form_missing",
+                "Diese Charity-Aktion besitzt kein Bestellformular.",
+            )
+        current = configuration.order_form.configuration
+        wanted = replace(
+            current,
+            newsletter_consent_text=newsletter_consent_text,
+            photo_consent_text=photo_consent_text,
+            withdrawal_notice=withdrawal_notice,
+        )
+        if wanted != current:
+            await self._repository.set_order_form_options(
+                action_id,
+                newsletter_consent_text=wanted.newsletter_consent_text,
+                photo_consent_text=wanted.photo_consent_text,
+                withdrawal_notice=wanted.withdrawal_notice,
+                actor_user_id=actor.account.id,
+                request_id=request_id,
+                occurred_at=datetime.now(timezone.utc),
+            )
+            configuration = await self._repository.get_configuration(action_id)
+            assert configuration is not None
+        return action, configuration
+
     async def set_order_form_active(
         self,
         actor: IdentityPrincipal,
@@ -1008,6 +1098,92 @@ class CharityActionService:
             configuration = await self._repository.get_configuration(action_id)
             assert configuration is not None
         return action, configuration
+
+    async def replace_offerings(
+        self,
+        actor: IdentityPrincipal,
+        action_id: UUID,
+        drafts: Sequence[OfferingDraft],
+        *,
+        expected_revision: int,
+        request_id: str,
+    ) -> tuple[CharityAction, ActionConfiguration]:
+        """Replaces what the action offers: names, sizes, prices, deadlines.
+
+        Orders keep the price and size they were taken with (the lines hold
+        a snapshot), so a change applies to new orders only. An offering
+        that orders contain cannot be removed, only switched inactive.
+        """
+
+        action = await self._managed_action(actor, action_id)
+        if action.status is CharityActionStatus.ARCHIVED:
+            raise Conflict(
+                "offerings_action_archived",
+                "Die Angebote einer archivierten Aktion bleiben unverändert.",
+            )
+        self._require_revision(action, expected_revision)
+        configuration = await self._repository.get_configuration(action_id)
+        if configuration is None:
+            raise Conflict(
+                "action_configuration_missing",
+                "Diese Charity-Aktion besitzt keine Angebotskonfiguration.",
+            )
+        current = {item.id: item for item in configuration.offerings}
+        ids = [draft.id for draft in drafts if draft.id is not None]
+        if len(ids) != len(set(ids)) or any(item not in current for item in ids):
+            raise DomainInvariantError(
+                "offering_unknown",
+                "Ein Angebot gehört nicht zu dieser Aktion. Bitte laden Sie die Seite neu.",
+            )
+        offerings: list[ConfiguredOffering] = []
+        for draft in drafts:
+            stored = current.get(draft.id) if draft.id is not None else None
+            units = (
+                stored.allowed_quantity_units
+                if stored is not None and draft.unit is stored.definition.unit
+                else frozenset({draft.unit})
+            )
+            offerings.append(
+                ConfiguredOffering(
+                    id=draft.id or uuid4(),
+                    action_id=action_id,
+                    definition=TemplateOffering(
+                        code=draft.code.strip(),
+                        name=draft.name.strip(),
+                        status=(
+                            OfferingStatus.ACTIVE
+                            if draft.active
+                            else OfferingStatus.INACTIVE
+                        ),
+                        unit=draft.unit,
+                        pieces_per_unit=draft.pieces_per_unit,
+                        unit_price_minor=draft.unit_price_minor,
+                        currency=draft.currency,
+                        donation_share_minor=draft.donation_share_minor,
+                    ),
+                    allowed_quantity_units=units,
+                    available_from=draft.available_from,
+                    available_until=draft.available_until,
+                )
+            )
+        if len({item.definition.currency for item in offerings}) > 1:
+            raise DomainInvariantError(
+                "offering_currency_mixed",
+                "Alle Angebote einer Aktion verwenden dieselbe Währung.",
+            )
+        replaced = configuration.with_offerings(tuple(offerings), action.capabilities)
+        if set(replaced.offerings) == set(configuration.offerings):
+            return action, configuration
+        changed = await self._repository.replace_offerings(
+            action,
+            replaced.offerings,
+            actor_user_id=actor.account.id,
+            request_id=request_id,
+            occurred_at=datetime.now(timezone.utc),
+        )
+        stored_configuration = await self._repository.get_configuration(action_id)
+        assert stored_configuration is not None
+        return changed, stored_configuration
 
     async def set_beneficiaries(
         self,

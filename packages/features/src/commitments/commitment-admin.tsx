@@ -729,6 +729,14 @@ function OrderDetail({
                   },
                 ]
               : []),
+            ...(commitment.photoConsentAt
+              ? [
+                  {
+                    label: "Fotos",
+                    value: "Veröffentlichung von Lieferfotos erlaubt",
+                  },
+                ]
+              : []),
           ]}
         />
       </DetailSection>

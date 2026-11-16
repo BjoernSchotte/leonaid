@@ -389,6 +389,7 @@ export function OffersTab({
             <th className="right" scope="col">
               Preis
             </th>
+            <th scope="col">Bestellschluss</th>
             <th scope="col">Im Formular</th>
           </tr>
         </thead>
@@ -400,6 +401,14 @@ export function OffersTab({
               <td className="right num">
                 {money(offering.unitPriceMinor, offering.currency)}
               </td>
+              <td className="num">
+                {offering.availableUntil
+                  ? new Intl.DateTimeFormat("de-DE", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    }).format(new Date(offering.availableUntil))
+                  : "–"}
+              </td>
               <td>
                 <Badge tone={offeringStatus[offering.status].tone}>
                   {offeringStatus[offering.status].label}
@@ -410,8 +419,8 @@ export function OffersTab({
         </tbody>
       </table>
       <p className="small subtle table-note">
-        Angebote kommen aus der Vorlage und lassen sich hier nicht ändern.
-        Preise bestehender Bestellungen ändern sich nicht.
+        Angebote, Preise und Bestellschluss ändern Sie unter „Bearbeiten“.
+        Bestehende Bestellungen behalten ihren Preis.
       </p>
     </div>
   );

@@ -102,6 +102,16 @@ def local_instant(day: date, clock: time, zone_name: str) -> datetime:
     return candidates.pop()
 
 
+POSTAL_CODE = re.compile(r"^[0-9A-Z]{3,10}$")
+MAX_POSTAL_CODES = 2000
+
+
+def normalize_postal_code(value: str) -> str:
+    """ "97 070" and "97070" name the same area; letters compare uppercase."""
+
+    return re.sub(r"[\s-]", "", value).upper()
+
+
 @dataclass(frozen=True, slots=True)
 class DeliveryWindow:
     id: UUID
@@ -211,9 +221,34 @@ class DeliveryConfiguration:
     revision: int = 1
     windows: tuple[DeliveryWindow, ...] = ()
     start: DeliveryStartPoint | None = None
+    # The delivery area of public orders: the postal codes delivered to.
+    # Empty means every postal code. `area_label` names the area for buyers.
+    postal_codes: frozenset[str] = frozenset()
+    area_label: str | None = None
 
     def __post_init__(self) -> None:
         local_instant(date(2026, 1, 1), time(12), self.timezone)
+        codes = frozenset(normalize_postal_code(code) for code in self.postal_codes)
+        if any(not POSTAL_CODE.fullmatch(code) for code in codes):
+            raise DomainInvariantError(
+                "delivery_postal_code_invalid",
+                "Postleitzahlen bestehen aus 3 bis 10 Ziffern oder Buchstaben.",
+            )
+        if len(codes) > MAX_POSTAL_CODES:
+            raise DomainInvariantError(
+                "delivery_postal_codes_too_many",
+                f"Das Liefergebiet umfasst höchstens {MAX_POSTAL_CODES} Postleitzahlen.",
+            )
+        object.__setattr__(self, "postal_codes", codes)
+        label = (self.area_label or "").strip() or None
+        if label is not None and (
+            not 2 <= len(label) <= 200 or any(c in label for c in "\r\n")
+        ):
+            raise DomainInvariantError(
+                "delivery_area_label_invalid",
+                "Der Name des Liefergebiets ist einzeilig und 2 bis 200 Zeichen lang.",
+            )
+        object.__setattr__(self, "area_label", label)
         if self.revision < 1:
             raise DomainInvariantError(
                 "delivery_revision_invalid", "Die Lieferrevision muss positiv sein."
@@ -246,6 +281,23 @@ class DeliveryConfiguration:
                 )
             previous = window
         object.__setattr__(self, "windows", ordered)
+
+    def delivers_to(self, postal_code: str) -> bool:
+        return not self.postal_codes or (
+            normalize_postal_code(postal_code) in self.postal_codes
+        )
+
+    def require_delivery_area(self, postal_code: str) -> None:
+        """A public order is delivered only inside the configured area."""
+
+        if self.delivers_to(postal_code):
+            return
+        area = f" ({self.area_label})" if self.area_label else ""
+        raise DomainInvariantError(
+            "delivery_postal_code_outside_area",
+            f"Diese Postleitzahl liegt außerhalb unseres Liefergebiets{area}. "
+            "Bitte prüfen Sie die Lieferadresse.",
+        )
 
     def validate_period(self, starts_on: date, ends_on: date) -> None:
         if any(

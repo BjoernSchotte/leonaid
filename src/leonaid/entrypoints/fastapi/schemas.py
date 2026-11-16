@@ -108,6 +108,21 @@ class DeliveryConfigurationRequest(TransportModel):
         default=None,
         description="Absent: the stored start point stays. Null: no start point.",
     )
+    postal_codes: list[Annotated[str, Field(min_length=3, max_length=12)]] | None = (
+        Field(
+            default=None,
+            max_length=2000,
+            description=(
+                "The delivery area of public orders. Absent: the stored codes "
+                "stay. Empty: every postal code."
+            ),
+        )
+    )
+    area_label: str | None = Field(
+        default=None,
+        max_length=200,
+        description="The area's name for buyers. Absent: it stays. Null: none.",
+    )
 
 
 class DeliveryConfigurationResponse(TransportModel):
@@ -118,6 +133,9 @@ class DeliveryConfigurationResponse(TransportModel):
     windows: list[DeliveryWindowResponse]
     # Managers only; null in the public order form and in capture.
     start_point: DeliveryStartPointResponse | None
+    # Public orders are delivered only to these postal codes; empty: all.
+    postal_codes: list[str] = Field(default_factory=list)
+    area_label: str | None = None
 
 
 class PlatformInformationResponse(TransportModel):
@@ -1046,6 +1064,13 @@ class PublicOfferingResponse(TransportModel):
     pieces_per_unit: int | None
     unit_price_minor: int = Field(ge=0)
     currency: str
+    available_until: datetime | None = Field(
+        default=None,
+        description="Order deadline of this offering; null: none.",
+    )
+    donation_share_minor: int | None = Field(
+        default=None, description="Part of the unit price for the beneficiaries."
+    )
 
 
 class PublicOrderFormResponse(TransportModel):
@@ -1061,6 +1086,15 @@ class PublicOrderFormResponse(TransportModel):
     require_delivery_address: bool
     require_billing_address: bool
     allow_message: bool
+    newsletter_consent_text: str | None = Field(
+        default=None, description="Optional newsletter checkbox; null: none."
+    )
+    photo_consent_text: str | None = Field(
+        default=None, description="Optional delivery photo checkbox; null: none."
+    )
+    withdrawal_notice: str | None = Field(
+        default=None, description="Notice above the order button; null: none."
+    )
     donation_receiving_body: str | None = Field(
         description=(
             "Name of the body that receives an extra donation. Null: this "
@@ -1243,6 +1277,9 @@ class CreatePublicOrderRequest(TransportModel):
     # the form offers it (`orderForm.donationReceivingBody`). Not part of
     # the order total.
     donation_amount_minor: int | None = Field(default=None, ge=100, le=1_000_000)
+    # Only when the form offers the checkbox; true records the consent.
+    newsletter_consent: bool = False
+    photo_consent: bool = False
 
 
 class PublicOrderQuantityResponse(TransportModel):
@@ -1326,6 +1363,7 @@ class ConfiguredOfferingResponse(TransportModel):
     currency: str
     available_from: datetime | None
     available_until: datetime | None
+    donation_share_minor: int | None = None
 
 
 class OrderFormConfigurationResponse(TransportModel):
@@ -1345,6 +1383,9 @@ class OrderFormConfigurationResponse(TransportModel):
     # The public form takes orders only while active (and the legal
     # configuration is active); a new action's form starts closed.
     active: bool
+    newsletter_consent_text: str | None = None
+    photo_consent_text: str | None = None
+    withdrawal_notice: str | None = None
 
 
 class CharityActionConfigurationResponse(TransportModel):
@@ -1473,6 +1514,8 @@ class CommitmentLineResponse(TransportModel):
 
 
 class CommitmentResponse(TransportModel):
+    # The buyer allowed photos of this delivery to be published (E-068).
+    photo_consent_at: datetime | None = None
     id: UUID
     action_id: UUID
     source: Literal["acquisition", "public_form", "admin"]
@@ -2494,6 +2537,60 @@ class SetOrderFormStatusRequest(TransportModel):
     active: bool
 
 
+class OfferingDraftRequest(TransportModel):
+    id: UUID | None = Field(
+        default=None, description="An existing offering; absent adds one."
+    )
+    code: str = Field(
+        min_length=1, max_length=80, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    )
+    name: str = Field(min_length=1, max_length=200)
+    unit: OfferingUnitValue
+    pieces_per_unit: int | None = Field(default=None, ge=1, le=100_000)
+    unit_price_minor: int = Field(ge=0, le=100_000_000)
+    donation_share_minor: int | None = Field(
+        default=None,
+        ge=0,
+        le=100_000_000,
+        description="Part of the unit price for the beneficiaries; shown publicly.",
+    )
+    currency: str = Field(default="EUR", pattern=r"^[A-Z]{3}$")
+    active: bool
+    available_from: datetime | None = Field(
+        default=None, description="With `availableUntil`: the order period."
+    )
+    available_until: datetime | None = Field(
+        default=None,
+        description="Order deadline: the forms stop offering it at this instant.",
+    )
+
+
+class ReplaceOfferingsRequest(TransportModel):
+    expected_revision: int = Field(ge=1, description="The action's revision.")
+    offerings: list[OfferingDraftRequest] = Field(max_length=20)
+
+
+class SetOrderFormOptionsRequest(TransportModel):
+    newsletter_consent_text: str | None = Field(
+        default=None,
+        min_length=10,
+        max_length=600,
+        description="Null: the form asks for no newsletter consent.",
+    )
+    photo_consent_text: str | None = Field(
+        default=None,
+        min_length=10,
+        max_length=600,
+        description="Null: the form asks for no consent to delivery photos.",
+    )
+    withdrawal_notice: str | None = Field(
+        default=None,
+        min_length=10,
+        max_length=1_000,
+        description="Notice on the right of withdrawal above the order button.",
+    )
+
+
 class SetActionCapabilitiesRequest(TransportModel):
     revision: int = Field(ge=1)
     capabilities: list[ActionCapabilityValue]
@@ -3273,6 +3370,8 @@ class DeliveryDropResponse(TransportModel):
     order_status: (
         Literal["draft", "review_ready", "confirmed", "invoiced", "cancelled"] | None
     )
+    # The buyer allowed photos of this delivery to be published (E-068).
+    photos_allowed: bool = False
 
 
 class DeliveryWindowClosureResponse(TransportModel):

@@ -4300,6 +4300,18 @@
             "title": "Lines",
             "type": "array"
           },
+          "photoConsentAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photoconsentat"
+          },
           "publicReference": {
             "description": "The order number the buyer can quote (`LA-…`). Every order has one, whatever its source.",
             "title": "Publicreference",
@@ -4610,6 +4622,17 @@
           "currency": {
             "title": "Currency",
             "type": "string"
+          },
+          "donationShareMinor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Donationshareminor"
           },
           "id": {
             "format": "uuid",
@@ -5566,8 +5589,18 @@
             ],
             "title": "Message"
           },
+          "newsletterConsent": {
+            "default": false,
+            "title": "Newsletterconsent",
+            "type": "boolean"
+          },
           "party": {
             "$ref": "#/components/schemas/PublicOrderPartyRequest"
+          },
+          "photoConsent": {
+            "default": false,
+            "title": "Photoconsent",
+            "type": "boolean"
           },
           "privacyAcknowledged": {
             "title": "Privacyacknowledged",
@@ -6660,6 +6693,19 @@
       "DeliveryConfigurationRequest": {
         "additionalProperties": false,
         "properties": {
+          "areaLabel": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The area's name for buyers. Absent: it stays. Null: none.",
+            "title": "Arealabel"
+          },
           "enabled": {
             "title": "Enabled",
             "type": "boolean"
@@ -6668,6 +6714,24 @@
             "minimum": 1.0,
             "title": "Expectedrevision",
             "type": "integer"
+          },
+          "postalCodes": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 12,
+                  "minLength": 3,
+                  "type": "string"
+                },
+                "maxItems": 2000,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The delivery area of public orders. Absent: the stored codes stay. Empty: every postal code.",
+            "title": "Postalcodes"
           },
           "startPoint": {
             "anyOf": [
@@ -6712,9 +6776,27 @@
             "title": "Actionid",
             "type": "string"
           },
+          "areaLabel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arealabel"
+          },
           "enabled": {
             "title": "Enabled",
             "type": "boolean"
+          },
+          "postalCodes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Postalcodes",
+            "type": "array"
           },
           "revision": {
             "title": "Revision",
@@ -7105,6 +7187,11 @@
               }
             ],
             "title": "Orderstatus"
+          },
+          "photosAllowed": {
+            "default": false,
+            "title": "Photosallowed",
+            "type": "boolean"
           },
           "quantities": {
             "items": {
@@ -12829,6 +12916,125 @@
         "title": "NpsSegments",
         "type": "object"
       },
+      "OfferingDraftRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "availableFrom": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `availableUntil`: the order period.",
+            "title": "Availablefrom"
+          },
+          "availableUntil": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Order deadline: the forms stop offering it at this instant.",
+            "title": "Availableuntil"
+          },
+          "code": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "title": "Code",
+            "type": "string"
+          },
+          "currency": {
+            "default": "EUR",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          },
+          "donationShareMinor": {
+            "anyOf": [
+              {
+                "maximum": 100000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Part of the unit price for the beneficiaries; shown publicly.",
+            "title": "Donationshareminor"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An existing offering; absent adds one.",
+            "title": "Id"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "piecesPerUnit": {
+            "anyOf": [
+              {
+                "maximum": 100000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Piecesperunit"
+          },
+          "unit": {
+            "enum": [
+              "box",
+              "piece",
+              "package",
+              "sponsoring"
+            ],
+            "title": "Unit",
+            "type": "string"
+          },
+          "unitPriceMinor": {
+            "maximum": 100000000.0,
+            "minimum": 0.0,
+            "title": "Unitpriceminor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "unit",
+          "unitPriceMinor",
+          "active"
+        ],
+        "title": "OfferingDraftRequest",
+        "type": "object"
+      },
       "OperationalAlertResponse": {
         "additionalProperties": false,
         "properties": {
@@ -13343,6 +13549,28 @@
             "title": "Introduction",
             "type": "string"
           },
+          "newsletterConsentText": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Newsletterconsenttext"
+          },
+          "photoConsentText": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photoconsenttext"
+          },
           "requireBillingAddress": {
             "title": "Requirebillingaddress",
             "type": "boolean"
@@ -13374,6 +13602,17 @@
           "title": {
             "title": "Title",
             "type": "string"
+          },
+          "withdrawalNotice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdrawalnotice"
           }
         },
         "required": [
@@ -15266,6 +15505,19 @@
       "PublicOfferingResponse": {
         "additionalProperties": false,
         "properties": {
+          "availableUntil": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Order deadline of this offering; null: none.",
+            "title": "Availableuntil"
+          },
           "code": {
             "title": "Code",
             "type": "string"
@@ -15273,6 +15525,18 @@
           "currency": {
             "title": "Currency",
             "type": "string"
+          },
+          "donationShareMinor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Part of the unit price for the beneficiaries.",
+            "title": "Donationshareminor"
           },
           "id": {
             "format": "uuid",
@@ -15410,6 +15674,30 @@
             "title": "Legalbasis",
             "type": "string"
           },
+          "newsletterConsentText": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional newsletter checkbox; null: none.",
+            "title": "Newsletterconsenttext"
+          },
+          "photoConsentText": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional delivery photo checkbox; null: none.",
+            "title": "Photoconsenttext"
+          },
           "privacyContactEmail": {
             "title": "Privacycontactemail",
             "type": "string"
@@ -15453,6 +15741,18 @@
           "title": {
             "title": "Title",
             "type": "string"
+          },
+          "withdrawalNotice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Notice above the order button; null: none.",
+            "title": "Withdrawalnotice"
           }
         },
         "required": [
@@ -17156,6 +17456,31 @@
         "title": "RemoveCampaignAliasRequest",
         "type": "object"
       },
+      "ReplaceOfferingsRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedRevision": {
+            "description": "The action's revision.",
+            "minimum": 1.0,
+            "title": "Expectedrevision",
+            "type": "integer"
+          },
+          "offerings": {
+            "items": {
+              "$ref": "#/components/schemas/OfferingDraftRequest"
+            },
+            "maxItems": 20,
+            "title": "Offerings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "expectedRevision",
+          "offerings"
+        ],
+        "title": "ReplaceOfferingsRequest",
+        "type": "object"
+      },
       "RequestLoginRequest": {
         "additionalProperties": false,
         "properties": {
@@ -18433,6 +18758,55 @@
           "allowDonation"
         ],
         "title": "SetOrderFormDonationRequest",
+        "type": "object"
+      },
+      "SetOrderFormOptionsRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "newsletterConsentText": {
+            "anyOf": [
+              {
+                "maxLength": 600,
+                "minLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null: the form asks for no newsletter consent.",
+            "title": "Newsletterconsenttext"
+          },
+          "photoConsentText": {
+            "anyOf": [
+              {
+                "maxLength": 600,
+                "minLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null: the form asks for no consent to delivery photos.",
+            "title": "Photoconsenttext"
+          },
+          "withdrawalNotice": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "minLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Notice on the right of withdrawal above the order button.",
+            "title": "Withdrawalnotice"
+          }
+        },
+        "title": "SetOrderFormOptionsRequest",
         "type": "object"
       },
       "SetOrderFormStatusRequest": {
@@ -31023,6 +31397,120 @@
         ]
       }
     },
+    "/api/v1/actions/{action_id}/offerings": {
+      "put": {
+        "description": "Replace what the action offers: sizes, prices and order deadlines.\n\nExisting orders keep their price and size. An offering that orders\ncontain cannot be removed (409 `offering_in_use`); switch it inactive.",
+        "operationId": "replaceActionOfferings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceOfferingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharityActionConfigurationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Replace Action Offerings",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
     "/api/v1/actions/{action_id}/order-form/donation": {
       "put": {
         "description": "Switch the optional extra donation of the action's order form.\n\nThe public form and the internal capture offer it only while the action\nhas the `donations` capability and a receiving body is configured.\nSwitching it on without the capability: 409\n`order_form_donation_capability_missing`.",
@@ -31132,6 +31620,120 @@
           }
         },
         "summary": "Set Order Form Donation",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/order-form/options": {
+      "put": {
+        "description": "Set the optional checkboxes and the withdrawal notice of the form.\n\nA text shows its checkbox (newsletter, delivery photos) or the notice\non the public form; null removes it. Each order records the consents\nits buyer gave with the wording's version (E-068).",
+        "operationId": "setOrderFormOptions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetOrderFormOptionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharityActionConfigurationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Set Order Form Options",
         "tags": [
           "actions"
         ]

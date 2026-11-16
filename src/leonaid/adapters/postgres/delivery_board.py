@@ -136,6 +136,7 @@ async def fetch_drops(
             commitment.id, commitment.delivery_window_id, commitment.status,
             commitment.customer_snapshot, commitment.delivery_recipient_snapshot,
             commitment.delivery_contact_snapshot,
+            commitment.photo_consent_at IS NOT NULL AS photos_allowed,
             delivery.driver_user_id, driver.display_name AS driver_name,
             delivery.state, delivery.state_changed_at,
             changer.display_name AS changed_by_name,
@@ -241,6 +242,7 @@ async def fetch_drops(
                 revision=int(row["revision"]),
                 order_status=str(row["status"]) if manager else None,
                 missed_at_closure=bool(row["missed_at_closure"]),
+                photos_allowed=bool(row["photos_allowed"]),
             )
         )
     return drops

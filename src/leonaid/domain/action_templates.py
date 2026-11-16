@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+import hashlib
 from datetime import datetime
 from enum import StrEnum
 from typing import Any, ClassVar
@@ -76,8 +77,18 @@ class TemplateOffering:
     pieces_per_unit: int | None
     unit_price_minor: int
     currency: str
+    # Part of the unit price that goes to the beneficiaries (E-068); the
+    # public page names it. None: not stated.
+    donation_share_minor: int | None = None
 
     def __post_init__(self) -> None:
+        if self.donation_share_minor is not None and not (
+            0 <= self.donation_share_minor <= self.unit_price_minor
+        ):
+            raise DomainInvariantError(
+                "offering_donation_share_invalid",
+                "Der Spendenanteil liegt zwischen 0 und dem Preis.",
+            )
         if not SLUG.fullmatch(self.code):
             raise DomainInvariantError(
                 "template_offering_code_invalid",
@@ -122,6 +133,12 @@ class TemplateOffering:
             "piecesPerUnit": self.pieces_per_unit,
             "unitPriceMinor": self.unit_price_minor,
             "currency": self.currency,
+            # Absent unless set, so older snapshots stay byte-identical.
+            **(
+                {"donationShareMinor": self.donation_share_minor}
+                if self.donation_share_minor is not None
+                else {}
+            ),
         }
 
     @classmethod
@@ -138,6 +155,11 @@ class TemplateOffering:
             ),
             unit_price_minor=int(payload["unitPriceMinor"]),
             currency=str(payload["currency"]),
+            donation_share_minor=(
+                int(payload["donationShareMinor"])
+                if payload.get("donationShareMinor") is not None
+                else None
+            ),
         )
 
 
@@ -158,8 +180,27 @@ class OrderFormConfiguration:
     # while the action has the `donations` capability and a receiving body
     # is configured.
     allow_donation: bool = False
+    # Optional checkboxes and notice of the public form (E-068). None: the
+    # form shows nothing. They are runtime settings like the donation
+    # switch, not part of what a template defines.
+    newsletter_consent_text: str | None = None
+    photo_consent_text: str | None = None
+    withdrawal_notice: str | None = None
 
     def __post_init__(self) -> None:
+        for name, label, minimum, maximum in (
+            ("newsletter_consent_text", "Text der Newsletter-Einwilligung", 10, 600),
+            ("photo_consent_text", "Text der Foto-Einwilligung", 10, 600),
+            ("withdrawal_notice", "Hinweis zum Widerrufsrecht", 10, 1000),
+        ):
+            value = getattr(self, name)
+            value = (value.strip() or None) if value is not None else None
+            if value is not None and not minimum <= len(value) <= maximum:
+                raise DomainInvariantError(
+                    f"order_form_{name}_invalid",
+                    f"{label}: {minimum} bis {maximum} Zeichen.",
+                )
+            object.__setattr__(self, name, value)
         if not SLUG.fullmatch(self.form_key):
             raise DomainInvariantError(
                 "template_form_key_invalid",
@@ -200,6 +241,16 @@ class OrderFormConfiguration:
             "requireBillingAddress": self.require_billing_address,
             "allowMessage": self.allow_message,
             "allowDonation": self.allow_donation,
+            # Absent unless set, so older snapshots stay byte-identical.
+            **{
+                key: value
+                for key, value in (
+                    ("newsletterConsentText", self.newsletter_consent_text),
+                    ("photoConsentText", self.photo_consent_text),
+                    ("withdrawalNotice", self.withdrawal_notice),
+                )
+                if value is not None
+            },
         }
 
     @classmethod
@@ -218,7 +269,21 @@ class OrderFormConfiguration:
             allow_message=bool(payload["allowMessage"]),
             # Snapshots written before the extra donation have no such key.
             allow_donation=bool(payload.get("allowDonation", False)),
+            newsletter_consent_text=payload.get("newsletterConsentText"),
+            photo_consent_text=payload.get("photoConsentText"),
+            withdrawal_notice=payload.get("withdrawalNotice"),
         )
+
+
+def consent_text_version(kind: str, text: str) -> str:
+    """Version of an order form consent: its kind and the wording's hash.
+
+    The audit of `order_form_options_changed` holds the wording, so the
+    version names exactly what a buyer agreed to.
+    """
+
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+    return f"{kind}-{digest}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -379,6 +444,29 @@ class ActionConfiguration:
             tuple(item.definition for item in self.offerings),
             (self.order_form.configuration if self.order_form is not None else None),
         )
+
+    def with_offerings(
+        self,
+        offerings: tuple[ConfiguredOffering, ...],
+        capabilities: frozenset[ActionCapability],
+    ) -> ActionConfiguration:
+        """The configuration with a replaced offering list (E-068).
+
+        Codes and names stay unique per action; the database enforces both.
+        """
+
+        names = [item.definition.name.strip().casefold() for item in offerings]
+        if len(names) != len(set(names)):
+            raise DomainInvariantError(
+                "offering_name_duplicate",
+                "Zwei Angebote dürfen nicht denselben Namen tragen.",
+            )
+        _validate_configuration(
+            capabilities,
+            tuple(item.definition for item in offerings),
+            self.order_form.configuration if self.order_form is not None else None,
+        )
+        return replace(self, offerings=offerings)
 
     def copy_for(
         self,

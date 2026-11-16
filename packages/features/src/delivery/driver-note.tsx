@@ -1,4 +1,4 @@
-import { MessageSquare } from "lucide-react";
+import { Camera, MessageSquare } from "lucide-react";
 import { useState } from "react";
 
 import type { DeliveryDropResponse } from "@leonaid/api-client";
@@ -51,6 +51,24 @@ export function DriverNote({
           {open ? "weniger" : "mehr"}
         </button>
       ) : null}
+    </span>
+  );
+}
+
+/**
+ * The buyer allowed photos of this delivery to be published (E-068). Shown
+ * where the full note is, so the driver knows before taking a picture.
+ */
+export function PhotoConsentNote({
+  drop,
+}: {
+  readonly drop: DeliveryDropResponse;
+}) {
+  if (!drop.photosAllowed) return null;
+  return (
+    <span className="tour-note is-full" data-testid="photo-consent-note">
+      <Camera aria-hidden="true" size={14} />
+      <span className="tour-note-text">Fotos für Veröffentlichung erlaubt</span>
     </span>
   );
 }
