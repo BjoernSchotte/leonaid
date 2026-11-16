@@ -1,7 +1,9 @@
 ---
 // Facts of an action's ordering from its data (E-068): order deadline with
-// a countdown, delivery days of the open windows and the delivery area.
-// Each renders only when the action has it; nothing here is campaign text.
+// the remaining time, delivery days of the open windows and the delivery
+// area. Each renders only when the action has it; nothing here is campaign
+// text. The page is rendered per request, so the remaining time is current
+// without client JavaScript (pages without a form ship none).
 import type { PublicOrderFormResponse } from "@leonaid/api-client";
 import {
   deadlineLabel,
@@ -51,34 +53,10 @@ const area = delivery?.areaLabel ?? null;
         <time datetime={deadline}>
           {deadlineLabel(deadline, delivery?.timezone)}
         </time>
-        <span
-          class="order-deadline__remaining"
-          data-deadline-remaining={deadline}
-        >
+        <span class="order-deadline__remaining">
           {remaining ? ` · ${remaining}` : " · Bestellungen sind geschlossen"}
         </span>
       </dd>
     </div>
   )
 }
-
-<script>
-  import { remainingLabel } from "../lib/order-deadline";
-
-  // Keeps the countdown current while the page stays open.
-  const update = () => {
-    for (const element of document.querySelectorAll<HTMLElement>(
-      "[data-deadline-remaining]",
-    )) {
-      const label = remainingLabel(
-        element.dataset.deadlineRemaining ?? "",
-        Date.now(),
-      );
-      element.textContent = label
-        ? ` · ${label}`
-        : " · Bestellungen sind geschlossen";
-    }
-  };
-  update();
-  setInterval(update, 60_000);
-</script>
