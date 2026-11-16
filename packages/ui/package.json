@@ -12,7 +12,8 @@
     "./base-paths": "./src/lib/base-paths.ts",
     "./styles.css": "./src/styles/globals.css",
     "./fonts.css": "./src/styles/fonts.css",
-    "./leitsystem.css": "./src/styles/leitsystem.css"
+    "./leitsystem.css": "./src/styles/leitsystem.css",
+    "./time-zone": "./src/lib/time-zone.ts"
   },
   "scripts": {
     "test": "vitest run --config vitest.config.ts"
