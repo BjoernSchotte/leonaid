@@ -356,8 +356,13 @@ def main() -> None:
         assert not db.execute(
             "SELECT 1 FROM commitment WHERE donation_pledge_minor IS NOT NULL"
         ).fetchall()
+        # 0070 adds the photo consent of an order; existing orders have none.
+        assert not db.execute(
+            "SELECT 1 FROM commitment WHERE photo_consent_at IS NOT NULL "
+            "OR photo_consent_text_version IS NOT NULL"
+        ).fetchall()
         assert db.execute(
-            "SELECT to_jsonb(commitment) - 'delivery_window_id' - 'delivery_window_snapshot' - 'delivery_contact_snapshot' - 'captured_at' - 'public_reference' - 'donation_pledge_minor' FROM commitment ORDER BY id"
+            "SELECT to_jsonb(commitment) - 'delivery_window_id' - 'delivery_window_snapshot' - 'delivery_contact_snapshot' - 'captured_at' - 'public_reference' - 'donation_pledge_minor' - 'photo_consent_at' - 'photo_consent_text_version' FROM commitment ORDER BY id"
         ).fetchall() == [
             (
                 {
