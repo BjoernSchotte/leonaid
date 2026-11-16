@@ -348,3 +348,21 @@ def test_synthetic_and_placeholder_checks_cover_the_new_fields() -> None:
     assert placeholder.activation_findings(production=True) == (
         "template_placeholder_open",
     )
+
+
+def test_imprint_email_is_its_own_address_and_falls_back_to_the_issuer() -> None:
+    # E-065: the Impressum may name another address than the invoices.
+    draft = valid_draft()
+    assert draft.imprint_email is None
+    assert draft.imprint_contact_email() == draft.issuer.email
+
+    own = replace(draft, imprint_email="  Vorstand@Lions-Musterstadt.de ")
+    assert own.imprint_email == "vorstand@lions-musterstadt.de"
+    assert own.imprint_contact_email() == "vorstand@lions-musterstadt.de"
+    assert own.issuer.email == draft.issuer.email
+
+    assert replace(draft, imprint_email="   ").imprint_email is None
+    for invalid in ("vorstand", "a@b@c", "vor stand@x.de"):
+        with raises(DomainInvariantError) as error:
+            replace(draft, imprint_email=invalid)
+        assert error.value.code == "legal_imprint_email_invalid"

@@ -13,6 +13,8 @@ interface Props {
 const { title } = Astro.props;
 // The installation's club (LEONAID_CLUB_NAME); the line is left out without it.
 const club = process.env.LEONAID_CLUB_NAME?.trim() ?? "";
+// Where LeonAid's source lives; shown on every installation's login.
+const SOURCE_URL = "https://github.com/BjoernSchotte/leonaid";
 ---
 
 <!doctype html>
@@ -43,6 +45,10 @@ const club = process.env.LEONAID_CLUB_NAME?.trim() ?? "";
           <p class="login-brand-line">
             Charity-Aktionen gemeinsam planen, verkaufen, ausliefern und sauber
             abrechnen.
+          </p>
+          <p class="login-brand-credit" data-auth-credit>
+            Made with <span role="img" aria-label="Liebe">❤️</span> by
+            <a href={SOURCE_URL}>github.com/BjoernSchotte/leonaid</a>
           </p>
         </div>
       </aside>

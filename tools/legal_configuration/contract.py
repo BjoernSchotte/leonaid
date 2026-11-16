@@ -46,6 +46,7 @@ IMPRINT = {
     "legalForm": "registered_association",
     "imprintRepresentatives": "Vorstand: Paula Golden (Präsidentin)",
     "imprintPhone": "+49 30 23125 044",
+    "imprintEmail": "vorstand@leonaid.invalid",
     "imprintRegisterCourt": "Amtsgericht Augsburg",
     "imprintRegisterNumber": "VR 0044",
     "imprintVatId": "de 999 999 999",
@@ -624,7 +625,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
 
     imprint = await connection.fetchrow(
         """
-        SELECT legal_form, imprint_representatives, imprint_phone,
+        SELECT legal_form, imprint_representatives, imprint_phone, imprint_email,
                imprint_register_court,
                imprint_register_number, imprint_vat_id,
                imprint_content_responsible_name,
@@ -639,6 +640,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
         "legal_form": "registered_association",
         "imprint_representatives": IMPRINT["imprintRepresentatives"],
         "imprint_phone": IMPRINT["imprintPhone"],
+        "imprint_email": IMPRINT["imprintEmail"],
         "imprint_register_court": IMPRINT["imprintRegisterCourt"],
         "imprint_register_number": IMPRINT["imprintRegisterNumber"],
         "imprint_vat_id": "DE999999999",
@@ -660,7 +662,11 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
         notice = await api.get("/api/v1/public/legal-notice")
         notice.raise_for_status()
         provider = notice.json()["provider"]
-        if provider is None or provider.get("registerNumber") != "VR 0044":
+        if (
+            provider is None
+            or provider.get("registerNumber") != "VR 0044"
+            or provider.get("email") != IMPRINT["imprintEmail"]
+        ):
             raise ContractFailure(f"Public Impressum is incomplete: {provider}")
         policy = await api.get("/api/v1/public/privacy-policy")
         policy.raise_for_status()

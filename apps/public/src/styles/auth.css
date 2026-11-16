@@ -69,6 +69,16 @@
   font-size: var(--fs-lg);
   line-height: var(--lh-prose);
 }
+.login-brand .login-brand-credit {
+  margin-top: var(--s-6);
+  color: var(--rail-text-2);
+  font-size: var(--fs-sm);
+}
+.login-brand-credit a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .login-side {
   display: flex;
   flex-direction: column;
@@ -302,6 +312,10 @@
   }
   .login-brand-line {
     display: none;
+  }
+  .login-brand .login-brand-credit {
+    grid-column: 1 / -1;
+    margin-top: var(--s-2);
   }
   .login-main {
     place-items: start center;

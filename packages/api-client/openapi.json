@@ -11215,6 +11215,17 @@
             ],
             "title": "Imprintcontentresponsiblename"
           },
+          "imprintEmail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imprintemail"
+          },
           "imprintPhone": {
             "anyOf": [
               {
@@ -17639,6 +17650,19 @@
               }
             ],
             "title": "Imprintcontentresponsiblename"
+          },
+          "imprintEmail": {
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "E-mail shown in the Impressum. Null: the issuer's e-mail, which invoices and buyer mails use.",
+            "title": "Imprintemail"
           },
           "imprintPhone": {
             "anyOf": [

@@ -40,6 +40,7 @@ LATER_OPTIONAL_FIELDS = frozenset(
         "legal_form",
         "imprint_representatives",
         "imprint_phone",
+        "imprint_email",
         "imprint_register_court",
         "imprint_register_number",
         "imprint_vat_id",
@@ -158,6 +159,9 @@ class LegalConfigurationDraft:
     # mandatory ones (activation_warnings).
     imprint_representatives: str | None = None
     imprint_phone: str | None = None
+    # Own address for the Impressum; None shows the issuer's e-mail, which
+    # invoices, buyer mails and the order form keep using (E-065).
+    imprint_email: str | None = None
     imprint_register_court: str | None = None
     imprint_register_number: str | None = None
     imprint_vat_id: str | None = None
@@ -337,6 +341,19 @@ class LegalConfigurationDraft:
                 "Die Telefonnummer darf nur Ziffern, Leerzeichen und + ( ) / . - "
                 "enthalten.",
             )
+        imprint_email = _single_line(self.imprint_email)
+        if imprint_email is not None:
+            imprint_email = imprint_email.casefold()
+            if (
+                imprint_email.count("@") != 1
+                or any(character.isspace() for character in imprint_email)
+                or not 3 <= len(imprint_email) <= 320
+            ):
+                raise DomainInvariantError(
+                    "legal_imprint_email_invalid",
+                    "Die E-Mail-Adresse für das Impressum ist ungültig.",
+                )
+        object.__setattr__(self, "imprint_email", imprint_email)
         if (self.imprint_register_court is None) != (
             self.imprint_register_number is None
         ):
@@ -369,6 +386,10 @@ class LegalConfigurationDraft:
             return None
         return LEGAL_FORM_REGISTERS.get(self.legal_form)
 
+    def imprint_contact_email(self) -> str:
+        """The e-mail the Impressum shows: its own one, else the issuer's."""
+        return self.imprint_email or self.issuer.email
+
     def register_label(self) -> str | None:
         """Name of the entered register for the Impressum, or None."""
         if self.imprint_register_number is None:
@@ -388,6 +409,7 @@ class LegalConfigurationDraft:
         return (
             self.imprint_representatives,
             self.imprint_phone,
+            self.imprint_email,
             self.imprint_register_court,
             self.imprint_register_number,
             self.imprint_vat_id,

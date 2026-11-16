@@ -1,7 +1,7 @@
 {
   "name": "@leonaid/root",
   "version": "0.0.0",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "private": true,
   "workspaces": [
     "apps/*",

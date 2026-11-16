@@ -101,14 +101,14 @@ class AsyncpgLegalConfigurationRepository:
                         imprint_vat_id, imprint_content_responsible_name,
                         imprint_content_responsible_address,
                         privacy_policy_text, member_privacy_notice_text,
-                        legal_form, donations
+                        legal_form, donations, imprint_email
                     )
                     VALUES (
                         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
                         $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
                         $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33,
                         $34, $35, $36, $37, $38, $39, $40, $41, $42, $43,
-                        $44::jsonb
+                        $44::jsonb, $45
                     )
                     """,
                     version_id,
@@ -167,6 +167,7 @@ class AsyncpgLegalConfigurationRepository:
                         if configuration.donations is not None
                         else None
                     ),
+                    configuration.imprint_email,
                 )
                 revision = await self._update_state(
                     connection,
@@ -463,6 +464,7 @@ class AsyncpgLegalConfigurationRepository:
             ),
             imprint_representatives=_optional(row, "imprint_representatives"),
             imprint_phone=_optional(row, "imprint_phone"),
+            imprint_email=_optional(row, "imprint_email"),
             imprint_register_court=_optional(row, "imprint_register_court"),
             imprint_register_number=_optional(row, "imprint_register_number"),
             imprint_vat_id=_optional(row, "imprint_vat_id"),

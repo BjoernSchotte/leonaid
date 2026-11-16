@@ -565,6 +565,14 @@ class SaveLegalConfigurationDraftRequest(TransportModel):
     # missing mandatory ones as activation warnings.
     imprint_representatives: str | None = Field(default=None, max_length=1_000)
     imprint_phone: str | None = Field(default=None, max_length=40)
+    imprint_email: str | None = Field(
+        default=None,
+        max_length=320,
+        description=(
+            "E-mail shown in the Impressum. Null: the issuer's e-mail, which "
+            "invoices and buyer mails use."
+        ),
+    )
     imprint_register_court: str | None = Field(default=None, max_length=200)
     imprint_register_number: str | None = Field(default=None, max_length=60)
     imprint_vat_id: str | None = Field(default=None, max_length=20)
@@ -636,6 +644,7 @@ class LegalConfigurationValuesResponse(TransportModel):
     legal_form: LegalFormValue | None = None
     imprint_representatives: str | None = None
     imprint_phone: str | None = None
+    imprint_email: str | None = None
     imprint_register_court: str | None = None
     imprint_register_number: str | None = None
     imprint_vat_id: str | None = None
