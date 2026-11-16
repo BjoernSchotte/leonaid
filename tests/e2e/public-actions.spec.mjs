@@ -297,7 +297,7 @@ test("public pages link the active campaigns, Impressum and Datenschutz", async 
   // Every installation's sign-in names where LeonAid's source lives (E-066).
   const credit = after(await html("/login"), "data-auth-credit", "/login");
   expect(credit).toMatch(
-    /^[^<]*>\s*Made with <span[^>]*>❤️<\/span> by\s*<a [^>]*href="https:\/\/github\.com\/BjoernSchotte\/leonaid"[^>]*>github\.com\/BjoernSchotte\/leonaid<\/a>/,
+    /^[^<]*>\s*Made with <span[^>]*>❤️<\/span> by <a [^>]*href="https:\/\/github\.com\/BjoernSchotte\/leonaid"[^>]*>github\.com\/BjoernSchotte\/leonaid<\/a>/,
   );
 });
 
