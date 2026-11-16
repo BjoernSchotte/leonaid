@@ -151,6 +151,8 @@ class CampaignAliasItem:
     is_primary: bool
     enabled: bool
     revision: int
+    # What the primary alias shows: the CMS campaign page or the order page.
+    renderer: Literal["legacy", "campaign"]
 
 
 @dataclass(frozen=True, slots=True)

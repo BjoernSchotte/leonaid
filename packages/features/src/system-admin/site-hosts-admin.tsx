@@ -488,9 +488,7 @@ function EditionList({
               {AVAILABILITY[binding.availability]}
               {binding.atRoot ? " · aktuell auf /" : ""}
               {binding.isPrimary ? "" : " · zweite Adresse"}
-              {binding.campaignPage
-                ? ""
-                : " · ohne veröffentlichte Kampagnenseite"}
+              {binding.campaignPage ? "" : " · Kampagnenseite nicht gewählt"}
             </span>
             <a
               className="small"
@@ -784,8 +782,9 @@ function SiteHostDialog({
         {chosen && !chosen.campaignPage ? (
           <StatusMessage tone="warning">
             <p>
-              Diese Aktion hat keine veröffentlichte Kampagnenseite. Die Domain
-              zeigt nur Kampagnenseiten des CMS.
+              Für diese Aktion ist die Kampagnenseite noch nicht gewählt. Die
+              Domain zeigt nur Kampagnenseiten des CMS: Veröffentlichen Sie die
+              Seite dort und wählen Sie sie unter Aktion › Adressen.
             </p>
           </StatusMessage>
         ) : null}

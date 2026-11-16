@@ -279,9 +279,7 @@ describe("Domains", () => {
     fireEvent.change(within(dialog).getByTestId("site-edition-action"), {
       target: { value: "a-legacy" },
     });
-    expect(dialog.textContent).toContain(
-      "keine veröffentlichte Kampagnenseite",
-    );
+    expect(dialog.textContent).toContain("Kampagnenseite noch nicht gewählt");
     fireEvent.change(within(dialog).getByTestId("site-edition-segment"), {
       target: { value: "Bad Segment" },
     });

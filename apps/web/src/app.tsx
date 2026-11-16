@@ -30,6 +30,7 @@ import {
   useCurrentActionId,
   useLocationHref,
   campaignEditorHref,
+  cmsAvailable,
   CAMPAIGN_SCOPED_NAV_KEYS,
   openCommandPalette,
   railCampaigns,
@@ -445,6 +446,10 @@ export function App({ client }: AppProps) {
             ) : currentRoute.kind === "manage" ? (
               <ManageActionPage
                 actionId={currentRoute.actionId}
+                canSelectRenderer={
+                  cmsAvailable(identity.data) &&
+                  identity.data.globalRoles.includes("system_admin")
+                }
                 client={client}
                 editorHref={editorHref}
                 key={currentRoute.actionId}

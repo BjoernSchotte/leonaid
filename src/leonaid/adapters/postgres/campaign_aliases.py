@@ -44,7 +44,7 @@ class AsyncpgCampaignAliasRepository:
                         action_id,
                     )
                     rows = await db.fetch(
-                        "SELECT id,action_id,alias,is_primary,enabled,revision FROM public_action_alias WHERE action_id=$1 ORDER BY is_primary DESC,alias",
+                        "SELECT id,action_id,alias,is_primary,enabled,revision,campaign_redirect FROM public_action_alias WHERE action_id=$1 ORDER BY is_primary DESC,alias",
                         action_id,
                     )
                     # Suggestions are scoped by current Core authority, not
@@ -81,6 +81,7 @@ class AsyncpgCampaignAliasRepository:
                                 row["is_primary"],
                                 row["enabled"],
                                 row["revision"],
+                                "campaign" if row["campaign_redirect"] else "legacy",
                             )
                             for row in rows
                         ),

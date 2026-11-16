@@ -56,7 +56,7 @@ export function ActionPublicUrls({
               {edition.atRoot ? <Badge tone="ok">aktuell auf /</Badge> : null}
               {edition.isPrimary ? null : <Badge>zweite Adresse</Badge>}
               {edition.campaignPage ? null : (
-                <Badge tone="warn">Keine veröffentlichte Kampagnenseite</Badge>
+                <Badge tone="warn">Kampagnenseite nicht gewählt</Badge>
               )}
               {edition.hostStatus === "active" ? null : (
                 <Badge tone="warn">Domain nicht aktiv</Badge>

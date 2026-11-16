@@ -66,8 +66,11 @@ wieder aktiv; ihre Ausgaben bleiben in der Zeit gebunden.
    der Domain sein soll.
 4. Bestätige mit **Binden**.
 
-Die Domain zeigt nur Kampagnenseiten aus dem CMS. Hat die Aktion keine
-veröffentlichte Kampagnenseite, warnt der Dialog.
+Die Domain zeigt nur Kampagnenseiten aus dem CMS. Veröffentliche die
+Kampagnenseite deshalb zuerst im Microsite-Editor. Wähle sie danach in der
+Aktion unter **Adressen** mit **Kampagnenseite verwenden** (nur
+System-Administration). Dann führt auch der aktive Alias zur Kampagnenseite.
+Ist sie dort noch nicht gewählt, warnt der Dialog.
 
 Jede Ausgabe ist dauerhaft unter `https://<domain>/<pfad>/` erreichbar. Die
 Startseite `/` zeigt die Ausgabe, die **aktuell auf /** steht, solange sie

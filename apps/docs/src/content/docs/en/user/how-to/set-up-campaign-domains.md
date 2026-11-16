@@ -67,8 +67,11 @@ active again; its editions stay bound in the meantime.
    start page of the domain.
 4. Confirm with **Binden**.
 
-The domain only shows campaign pages from the CMS. If the campaign has no
-published campaign page, the dialog warns you.
+The domain only shows campaign pages from the CMS. So publish the campaign
+page in the microsite editor first. Then select it in the campaign under
+**Adressen** with **Kampagnenseite verwenden** (system administration only).
+The active alias then also leads to the campaign page. If it is not selected
+there yet, the dialog warns you.
 
 Every edition stays reachable at `https://<domain>/<path>/`. The start page
 `/` shows the edition marked **aktuell auf /** while it runs. After the end,

@@ -234,6 +234,7 @@ function fakeClient(state: ActionManagementResponse = management()) {
           aliasId: "a1",
           enabled: true,
           isPrimary: true,
+          renderer: "legacy",
           revision: 1,
         },
         {
@@ -242,6 +243,7 @@ function fakeClient(state: ActionManagementResponse = management()) {
           aliasId: "a2",
           enabled: true,
           isPrimary: false,
+          renderer: "legacy",
           revision: 2,
         },
       ],
@@ -268,6 +270,19 @@ function fakeClient(state: ActionManagementResponse = management()) {
         action({ revision: body.revision + 1 }),
     ),
     setCharityActionPublication: vi.fn(),
+    selectCampaignRenderer: vi.fn(
+      async (
+        _action: string,
+        aliasId: string,
+        body: { renderer: "legacy" | "campaign"; revision: number },
+      ) => ({
+        actionId,
+        alias: "krapfentaxi",
+        aliasId,
+        renderer: body.renderer,
+        revision: body.revision + 1,
+      }),
+    ),
     updateCampaignAlias: vi.fn(),
     getBuyerMailConfiguration: vi.fn(
       async (): Promise<BuyerMailConfigurationResponse> => buyerMails,
@@ -293,7 +308,12 @@ async function renderPage(
   {
     tours = false,
     editorHref,
-  }: { readonly tours?: boolean; readonly editorHref?: string } = {},
+    canSelectRenderer = false,
+  }: {
+    readonly tours?: boolean;
+    readonly editorHref?: string;
+    readonly canSelectRenderer?: boolean;
+  } = {},
 ) {
   window.history.replaceState(null, "", `/admin/actions/${actionId}${hash}`);
   const queryClient = new QueryClient({
@@ -302,6 +322,7 @@ async function renderPage(
   const page = (
     <ManageActionPage
       actionId={actionId}
+      canSelectRenderer={canSelectRenderer}
       client={client as unknown as LeonAidApiClient}
       editorHref={editorHref}
     />
@@ -573,9 +594,7 @@ describe("action detail: drafts and revisions", () => {
     expect(section.textContent).toContain("krapfentaxi.org/2099/");
     expect(section.textContent).toContain("aktuell auf /");
     // R41: the host shows nothing without a published CMS page.
-    expect(section.textContent).toContain(
-      "Keine veröffentlichte Kampagnenseite",
-    );
+    expect(section.textContent).toContain("Kampagnenseite nicht gewählt");
     expect(within(section).queryByRole("button")).toBeNull();
   });
 
@@ -1111,6 +1130,30 @@ describe("action detail", () => {
     expect(list.getByText("/krapfen-flyer")).toBeTruthy();
     expect(list.getByText("/campaigns/krapfentaxi-2099/")).toBeTruthy();
     expect(screen.getByTestId("publication-alias")).toBeTruthy();
+  });
+
+  it("shows the primary alias page; only a system admin with the CMS switches it", async () => {
+    await renderPage("#aliases");
+    const info = await screen.findByTestId("alias-renderer");
+    expect(info.textContent).toContain("/krapfentaxi zeigt die Bestellseite");
+    expect(screen.queryByTestId("alias-renderer-switch")).toBeNull();
+  });
+
+  it("switches the primary alias to the campaign page with its revision", async () => {
+    const client = fakeClient();
+    await renderPage("#aliases", client, { canSelectRenderer: true });
+    fireEvent.click(await screen.findByTestId("alias-renderer-switch"));
+    await waitFor(() =>
+      expect(client.selectCampaignRenderer).toHaveBeenCalledWith(
+        actionId,
+        "a1",
+        expect.objectContaining({ renderer: "campaign", revision: 1 }),
+      ),
+    );
+    // The list and the public addresses load again.
+    await waitFor(() =>
+      expect(client.getActionPublicUrls.mock.calls.length).toBeGreaterThan(1),
+    );
   });
 
   it("copies the action for its next edition", async () => {

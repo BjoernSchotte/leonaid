@@ -108,6 +108,19 @@ async def main() -> None:
                 assert body["renderer"] == "campaign"
                 assert body["revision"] == start + 1
                 assert await state() == (True, start + 1)
+                # The alias list reports the renderer for the admin UI switch.
+                listed = await client.get(
+                    f"/api/v1/actions/{action}/redirect-aliases",
+                    headers={
+                        "Origin": ADMIN,
+                        "Cookie": f"__Host-leonaid_session={admin_token}",
+                    },
+                )
+                assert listed.status_code == 200, listed.text
+                assert [
+                    (item["isPrimary"], item["renderer"])
+                    for item in listed.json()["items"]
+                ] == [(True, "campaign")]
 
                 # Same command again: the stored result, no second change.
                 replay = await put(admin_token, start, "campaign", cutover)
