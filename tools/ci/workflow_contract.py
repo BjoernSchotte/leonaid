@@ -239,10 +239,17 @@ def check(path: Path) -> list[str]:
             problems.append(f"{job} must depend on the suite selector output {key}.")
         if "needs.select.result == 'success'" not in condition:
             problems.append(f"{job} must not run when the suite selector failed.")
+    if "bin: ${{ fromJSON(needs.select.outputs.survey_legs) }}" not in job_block(
+        text, "surveys"
+    ) or "./leonaid test-surveys $SHARDS" not in job_block(text, "surveys"):
+        problems.append(
+            "Survey legs must come from the suite selector and run every shard."
+        )
     for job, kind in (
         ("integration-shards", "integration"),
         ("e2e", "e2e"),
         ("emdash-cases", "emdash"),
+        ("surveys", "surveys"),
     ):
         block = job_block(text, job)
         timeout = re.search(r"(?m)^    timeout-minutes: (\d+)$", block)

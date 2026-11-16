@@ -274,10 +274,15 @@ Inside a leg every shard keeps its own isolation:
   (`timeout-container-logs.txt`), sanitizes and uploads. A job killed by
   GitHub's own timeout would lose all of that.
 
-Survey shards run in `ci.yml` (job `surveys`), one `./leonaid test-surveys
-SHARD` per job, the same command as locally (decision E-027). The checks of a
-shard share one stack without Twenty (no CRM key, decision E-031); the reset
-between them restores and verifies every volume it uses.
+Survey shards run in `ci.yml` (job `surveys`) in legs packed by
+`select_suites.SURVEY_SECONDS` (at most `MAX_BINS["surveys"]`, E-069), one
+`./leonaid test-surveys SHARD...` per leg, the same command as locally
+(decision E-027). The checks of every survey-stack shard in a leg share one
+stack without Twenty (no CRM key, decision E-031); the reset between them
+restores and verifies every volume it uses. `journey` and the nightly
+recovery shards (`recovery`, `exports-recovery`, `restic`, `pilot`, each in a
+leg of its own, schedule and dispatch only) bring their own stacks. Every
+shard runs after a failure; the exit status names the failed ones.
 
 Fast tier measured on PR #140 (wall time from the runs' creation to the last
 of the five required checks; queue at most 3 s per job):
@@ -578,7 +583,7 @@ instead of resetting running tests. Different worktrees remain independent.
 ./leonaid test-env-stop            # remove only this checkout's test fixture
 LEONAID_TEST_FRESH=1 ./leonaid test-actions  # isolated fresh setup and teardown
 ./leonaid test-recovery            # explicitly run backup/recovery acceptance
-./leonaid test-surveys permissions # one survey shard, as in CI
+./leonaid test-surveys permissions limits # survey shards on one stack, as a CI leg
 ```
 
 ## Parallel test stacks

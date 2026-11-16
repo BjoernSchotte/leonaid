@@ -143,6 +143,11 @@ CI_MUTATIONS = (
         "'API contract gate' must require Lint",
     ),
     (
+        "        bin: ${{ fromJSON(needs.select.outputs.survey_legs) }}\n",
+        "        bin: [{id: '1', shards: runner}]\n",
+        "Survey legs must come from the suite selector",
+    ),
+    (
         "        bin: ${{ fromJSON(needs.select.outputs.e2e) }}\n",
         "        bin: [{id: '1', shards: tasks}]\n",
         "E2E leaves must come from the suite selector",

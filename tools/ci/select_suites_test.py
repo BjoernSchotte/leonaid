@@ -778,6 +778,61 @@ def main() -> int:
         "* is one segment",
     )
 
+    # Survey legs: every shard exactly once, the survey-stack shards packed,
+    # the nightly recovery shards alone and only on schedule and dispatch.
+    for event, with_nightly in (
+        ("push", False),
+        ("schedule", True),
+        ("workflow_dispatch", True),
+    ):
+        survey_legs = json.loads(s.select(event, []).outputs()["survey_legs"])
+        packed_shards = [x for leg in survey_legs for x in leg["shards"].split()]
+        want_shards = [*s.SURVEY_SHARDS, *(s.SURVEY_NIGHTLY if with_nightly else ())]
+        expect(
+            sorted(packed_shards) == sorted(want_shards),
+            f"{event}: survey legs {survey_legs}",
+        )
+        extra = len(s.SURVEY_NIGHTLY) if with_nightly else 0
+        expect(
+            len(survey_legs) == s.MAX_BINS["surveys"] + extra,
+            f"{event}: {len(survey_legs)} survey legs",
+        )
+        for leg in survey_legs:
+            leg_names = set(leg["shards"].split())
+            all_images = bool(leg_names & s.SURVEY_ALL_IMAGES)
+            expect(
+                leg["bootstrap"] == ("default" if all_images else "survey-runtime"),
+                f"survey leg targets: {leg}",
+            )
+            expect(
+                not (leg_names & set(s.SURVEY_NIGHTLY)) or len(leg_names) == 1,
+                f"a nightly survey shard runs alone: {leg}",
+            )
+    expect(
+        set(s.SURVEY_SECONDS) == set(s.SURVEY_SHARDS),
+        "SURVEY_SECONDS must list every survey-stack shard",
+    )
+    survey_full = s.select("pull_request", ["x.py"], full_ci=True)
+    expect(
+        len(json.loads(survey_full.outputs()["survey_legs"])) == s.MAX_BINS["surveys"],
+        "full-ci runs the survey legs without the nightly shards",
+    )
+    expect(
+        json.loads(pr("src/leonaid/modules/surveys/x.py").outputs()["survey_legs"])
+        == [],
+        "the fast tier runs no survey leg",
+    )
+    cli = (ROOT / "leonaid").read_text(encoding="utf-8")
+    body = cli.split("test_surveys() {\n")[1].split("\n}\n")[0]
+    shard_body = cli.split("test_survey_shard() {\n")[1].split("\n}\n")[0]
+    for shard in (*s.SURVEY_SHARDS, *s.SURVEY_NIGHTLY):
+        in_case = re.search(rf"(?m)^\s+{re.escape(shard)}\)", body + shard_body)
+        listed = re.search(rf"\| {re.escape(shard)}\b|\b{re.escape(shard)} \|", body)
+        expect(
+            in_case is not None or listed is not None,
+            f"./leonaid test-surveys does not know the shard {shard}",
+        )
+
     # Proof reuse: a push whose tree a green pull-request run tested leaves
     # out what that run proved, the always-on checks included.
     fast_run = pr("src/leonaid/modules/tasks/service.py")
