@@ -57,7 +57,7 @@ export const statusLabels: Readonly<Record<ActionStatus, string>> = {
  * current state into the form (their input is replaced) or compare it in
  * a new tab first.
  */
-function SectionError({
+export function SectionError({
   error,
   onReload,
 }: {
@@ -136,7 +136,7 @@ export function useSectionDraft<T>(
 }
 
 /** A titled form block of the edit mode (prototype .tab-h2 heading). */
-function EditSection({
+export function EditSection({
   children,
   description,
   id,
@@ -159,7 +159,7 @@ function EditSection({
 }
 
 /** One save mutation per section: toast on success, inline error. */
-function useSectionSave<T>(
+export function useSectionSave<T>(
   run: () => Promise<T>,
   onSaved: (result: T) => void,
   message: string,
@@ -181,7 +181,7 @@ function useSectionSave<T>(
   return { error, mutation, setError };
 }
 
-function SaveButton({
+export function SaveButton({
   disabled,
   label,
   pending,

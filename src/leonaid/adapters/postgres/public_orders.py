@@ -51,6 +51,7 @@ from leonaid.domain.action_templates import (
     OfferingStatus,
     OfferingUnit,
     OrderFormConfiguration,
+    consent_text_version,
 )
 from leonaid.domain.push import PushKind
 from leonaid.domain.commitments import (
@@ -327,6 +328,9 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
                 form.require_billing_address,
                 form.allow_message,
                 form.allow_donation,
+                form.newsletter_consent_text,
+                form.photo_consent_text,
+                form.withdrawal_notice,
                 EXISTS (
                     SELECT 1
                     FROM charity_action_capability
@@ -398,6 +402,9 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
                 require_billing_address=bool(row["require_billing_address"]),
                 allow_message=bool(row["allow_message"]),
                 allow_donation=bool(row["allow_donation"]),
+                newsletter_consent_text=row["newsletter_consent_text"],
+                photo_consent_text=row["photo_consent_text"],
+                withdrawal_notice=row["withdrawal_notice"],
             ),
         )
 
@@ -534,6 +541,46 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
             draft.privacy_notice_version,
             occurred_at,
         )
+        form = context.order_form
+        if draft.newsletter_consent and form.newsletter_consent_text is not None:
+            # An explicit, revocable consent of the buyer (E-068); the
+            # privacy workflows revoke and suppress it like any other.
+            await connection.execute(
+                """
+                INSERT INTO consent_record (
+                    id, action_id, commitment_id,
+                    twenty_company_id, twenty_person_id,
+                    normalized_recipient, purpose, channel,
+                    text_version, source, evidence_kind, legal_basis_status,
+                    granted_at
+                )
+                VALUES (
+                    $1, $2, $3, $4, $5, $6,
+                    'club_newsletter', 'email',
+                    $7, 'public_order_form',
+                    'explicit_consent', 'confirmed', $8
+                )
+                """,
+                uuid4(),
+                action_id,
+                commitment.id,
+                consent_company_id,
+                consent_person_id,
+                draft.party.email,
+                consent_text_version("newsletter", form.newsletter_consent_text),
+                occurred_at,
+            )
+        if draft.photo_consent and form.photo_consent_text is not None:
+            await connection.execute(
+                """
+                UPDATE commitment
+                SET photo_consent_at = $2, photo_consent_text_version = $3
+                WHERE id = $1
+                """,
+                commitment.id,
+                occurred_at,
+                consent_text_version("photos", form.photo_consent_text),
+            )
         recipient_ids = await self._activity_recipients(
             connection,
             action_id=action_id,

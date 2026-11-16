@@ -1,4 +1,5 @@
 ---
+import OrderFacts from "../../../public/src/components/OrderFacts.astro";
 import type { PublicCampaignRouteResponse } from "@leonaid/api-client";
 import type { CampaignPageFields } from "../campaign-fields.generated";
 import { editorialHtml } from "../public/editorial-html.mjs";
@@ -119,11 +120,7 @@ const logo = content.brand_logo;
       </dd>
     </div>
     <div><dt>Gemeinsam engagiert</dt><dd>{action.carrierName}</dd></div>
-    <div>
-      <dt>Dieser Jahrgang</dt><dd data-testid="public-canonical-path">
-        {route.canonicalPath}
-      </dd>
-    </div>
+    <OrderFacts offerings={action.offerings} orderForm={action.orderForm} />
   </dl>
 </section>
 {

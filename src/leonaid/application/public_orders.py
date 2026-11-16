@@ -235,6 +235,9 @@ class PublicOrderDraft:
     delivery_contact: DeliveryContactSnapshot | None = None
     # A voluntary extra donation, not part of the order total (ADR-0016).
     donation_amount_minor: int | None = None
+    # Optional consents the form offered (E-068); false when not offered.
+    newsletter_consent: bool = False
+    photo_consent: bool = False
 
     def __post_init__(self) -> None:
         if self.delivery_contact is not None and self.delivery_contact.empty:
@@ -380,6 +383,10 @@ class PublicOrderDraft:
             payload["deliveryContact"] = self.delivery_contact.payload()
         if self.donation_amount_minor is not None:
             payload["donationAmountMinor"] = self.donation_amount_minor
+        if self.newsletter_consent:
+            payload["newsletterConsent"] = True
+        if self.photo_consent:
+            payload["photoConsent"] = True
         canonical = json.dumps(
             payload,
             ensure_ascii=False,
@@ -734,6 +741,12 @@ class PublicOrderService:
                 require_publicly_bookable(
                     context.delivery_configuration, draft.delivery_window_id
                 )
+                # Members may take an order outside the area; the public
+                # form may not.
+                if draft.delivery_recipient is not None:
+                    context.delivery_configuration.require_delivery_area(
+                        draft.delivery_recipient.postal_code
+                    )
             party = await self._resolve_party(
                 draft.party,
                 address=draft.delivery_recipient or draft.invoice_recipient,
@@ -787,6 +800,19 @@ class PublicOrderService:
             raise Conflict(
                 "public_order_donation_not_offered",
                 "Über dieses Formular kann derzeit keine Spende zugesagt werden.",
+            )
+        form = context.order_form
+        if draft.newsletter_consent and form.newsletter_consent_text is None:
+            raise Conflict(
+                "public_order_consent_not_offered",
+                "Dieses Formular fragt keine Newsletter-Einwilligung ab. "
+                "Bitte laden Sie die Seite neu.",
+            )
+        if draft.photo_consent and form.photo_consent_text is None:
+            raise Conflict(
+                "public_order_consent_not_offered",
+                "Dieses Formular fragt keine Foto-Einwilligung ab. "
+                "Bitte laden Sie die Seite neu.",
             )
 
     async def _resolve_party(

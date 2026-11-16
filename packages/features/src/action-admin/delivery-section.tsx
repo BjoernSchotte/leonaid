@@ -27,6 +27,7 @@ import {
   SkeletonRows,
   StatusMessage,
   Switch,
+  Textarea,
   useOptionalToast,
 } from "@leonaid/ui";
 
@@ -255,6 +256,10 @@ function DeliveryWindows({
     nextWindows: DeliveryWindowRequest[],
     done: string,
     start?: { readonly startPoint: DeliveryStartPointRequest | null },
+    area?: {
+      readonly postalCodes: readonly string[];
+      readonly areaLabel: string | null;
+    },
   ): Promise<boolean> {
     setPending(true);
     setError(undefined);
@@ -265,6 +270,9 @@ function DeliveryWindows({
         timezone: change.timezone ?? config.timezone,
         windows: nextWindows,
         ...start,
+        ...(area
+          ? { postalCodes: [...area.postalCodes], areaLabel: area.areaLabel }
+          : {}),
       });
       cache.setQueryData(queryKey, result);
       await cache.invalidateQueries({
@@ -488,6 +496,17 @@ function DeliveryWindows({
         />
       ) : null}
 
+      {!disabled ? (
+        <DeliveryAreaForm
+          key={`area-${config.revision}`}
+          onSave={(area, done) =>
+            save({}, config.windows.map(windowRequest), done, undefined, area)
+          }
+          pending={pending}
+          stored={config}
+        />
+      ) : null}
+
       <WindowModal
         endsOn={endsOn}
         lockedTimezone={windows.length > 0 ? config.timezone : undefined}
@@ -672,6 +691,111 @@ function StartPointForm({
               Startpunkt entfernen
             </Button>
           ) : null}
+        </div>
+      </form>
+    </section>
+  );
+}
+
+/** Postal codes as typed: separated by commas, spaces or line breaks. */
+export function parsePostalCodes(text: string): string[] {
+  return [
+    ...new Set(
+      text
+        .split(/[\s,;]+/)
+        .map((code) => code.trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  ].sort();
+}
+
+/**
+ * The delivery area of public orders (E-068): the form accepts only these
+ * postal codes. Orders that members take are not limited.
+ */
+function DeliveryAreaForm({
+  onSave,
+  pending,
+  stored,
+}: {
+  readonly onSave: (
+    area: { readonly postalCodes: string[]; readonly areaLabel: string | null },
+    done: string,
+  ) => Promise<boolean>;
+  readonly pending: boolean;
+  readonly stored: DeliveryConfigurationResponse;
+}) {
+  const formId = useId();
+  const [label, setLabel] = useState(stored.areaLabel ?? "");
+  const [codes, setCodes] = useState((stored.postalCodes ?? []).join(", "));
+  const parsed = parsePostalCodes(codes);
+  const invalid = parsed.filter((code) => !/^[0-9A-Z]{3,10}$/.test(code));
+  return (
+    <section
+      aria-labelledby={`${formId}-heading`}
+      className="stack delivery-area"
+      data-testid="delivery-area"
+    >
+      <h3 className="tab-h2" id={`${formId}-heading`}>
+        Liefergebiet
+      </h3>
+      <p className="muted small">
+        Das öffentliche Bestellformular nimmt nur Lieferadressen mit diesen
+        Postleitzahlen an. Leer: jede Postleitzahl. Bestellungen, die Mitglieder
+        erfassen, sind nicht beschränkt.
+      </p>
+      <form
+        className="form-grid"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (invalid.length) return;
+          void onSave(
+            { postalCodes: parsed, areaLabel: label.trim() || null },
+            parsed.length
+              ? `Liefergebiet mit ${parsed.length} Postleitzahlen gespeichert.`
+              : "Liefergebiet entfernt: jede Postleitzahl ist möglich.",
+          );
+        }}
+      >
+        <Field
+          hint="So steht es im Formular, zum Beispiel „Stadt und Landkreis Würzburg“."
+          label="Bezeichnung"
+          optional
+        >
+          <Input
+            data-testid="delivery-area-label"
+            maxLength={200}
+            onChange={(event) => setLabel(event.target.value)}
+            value={label}
+          />
+        </Field>
+        <Field
+          error={
+            invalid.length
+              ? `Keine gültige Postleitzahl: ${invalid.slice(0, 5).join(", ")}`
+              : undefined
+          }
+          hint={`${parsed.length} Postleitzahlen. Getrennt durch Komma, Leerzeichen oder Zeilenumbruch.`}
+          label="Postleitzahlen"
+          optional
+        >
+          <Textarea
+            data-testid="delivery-area-codes"
+            onChange={(event) => setCodes(event.target.value)}
+            rows={4}
+            value={codes}
+          />
+        </Field>
+        <div className="tab-head">
+          <Button
+            data-testid="delivery-area-save"
+            loading={pending}
+            type="submit"
+            variant="primary"
+          >
+            Liefergebiet speichern
+          </Button>
         </div>
       </form>
     </section>

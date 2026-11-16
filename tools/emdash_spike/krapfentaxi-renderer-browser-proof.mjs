@@ -102,9 +102,10 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       await expect(page.locator("#datenschutz")).toContainText(
         core.action.orderForm.privacyNoticeText,
       );
+      // The facts no longer show the internal path (E-068).
       await expect(
         page.locator("[data-testid=public-canonical-path]"),
-      ).toHaveText(path);
+      ).toHaveCount(0);
       for (const offering of core.action.offerings)
         await expect(
           page.locator("[data-testid=public-offerings]"),

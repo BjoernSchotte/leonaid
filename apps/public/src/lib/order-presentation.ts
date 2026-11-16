@@ -74,3 +74,19 @@ export function orderQuantitySummary(
       .join(" · ") || "Noch keine Menge gewählt"
   );
 }
+
+/**
+ * "davon 10,00 € für den guten Zweck (1,00 € pro Stück)" from the offering's
+ * donation share (E-068); null when the action states none.
+ */
+export function offeringDonationShare(
+  offering: PublicOfferingResponse,
+): string | null {
+  const share = offering.donationShareMinor;
+  if (share === null || share === undefined) return null;
+  const perPiece =
+    offering.piecesPerUnit && offering.piecesPerUnit > 1
+      ? ` (${money(Math.round(share / offering.piecesPerUnit), offering.currency)} pro Stück)`
+      : "";
+  return `davon ${money(share, offering.currency)} für den guten Zweck${perPiece}`;
+}

@@ -471,6 +471,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                     commitment.idempotency_key,
                     commitment.created_at,
                     commitment.captured_at,
+                    commitment.photo_consent_at,
                     commitment.donation_pledge_minor,
                     donation.id AS donation_id,
                     donation.number AS donation_number,
@@ -1054,6 +1055,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             delivery_contact=decode_contact_snapshot(
                 header["delivery_contact_snapshot"]
             ),
+            photo_consent_at=header.get("photo_consent_at"),
             delivery_recipient=(
                 DeliveryRecipientSnapshot.from_payload(
                     _json_object(
@@ -1333,7 +1335,8 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 id, action_id, source, status,
                 customer_snapshot, invoice_recipient_snapshot,
                 delivery_recipient_snapshot, delivery_window_id, delivery_window_snapshot, delivery_contact_snapshot, message_snapshot, public_reference,
-                currency, total_minor, idempotency_key, captured_at
+                currency, total_minor, idempotency_key, captured_at,
+                photo_consent_at
             FROM commitment
             WHERE id = $1
             """,
@@ -1394,6 +1397,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 row["delivery_window_snapshot"]
             ),
             delivery_contact=decode_contact_snapshot(row["delivery_contact_snapshot"]),
+            photo_consent_at=row["photo_consent_at"],
             delivery_recipient=(
                 DeliveryRecipientSnapshot.from_payload(
                     _json_object(

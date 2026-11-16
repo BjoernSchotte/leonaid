@@ -9,6 +9,7 @@ import PublicBillingFields from "./PublicBillingFields.astro";
 import PublicDeliveryWindows from "./PublicDeliveryWindows.astro";
 import {
   money,
+  offeringDonationShare,
   offeringPrice,
   offeringUnit,
   orderQuantitySummary,
@@ -58,6 +59,9 @@ const donationSent =
 const collectsDelivery = orderForm.requireDeliveryAddress;
 const deliveryConfiguration = orderForm.deliveryConfiguration;
 const deliveryEnabled = Boolean(deliveryConfiguration?.enabled);
+// The delivery area of public orders (E-068); empty: every postal code.
+const deliveryPostalCodes = deliveryConfiguration?.postalCodes ?? [];
+const deliveryArea = deliveryConfiguration?.areaLabel ?? null;
 // No window to choose: every active one is retired or "ausgebucht".
 const deliveryUnavailable =
   deliveryEnabled &&
@@ -268,6 +272,11 @@ const checkIcon = "M20 6 9 17l-5-5";
                       {" · "}
                       {offeringUnit(offering)}
                     </p>
+                    {offeringDonationShare(offering) && (
+                      <p class="small public-offer-share">
+                        {offeringDonationShare(offering)}
+                      </p>
+                    )}
                   </div>
                   <p class="public-offer-price num">
                     {offeringPrice(offering)}
@@ -298,11 +307,11 @@ const checkIcon = "M20 6 9 17l-5-5";
                       name="quantity"
                       type="number"
                       inputmode="numeric"
-                      min={index === 0 ? "1" : "0"}
+                      min={action.offerings.length === 1 ? "1" : "0"}
                       max="5000"
                       step="1"
                       value={quantityFor(offering.id, index)}
-                      required={index === 0}
+                      required={action.offerings.length === 1}
                       data-quantity
                       data-unit-price={offering.unitPriceMinor}
                       data-currency={offering.currency}
@@ -627,8 +636,18 @@ const checkIcon = "M20 6 9 17l-5-5";
                       inputmode="numeric"
                       maxlength="24"
                       required
-                      aria-describedby="deliveryPostalCode-error"
+                      aria-describedby={
+                        deliveryArea
+                          ? "deliveryPostalCode-help deliveryPostalCode-error"
+                          : "deliveryPostalCode-error"
+                      }
+                      data-delivery-postal-codes={deliveryPostalCodes.join(" ")}
                     />
+                    {deliveryArea && (
+                      <p id="deliveryPostalCode-help" class="field-hint">
+                        Liefergebiet: {deliveryArea}
+                      </p>
+                    )}
                     <p
                       id="deliveryPostalCode-error"
                       class="field-error"
@@ -858,6 +877,42 @@ const checkIcon = "M20 6 9 17l-5-5";
                   Vollständige Datenschutzerklärung (öffnet in neuem Tab)
                 </a>
               </p>
+              {orderForm.newsletterConsentText && (
+                <div class="field">
+                  <label class="public-check" for="newsletterConsent">
+                    <input
+                      id="newsletterConsent"
+                      type="checkbox"
+                      name="newsletterConsent"
+                      value="true"
+                      checked={redisplay?.fields.newsletterConsent === "true"}
+                      data-testid="order-newsletter-consent"
+                    />
+                    <span>
+                      {orderForm.newsletterConsentText}
+                      <small>Freiwillig.</small>
+                    </span>
+                  </label>
+                </div>
+              )}
+              {orderForm.photoConsentText && (
+                <div class="field">
+                  <label class="public-check" for="photoConsent">
+                    <input
+                      id="photoConsent"
+                      type="checkbox"
+                      name="photoConsent"
+                      value="true"
+                      checked={redisplay?.fields.photoConsent === "true"}
+                      data-testid="order-photo-consent"
+                    />
+                    <span>
+                      {orderForm.photoConsentText}
+                      <small>Freiwillig.</small>
+                    </span>
+                  </label>
+                </div>
+              )}
               <div class="field">
                 <label class="public-check" for="privacyAcknowledged">
                   <input
@@ -905,6 +960,14 @@ const checkIcon = "M20 6 9 17l-5-5";
                   data-error-for="bindingOrderConfirmed"
                 />
               </div>
+              {orderForm.withdrawalNotice && (
+                <p
+                  class="public-withdrawal small muted"
+                  data-testid="order-withdrawal-notice"
+                >
+                  {orderForm.withdrawalNotice}
+                </p>
+              )}
             </fieldset>
 
             <div class="honeypot" aria-hidden="true">

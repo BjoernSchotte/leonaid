@@ -128,6 +128,9 @@ export const server = {
       bindingOrderConfirmed: z.boolean().refine(Boolean, {
         message: "Bitte bestätigen Sie die verbindliche Bestellung.",
       }),
+      // Optional consents; only sent when the form offers them (E-068).
+      newsletterConsent: z.boolean().optional(),
+      photoConsent: z.boolean().optional(),
       privacyNoticeVersion: z.string().regex(/^[a-z0-9][a-z0-9._-]{2,63}$/),
       website: optionalText(300),
     }),
@@ -240,6 +243,8 @@ export const server = {
               : {}),
             privacyAcknowledged: input.privacyAcknowledged,
             bindingOrderConfirmed: input.bindingOrderConfirmed,
+            ...(input.newsletterConsent ? { newsletterConsent: true } : {}),
+            ...(input.photoConsent ? { photoConsent: true } : {}),
             privacyNoticeVersion: input.privacyNoticeVersion,
             website: input.website || null,
           },

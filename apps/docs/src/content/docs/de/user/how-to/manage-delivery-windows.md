@@ -63,6 +63,21 @@ Hat inzwischen eine andere Person die Lieferfenster geändert, lädt der Dialog
 den aktuellen Stand und behält deine Eingaben. Prüfe sie und wähle erneut
 **Speichern**.
 
+## Liefergebiet
+
+Unter **Liefergebiet** trägst du die **Postleitzahlen** ein, an die das
+öffentliche Bestellformular liefert, getrennt durch Komma, Leerzeichen oder
+Zeilenumbruch, und optional eine **Bezeichnung** wie „Stadt und Landkreis
+Würzburg“. Wähle **Liefergebiet speichern**.
+
+- Das Formular nennt die Bezeichnung unter der PLZ und lehnt andere
+  Postleitzahlen mit **Diese Postleitzahl liegt außerhalb unseres
+  Liefergebiets** ab.
+- Die Kampagnenseite zeigt die Bezeichnung und die Liefertage aus den offenen
+  Fenstern.
+- Ohne Postleitzahlen ist jede Lieferadresse möglich. Bestellungen, die
+  Mitglieder erfassen, sind nie beschränkt.
+
 ## Fehlende Lieferangaben ergänzen
 
 Bestellungen, die vor dem Aktivieren der Lieferplanung erfasst wurden, haben

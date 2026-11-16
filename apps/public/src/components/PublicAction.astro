@@ -8,7 +8,11 @@ import type {
 import PublicInbox from "./PublicInbox.astro";
 import PublicOrder from "./PublicOrder.astro";
 import { moduleEnabled } from "../lib/modules";
-import { offeringPrice, offeringUnit } from "../lib/order-presentation";
+import {
+  offeringDonationShare,
+  offeringPrice,
+  offeringUnit,
+} from "../lib/order-presentation";
 import type { PublicTheme } from "../themes";
 import { PRIVACY_PATH } from "../lib/legal-notice";
 
@@ -190,6 +194,11 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                       ? `${offering.piecesPerUnit} Stück pro Einheit`
                       : "Direkte Unterstützung"}
                   </p>
+                  {offeringDonationShare(offering) && (
+                    <p class="offering-row__share">
+                      {offeringDonationShare(offering)}
+                    </p>
+                  )}
                 </div>
                 <p class="offering-row__price">
                   <strong>{offeringPrice(offering)}</strong>

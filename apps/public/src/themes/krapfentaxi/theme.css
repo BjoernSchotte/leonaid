@@ -226,6 +226,15 @@
   overflow-wrap: anywhere;
 }
 
+.order-facts__line {
+  display: block;
+}
+
+.order-deadline__remaining {
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
 .taxi-bakery {
   background: var(--surface);
 }
