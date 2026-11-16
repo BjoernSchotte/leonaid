@@ -66,8 +66,12 @@ E2E_SHARDS = (
     "invoice-flows",
 )
 
-# Always-on jobs of ci.yml; the CI gate requires each.
-HEAVY_JOBS = ("security", "vulnerability", "build")
+# Always-on jobs of ci.yml; the CI gate requires each. Build runs whenever
+# the selector succeeded (on main it writes the shared layer cache); the
+# checks run unless a pull-request proof of the same tree covers them
+# (select_suites.CHECKS, tools/ci/post_merge.py proof).
+HEAVY_JOBS = ("build",)
+CHECK_JOBS = ("lint", "unit", "security", "vulnerability")
 # Workflows with a post-merge tier: every push to main runs the suites of the
 # paths changed since the last green run there (select-suites.yml
 # post-merge), a newer push cancels an older run, the watchdog reports a red
@@ -185,7 +189,9 @@ def check(path: Path) -> list[str]:
             problems.append(f"Job missing: {job}")
     # Summaries have no test output; their matrix legs publish evidence.
     evidence_jobs = len(REQUIRED_JOBS - NO_EVIDENCE)
-    if text.count("actions/upload-artifact@") < evidence_jobs:
+    # The CI gate's ci-proof upload is no test evidence.
+    uploads = text.count("actions/upload-artifact@") - text.count("name: ci-proof")
+    if uploads < evidence_jobs:
         problems.append("Not every job publishes evidence artifacts.")
     if text.count("if: always()") < evidence_jobs:
         problems.append("Not every artifact upload also runs after failures.")
@@ -273,12 +279,37 @@ def check(path: Path) -> list[str]:
             or "outputs." in condition
         ):
             problems.append(f"{job} must run whenever the selector succeeded.")
+    gate = job_block(text, "gate")
+    for job in CHECK_JOBS:
+        block = job_block(text, job)
+        found = re.search(r"(?m)^    if: (.*)$", block)
+        condition = found.group(1) if found else ""
+        if (
+            "select" not in needs_of(block)
+            or "needs.select.result == 'success'" not in condition
+            or f"needs.select.outputs.{select_suites.CHECKS} == 'true'" not in condition
+            or f"--selectable {job}={select_suites.CHECKS}" not in gate
+        ):
+            problems.append(
+                f"{job} must run whenever the selector succeeded and selected "
+                "the checks, and the CI gate must require it as selectable."
+            )
+    if (
+        "python3 tools/ci/post_merge.py record" not in gate
+        or "name: ci-proof" not in gate
+        or "needs.select.outputs.proved" not in gate
+    ):
+        problems.append(
+            "ci.yml: the CI gate of a pull request must record its proof "
+            "(tools/ci/post_merge.py record, artifact ci-proof)."
+        )
     build = job_block(text, "build")
     if (
         "write: ${{ github.ref == 'refs/heads/main' && github.event_name != "
         "'pull_request' && 'true' || 'false' }}"
         not in build
-        or text.count("write: ") != build.count("write: ")
+        or len(re.findall(r"(?<!over)write: ", text))
+        != len(re.findall(r"(?<!over)write: ", build))
     ):
         problems.append(
             "ci.yml: only the Build job of runs on main may write the shared cache."
@@ -804,6 +835,7 @@ def check_repository(root: Path) -> list[str]:
         or "python3 tools/ci/gate.py" not in api
         or not all(item in api for item in GATE_CONTEXT)
         or not {"select", "lint", "integration-shards"} <= needs_of(api)
+        or f"--selectable lint={select_suites.CHECKS}" not in api
         or "tools/openapi/breaking.py" not in job_block(ci, "lint")
     ):
         problems.append(

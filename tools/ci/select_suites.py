@@ -23,6 +23,12 @@ personal-account repository):
 * nightly ``schedule``, ``workflow_dispatch``, ``push`` without a diff
   (probe branch): everything, including every E2E leaf.
 
+Proof reuse (``--proved``): a push to main whose tree is exactly the tree a
+green pull-request run tested leaves out the suites that run already proved
+(``tools/ci/post_merge.py proof``), the always-on checks (``CHECKS``)
+included. Identical files are identical inputs; the nightly complete run
+still repeats everything. Without a matching proof nothing is left out.
+
 Each changed path is matched against ``RULES``; the first matching rule wins.
 A path that no rule matches selects every non-E2E suite, so a new directory
 is safe by default and only becomes cheaper once someone maps it here
@@ -249,6 +255,10 @@ FAST_REQUIRED: dict[str, tuple[str, ...]] = {
 HEAVY_FLAGS = frozenset({"golden", "surveys"})
 
 ALL = "*"
+# Lint and types, Unit, Security and the Vulnerability gate: they run on
+# every event and are left out only by a pull-request proof of the same tree.
+# Build always runs: on main it writes the shared layer cache.
+CHECKS = "checks"
 # ci.yml's only schedule: the nightly run executes every E2E leaf.
 NIGHTLY_SCHEDULE = "7 3 * * *"
 # The lead sets it on risky pull requests: the complete suite before merge.
@@ -1172,6 +1182,8 @@ class Selection:
     tier: str = "complete"
     # What the change selects but the fast tier leaves to the post-merge run.
     deferred: frozenset[str] = frozenset()
+    # What a pull-request run of the same tree already proved (push only).
+    proved: frozenset[str] = frozenset()
 
     def shards(self, prefix: str, names: Sequence[str]) -> list[str]:
         return [n for n in names if f"{prefix}:{n}" in self.suites]
@@ -1218,6 +1230,10 @@ class Selection:
             "e2e": json.dumps(matrix(self.e2e_bins(), lambda _: "browser")),
             "emdash": json.dumps(matrix(self.emdash_bins(), emdash_bootstrap)),
             "tier": self.tier,
+            "checks": json.dumps(CHECKS not in self.proved),
+            # What this run proves when its gate passes (the CI gate records
+            # it for the post-merge run of the same tree).
+            "proved": ",".join(sorted(self.suites | {CHECKS})),
         }
         for flag in FLAGS:
             result[flag] = json.dumps(flag in self.suites)
@@ -1305,6 +1321,14 @@ def fast_tier(
     return suites, mapped.suites - suites
 
 
+def without_proved(suites: frozenset[str], proved: frozenset[str]) -> frozenset[str]:
+    """Suites a pull-request run of the same tree has not proved yet."""
+    if e2e(*E2E_SHARDS) <= proved:
+        # The smoke leg repeats three tests of the proved leaves.
+        proved = proved | {SMOKE}
+    return suites - proved
+
+
 def select(
     event: str,
     paths: Sequence[str],
@@ -1312,6 +1336,7 @@ def select(
     schedule: str = "",
     full_ci: bool = False,
     root: Path | None = None,
+    proved: frozenset[str] = frozenset(),
 ) -> Selection:
     """Suites for an event (see the module docstring for the tiers).
 
@@ -1320,19 +1345,37 @@ def select(
 
     ``push`` with ``paths`` is the post-merge run on main: the paths changed
     since the last green run there. ``push`` without paths (no green run
-    found, the probe branch) runs the complete suite.
+    found, the probe branch) runs the complete suite. On a push, ``proved``
+    (a green pull-request run of the same tree) is left out.
     """
     changed = sorted({p.strip() for p in paths if p.strip()})
+    proved = proved if event == "push" else frozenset()
     if event == "push" and changed:
         mapped = map_paths(changed, root)
-        full = mapped.suites >= everything()
+        suites = without_proved(mapped.suites, proved)
+        full = suites >= everything()
         reason = (
             "post-merge: complete suite"
             if full
             else "post-merge: suites of the paths changed since the last green run"
         )
+        if proved:
+            reason += "; a pull-request run of the same tree proved the rest"
         return Selection(
-            full, reason, mapped.suites, mapped.explanation, tier="post-merge"
+            full,
+            reason,
+            suites,
+            mapped.explanation,
+            tier="post-merge",
+            proved=proved,
+        )
+    if event == "push" and proved:
+        suites = without_proved(everything(), proved)
+        return Selection(
+            False,
+            "push: complete suite; a pull-request run of the same tree proved the rest",
+            suites,
+            proved=proved,
         )
     if event != "pull_request":
         return Selection(True, f"{event}: complete suite", everything())
@@ -1424,6 +1467,13 @@ def summary(selection: Selection) -> str:
         lines.append(f"| {key} | {jobs or '—'} |")
     for key in FLAGS:
         lines.append(f"| {key} | `{outputs[key]}` |")
+    lines.append(f"| {CHECKS} | `{outputs[CHECKS]}` |")
+    if selection.proved:
+        lines += [
+            "",
+            "**Proved by a pull-request run of the same tree:** "
+            + ", ".join(f"`{suite}`" for suite in sorted(selection.proved)),
+        ]
     if selection.deferred:
         lines += [
             "",
@@ -1465,6 +1515,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--paths-file", help="newline-separated changed paths instead of git diff"
     )
+    parser.add_argument(
+        "--proved",
+        default="",
+        help="push only: comma-separated suites a green pull-request run of the "
+        "same tree proved (tools/ci/post_merge.py proof)",
+    )
     parser.add_argument("--explain", action="store_true", help="print per-path rules")
     args = parser.parse_args(argv)
     if args.list:
@@ -1500,6 +1556,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.base_ref,
         schedule=args.schedule,
         full_ci=FULL_CI_LABEL in labels,
+        proved=frozenset(s.strip() for s in args.proved.split(",") if s.strip()),
     )
     outputs = selection.outputs()
     for warning in load_warnings(selection):

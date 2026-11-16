@@ -8,6 +8,19 @@ superseded run's paths therefore stay in the next diff. Prints the SHA, or
 nothing (the selector then runs the complete suite) when there is none or
 the API cannot be read; never fails.
 
+``record``: the proof a green pull-request run leaves for the post-merge
+run (the CI gate uploads it as the ``ci-proof`` artifact): the tree it
+tested and the suites it ran (``select_suites.py`` output ``proved``).
+
+``proof``: the suites the post-merge run may leave out. HEAD must be the
+merge commit of a pull request (its second parent the pull request's head),
+and a green pull-request run of that head must have recorded exactly HEAD's
+tree; then the recorded suites print comma-separated. Identical files are
+identical inputs, so those suites are proved for this commit already. Any
+other case (squash merge, main moved before the merge, no or unreadable
+proof, an API failure) prints nothing: the post-merge run then selects as
+before. Never fails.
+
 ``latest``: the run nightly-watchdog.yml judges for one entry, read as the
 runs API JSON from stdin: for ``--event push`` the newest completed run that
 was not cancelled (superseded or cancelled by hand: its commits are in the
@@ -23,12 +36,23 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import subprocess
 import sys
+import tempfile
 import urllib.request
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any
 
 BASE_EVENTS = frozenset({"push", "schedule", "workflow_dispatch"})
+PROOF_ARTIFACT = "ci-proof"
+PROOF_FILE = "proof.json"
+PROOF_VERSION = 1
+# Newest green pull-request runs of the head whose proof is tried.
+PROOF_CANDIDATES = 3
+SUITE = re.compile(r"[a-z0-9][a-z0-9:-]*")
+TREE = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
 
 
 def newest_first(runs: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
@@ -67,15 +91,123 @@ def pick_latest(
     return None
 
 
+def proof_record(tree: str, suites: str) -> dict[str, Any]:
+    """The ci-proof artifact of a green pull-request run."""
+    names = sorted({name.strip() for name in suites.split(",") if name.strip()})
+    if not TREE.fullmatch(tree) or not names:
+        raise ValueError(f"no proof without a tree and suites: {tree!r} {suites!r}")
+    for name in names:
+        if not SUITE.fullmatch(name):
+            raise ValueError(f"not a suite name: {name!r}")
+    return {"version": PROOF_VERSION, "tree": tree, "suites": names}
+
+
+def proved_suites(proof: object, tree: str) -> list[str]:
+    """The suites a proof covers for this tree; nothing unless it matches exactly."""
+    if not isinstance(proof, Mapping) or proof.get("version") != PROOF_VERSION:
+        return []
+    if not TREE.fullmatch(tree) or proof.get("tree") != tree:
+        return []
+    suites = proof.get("suites")
+    if not isinstance(suites, list) or not suites:
+        return []
+    if not all(isinstance(name, str) and SUITE.fullmatch(name) for name in suites):
+        return []
+    return sorted(set(suites))
+
+
+def proof_runs(
+    runs: Sequence[Mapping[str, Any]], repository: str, head: str
+) -> list[int]:
+    """Newest green pull-request runs of this head from this repository."""
+    chosen: list[int] = []
+    for run in newest_first(runs):
+        source = run.get("head_repository")
+        if (
+            run.get("event") == "pull_request"
+            and run.get("status", "completed") == "completed"
+            and run.get("conclusion") == "success"
+            and run.get("head_sha") == head
+            and isinstance(source, Mapping)
+            and source.get("full_name") == repository
+            and run.get("id")
+        ):
+            chosen.append(int(run["id"]))
+    return chosen[:PROOF_CANDIDATES]
+
+
+def git(*arguments: str) -> str:
+    return subprocess.run(
+        ["git", *arguments], capture_output=True, text=True, check=True
+    ).stdout.strip()
+
+
+def download_proof(run_id: int, repository: str) -> object:
+    """The ci-proof of a run (gh reads GH_TOKEN), or None."""
+    with tempfile.TemporaryDirectory() as directory:
+        result = subprocess.run(
+            [
+                "gh",
+                "run",
+                "download",
+                str(run_id),
+                "--repo",
+                repository,
+                "--name",
+                PROOF_ARTIFACT,
+                "--dir",
+                directory,
+            ],
+            capture_output=True,
+            text=True,
+        )
+        path = Path(directory) / PROOF_FILE
+        if result.returncode != 0 or not path.is_file():
+            return None
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except ValueError:
+            return None
+
+
+def find_proof(environ: Mapping[str, str]) -> list[str]:
+    """Suites a green pull-request run proved for HEAD's tree (see ``proof``)."""
+    repository = environ.get("GITHUB_REPOSITORY", "")
+    parents = git("rev-list", "--parents", "-n1", "HEAD").split()
+    if len(parents) != 3:
+        return []
+    tree = git("rev-parse", "HEAD^{tree}")
+    runs = fetch_runs(
+        repository,
+        workflow_file(environ.get("WORKFLOW_REF", "")),
+        environ.get("GH_TOKEN", ""),
+        f"event=pull_request&head_sha={parents[2]}&status=success&per_page=20",
+    )
+    for run_id in proof_runs(runs, repository, parents[2]):
+        suites = proved_suites(download_proof(run_id, repository), tree)
+        if suites:
+            print(
+                f"post-merge: run {run_id} proved tree {tree}: {', '.join(suites)}",
+                file=sys.stderr,
+            )
+            return suites
+    return []
+
+
 def workflow_file(workflow_ref: str) -> str:
     """ci.yml from owner/repo/.github/workflows/ci.yml@refs/heads/main."""
     return workflow_ref.split("@", 1)[0].rsplit("/", 1)[-1]
 
 
-def fetch_runs(repository: str, workflow: str, token: str) -> list[Mapping[str, Any]]:
+def fetch_runs(
+    repository: str,
+    workflow: str,
+    token: str,
+    query: str = "branch=main&status=success&per_page=50",
+) -> list[Mapping[str, Any]]:
     request = urllib.request.Request(
         f"https://api.github.com/repos/{repository}/actions/workflows/{workflow}"
-        "/runs?branch=main&status=success&per_page=50",
+        f"/runs?{query}",
         headers={
             "Accept": "application/vnd.github+json",
             "Authorization": f"Bearer {token}",
@@ -94,6 +226,12 @@ def main(
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("base", help="green base of this push (env WORKFLOW_REF, SHA)")
+    record = commands.add_parser("record", help="print the ci-proof of a green run")
+    record.add_argument("--tree", required=True)
+    record.add_argument("--suites", required=True)
+    commands.add_parser(
+        "proof", help="suites a PR run proved for HEAD's tree (env WORKFLOW_REF)"
+    )
     latest = commands.add_parser(
         "latest", help="watchdog run choice (runs JSON on stdin)"
     )
@@ -113,6 +251,18 @@ def main(
         base = pick_base(runs, environ.get("SHA", ""))
         if base:
             print(base)
+        return 0
+    if args.command == "record":
+        print(json.dumps(proof_record(args.tree, args.suites), sort_keys=True))
+        return 0
+    if args.command == "proof":
+        try:
+            suites = find_proof(environ)
+        except (OSError, ValueError, subprocess.CalledProcessError) as error:
+            print(f"post-merge: WARNING: proof lookup failed: {error}", file=sys.stderr)
+            return 0
+        if suites:
+            print(",".join(suites))
         return 0
     data = json.load(sys.stdin)
     listed = data.get("workflow_runs") if isinstance(data, dict) else None

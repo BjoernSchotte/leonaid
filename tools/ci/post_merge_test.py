@@ -144,14 +144,128 @@ def test_watchdog() -> None:
     )
 
 
+TREE = "1" * 40
+HEAD = "2" * 40
+
+
+def pr_run(
+    number: int, head: str = HEAD, repository: str = "o/r", **extra: Any
+) -> dict[str, Any]:
+    return (
+        run(number, "pull_request", "success", head, branch="feature")
+        | {"head_repository": {"full_name": repository}}
+        | extra
+    )
+
+
+def lookup(
+    parents: str,
+    runs: list[dict[str, Any]],
+    proofs: dict[int, object],
+    fail: bool = False,
+) -> tuple[int, str]:
+    """`post_merge.py proof` with git, the runs API and gh replaced."""
+
+    def git(*arguments: str) -> str:
+        if fail:
+            raise OSError("no git")
+        return parents if arguments[0] == "rev-list" else TREE
+
+    def fetch(*_: object) -> list[dict[str, Any]]:
+        return runs
+
+    def download(run_id: int, repository: str) -> object:
+        return proofs.get(run_id) if repository == "o/r" else None
+
+    originals = (post_merge.git, post_merge.fetch_runs, post_merge.download_proof)
+    post_merge.git = git
+    post_merge.fetch_runs = fetch  # type: ignore[assignment]
+    post_merge.download_proof = download
+    printed = io.StringIO()
+    try:
+        with (
+            contextlib.redirect_stdout(printed),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            status = post_merge.main(
+                ["proof"], {"GITHUB_REPOSITORY": "o/r", "WORKFLOW_REF": "o/r/ci.yml@m"}
+            )
+    finally:
+        post_merge.git, post_merge.fetch_runs, post_merge.download_proof = originals
+    return status, printed.getvalue().strip()
+
+
+def test_proof() -> None:
+    record = post_merge.proof_record(TREE, "golden, checks,integration:policy,checks")
+    expect(
+        record
+        == {
+            "version": 1,
+            "tree": TREE,
+            "suites": ["checks", "golden", "integration:policy"],
+        },
+        f"record: {record}",
+    )
+    for tree, suites in ((TREE, ""), ("main", "checks"), (TREE, "checks,Bad Name")):
+        try:
+            post_merge.proof_record(tree, suites)
+        except ValueError:
+            continue
+        FAILURES.append(f"record must refuse {tree!r} {suites!r}")
+    merge = f"{'3' * 40} {'4' * 40} {HEAD}"
+    cases: tuple[tuple[str, list[dict[str, Any]], dict[int, object], str, str], ...] = (
+        (
+            merge,
+            [pr_run(1)],
+            {1: record},
+            "checks,golden,integration:policy",
+            "same tree",
+        ),
+        (merge, [pr_run(1)], {1: record | {"tree": "5" * 40}}, "", "another tree"),
+        (merge, [pr_run(1)], {1: record | {"version": 2}}, "", "unknown version"),
+        (merge, [pr_run(1)], {1: record | {"suites": ["x y"]}}, "", "bad suite"),
+        (merge, [pr_run(1)], {1: None}, "", "no artifact"),
+        (merge, [pr_run(1, repository="fork/r")], {1: record}, "", "a fork's run"),
+        (merge, [pr_run(1, head="6" * 40)], {1: record}, "", "another head"),
+        (merge, [pr_run(1, conclusion="failure")], {1: record}, "", "a red run"),
+        (
+            merge,
+            [pr_run(1), pr_run(2)],
+            {1: record, 2: record | {"tree": "5" * 40}},
+            "checks,golden,integration:policy",
+            "an older run of the same head may hold the proof",
+        ),
+        (f"{'3' * 40} {'4' * 40}", [pr_run(1)], {1: record}, "", "a squash merge"),
+        (merge, [], {}, "", "no pull-request run"),
+    )
+    for parents, runs, proofs, want, what in cases:
+        status, printed = lookup(parents, runs, proofs)
+        expect(
+            status == 0 and printed == want, f"proof: {what}: {printed!r} != {want!r}"
+        )
+    status, printed = lookup(merge, [pr_run(1)], {1: record}, fail=True)
+    expect(
+        status == 0 and printed == "", "a failing lookup proves nothing and never fails"
+    )
+    many = [pr_run(n) for n in range(1, 10)]
+    expect(
+        post_merge.proof_runs(many, "o/r", HEAD) == [9, 8, 7],
+        "only the newest runs are tried",
+    )
+
+
 def main() -> int:
     test_base()
     test_watchdog()
+    test_proof()
     if FAILURES:
         for failure in FAILURES:
             print(f"post-merge-test: ERROR: {failure}", file=sys.stderr)
         return 1
-    print("post-merge-test: OK: green base, own commit, PR runs, watchdog run choice")
+    print(
+        "post-merge-test: OK: green base, own commit, PR runs, watchdog run choice, "
+        "proof of the same tree"
+    )
     return 0
 
 

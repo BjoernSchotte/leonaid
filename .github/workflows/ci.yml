@@ -55,8 +55,11 @@ jobs:
       contents: read
 
   lint:
-    # Stack-free: three parallel lanes inside tools/ci/lint-types.sh.
-    if: github.event.pull_request.draft != true
+    # Stack-free: three parallel lanes inside tools/ci/lint-types.sh. Like
+    # Unit, Security and the Vulnerability gate it runs on every event; only
+    # a pull-request proof of the same tree leaves it out after the merge.
+    needs: select
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.checks == 'true' }}
     name: Lint and types
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -96,7 +99,8 @@ jobs:
   unit:
     # Stack-free: the exhaustive disclosure solver proof is spread over
     # parallel pytest processes beside the other unit tests (tools/ci/unit.sh).
-    if: github.event.pull_request.draft != true
+    needs: select
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.checks == 'true' }}
     name: Unit
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -281,7 +285,7 @@ jobs:
     # Builds every own image and scans it, the checkout, both lockfiles and
     # every pinned third-party image (tools/security/vulnerability-scan.sh).
     needs: select
-    if: ${{ !cancelled() && needs.select.result == 'success' }}
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.checks == 'true' }}
     name: Vulnerability gate
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -315,7 +319,7 @@ jobs:
     # Policy self-tests and the secret scan beside the security stack test;
     # the image gate is the vulnerability job.
     needs: [select, fixture]
-    if: ${{ !cancelled() && needs.select.result == 'success' && needs.fixture.result == 'success' }}
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.checks == 'true' && needs.fixture.result == 'success' }}
     name: Security
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -599,6 +603,10 @@ jobs:
           FULL_CI_GATE: "true"
         run: |
           set -- --name "CI gate" \
+            --selectable lint=checks \
+            --selectable unit=checks \
+            --selectable security=checks \
+            --selectable vulnerability=checks \
             --selectable integration-shards=integration \
             --selectable e2e=e2e \
             --selectable emdash-cases=emdash \
@@ -606,6 +614,27 @@ jobs:
             --selectable surveys=surveys \
             --may-skip backup-recovery
           python3 tools/ci/gate.py "$@"
+      # A green pull-request run leaves its proof: the tree it tested and the
+      # suites it ran. The post-merge run of exactly this tree leaves those
+      # out (select-suites.yml, tools/ci/post_merge.py proof).
+      - name: Record the proved suites for the post-merge run
+        if: github.event_name == 'pull_request'
+        env:
+          PROVED: ${{ needs.select.outputs.proved }}
+        run: |
+          mkdir -p .artifacts/ci/proof
+          python3 tools/ci/post_merge.py record --tree "$(git rev-parse 'HEAD^{tree}')" \
+            --suites "$PROVED" > .artifacts/ci/proof/proof.json
+          cat .artifacts/ci/proof/proof.json
+      - name: Publish the proof
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-proof
+          path: .artifacts/ci/proof/proof.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 14
 
   survey-gate:
     # Required check of the repository ruleset since before decision E-027;
@@ -646,4 +675,7 @@ jobs:
           # A stacked result never passes (tools/ci/gate.py stacked).
           BASE_REF: ${{ github.base_ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: python3 tools/ci/gate.py --name "API contract gate" --selectable integration-shards=integration
+        run: >-
+          python3 tools/ci/gate.py --name "API contract gate"
+          --selectable lint=checks
+          --selectable integration-shards=integration

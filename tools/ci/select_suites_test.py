@@ -55,7 +55,7 @@ def flat(selection: s.Selection) -> dict[str, Any]:
     raw = {
         k: json.loads(v)
         for k, v in selection.outputs().items()
-        if k not in ("reason", "tier")
+        if k not in ("reason", "tier", "proved")
     }
     for key in BINNED:
         raw[key] = [shard for leg in raw[key] for shard in leg["shards"].split()]
@@ -103,7 +103,9 @@ def label_tier(labels: str) -> str:
 
 def stack_suites(result: dict[str, Any]) -> dict[str, Any]:
     """Only what starts a runner: matrix shards plus the flags."""
-    return {k: v for k, v in result.items() if k in BINNED or v is True}
+    return {
+        k: v for k, v in result.items() if k in BINNED or (v is True and k != s.CHECKS)
+    }
 
 
 # Path -> exactly the suites it must start (flags that are true, shard lists).
@@ -775,6 +777,50 @@ def main() -> int:
         not s.matches("tests/e2e/sub/x.spec.mjs", ["tests/e2e/*.spec.mjs"]),
         "* is one segment",
     )
+
+    # Proof reuse: a push whose tree a green pull-request run tested leaves
+    # out what that run proved, the always-on checks included.
+    fast_run = pr("src/leonaid/modules/tasks/service.py")
+    proved = frozenset(fast_run.outputs()["proved"].split(","))
+    expect(
+        s.CHECKS in proved and fast_run.outputs()["checks"] == "true",
+        "a pull-request run always runs and proves the checks",
+    )
+    reused = s.select("push", ["src/leonaid/modules/tasks/service.py"], proved=proved)
+    expect(
+        reused.suites == post("src/leonaid/modules/tasks/service.py").suites - proved
+        and reused.outputs()["checks"] == "false"
+        and reused.tier == "post-merge",
+        f"post-merge leaves out what the fast tier proved: {sorted(reused.suites)}",
+    )
+    complete_pr = frozenset(
+        s.select("pull_request", ["x.py"], full_ci=True).outputs()["proved"].split(",")
+    )
+    for paths in ([], ["brand-new/thing.py"], ["src/leonaid/platform/x.py"]):
+        nothing = s.select("push", paths, proved=complete_pr)
+        expect(
+            nothing.suites == frozenset()
+            and not nothing.full
+            and nothing.outputs()["checks"] == "false"
+            and all(json.loads(nothing.outputs()[k]) == [] for k in BINNED),
+            f"a full-ci proof of the same tree leaves nothing for {paths}: "
+            f"{sorted(nothing.suites)}",
+        )
+    leaves_only = frozenset(s.e2e(*s.E2E_SHARDS))
+    expect(
+        s.SMOKE
+        not in s.select("push", ["brand-new/thing.py"], proved=leaves_only).suites,
+        "proved E2E leaves make the smoke leg redundant",
+    )
+    for event in ("pull_request", "schedule", "workflow_dispatch"):
+        ignored = s.select(event, ["src/leonaid/x.py"], proved=complete_pr)
+        expect(
+            not ignored.proved and ignored.outputs()["checks"] == "true",
+            f"{event}: a proof never shrinks the run",
+        )
+    with contextlib.redirect_stdout(io.StringIO()):
+        status = s.main(["--event", "push", "--proved", "checks,golden"])
+    expect(status == 0, "the CLI accepts --proved")
 
     if FAILURES:
         for failure in FAILURES:
