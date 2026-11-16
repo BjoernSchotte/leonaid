@@ -19,6 +19,9 @@ describe("base paths (specs/multi-domain §6.7)", () => {
     expect(loginHref({ pathname: "/admin/orders", search: "?open=1" })).toBe(
       "/login?returnTo=%2Fadmin%2Forders%3Fopen%3D1",
     );
+    expect(
+      loginHref({ hash: "#aliases", pathname: "/admin/actions/x", search: "" }),
+    ).toBe("/login?returnTo=%2Fadmin%2Factions%2Fx%23aliases");
   });
 });
 

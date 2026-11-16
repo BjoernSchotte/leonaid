@@ -53,7 +53,7 @@ const invoiceCount = (count: number) =>
 
 function freshLogin() {
   const returnTo = encodeURIComponent(
-    `${window.location.pathname}${window.location.search}`,
+    `${window.location.pathname}${window.location.search}${window.location.hash}`,
   );
   window.location.assign(`/fresh-login?returnTo=${returnTo}`);
 }
