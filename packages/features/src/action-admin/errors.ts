@@ -66,7 +66,9 @@ export function actionErrorMessage(
   }
   if (error.detail.code === "fresh_login_required") {
     const target = encodeURIComponent(
-      returnTo ?? `${window.location.pathname}${window.location.search}`,
+      // The hash keeps the open tab (e.g. #aliases) after the confirmation.
+      returnTo ??
+        `${window.location.pathname}${window.location.search}${window.location.hash}`,
     );
     if (redirect) window.location.assign(`/fresh-login?returnTo=${target}`);
     return {

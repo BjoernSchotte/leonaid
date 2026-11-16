@@ -6,6 +6,7 @@ describe("deep links through the login (specs/multi-domain §6.7)", () => {
   it("keeps paths below the member apps and the CMS editor", () => {
     for (const path of [
       "/admin/orders?commitment=1",
+      "/admin/actions/x#aliases",
       "/admin/",
       "/admin",
       "/app/activities?view=contacts&assignment=x",

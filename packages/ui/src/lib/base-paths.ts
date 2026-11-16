@@ -27,9 +27,12 @@ export function baseRoot(base: string): string {
  * below the member apps.
  */
 export function loginHref(
-  location: Pick<Location, "pathname" | "search">,
+  location: Pick<Location, "pathname" | "search"> & {
+    readonly hash?: string;
+  },
 ): string {
-  return `/login?returnTo=${encodeURIComponent(location.pathname + location.search)}`;
+  // The hash keeps the open tab or panel (e.g. #aliases).
+  return `/login?returnTo=${encodeURIComponent(location.pathname + location.search + (location.hash ?? ""))}`;
 }
 
 /**

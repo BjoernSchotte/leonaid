@@ -51,6 +51,7 @@ describe("actionErrorMessage", () => {
     vi.spyOn(window, "location", "get").mockReturnValue({
       ...window.location,
       assign,
+      hash: "#documents",
       pathname: "/admin/invoices",
       search: "?action=a",
     } as Location);
@@ -63,7 +64,8 @@ describe("actionErrorMessage", () => {
       }).message,
     ).toBe("Für diese Änderung wird deine Anmeldung erneut bestätigt.");
     expect(assign).toHaveBeenCalledWith(
-      `/fresh-login?returnTo=${encodeURIComponent("/admin/invoices?action=a")}`,
+      // The open tab survives the confirmation.
+      `/fresh-login?returnTo=${encodeURIComponent("/admin/invoices?action=a#documents")}`,
     );
   });
 });
