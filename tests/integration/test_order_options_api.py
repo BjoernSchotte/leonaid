@@ -116,7 +116,7 @@ class OptionsProof(Proof):
         stale = await self.send(
             "PUT",
             path,
-            {"expectedRevision": revision - 1, "offerings": sizes(keep_old=True)},
+            {"expectedRevision": revision + 5, "offerings": sizes(keep_old=True)},
         )
         self.error(stale, 409, "action_revision_conflict")
         replaced = await self.send(
