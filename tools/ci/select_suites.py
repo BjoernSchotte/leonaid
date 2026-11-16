@@ -95,6 +95,25 @@ E2E_SHARDS = (
     "operations",
     "invoice-flows",
 )
+# Survey shards (./leonaid test-surveys): the flag ``surveys`` selects them,
+# after the merge, with full-ci and nightly. The survey-stack shards of a leg
+# share one stack; the nightly recovery shards run only on schedule and
+# dispatch, each in a leg of its own.
+SURVEY_SHARDS = (
+    "permissions",
+    "limits",
+    "runner",
+    "editor",
+    "analysis",
+    "exports",
+    "lifecycle",
+    "invitations",
+    "journey",
+)
+SURVEY_NIGHTLY = ("recovery", "exports-recovery", "restic", "pilot")
+# Shards that need every image (the PWA journey and the nightly proofs);
+# the others build only the survey runtime.
+SURVEY_ALL_IMAGES = frozenset({"journey", *SURVEY_NIGHTLY})
 # Short browser smoke leg (tools/ci/e2e.sh smoke): real login, one list view,
 # one public order. Runs alone in its leg.
 SMOKE = "smoke"
@@ -161,6 +180,19 @@ E2E_SECONDS = {
     # Estimate: three single tests on two prepared stacks.
     SMOKE: 240,
 }
+# Test-step medians of 2026-11-09..16 (about 110 runs each), each shard on
+# its own stack then.
+SURVEY_SECONDS = {
+    "editor": 149,
+    "lifecycle": 146,
+    "runner": 146,
+    "journey": 138,
+    "permissions": 125,
+    "exports": 124,
+    "analysis": 117,
+    "invitations": 112,
+    "limits": 98,
+}
 # EmDash bins are fixed: the order proof alone is the longest job of the run.
 EMDASH_BINS = (
     ("krapfentaxi-orders",),
@@ -183,14 +215,16 @@ TARGET_SECONDS = 190
 # equal). A leg's estimate is its shards' seconds plus LEG_SETUP_SECONDS; the
 # selector warns at LOAD_WARNING of the timeout, before a growing shard table
 # turns into timeouts.
-JOB_TIMEOUT_MINUTES = {"integration": 45, "e2e": 90, "emdash": 60}
+JOB_TIMEOUT_MINUTES = {"integration": 45, "e2e": 90, "emdash": 60, "surveys": 45}
 LEG_SETUP_SECONDS = 150
 # Every Integration shard and EmDash group boots its own stack; E2E leaves of
 # one fixture kind share one (tools/ci/e2e.sh).
-SHARD_SETUP_SECONDS = {"integration": 90, "e2e": 0, "emdash": 90}
+SHARD_SETUP_SECONDS = {"integration": 90, "e2e": 0, "emdash": 90, "surveys": 0}
 LOAD_WARNING = 0.75
 # E-043: the smallest counts at which every packed leg fits 300 s.
-MAX_BINS = {"integration": 6, "e2e": 8}
+# Surveys: four legs keep the longest under the E2E and EmDash legs (nine
+# single-shard legs paid about 80 s of job setup each, E-069).
+MAX_BINS = {"integration": 6, "e2e": 8, "surveys": 4}
 # Integration shards that never start Twenty. Every other leg prefetches its
 # image beside the layer import: run 42569824316 pulled it lazily for 31 s
 # and 39 s inside the first leaf of two legs (acquisition-contracts, privacy).
@@ -1167,6 +1201,11 @@ def integration_bootstrap(names: Sequence[str]) -> str:
     return "toolchains" if set(names) <= TWENTY_FREE else "seed"
 
 
+def survey_targets(names: Sequence[str]) -> str:
+    """Bake targets of a survey leg (its matrix field ``bootstrap``)."""
+    return "default" if SURVEY_ALL_IMAGES & set(names) else "survey-runtime"
+
+
 def emdash_bootstrap(names: Sequence[str]) -> str:
     return "toolchains" if set(names) == {"static"} else "browser"
 
@@ -1184,6 +1223,8 @@ class Selection:
     deferred: frozenset[str] = frozenset()
     # What a pull-request run of the same tree already proved (push only).
     proved: frozenset[str] = frozenset()
+    # Schedule and dispatch: the nightly survey shards run too.
+    nightly: bool = False
 
     def shards(self, prefix: str, names: Sequence[str]) -> list[str]:
         return [n for n in names if f"{prefix}:{n}" in self.suites]
@@ -1217,6 +1258,12 @@ class Selection:
             bins.append([SMOKE])
         return bins
 
+    def survey_bins(self) -> list[list[str]]:
+        if "surveys" not in self.suites:
+            return []
+        bins = pack(SURVEY_SHARDS, SURVEY_SECONDS, MAX_BINS["surveys"])
+        return bins + ([[shard] for shard in SURVEY_NIGHTLY] if self.nightly else [])
+
     def emdash_bins(self) -> list[list[str]]:
         return [list(b) for b in EMDASH_BINS] if "emdash" in self.suites else []
 
@@ -1229,6 +1276,7 @@ class Selection:
             ),
             "e2e": json.dumps(matrix(self.e2e_bins(), lambda _: "browser")),
             "emdash": json.dumps(matrix(self.emdash_bins(), emdash_bootstrap)),
+            "survey_legs": json.dumps(matrix(self.survey_bins(), survey_targets)),
             "tier": self.tier,
             "checks": json.dumps(CHECKS not in self.proved),
             # What this run proves when its gate passes (the CI gate records
@@ -1378,7 +1426,12 @@ def select(
             proved=proved,
         )
     if event != "pull_request":
-        return Selection(True, f"{event}: complete suite", everything())
+        return Selection(
+            True,
+            f"{event}: complete suite",
+            everything(),
+            nightly=event in ("schedule", "workflow_dispatch"),
+        )
     if not changed:
         return Selection(
             True, "pull_request without a readable diff: complete suite", everything()
@@ -1435,6 +1488,11 @@ def load_warnings(selection: Selection) -> list[str]:
         ("integration", selection.integration_bins(), INTEGRATION_SECONDS),
         ("e2e", selection.e2e_bins(), E2E_SECONDS),
         ("emdash", selection.emdash_bins(), EMDASH_SECONDS),
+        (
+            "surveys",
+            [b for b in selection.survey_bins() if set(b) <= set(SURVEY_SECONDS)],
+            SURVEY_SECONDS,
+        ),
     ):
         limit = JOB_TIMEOUT_MINUTES[kind] * 60
         for number, names in enumerate(bins, start=1):
@@ -1462,6 +1520,7 @@ def summary(selection: Selection) -> str:
         ("integration", selection.integration_bins()),
         ("e2e", selection.e2e_bins()),
         ("emdash", selection.emdash_bins()),
+        ("surveys", selection.survey_bins()),
     ):
         jobs = "<br>".join(f"{n}: {', '.join(b)}" for n, b in enumerate(bins, 1))
         lines.append(f"| {key} | {jobs or '—'} |")

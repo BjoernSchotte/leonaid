@@ -29,7 +29,10 @@ class LocalTests(unittest.TestCase):
             self.assertNotIn("tools/upgrade/", text)
         # Every survey check mode belongs to exactly one shard of
         # ./leonaid test-surveys.
-        shards = cli.split("test_surveys() {\n")[1].split("\n}\n")[0]
+        shards = "".join(
+            cli.split(f"{function}() {{\n")[1].split("\n}\n")[0]
+            for function in ("test_surveys", "test_survey_shard")
+        )
         assigned = re.findall(r"\$survey_leaf ([a-z-]+)", shards)
         for loop in re.findall(
             r"for mode in ([a-z -]+); do\n\s+/bin/sh \"\$root/\$survey_leaf\"", shards

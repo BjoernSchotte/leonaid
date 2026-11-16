@@ -470,21 +470,25 @@ jobs:
           fi
 
   surveys:
-    # One job per survey shard, the same leonaid command as
-    # locally (decision E-027). Selected after the merge, with full-ci and
-    # nightly (tools/ci/select_suites.py, flag surveys); the recovery shards
-    # run only nightly and on dispatch.
+    # Legs of survey shards, the same leonaid command as locally (decision
+    # E-027). Selected after the merge, with full-ci and nightly
+    # (tools/ci/select_suites.py, flag surveys); the survey-stack shards of a
+    # leg share one stack, packed by SURVEY_SECONDS (E-069); the recovery
+    # shards run only nightly and on dispatch, each in its own leg.
     needs: [select, fixture]
     if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.surveys == 'true' && needs.fixture.result == 'success' }}
-    name: Survey ${{ matrix.shard }}
+    name: Survey ${{ matrix.bin.id }}/${{ matrix.bin.count }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON((github.event_name == 'pull_request' || github.event_name == 'push') && '["permissions","limits","runner","editor","analysis","exports","lifecycle","invitations","journey"]' || '["permissions","limits","runner","editor","analysis","exports","lifecycle","invitations","journey","recovery","exports-recovery","restic","pilot"]') }}
+        bin: ${{ fromJSON(needs.select.outputs.survey_legs) }}
     env:
-      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/survey-${{ matrix.shard }}
+      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/survey-${{ matrix.bin.id }}
+      # Stops the suite 5 minutes before timeout-minutes, so the evidence
+      # is still collected and uploaded (tools/ci/capture-command.sh).
+      LEONAID_CI_STEP_SECONDS: "2400"
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -494,24 +498,30 @@ jobs:
         uses: ./.github/actions/build-cache
         with:
           bootstrap: browser
-          # Only journey (the PWA) and the nightly shards need every image.
-          targets: ${{ contains(fromJSON('["journey","recovery","exports-recovery","restic","pilot"]'), matrix.shard) && 'default' || 'survey-runtime' }}
+          # Only journey (the PWA) and the nightly shards need every image
+          # (select_suites.survey_targets).
+          targets: ${{ matrix.bin.bootstrap }}
       - name: Use prepared synthetic data
         uses: ./.github/actions/test-fixture
         with:
           key: ${{ needs.fixture.outputs.key }}
       - name: Finish freeing runner disk
         run: sh tools/ci/free-runner-disk.sh wait
-      - name: Run the survey shard
+      - name: List this leg's shards in the job summary
         env:
-          SHARD: ${{ matrix.shard }}
-        run: bash tools/ci/run-job.sh "survey-$SHARD" ./leonaid test-surveys "$SHARD"
+          SHARDS: ${{ matrix.bin.title }}
+        run: printf '### Survey leg ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n\n%s\n' "$SHARDS" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Run the survey shards
+        env:
+          SHARDS: ${{ matrix.bin.shards }}
+        # One word per shard.
+        run: bash tools/ci/run-job.sh "survey-${{ matrix.bin.id }}" ./leonaid test-surveys $SHARDS
       - name: Publish survey evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ci-survey-${{ matrix.shard }}
-          path: .artifacts/ci/survey-${{ matrix.shard }}
+          name: ci-survey-${{ matrix.bin.id }}
+          path: .artifacts/ci/survey-${{ matrix.bin.id }}
           if-no-files-found: error
           retention-days: 14
 
