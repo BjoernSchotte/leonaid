@@ -9,6 +9,7 @@ import {
   readPublicCoreCampaign,
 } from "./public/core-campaign";
 import { readPublishedCampaign } from "./public/published-campaign.mjs";
+import { versionedMediaCache } from "./public/published-media.mjs";
 import { databaseReady, setupIsComplete } from "./database-ready";
 import { authenticate } from "./auth/leonaid-auth";
 import {
@@ -118,7 +119,16 @@ const closedGuard = defineMiddleware(
             });
         }
         const response = await next();
-        response.headers.set("Cache-Control", "no-store");
+        // A versioned image keeps its long cache answer (E-067); every other
+        // public campaign answer, refusals included, is not stored.
+        if (
+          !(
+            url.pathname.includes("/media/") &&
+            response.status === 200 &&
+            response.headers.get("Cache-Control") === versionedMediaCache
+          )
+        )
+          response.headers.set("Cache-Control", "no-store");
         return response;
       } catch (error) {
         if (error instanceof PublicCampaignError && error.status === 404)

@@ -152,7 +152,12 @@ export function decide(
     // Media of every edition bound to this host, live or history (§7.5).
     const slug = match[1]!;
     if (!bySlug.has(slug) && !historySlug.has(slug)) return notFound;
-    return { kind: "serve", path, edition: bySlug.get(slug) ?? null };
+    // Keep the query: `?v=` versions the file and `&w=` picks a width (E-067).
+    return {
+      kind: "serve",
+      path: `${path}${search}`,
+      edition: bySlug.get(slug) ?? null,
+    };
   }
   match = new RegExp(`^/campaigns/(${SLUG})/?$`).exec(path);
   if (match) return canonicalOf(match[1]!);

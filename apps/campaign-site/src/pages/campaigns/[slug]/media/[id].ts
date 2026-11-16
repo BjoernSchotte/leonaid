@@ -1,21 +1,43 @@
 import type { APIRoute } from "astro";
-import { createHash } from "node:crypto";
 import { withEmDashRuntime } from "emdash/middleware";
 import {
   PublicCampaignError,
   readPublicCoreCampaign,
 } from "../../../../public/core-campaign";
-import { readPublishedMedia } from "../../../../public/published-media.mjs";
-import { campaignStorage } from "../../../../auth/campaign-media-io.mjs";
+import {
+  mediaVersion,
+  mediaWidths,
+  readPublishedMedia,
+  versionedMediaCache,
+} from "../../../../public/published-media.mjs";
+import { publicMediaBytes } from "../../../../public/media-bytes.mjs";
 
-const headers = {
+const refusal = {
   "Cache-Control": "no-store",
   "X-Content-Type-Options": "nosniff",
 };
-export const GET: APIRoute = async ({ params, request }) => {
+// A versioned URL (`?v=` with the content hash) names one file for good: the
+// browser keeps it for a year and does not ask again (E-067). Without a
+// version the answer is not stored, as before.
+export const GET: APIRoute = async ({ params, request, url }) => {
   try {
     const slug = params.slug ?? "";
     const id = params.id ?? "";
+    const version = url.searchParams.get("v");
+    const widthParameter = url.searchParams.get("w");
+    if (
+      [...url.searchParams.keys()].some((key) => key !== "v" && key !== "w") ||
+      url.searchParams.getAll("v").length > 1 ||
+      url.searchParams.getAll("w").length > 1 ||
+      (version !== null && !/^[0-9a-f]{16}$/.test(version)) ||
+      (widthParameter !== null && version === null)
+    )
+      throw new PublicCampaignError(404);
+    const width = widthParameter === null ? null : Number(widthParameter);
+    if (width !== null && !mediaWidths.includes(width))
+      throw new PublicCampaignError(404);
+    // Both authorities decide on every request: Core says the campaign is
+    // public, the CMS says its published page references this file.
     const route = await readPublicCoreCampaign(slug);
     if (route.availability !== "published" || !route.action)
       throw new PublicCampaignError(404);
@@ -24,37 +46,17 @@ export const GET: APIRoute = async ({ params, request }) => {
       readPublishedMedia(runtime.db, actionId, id),
     );
     if (!media) throw new PublicCampaignError(404);
-    const stored = await campaignStorage().download(media.storage_key);
-    if (
-      !["image/png", "image/jpeg", "image/webp"].includes(media.mime_type) ||
-      !/^[0-9a-f]{64}$/.test(media.content_hash ?? "") ||
-      stored.contentType !== media.mime_type ||
-      createHash("sha256").update(stored.bytes).digest("hex") !==
-        media.content_hash
-    )
-      throw new PublicCampaignError(503);
-    // Recheck both authorities AFTER object I/O; a slow download must not
-    // preserve a withdrawn Core campaign or an unpublished/replaced reference.
-    const current = await readPublicCoreCampaign(slug);
-    if (current.availability !== "published" || current.action?.id !== actionId)
+    if (version !== null && mediaVersion(media.content_hash) !== version)
       throw new PublicCampaignError(404);
-    const confirmed = await withEmDashRuntime((runtime) =>
-      readPublishedMedia(runtime.db, actionId, id),
-    );
-    if (!confirmed) throw new PublicCampaignError(404);
-    if (
-      confirmed.storage_key !== media.storage_key ||
-      confirmed.content_hash !== media.content_hash ||
-      confirmed.mime_type !== media.mime_type
-    )
-      throw new PublicCampaignError(503);
+    const file = await publicMediaBytes(media, width);
     return new Response(
-      request.method === "HEAD" ? null : new Uint8Array(stored.bytes),
+      request.method === "HEAD" ? null : new Uint8Array(file.bytes),
       {
         headers: {
-          ...headers,
-          "Content-Type": media.mime_type,
-          "Content-Length": String(stored.size),
+          "Cache-Control": version === null ? "no-store" : versionedMediaCache,
+          "X-Content-Type-Options": "nosniff",
+          "Content-Type": file.contentType,
+          "Content-Length": String(file.bytes.length),
           "Content-Disposition": "inline",
           "Content-Security-Policy": "sandbox; default-src 'none'",
         },
@@ -63,7 +65,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   } catch (error) {
     return new Response("Bild nicht verfügbar", {
       status: error instanceof PublicCampaignError ? error.status : 503,
-      headers,
+      headers: refusal,
     });
   }
 };

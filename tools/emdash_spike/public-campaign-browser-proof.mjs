@@ -45,25 +45,43 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
             const image = document.querySelector(selector);
             return image?.complete && image.naturalWidth > 0;
           }, selector);
-          assert.equal(await img.getAttribute("src"), media.url);
+          // Versioned URL plus a smaller rendered width (E-067).
+          assert.equal(await img.getAttribute("src"), media.versionedUrl);
+          assert.equal(
+            await img.getAttribute("srcset"),
+            `${media.versionedUrl}&w=480 480w, ${media.versionedUrl} ${media.width}w`,
+          );
           assert.equal(
             await img.getAttribute("alt"),
             "Synthetisches blaues Kampagnenbild",
           );
-          assert.equal(
-            await img.evaluate((image) => image.naturalWidth),
-            media.width,
+          // The browser picks a file for the slot (naturalWidth is then the
+          // density-corrected slot size); the proportions stay.
+          const [currentSrc, naturalWidth, naturalHeight] = await img.evaluate(
+            (image) => [
+              image.currentSrc,
+              image.naturalWidth,
+              image.naturalHeight,
+            ],
           );
-          assert.equal(
-            await img.evaluate((image) => image.naturalHeight),
-            media.height,
+          assert.ok(
+            [
+              `https://proxy:8443${media.versionedUrl}`,
+              `https://proxy:8443${media.versionedUrl}&w=480`,
+            ].includes(currentSrc),
+            currentSrc,
+          );
+          assert.ok(
+            Math.abs(
+              naturalWidth / naturalHeight - media.width / media.height,
+            ) < 0.02,
           );
         }
         assert.equal(
           await page
             .locator('meta[property="og:image"]')
             .getAttribute("content"),
-          `https://proxy:8443${media.url}`,
+          `https://proxy:8443${media.versionedUrl}`,
         );
         assert.equal(
           await page

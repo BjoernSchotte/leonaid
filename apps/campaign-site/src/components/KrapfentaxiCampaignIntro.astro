@@ -2,17 +2,19 @@
 import type { PublicCampaignRouteResponse } from "@leonaid/api-client";
 import type { CampaignPageFields } from "../campaign-fields.generated";
 import { editorialHtml } from "../public/editorial-html.mjs";
-import { publicMediaPath } from "../public/published-media.mjs";
+import { campaignImageSources } from "../public/published-media.mjs";
 
 interface Props {
   route: PublicCampaignRouteResponse;
   content: CampaignPageFields;
+  media: Record<string, { contentHash: string; width: number }>;
 }
-const { route, content } = Astro.props;
+const { route, content, media } = Astro.props;
 const action = route.action!;
 const canOrder =
   route.submissionsAllowed && route.orderAlias && action.orderForm;
-const source = (id: string) => publicMediaPath(action.archiveSlug, id);
+const source = (id: string) =>
+  campaignImageSources(action.archiveSlug, id, media);
 const dates = new Intl.DateTimeFormat("de-DE", {
   day: "numeric",
   month: "long",
@@ -28,7 +30,8 @@ const logo = content.brand_logo;
     content.hero_image && (
       <img
         class="taxi-hero__image"
-        src={source(content.hero_image.id)}
+        {...source(content.hero_image.id)}
+        sizes="100vw"
         alt={content.hero_image.alt ?? ""}
         width={content.hero_image.width}
         height={content.hero_image.height}
@@ -43,7 +46,8 @@ const logo = content.brand_logo;
       logo && (
         <img
           class="taxi-hero__logo"
-          src={source(logo.id)}
+          {...source(logo.id)}
+          sizes="clamp(10rem, 23vw, 18rem)"
           alt={logo.alt ?? ""}
           width={logo.width}
           height={logo.height}
@@ -83,7 +87,8 @@ const logo = content.brand_logo;
       logo && (
         <div class="taxi-story__brand" aria-hidden="true">
           <img
-            src={source(logo.id)}
+            {...source(logo.id)}
+            sizes="19rem"
             alt=""
             width={logo.width}
             height={logo.height}
@@ -148,7 +153,8 @@ const logo = content.brand_logo;
         {partner.logo && (
           <div class="taxi-bakery__logo">
             <img
-              src={source(partner.logo.id)}
+              {...source(partner.logo.id)}
+              sizes="(min-width: 60rem) 33vw, 100vw"
               alt={partner.logo.alt ?? ""}
               width={partner.logo.width}
               height={partner.logo.height}
