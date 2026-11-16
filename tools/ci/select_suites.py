@@ -123,6 +123,50 @@ EMDASH_GROUPS = (
     "campaign-edge",
     "static",
 )
+# Backup, recovery and pilot proofs (ci.yml job backup-recovery, one
+# ./leonaid command each). Every one runs nightly and on dispatch; after the
+# merge and with full-ci a command runs when a path it owns changed
+# (RECOVERY_OWNERS, E-069). They are not part of everything(): shared
+# infrastructure leaves them to the nightly run.
+RECOVERY_COMMANDS = (
+    "test-backup",
+    "test-upgrade",
+    "test-pilot-backup",
+    "test-pilot-deployment",
+    "test-pilot-install",
+    "test-pilot-import",
+    "test-pilot-release",
+    "test-mail-relay",
+)
+# The directories each command's proof script reads beyond the shared
+# infrastructure (tools/<name>/test.sh).
+RECOVERY_OWNERS: dict[str, tuple[str, ...]] = {
+    "test-backup": ("tools/backup/**", "infra/backup/**"),
+    "test-upgrade": (
+        "tools/upgrade/**",
+        "infra/upgrade/**",
+        "tools/backup/**",
+        "tools/pilot_release/**",
+    ),
+    "test-pilot-backup": ("tools/pilot_backup/**", "tools/backup/**"),
+    "test-pilot-deployment": (
+        "tools/pilot_deployment/**",
+        "infra/pilot/**",
+        "tools/backup/**",
+        "tools/pilot_release/**",
+    ),
+    "test-pilot-install": (
+        "tools/pilot_install/**",
+        "tools/pilot_alerting/**",
+        "infra/pilot/**",
+        "infra/upgrade/**",
+        "tools/backup/**",
+        "tools/pilot_release/**",
+    ),
+    "test-pilot-import": ("tools/pilot_import/**",),
+    "test-pilot-release": ("tools/pilot_release/**", "tools/upgrade/**"),
+    "test-mail-relay": ("tools/mail_relay/**",),
+}
 # Whole-workflow or whole-job suites.
 FLAGS = ("contract", "golden", "surveys", "api", "pins")
 
@@ -300,6 +344,10 @@ NIGHTLY_SCHEDULE = "7 3 * * *"
 FULL_CI_LABEL = "full-ci"
 
 
+def recovery(*commands: str) -> frozenset[str]:
+    return frozenset(f"recovery:{command}" for command in commands)
+
+
 def integration(*shards: str) -> frozenset[str]:
     return frozenset(f"integration:{shard}" for shard in shards)
 
@@ -417,6 +465,19 @@ RULES: tuple[Rule, ...] = (
     ),
     Rule(
         ("specs/emdash-campaign-microsite-spike/**",), EMDASH, "EmDash route inventory"
+    ),
+    # Operator tools that only the CLI and their own recovery proofs use
+    # (RECOVERY_OWNERS adds the proof; Lint and Unit cover their code).
+    Rule(
+        (
+            "tools/pilot_import/**",
+            "tools/pilot_backup/**",
+            "tools/upgrade/**",
+            "tools/mail_relay/**",
+            "tools/pilot_alerting/**",
+        ),
+        NONE,
+        "operator tool with its own recovery proof",
     ),
     # Pilot plan, decisions and readiness documents feed the Contract job.
     Rule(("specs/leonaid-pilot/**",), frozenset({"contract"}), "pilot contracts"),
@@ -1177,7 +1238,9 @@ def integration_unit(suite: str) -> str | None:
 def is_heavy(suite: str) -> bool:
     """Suites the fast tier never runs (browser and acceptance suites)."""
     return (
-        suite.startswith("e2e:") or suite in (SMOKE, "emdash") or suite in HEAVY_FLAGS
+        suite.startswith(("e2e:", "recovery:"))
+        or suite in (SMOKE, "emdash")
+        or suite in HEAVY_FLAGS
     )
 
 
@@ -1223,7 +1286,8 @@ class Selection:
     deferred: frozenset[str] = frozenset()
     # What a pull-request run of the same tree already proved (push only).
     proved: frozenset[str] = frozenset()
-    # Schedule and dispatch: the nightly survey shards run too.
+    # Schedule and dispatch: the nightly survey shards and every recovery
+    # command run too.
     nightly: bool = False
 
     def shards(self, prefix: str, names: Sequence[str]) -> list[str]:
@@ -1264,6 +1328,12 @@ class Selection:
         bins = pack(SURVEY_SHARDS, SURVEY_SECONDS, MAX_BINS["surveys"])
         return bins + ([[shard] for shard in SURVEY_NIGHTLY] if self.nightly else [])
 
+    def recovery_commands(self) -> list[str]:
+        """Every command nightly; otherwise those whose own paths changed."""
+        if self.nightly:
+            return list(RECOVERY_COMMANDS)
+        return self.shards("recovery", RECOVERY_COMMANDS)
+
     def emdash_bins(self) -> list[list[str]]:
         return [list(b) for b in EMDASH_BINS] if "emdash" in self.suites else []
 
@@ -1277,6 +1347,7 @@ class Selection:
             "e2e": json.dumps(matrix(self.e2e_bins(), lambda _: "browser")),
             "emdash": json.dumps(matrix(self.emdash_bins(), emdash_bootstrap)),
             "survey_legs": json.dumps(matrix(self.survey_bins(), survey_targets)),
+            "recovery": json.dumps(self.recovery_commands()),
             "tier": self.tier,
             "checks": json.dumps(CHECKS not in self.proved),
             # What this run proves when its gate passes (the CI gate records
@@ -1324,6 +1395,9 @@ def map_paths(changed: Sequence[str], root: Path | None) -> Mapped:
             selected = selected | {"api", "integration:api-contract"}
         if matches(path, PINS_PATHS):
             selected = selected | {"pins"}
+        selected = selected | recovery(
+            *(c for c, owned in RECOVERY_OWNERS.items() if matches(path, owned))
+        )
         suites |= selected
         explanation.append((path, reason, tuple(sorted(selected))))
     if e2e(*E2E_SHARDS) <= suites:
@@ -1441,7 +1515,7 @@ def select(
         return Selection(
             True,
             f"pull_request with the {FULL_CI_LABEL} label: complete suite before the merge",
-            everything(),
+            everything() | {x for x in mapped.suites if x.startswith("recovery:")},
             mapped.explanation,
             tier="full",
         )
@@ -1527,6 +1601,7 @@ def summary(selection: Selection) -> str:
     for key in FLAGS:
         lines.append(f"| {key} | `{outputs[key]}` |")
     lines.append(f"| {CHECKS} | `{outputs[CHECKS]}` |")
+    lines.append(f"| recovery | `{outputs['recovery']}` |")
     if selection.proved:
         lines += [
             "",

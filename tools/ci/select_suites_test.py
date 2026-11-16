@@ -833,6 +833,66 @@ def main() -> int:
             f"./leonaid test-surveys does not know the shard {shard}",
         )
 
+    # Recovery proofs: nightly every command; after the merge and with
+    # full-ci the commands whose own paths changed; never in the fast tier.
+    def commands(selection: s.Selection) -> list[str]:
+        result: list[str] = json.loads(selection.outputs()["recovery"])
+        return result
+
+    for event in ("schedule", "workflow_dispatch"):
+        expect(
+            commands(s.select(event, [])) == list(s.RECOVERY_COMMANDS),
+            f"{event} runs every recovery command",
+        )
+    expect(commands(s.select("push", [])) == [], "a complete push leaves them nightly")
+    narrow = post("tools/pilot_import/importer.py")
+    expect(
+        commands(narrow) == ["test-pilot-import"]
+        and stack_suites(flat(narrow)) == {key: [] for key in BINNED},
+        f"an operator tool runs only its own proof: {sorted(narrow.suites)}",
+    )
+    broad_tool = post("tools/pilot_deployment/doctor.py")
+    expect(
+        commands(broad_tool) == ["test-pilot-deployment"]
+        and "surveys" in broad_tool.suites,
+        "a shared pilot tool keeps the broad selection and adds its proof",
+    )
+    expect(
+        commands(post("tools/backup/test.sh"))
+        == [
+            "test-backup",
+            "test-upgrade",
+            "test-pilot-backup",
+            "test-pilot-deployment",
+            "test-pilot-install",
+        ],
+        "every proof that reads tools/backup runs",
+    )
+    expect(
+        commands(pr("tools/upgrade/upgrade.sh")) == []
+        and "recovery:test-upgrade" in pr("tools/upgrade/upgrade.sh").deferred,
+        "the fast tier defers the recovery proofs",
+    )
+    expect(
+        commands(s.select("pull_request", ["tools/upgrade/upgrade.sh"], full_ci=True))
+        == ["test-upgrade", "test-pilot-release"],
+        "full-ci runs the recovery proofs of the changed paths",
+    )
+    expect(
+        set(s.RECOVERY_OWNERS) == set(s.RECOVERY_COMMANDS),
+        "RECOVERY_OWNERS must name every recovery command",
+    )
+    for command, patterns in s.RECOVERY_OWNERS.items():
+        expect(
+            f"\n  {command})" in cli,
+            f"./leonaid has no command {command}",
+        )
+        for pattern in patterns:
+            expect(
+                (ROOT / pattern.removesuffix("/**")).is_dir(),
+                f"RECOVERY_OWNERS[{command!r}]: {pattern} matches nothing",
+            )
+
     # Proof reuse: a push whose tree a green pull-request run tested leaves
     # out what that run proved, the always-on checks included.
     fast_run = pr("src/leonaid/modules/tasks/service.py")

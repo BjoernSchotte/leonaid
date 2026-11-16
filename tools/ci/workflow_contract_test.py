@@ -143,6 +143,16 @@ CI_MUTATIONS = (
         "'API contract gate' must require Lint",
     ),
     (
+        "        command: ${{ fromJSON(needs.select.outputs.recovery) }}\n",
+        "        command: [test-backup]\n",
+        "Recovery commands must come from the suite selector",
+    ),
+    (
+        "            --selectable backup-recovery=recovery\n",
+        "            --may-skip backup-recovery\n",
+        "Recovery commands must come from the suite selector",
+    ),
+    (
         "        bin: ${{ fromJSON(needs.select.outputs.survey_legs) }}\n",
         "        bin: [{id: '1', shards: runner}]\n",
         "Survey legs must come from the suite selector",
