@@ -1,4 +1,4 @@
-/** Host-neutral SurveyJS module contracts. Own license decision remains UNDEFINED. */
+/** Host-neutral SurveyJS module contracts. Own license: Apache-2.0. */
 export type JsonValue =
   | null
   | boolean

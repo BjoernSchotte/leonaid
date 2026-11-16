@@ -34,6 +34,11 @@ deinem Namen beziehungsweise im Menü **Mehr**.
      Beispiel der Vorstand nach § 26 BGB. Pflichtfeld.
    - **Telefon**: der zweite schnelle Kontaktweg neben der E-Mail-Adresse.
      Pflichtfeld.
+   - **E-Mail im Impressum**: nur ausfüllen, wenn das Impressum eine andere
+     Adresse nennen soll als die Rechnungen, zum Beispiel die der Vorsitzenden.
+     Bleibt das Feld leer, zeigt das Impressum die E-Mail aus **Träger &
+     Anschrift**. Rechnungen, Mails an Besteller und das Bestellformular nennen
+     immer diese.
    - **Registergericht** und **Registernummer**: der Registereintrag, den die
      gewählte Rechtsform verlangt, zum Beispiel „Amtsgericht Augsburg“ und „VR 1234“
      beim eingetragenen Verein, „HRB 5678“ bei einer GmbH oder gGmbH, „GnR 12“

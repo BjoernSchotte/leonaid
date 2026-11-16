@@ -293,6 +293,12 @@ test("public pages link the active campaigns, Impressum and Datenschutz", async 
   ]) {
     legalLinks(after(await html(path), marker, path), path);
   }
+
+  // Every installation's sign-in names where LeonAid's source lives (E-066).
+  const credit = after(await html("/login"), "data-auth-credit", "/login");
+  expect(credit).toMatch(
+    /^[^<]*>\s*Made with <span[^>]*>❤️<\/span> by\s*<a [^>]*href="https:\/\/github\.com\/BjoernSchotte\/leonaid"[^>]*>github\.com\/BjoernSchotte\/leonaid<\/a>/,
+  );
 });
 
 test("the Impressum and the privacy page render the legal configuration", async ({

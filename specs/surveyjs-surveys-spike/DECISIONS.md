@@ -15,7 +15,7 @@ email campaign or package publication approval.
 | D-01 | Dedicated LeonAid Surveys module, German UI label “Umfragen”; standalone or optionally action-linked. |
 | D-02 | SurveyJS Form Library renderer, independently implemented drag-and-drop editor and analytics UI. |
 | D-03 | Neutral React/TypeScript package; persistence, permissions and exports supplied by LeonAid adapters. |
-| D-04 | Own license for the new package and LeonAid: **UNDEFINED**. Decide between MIT and Apache-2.0 later. |
+| D-04 | Own license for the new package and LeonAid: **UNDEFINED**. Decide between MIT and Apache-2.0 later. Resolved 2026-11-16: Apache-2.0. |
 | D-05 | Multi-page questionnaires and server-side autosave during participation. |
 | D-06 | Backend-configurable inactivity timeout; partial answers stay analyzable and resumable. |
 | D-07 | Survey states: draft, active, ended, archived, deleted; published definitions are versioned. |

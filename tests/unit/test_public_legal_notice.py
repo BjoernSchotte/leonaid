@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from uuid import uuid4
@@ -79,6 +80,29 @@ async def test_active_configuration_names_the_provider_only() -> None:
     for secret in ("DE123456789", "DE89", "COBADEFFXXX", "TAX-2026-001"):
         assert secret not in text
     assert response.headers["Cache-Control"].startswith("public, max-age=60")
+
+
+@pytest.mark.asyncio
+async def test_the_impressum_shows_its_own_email_when_set() -> None:
+    # E-065: invoices keep the issuer's address, the Impressum names its own.
+    version = active_version()
+    own = LegalConfigurationVersion(
+        id=version.id,
+        version=version.version,
+        configuration=replace(
+            version.configuration, imprint_email="vorstand@hilfswerk.test"
+        ),
+        created_by_user_id=version.created_by_user_id,
+        created_by_display_name=version.created_by_display_name,
+        created_at=version.created_at,
+    )
+    notice = await get_public_legal_notice(
+        request_with(own),  # type: ignore[arg-type]
+        Response(),
+    )
+    assert notice.provider is not None
+    assert notice.provider.email == "vorstand@hilfswerk.test"
+    assert own.configuration.issuer.email == "rechnung@hilfswerk.test"
 
 
 @pytest.mark.asyncio

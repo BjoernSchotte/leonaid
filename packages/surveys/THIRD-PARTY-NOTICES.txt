@@ -26,4 +26,4 @@ survey-react-ui 3.0.3 is from the same MIT-licensed SurveyJS Form Library projec
 Dependency packages retain their respective licenses and notices.
 SurveyJS Open Sans font assets are separately licensed under OFL-1.1; this
 package uses fontless CSS and does not copy font binaries into its tarball.
-Own package license decision: UNDEFINED.
+Own package license: Apache-2.0.

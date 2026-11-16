@@ -25,7 +25,6 @@ tooling entry points.
 
 ## Status and license
 
-LeonAid is under active development and pilot validation. No project license
-has been selected yet, so the repository is not currently licensed as open
-source. See [LICENSE](LICENSE) for the explicit interim status. Third-party
-components retain their own licenses and notices.
+LeonAid is under active development and pilot validation. It is licensed
+under the [Apache License 2.0](LICENSE); see also [NOTICE](NOTICE).
+Third-party components retain their own licenses and notices.

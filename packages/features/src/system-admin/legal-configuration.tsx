@@ -101,6 +101,7 @@ interface LegalBaseForm {
   eInvoiceEvidenceId: string;
   imprintRepresentatives: string;
   imprintPhone: string;
+  imprintEmail: string;
   imprintRegisterCourt: string;
   imprintRegisterNumber: string;
   imprintVatId: string;
@@ -336,6 +337,7 @@ const emptyForm: LegalForm = {
   imprintContentResponsibleAddress: "",
   imprintContentResponsibleName: "",
   imprintPhone: "",
+  imprintEmail: "",
   imprintRegisterCourt: "",
   imprintRegisterNumber: "",
   imprintRepresentatives: "",
@@ -405,6 +407,7 @@ function formFromValues(values: LegalConfigurationValuesResponse): LegalForm {
       values.imprintContentResponsibleAddress ?? "",
     imprintContentResponsibleName: values.imprintContentResponsibleName ?? "",
     imprintPhone: values.imprintPhone ?? "",
+    imprintEmail: values.imprintEmail ?? "",
     imprintRegisterCourt: values.imprintRegisterCourt ?? "",
     imprintRegisterNumber: values.imprintRegisterNumber ?? "",
     imprintRepresentatives: values.imprintRepresentatives ?? "",
@@ -482,6 +485,7 @@ function requestFromForm(
       form.imprintContentResponsibleName,
     ),
     imprintPhone: optionalText(form.imprintPhone),
+    imprintEmail: optionalText(form.imprintEmail),
     imprintRegisterCourt: optionalText(form.imprintRegisterCourt),
     imprintRegisterNumber: optionalText(form.imprintRegisterNumber),
     imprintRepresentatives: optionalText(form.imprintRepresentatives),
@@ -845,7 +849,7 @@ const PARTS = [
     id: "imprint",
     name: "Impressum",
     intro:
-      "Pflichtangaben nach § 5 DDG für alle öffentlichen Seiten der Installation. Name, Anschrift und E-Mail kommen aus „Träger & Anschrift“.",
+      "Pflichtangaben nach § 5 DDG für alle öffentlichen Seiten der Installation. Name und Anschrift kommen aus „Träger & Anschrift“, die E-Mail auch, solange hier keine eigene steht.",
     fields: [
       {
         key: "imprintRepresentatives",
@@ -863,6 +867,14 @@ const PARTS = [
         hint: "Zweiter schneller Kontaktweg neben der E-Mail-Adresse.",
         kind: "tel",
         placeholder: "+49 821 123456",
+      },
+      {
+        key: "imprintEmail",
+        label: "E-Mail im Impressum",
+        hint: "Nur ausfüllen, wenn das Impressum eine andere Adresse nennen soll als die Rechnungen. Rechnungen, Mails an Besteller und das Bestellformular nennen weiter die E-Mail aus „Träger & Anschrift“.",
+        kind: "email",
+        placeholder: "vorstand@example.org",
+        optional: true,
       },
       {
         key: "imprintVatId",

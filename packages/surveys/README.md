@@ -1,7 +1,7 @@
 # Neutral surveys package
 
-Implementation in progress; the public package name and own OSS license remain
-UNDEFINED. The private package manifest uses UNLICENSED until that decision.
+Implementation in progress; the public package name remains undefined. The
+package is licensed under Apache-2.0, like LeonAid.
 The package exposes contracts, a React respondent runner and scoped styles,
 an independent visual editor, aggregate charts/tables and an adapter-driven
 export panel for the initial supported capability profile. Full spike acceptance
@@ -166,7 +166,7 @@ declarations. Track removal when the pinned upstream declarations are corrected.
 
 Host-supplied adapters connect the React questionnaire editor and respondent
 runner to persistence. This package does not import LeonAid's API client, UI,
-identity or domain modules. Own license decision: **UNDEFINED**; the package is
+identity or domain modules. Own license: Apache-2.0; the package is
 private and is not being published.
 
 Entrypoints: `editor`, `runner`, `contracts`, `analysis`, `analytics`, `exports`,
@@ -236,7 +236,7 @@ exports are separate capabilities and are not provided by this component.
 
 Charts use scoped CSS without another runtime dependency. This entrypoint does
 not import the SurveyJS engine or host code and remains outside the respondent
-bundle. Own license remains UNDEFINED.
+bundle. Own license: Apache-2.0.
 
 ## Export panel
 

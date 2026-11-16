@@ -34,6 +34,10 @@ app and in the acquisition app, the links are below your name or in the
      for example the board under § 26 BGB. Required.
    - **Telefon**: the second fast contact channel next to the e-mail address.
      Required.
+   - **E-Mail im Impressum**: only when the Impressum should name another
+     address than the invoices, for example the chairperson's. Leave it empty
+     and the Impressum shows the e-mail from **Träger & Anschrift**. Invoices,
+     mails to buyers and the order form always use that one.
    - **Registergericht** and **Registernummer**: the register entry the chosen
      legal form requires, for example "Amtsgericht Augsburg" and "VR 1234" for a
      registered association, "HRB 5678" for a GmbH or gGmbH, "GnR 12" for a

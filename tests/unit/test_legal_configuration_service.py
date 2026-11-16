@@ -73,6 +73,7 @@ def without_imprint() -> LegalConfigurationDraft:
         legal_form=None,
         imprint_representatives=None,
         imprint_phone=None,
+        imprint_email=None,
         imprint_register_court=None,
         imprint_register_number=None,
         imprint_vat_id=None,
@@ -83,7 +84,11 @@ def without_imprint() -> LegalConfigurationDraft:
 
 @pytest.mark.asyncio
 async def test_omitted_later_fields_keep_the_previous_values() -> None:
-    previous = replace(valid_draft(), imprint_vat_id="DE123456789")
+    previous = replace(
+        valid_draft(),
+        imprint_vat_id="DE123456789",
+        imprint_email="vorstand@lions-musterstadt.de",
+    )
     repository = Repository(previous)
     service = LegalConfigurationService(repository, production=False)  # type: ignore[arg-type]
 
@@ -97,6 +102,7 @@ async def test_omitted_later_fields_keep_the_previous_values() -> None:
                 "legal_form",
                 "imprint_representatives",
                 "imprint_phone",
+                "imprint_email",
                 "imprint_register_court",
                 "imprint_register_number",
                 "imprint_vat_id",
@@ -113,6 +119,7 @@ async def test_omitted_later_fields_keep_the_previous_values() -> None:
     assert saved.legal_form == previous.legal_form is not None
     assert saved.imprint_representatives == previous.imprint_representatives
     assert saved.imprint_phone == previous.imprint_phone
+    assert saved.imprint_email == previous.imprint_email is not None
     assert saved.imprint_register_number == "VR 1234"
     assert saved.imprint_vat_id == "DE123456789"
     assert saved.privacy_policy_text == previous.privacy_policy_text
