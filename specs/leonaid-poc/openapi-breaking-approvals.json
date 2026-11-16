@@ -246,6 +246,14 @@
         "property-type-changed:DashboardGoalResponse.currency"
       ],
       "rationale": "E-062: an action goal without money has no currency. The dashboard sent the text \"None\" (str(None)) and the admin views crashed in Intl.NumberFormat (first production install, action with goal unit Boxen). The goal currency becomes nullable; order, invoice and donation figures keep a required currency (EUR without a money goal). Only the generated client and the apps in this repository read it, regenerated and handled in the same change."
+    },
+    {
+      "oldSha256": "705b9e4c56b03bfc3be7e75bc6a0a77aa7d77567939415516b79e6eef9be70c6",
+      "newSha256": "c84db8dd69ccd27ba445d9fc71109b53a84075f0782ec2e811a998b425a2077c",
+      "changes": [
+        "property-newly-required:CampaignAliasItemResponse.renderer"
+      ],
+      "rationale": "E-063: the alias list reports the primary alias renderer (legacy or campaign) so Aktion › Adressen can show and switch it; the switch had an API but no UI. The field is always present (from public_action_alias.campaign_redirect). Only the generated client and the apps in this repository read it, regenerated and handled in the same change."
     }
   ]
 }
