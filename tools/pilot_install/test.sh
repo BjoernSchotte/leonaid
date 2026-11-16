@@ -371,6 +371,9 @@ mount = (
 )
 # The core worker's default TLS context (no MAIL_SMTP_CA_FILE in the pilot)
 # reads the trust store from SSL_CERT_FILE: test relay CA only, test only.
+# Twenty's worker adds the system store (NODE_USE_SYSTEM_CA), which reads the
+# same file, to its bundled roots. NODE_EXTRA_CA_CERTS stays empty: the
+# deployment doctor allows it only for the staging Mailpit CA.
 text = text.replace(
     anchor,
     anchor
@@ -379,7 +382,8 @@ text = text.replace(
     + mount
     + "\n  twenty-worker:\n"
     + "    environment:\n"
-    + "      NODE_EXTRA_CA_CERTS: /run/leonaid-test/smtp-ca.pem\n"
+    + "      NODE_USE_SYSTEM_CA: \"1\"\n"
+    + "      SSL_CERT_FILE: /run/leonaid-test/smtp-ca.pem\n"
     + mount,
 )
 text += (
