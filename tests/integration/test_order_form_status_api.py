@@ -30,6 +30,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tests.integration.test_site_hosts_api import ADMIN, Fixture, settings  # noqa: E402
 
 
+async def add_beneficiary(connection: asyncpg.Connection[Any], action: UUID) -> None:
+    # Loading an action for management needs at least one beneficiary.
+    await connection.execute(
+        "INSERT INTO beneficiary (id, action_id, organization_name, "
+        "public_description, sort_order) VALUES ($1, $2, 'Proof', 'Proof', 0)",
+        uuid4(),
+        action,
+    )
+
+
 async def add_order_form(connection: asyncpg.Connection[Any], action: UUID) -> None:
     await connection.execute(
         """
@@ -75,6 +85,8 @@ async def main() -> None:
         formless = await fixture.action(
             "orderformnone", "active", now - day, now + 30 * day, cms=False
         )
+        for each in (action, archived, formless):
+            await add_beneficiary(connection, each)
         await add_order_form(connection, action)
         await add_order_form(connection, archived)
         app = create_app(settings())
@@ -167,6 +179,9 @@ async def main() -> None:
         await connection.execute(
             "DELETE FROM action_template_snapshot WHERE action_id = ANY($1::uuid[])",
             actions,
+        )
+        await connection.execute(
+            "DELETE FROM beneficiary WHERE action_id = ANY($1::uuid[])", actions
         )
         await fixture.cleanup()
         await connection.close()
