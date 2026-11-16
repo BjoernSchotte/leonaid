@@ -213,6 +213,16 @@ class CharityActionRepository(Protocol):
         occurred_at: datetime,
     ) -> None: ...
 
+    async def set_order_form_status(
+        self,
+        action_id: UUID,
+        *,
+        status: OfferingStatus,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> None: ...
+
     async def get_management(
         self,
         action_id: UUID,
@@ -948,6 +958,49 @@ class CharityActionService:
             await self._repository.set_order_form_donation(
                 action_id,
                 allow_donation=allow_donation,
+                actor_user_id=actor.account.id,
+                request_id=request_id,
+                occurred_at=datetime.now(timezone.utc),
+            )
+            configuration = await self._repository.get_configuration(action_id)
+            assert configuration is not None
+        return action, configuration
+
+    async def set_order_form_active(
+        self,
+        actor: IdentityPrincipal,
+        action_id: UUID,
+        *,
+        active: bool,
+        request_id: str,
+    ) -> tuple[CharityAction, ActionConfiguration]:
+        """Opens or closes the action's public order form.
+
+        A new action's form starts as a draft. Opening it makes the form
+        public on the action and campaign pages, as long as the action is
+        published, offers something and the legal configuration is active;
+        closing it stops new public orders at once. Orders taken by members
+        do not depend on it.
+        """
+
+        action = await self._managed_action(actor, action_id)
+        configuration = await self._repository.get_configuration(action_id)
+        if configuration is None or configuration.order_form is None:
+            raise Conflict(
+                "order_form_missing",
+                "Diese Charity-Aktion besitzt kein Bestellformular.",
+            )
+        if active and action.status is CharityActionStatus.ARCHIVED:
+            raise Conflict(
+                "order_form_action_archived",
+                "Eine archivierte Aktion nimmt keine Bestellungen mehr an.",
+            )
+        target = OfferingStatus.ACTIVE if active else OfferingStatus.INACTIVE
+        current = configuration.order_form.status
+        if (current is OfferingStatus.ACTIVE) != active:
+            await self._repository.set_order_form_status(
+                action_id,
+                status=target,
                 actor_user_id=actor.account.id,
                 request_id=request_id,
                 occurred_at=datetime.now(timezone.utc),

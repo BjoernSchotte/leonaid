@@ -28,8 +28,9 @@ export const DONATION_SWITCH_BLOCKS_CAPABILITY =
   "Schalten Sie zuerst die Zusatzspende im Bestellformular aus.";
 
 /**
- * "Zusatzspende im Bestellformular" in the action's settings
- * (specs/mails-documents-donations-push §8.6). The switch saves at once
+ * "Bestellformular" in the action's settings: whether the public form takes
+ * orders, and the "Zusatzspende im Bestellformular"
+ * (specs/mails-documents-donations-push §8.6). Both switches save at once
  * and, unlike the action's functions, can change while the action runs.
  */
 export function OrderFormDonationSection({
@@ -78,7 +79,37 @@ export function OrderFormDonationSection({
       );
     },
   });
+  const open = useMutation({
+    mutationFn: (active: boolean) =>
+      client.setOrderFormStatus(actionId, { active }),
+    onMutate: () => setError(undefined),
+    onSuccess(result) {
+      cache.setQueryData(queryKey, result);
+      // The public addresses show whether the form takes orders.
+      void cache.invalidateQueries({
+        queryKey: ["action-public-urls", actionId],
+      });
+      toast?.show({
+        title: result.orderForm?.active
+          ? "Das Bestellformular nimmt ab jetzt Bestellungen an."
+          : "Das Bestellformular nimmt keine Bestellungen mehr an.",
+        tone: "success",
+      });
+    },
+    async onError(cause) {
+      if (cause instanceof ApiError && cause.status === 409) {
+        await cache.invalidateQueries({ queryKey });
+      }
+      setError(
+        cause instanceof ApiError &&
+          cause.detail.code === "order_form_action_archived"
+          ? "Eine archivierte Aktion nimmt keine Bestellungen mehr an."
+          : actionErrorMessage(cause).message,
+      );
+    },
+  });
   const on = orderForm.allowDonation;
+  const active = orderForm.active;
 
   return (
     <section
@@ -91,9 +122,37 @@ export function OrderFormDonationSection({
         Bestellformular
       </h2>
       <p className="small muted edit-section-intro">
-        Der Schalter gilt sofort, auch während die Aktion läuft.
+        Die Schalter gelten sofort, auch während die Aktion läuft.
       </p>
       <ul className="choice-list">
+        <li className="buyer-mail-switch">
+          <div className="buyer-mail-switch-text">
+            <label htmlFor="order-form-status-switch">
+              <strong>Öffentliche Bestellungen annehmen</strong>
+            </label>
+            <p className="small muted" id="order-form-status-description">
+              Zeigt das Bestellformular auf der Aktions- und Kampagnenseite,
+              solange die Aktion veröffentlicht ist und „Rechtliches“ aktiv ist.
+              Ausgeschaltet nimmt die Seite keine neuen Bestellungen an;
+              Bestellungen, die Mitglieder erfassen, bleiben möglich.
+            </p>
+          </div>
+          <Badge tone={active ? "ok" : "neutral"}>
+            {active ? "An" : "Aus"}
+          </Badge>
+          <Switch
+            aria-describedby="order-form-status-description"
+            checked={active}
+            data-testid="order-form-status-switch"
+            disabled={
+              open.isPending ||
+              // Closing stays possible for an archived action.
+              (disabled && !active)
+            }
+            id="order-form-status-switch"
+            onChange={(event) => open.mutate(event.target.checked)}
+          />
+        </li>
         <li className="buyer-mail-switch">
           <div className="buyer-mail-switch-text">
             <label htmlFor="order-form-donation-switch">

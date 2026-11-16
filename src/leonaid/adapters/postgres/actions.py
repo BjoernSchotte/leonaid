@@ -795,6 +795,45 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                     occurred_at=occurred_at,
                 )
 
+    async def set_order_form_status(
+        self,
+        action_id: UUID,
+        *,
+        status: OfferingStatus,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> None:
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                previous = await connection.fetchval(
+                    """
+                    SELECT status FROM order_form_configuration
+                    WHERE action_id = $1
+                    FOR UPDATE
+                    """,
+                    action_id,
+                )
+                await connection.execute(
+                    """
+                    UPDATE order_form_configuration
+                    SET status = $2, updated_at = $3
+                    WHERE action_id = $1
+                    """,
+                    action_id,
+                    status.value,
+                    occurred_at,
+                )
+                await self._audit_by_id(
+                    connection,
+                    action_id=action_id,
+                    actor_user_id=actor_user_id,
+                    event_type="order_form_status_changed",
+                    request_id=request_id,
+                    payload={"previousStatus": previous, "status": status.value},
+                    occurred_at=occurred_at,
+                )
+
     async def replace_capabilities(
         self,
         action: CharityAction,

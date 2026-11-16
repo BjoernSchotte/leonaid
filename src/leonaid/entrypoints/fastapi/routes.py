@@ -235,6 +235,7 @@ from leonaid.domain.action_templates import (
     ActionConfiguration,
     ActionTemplate,
     ActionTemplateKey,
+    OfferingStatus,
     OfferingUnit,
 )
 from leonaid.domain.commitments import (
@@ -499,6 +500,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     SetActionBeneficiariesRequest,
     SetActionCapabilitiesRequest,
     SetOrderFormDonationRequest,
+    SetOrderFormStatusRequest,
     SetActionGoalRequest,
     SetActionPublicationRequest,
     SetResponsibleAdministratorsRequest,
@@ -1716,6 +1718,7 @@ def charity_action_configuration_response(
                 ),
                 allow_message=(configuration.order_form.configuration.allow_message),
                 allow_donation=(configuration.order_form.configuration.allow_donation),
+                active=configuration.order_form.status is OfferingStatus.ACTIVE,
             )
             if configuration.order_form is not None
             else None
@@ -4193,6 +4196,38 @@ async def set_order_form_donation(
         actor,
         action_id,
         allow_donation=body.allow_donation,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return charity_action_configuration_response(action, configuration)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/order-form/status",
+    operation_id="setOrderFormStatus",
+    response_model=CharityActionConfigurationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def set_order_form_status(
+    action_id: UUID,
+    request: Request,
+    body: SetOrderFormStatusRequest,
+    response: Response,
+) -> CharityActionConfigurationResponse:
+    """Open or close the action's public order form.
+
+    A new action's form starts closed. The public pages offer it only while
+    it is open, the action is published, offers something and the legal
+    configuration is active. Opening it for an archived action: 409
+    `order_form_action_archived`; an action without a form: 409
+    `order_form_missing`. Idempotent: the same state again changes nothing.
+    """
+    actor = await identity_service(request).authenticate(session_token(request))
+    action, configuration = await action_service(request).set_order_form_active(
+        actor,
+        action_id,
+        active=body.active,
         request_id=request_id(request),
     )
     response.headers["Cache-Control"] = "no-store"

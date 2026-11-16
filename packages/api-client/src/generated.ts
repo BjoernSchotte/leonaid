@@ -274,7 +274,7 @@ export type OperationalMonitoringResponse = { readonly activeAlerts: Array<Opera
 export type OperationalSiteHostResponse = { readonly failedChecks: number; readonly hostname: string; readonly lastCheckResult: string | null; readonly lastCheckedAt: string | null; readonly liveBindings: number; readonly status: "pending" | "verified" | "active" | "disabled"; };
 export type OperationalStatusCountsResponse = { readonly completed: number; readonly deadLetter: number; readonly pending: number; readonly processing: number; };
 export type OperationsOverviewResponse = { readonly api: OperationalApiMetricsResponse; readonly dependencies: Array<OperationalDependencyResponse>; readonly failedJobs: Array<OperationalFailedJobResponse>; readonly generatedAt: string; readonly login: OperationalLoginMetricsResponse; readonly mail: OperationalStatusCountsResponse; readonly monitoring: OperationalMonitoringResponse; readonly nextPendingAttemptAt?: string | null; readonly oldestDuePendingAgeSeconds?: number | null; readonly outbox: OperationalStatusCountsResponse; readonly requestId: string; readonly siteHosts?: Array<OperationalSiteHostResponse>; };
-export type OrderFormConfigurationResponse = { readonly allowDonation: boolean; readonly allowMessage: boolean; readonly formKey: string; readonly id: string; readonly introduction: string; readonly requireBillingAddress: boolean; readonly requireCompanyName: boolean; readonly requireContactName: boolean; readonly requireDeliveryAddress: boolean; readonly requireEmail: boolean; readonly requirePhone: boolean; readonly submitLabel: string; readonly title: string; };
+export type OrderFormConfigurationResponse = { readonly active: boolean; readonly allowDonation: boolean; readonly allowMessage: boolean; readonly formKey: string; readonly id: string; readonly introduction: string; readonly requireBillingAddress: boolean; readonly requireCompanyName: boolean; readonly requireContactName: boolean; readonly requireDeliveryAddress: boolean; readonly requireEmail: boolean; readonly requirePhone: boolean; readonly submitLabel: string; readonly title: string; };
 export type Page = { readonly actionId: string | null; readonly content: Record<string, unknown>; readonly id: string; readonly ownerUserId: string; readonly revision: number; readonly title: string; };
 export type PageAccess = { readonly accessRevision: number; readonly ownerUserId: string; };
 export type PageMember = { readonly access: "viewer" | "editor"; readonly active: boolean; readonly displayName: string; readonly userId: string; };
@@ -366,6 +366,7 @@ export type SetMaterialMember = { readonly access: "viewer" | "editor" | null; r
 export type SetMaterialMemberByEmail = { readonly access: "viewer" | "editor"; readonly email: string; readonly expectedAccessRevision: number; readonly idempotencyKey: string; };
 export type SetMaterialReference = { readonly expectedRevision: number; readonly idempotencyKey: string; readonly materialId: string; readonly materialVersion: number; readonly present: boolean; };
 export type SetOrderFormDonationRequest = { readonly allowDonation: boolean; };
+export type SetOrderFormStatusRequest = { readonly active: boolean; };
 export type SetPageMember = { readonly access: "viewer" | "editor" | null; readonly expectedAccessRevision: number; readonly idempotencyKey: string; readonly userId: string; };
 export type SetPageMemberByEmail = { readonly access: "viewer" | "editor"; readonly email: string; readonly expectedAccessRevision: number; readonly idempotencyKey: string; };
 export type SetResponsibleAdministratorsRequest = { readonly revision: number; readonly userIds: Array<string>; };
@@ -1782,6 +1783,22 @@ export class LeonAidApiClient {
   ): Promise<CharityActionConfigurationResponse> {
     return this.request<CharityActionConfigurationResponse>(
       `/api/v1/actions/${encodeURIComponent(String(actionId))}/order-form/donation`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async setOrderFormStatus(
+    actionId: string,
+    body: SetOrderFormStatusRequest,
+    options: RequestOptions = {},
+  ): Promise<CharityActionConfigurationResponse> {
+    return this.request<CharityActionConfigurationResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/order-form/status`,
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
