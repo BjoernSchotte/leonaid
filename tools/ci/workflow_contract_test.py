@@ -123,6 +123,26 @@ CI_MUTATIONS = (
         "evidence artifacts",
     ),
     (
+        "            --selectable unit=checks \\\n",
+        "",
+        "unit must run whenever the selector succeeded and selected the checks",
+    ),
+    (
+        "needs.select.outputs.checks == 'true' && needs.fixture.result",
+        "needs.fixture.result",
+        "security must run whenever the selector succeeded and selected the checks",
+    ),
+    (
+        "python3 tools/ci/post_merge.py record",
+        "python3 tools/ci/post_merge.py noop",
+        "the CI gate of a pull request must record its proof",
+    ),
+    (
+        "          --selectable lint=checks\n          --selectable integration-shards",
+        "          --selectable integration-shards",
+        "'API contract gate' must require Lint",
+    ),
+    (
         "        bin: ${{ fromJSON(needs.select.outputs.e2e) }}\n",
         "        bin: [{id: '1', shards: tasks}]\n",
         "E2E leaves must come from the suite selector",

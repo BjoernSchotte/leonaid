@@ -1,7 +1,8 @@
 name: Select CI suites
 # Reusable: pull requests get the fast tier (decision E-018), the full-ci
 # label the complete suite; a post-merge push to main gets the suites of the
-# paths changed since the last green run on main; schedule, dispatch and a
+# paths changed since the last green run on main, minus what a green
+# pull-request run of exactly the same tree proved; schedule, dispatch and a
 # push without such a run get the complete suite.
 # Rules and tests: tools/ci/select_suites.py and select_suites_test.py.
 on:
@@ -32,6 +33,10 @@ on:
         value: ${{ jobs.select.outputs.pins }}
       tier:
         value: ${{ jobs.select.outputs.tier }}
+      checks:
+        value: ${{ jobs.select.outputs.checks }}
+      proved:
+        value: ${{ jobs.select.outputs.proved }}
 # The caller caps these; actions: read is needed for the Actions API
 # (runs, caches), which only answers without it for a public repository.
 permissions:
@@ -53,6 +58,8 @@ jobs:
       api: ${{ steps.select.outputs.api }}
       pins: ${{ steps.select.outputs.pins }}
       tier: ${{ steps.select.outputs.tier }}
+      checks: ${{ steps.select.outputs.checks }}
+      proved: ${{ steps.select.outputs.proved }}
     steps:
       # The pull-request merge commit's first parent is the current base, so
       # HEAD^1..HEAD is exactly what this PR adds to main.
@@ -79,6 +86,17 @@ jobs:
           else
             echo "::warning title=Post-merge selection::no green run of ${WORKFLOW_REF%%@*} on main found (or not fetchable); running the complete suite"
           fi
+      # Post-merge: the suites a green pull-request run of the merged head
+      # proved for exactly this tree (the CI gate's ci-proof artifact). Any
+      # mismatch or failure proves nothing (tools/ci/post_merge.py proof).
+      - id: proof
+        if: inputs.post-merge && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: |
+          proved=$(python3 tools/ci/post_merge.py proof) || proved=
+          echo "suites=$proved" >> "$GITHUB_OUTPUT"
       - id: select
         env:
           EVENT: ${{ github.event_name }}
@@ -88,12 +106,15 @@ jobs:
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
           SCHEDULE: ${{ github.event.schedule }}
           POST_MERGE_BASE: ${{ steps.base.outputs.sha }}
+          PROVED: ${{ steps.proof.outputs.suites }}
         run: |
           if [ "$EVENT" = pull_request ]; then
             python3 tools/ci/select_suites.py --event "$EVENT" --base HEAD^1 --head HEAD \
               --base-ref "$BASE_REF" --labels "$LABELS"
           elif [ "$EVENT" = push ] && [ -n "$POST_MERGE_BASE" ]; then
-            python3 tools/ci/select_suites.py --event "$EVENT" --base "$POST_MERGE_BASE" --head HEAD
+            python3 tools/ci/select_suites.py --event "$EVENT" --base "$POST_MERGE_BASE" --head HEAD \
+              --proved "$PROVED"
           else
-            python3 tools/ci/select_suites.py --event "$EVENT" --schedule "$SCHEDULE"
+            python3 tools/ci/select_suites.py --event "$EVENT" --schedule "$SCHEDULE" \
+              --proved "$PROVED"
           fi
