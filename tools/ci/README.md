@@ -35,8 +35,13 @@ cancelled.
 of its post-merge run (about 20 minutes, longer when merges queue: E-019 lets
 every post-merge run finish), and a failure then affects every open pull
 request until it is fixed. Pilot proofs (backup, deployment, install,
-import, release) stay nightly (`ci.yml` `backup-recovery`, 7 runners
-of up to two hours); after a merge only the Contract job (pilot plan,
+import, release) run nightly (`ci.yml` `backup-recovery`, 8 runners
+of up to two hours); after a merge and with `full-ci` a command runs when a
+directory its proof script reads changed (`RECOVERY_OWNERS`, E-069): a change
+to `tools/pilot_deployment/` runs `test-pilot-deployment`. The operator tools
+only the CLI and their own proofs use (`tools/pilot_import`, `pilot_backup`,
+`upgrade`, `mail_relay`, `pilot_alerting`) select nothing else. Shared
+infrastructure leaves them to the nightly run. The Contract job (pilot plan,
 decisions, readiness) runs when its inputs changed. A red post-merge run opens the watchdog
 issue; fixing it has priority. To revert, select the heavy suites in
 `fast_tier()` again (`select_suites.py`).
@@ -372,9 +377,10 @@ Survey checks without a stack run under their own names: the `survey-core`,
 The stack checks run in the shards of `./leonaid test-surveys` (`./leonaid
 help` lists them): nine after the merge and with `full-ci`, four more
 (recovery, exports-recovery, restic, pilot) nightly and on dispatch, beside
-the nightly backup proofs (job `backup-recovery`: test-backup, test-upgrade,
+the backup proofs (job `backup-recovery`: test-backup, test-upgrade,
 test-pilot-backup, test-pilot-deployment, test-pilot-install,
-test-pilot-import, test-pilot-release, test-mail-relay).
+test-pilot-import, test-pilot-release, test-mail-relay; all nightly, the
+owned ones after the merge).
 
 The CI gate requires every selected survey shard. `Survey gate` is still a
 required check of the ruleset; ci.yml's job `survey-gate` mirrors the CI

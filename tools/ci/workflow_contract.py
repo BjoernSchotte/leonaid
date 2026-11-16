@@ -245,6 +245,16 @@ def check(path: Path) -> list[str]:
         problems.append(
             "Survey legs must come from the suite selector and run every shard."
         )
+    recovery = job_block(text, "backup-recovery")
+    if (
+        "command: ${{ fromJSON(needs.select.outputs.recovery) }}" not in recovery
+        or "needs.select.outputs.recovery != '[]'" not in recovery
+        or "--selectable backup-recovery=recovery" not in job_block(text, "gate")
+    ):
+        problems.append(
+            "Recovery commands must come from the suite selector, and the CI "
+            "gate must require the selected ones."
+        )
     for job, kind in (
         ("integration-shards", "integration"),
         ("e2e", "e2e"),

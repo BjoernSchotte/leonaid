@@ -23,6 +23,8 @@ on:
         value: ${{ jobs.select.outputs.emdash }}
       survey_legs:
         value: ${{ jobs.select.outputs.survey_legs }}
+      recovery:
+        value: ${{ jobs.select.outputs.recovery }}
       contract:
         value: ${{ jobs.select.outputs.contract }}
       golden:
@@ -55,6 +57,7 @@ jobs:
       e2e: ${{ steps.select.outputs.e2e }}
       emdash: ${{ steps.select.outputs.emdash }}
       survey_legs: ${{ steps.select.outputs.survey_legs }}
+      recovery: ${{ steps.select.outputs.recovery }}
       contract: ${{ steps.select.outputs.contract }}
       golden: ${{ steps.select.outputs.golden }}
       surveys: ${{ steps.select.outputs.surveys }}
