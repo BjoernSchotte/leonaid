@@ -6,6 +6,7 @@ import type {
 } from "@leonaid/api-client";
 import { ApiError } from "@leonaid/api-client";
 import { Button, ConfirmDialog, StatusMessage } from "@leonaid/ui";
+import { timeZoneHint } from "@leonaid/ui/time-zone";
 
 export interface DeliveryDraft {
   readonly recipientName: string;
@@ -374,8 +375,7 @@ export function DeliveryFields({
         >
           <legend>Lieferzeitfenster</legend>
           <p id={`${prefix}-timezone`}>
-            Alle Uhrzeiten gelten in {configuration.timezone}. Bitte ein Fenster
-            auswählen.
+            {`Alle Uhrzeiten gelten ${timeZoneHint(configuration.timezone)}. Bitte ein Fenster auswählen.`}
           </p>
           {upcoming.length ? (
             renderDays(upcoming, 3)

@@ -1,5 +1,6 @@
 ---
 import type { DeliveryConfigurationResponse } from "@leonaid/api-client";
+import { timeZoneHint } from "@leonaid/ui/time-zone";
 
 interface Props {
   configuration: DeliveryConfigurationResponse;
@@ -18,8 +19,9 @@ const dayLabel = (day: string) =>
 <fieldset class="delivery-windows" data-delivery-window-selection>
   <legend>Lieferfenster</legend>
   <p>
-    Wir liefern innerhalb des gewählten Zeitraums. Alle Uhrzeiten gelten in
-    {configuration.timezone}.
+    {
+      `Wir liefern innerhalb des gewählten Zeitraums. Alle Uhrzeiten gelten ${timeZoneHint(configuration.timezone)}.`
+    }
   </p>
   {
     days.map((day) => (
