@@ -13,7 +13,7 @@ const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const textSources = [
   {
     path: "apps/public/src/components/KrapfentaxiIntro.astro",
-    sha256: "757f10dd40a2837e2f0fdf52edd8148dde147413039bc13b8b580d9c77d02c56",
+    sha256: "09cde18087425cca54b96419d179ee924ea0ebf22090572cc474358a6082011e",
   },
   {
     path: `${assetDirectory}SOURCES.md`,
